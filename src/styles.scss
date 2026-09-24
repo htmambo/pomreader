@@ -1,0 +1,25 @@
+/* ============================================================
+ * pomreader-ui-clone 入口样式
+ * ============================================================ */
+
+@import './styles/tokens.scss';
+@import './styles/ng-zorro-overrides.scss';
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  font-family: var(--pom-font-family);
+  font-size: var(--pom-font-size-base);
+  color: var(--pom-text);
+  background: var(--pom-bg) var(--pom-bg-image) repeat;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}

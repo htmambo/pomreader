@@ -1,0 +1,76 @@
+/* ============================================================
+ * 设计 token（提取自原 vendor 白虎阅读 index.prod.html / styles bundle）
+ * 与 v1.1 §9.1 / STATUS.md 2026-09-24 暗色适配保持一致
+ * ============================================================ */
+
+:root {
+  /* 字体栈 */
+  --pom-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+
+  /* 圆角 */
+  --pom-radius-sm: 4px;
+  --pom-radius-md: 8px;
+  --pom-radius-lg: 12px;
+
+  /* 间距 */
+  --pom-spacing-xs: 4px;
+  --pom-spacing-sm: 8px;
+  --pom-spacing-md: 16px;
+  --pom-spacing-lg: 24px;
+  --pom-spacing-xl: 32px;
+
+  /* 字号 */
+  --pom-font-size-xs: 12px;
+  --pom-font-size-sm: 13px;
+  --pom-font-size-base: 14px;
+  --pom-font-size-md: 16px;
+  --pom-font-size-lg: 18px;
+  --pom-font-size-xl: 22px;
+
+  /* 阅读字号（可配） */
+  --pom-reader-font-size: 16px;
+
+  /* 滚动条 */
+  --pom-scrollbar-width: 8px;
+  --pom-scrollbar-track: transparent;
+}
+
+/* light theme（与原 vendor #e2d1a5 / #f4eac7 / #cdc0a4 对齐） */
+:root[data-color-mode='light'][data-default-theme='1'] {
+  --pom-bg: #e2d1a5;
+  --pom-bg-image: url('/assets/themes/body_light_bg.png');
+  --pom-fg: #f4eac7;
+  --pom-fg-image: url('/assets/themes/reader_light_bg.png');
+  --pom-text: #262626;
+  --pom-text-muted: #8c8c8c;
+  --pom-border: #d4cba0;
+  --pom-card: #faf6e8;
+  --pom-text-on-card: #262626;
+  --pom-scrollbar-thumb: #c9b98f;
+  --pom-modal-fg: var(--pom-text);
+  --pom-modal-bg: var(--pom-card);
+}
+
+/* dark theme（与原 vendor #161819 / #666666 / #999999 / #26292b 对齐） */
+:root[data-color-mode='dark'][data-default-theme='1'] {
+  --pom-bg: #161819;
+  --pom-bg-image: url('/assets/themes/body_dark_bg.png');
+  --pom-fg: #0e0f11;
+  --pom-fg-image: url('/assets/themes/reader_dark_bg.png');
+  --pom-text: #666666;
+  --pom-text-muted: #999999;
+  --pom-border: #26292b;
+  --pom-card: #1b1d1e;
+  --pom-text-on-card: #999999;
+  --pom-scrollbar-thumb: #2e3236;
+  --pom-modal-fg: var(--pom-text-muted);
+  --pom-modal-bg: #1b1d1e;
+}
+
+/* 弹窗跟随方案（v1.1 §7.3 / v1.1 §13 P5 弹窗跟随）
+ * 通过 inline CSS variable --pom-modal-fg / --pom-modal-bg 覆盖 */
+.ant-modal[data-pom-scheme] {
+  --pom-modal-fg: var(--modal-fg);
+  --pom-modal-bg: var(--modal-bg);
+}

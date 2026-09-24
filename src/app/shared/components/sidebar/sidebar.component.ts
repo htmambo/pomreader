@@ -1,0 +1,49 @@
+import { Component } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { RouterLink, RouterLinkActive } from '@angular/router';
+import { NzMenuModule } from 'ng-zorro-antd/menu';
+import { NzIconModule } from 'ng-zorro-antd/icon';
+
+/**
+ * Sidebar — 3 链接（书架 / 万能搜索 / 免责声明）
+ * 与原 vendor 一致
+ */
+@Component({
+  selector: 'app-sidebar',
+  standalone: true,
+  imports: [CommonModule, RouterLink, RouterLinkActive, NzMenuModule, NzIconModule],
+  template: `
+    <h1 class="logo">白虎阅读</h1>
+    <ul nz-menu nzTheme="dark" nzMode="inline">
+      <li nz-menu-item [routerLink]="['/bookshelf']" routerLinkActive="ant-menu-item-selected">
+        <span nz-icon nzType="book"></span>
+        <span>书架</span>
+      </li>
+      <li nz-menu-item [routerLink]="['/search']" routerLinkActive="ant-menu-item-selected">
+        <span nz-icon nzType="search"></span>
+        <span>万能搜索</span>
+      </li>
+      <li nz-menu-item [routerLink]="['/disclaimer']" routerLinkActive="ant-menu-item-selected">
+        <span nz-icon nzType="file-text"></span>
+        <span>免责声明</span>
+      </li>
+    </ul>
+  `,
+  styles: [
+    `
+      .logo {
+        color: var(--pom-text-muted);
+        text-align: center;
+        line-height: 64px;
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+      }
+      :host {
+        display: block;
+        height: 100%;
+      }
+    `,
+  ],
+})
+export class SidebarComponent {}

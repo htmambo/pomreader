@@ -1,0 +1,212 @@
+/* ============================================================
+ * ng-zorro-antd 暗色主题覆盖（与原 app 一致）
+ * 来源：原 vendor 白虎阅读 index.prod.html 内联 style（已 patch）
+ * 原则：dark mode 下 modal/drawer/input/button 等颜色继承 CSS var
+ * 注意：data-color-mode 打在 <html> 上（v1.1 §9.3 修订）
+ * ============================================================ */
+
+:root[data-color-mode='dark'] {
+  /* antd 主色（原 app 默认 #177ddc） */
+  --ant-primary-color: #177ddc;
+
+  /* Layout */
+  .ant-layout,
+  .ant-layout-content,
+  .ant-layout-header {
+    background: var(--pom-bg) var(--pom-bg-image) repeat !important;
+    color: var(--pom-text) !important;
+  }
+
+  .ant-layout-sider,
+  .ant-layout-sider-dark,
+  .ant-menu-dark,
+  .ant-menu-dark .ant-menu-sub {
+    background: var(--pom-fg) var(--pom-bg-image) repeat !important;
+  }
+
+  /* 菜单文字 */
+  .ant-menu-dark .ant-menu-item,
+  .ant-menu-dark .ant-menu-item > a {
+    color: var(--pom-text) !important;
+  }
+  .ant-menu-dark .ant-menu-item:hover > a,
+  .ant-menu-dark .ant-menu-item-selected,
+  .ant-menu-dark .ant-menu-item-selected > a {
+    color: var(--pom-text-muted) !important;
+  }
+  .ant-menu-dark .ant-menu-item-selected {
+    background: var(--pom-border) !important;
+  }
+
+  /* Card */
+  .ant-card,
+  .ant-card-bordered {
+    background: var(--pom-card) !important;
+    border-color: var(--pom-border) !important;
+    color: var(--pom-text) !important;
+  }
+  .ant-card:hover {
+    border-color: #3a3e42 !important;
+  }
+
+  /* Button */
+  .ant-btn:not(.ant-btn-link):not(.ant-btn-text) {
+    background: var(--pom-card) !important;
+    border-color: var(--pom-border) !important;
+    color: var(--pom-text) !important;
+    text-shadow: none !important;
+  }
+  .ant-btn:not(.ant-btn-link):not(.ant-btn-text):hover {
+    color: var(--pom-text-muted) !important;
+    border-color: #3a3e42 !important;
+  }
+  .ant-btn-link,
+  .button-list .ant-btn,
+  .button-list .anticon {
+    color: var(--pom-text) !important;
+  }
+  .ant-btn-link:hover,
+  .button-list .ant-btn:hover .anticon {
+    color: var(--pom-text-muted) !important;
+  }
+
+  /* Modal（弹窗跟随方案默认色） */
+  .ant-modal-content,
+  .ant-modal-header {
+    background: var(--pom-modal-bg) !important;
+    color: var(--pom-modal-fg) !important;
+  }
+  .ant-modal-title {
+    color: var(--pom-text-muted) !important;
+  }
+  .ant-modal-header,
+  .ant-modal-footer {
+    border-color: var(--pom-border) !important;
+  }
+  .ant-modal-close {
+    color: var(--pom-text) !important;
+  }
+
+  /* Drawer */
+  .ant-drawer-content,
+  .ant-drawer-wrapper-body {
+    background: var(--pom-bg) !important;
+    color: var(--pom-text) !important;
+  }
+  .ant-drawer-header {
+    background: var(--pom-bg) !important;
+    border-color: var(--pom-border) !important;
+    color: var(--pom-text) !important;
+  }
+  .ant-drawer-title {
+    color: var(--pom-text-muted) !important;
+  }
+  .ant-drawer-close,
+  .ant-drawer-close:hover {
+    color: var(--pom-text) !important;
+  }
+
+  /* Modal 内标题层级（v1.1 §15.2 默认近黑 rgba(0,0,0,.85) 暗色适配） */
+  .ant-modal-content h1,
+  .ant-modal-content h2,
+  .ant-modal-content h3,
+  .ant-modal-content h4,
+  .ant-modal-content h5,
+  .ant-modal-content h6 {
+    color: var(--pom-text-muted) !important;
+  }
+  .ant-modal-content .ant-typography {
+    color: var(--pom-text) !important;
+  }
+
+  /* Upload 拖放区（v1.1 §15.2 默认 #fafafa → #161819） */
+  .ant-upload.ant-upload-drag {
+    background: var(--pom-bg) !important;
+    border-color: var(--pom-border) !important;
+  }
+  .ant-upload.ant-upload-drag:hover {
+    border-color: #3a3e42 !important;
+  }
+  .ant-upload.ant-upload-drag .ant-upload-text {
+    color: var(--pom-text-muted) !important;
+  }
+  .ant-upload.ant-upload-drag .ant-upload-hint {
+    color: var(--pom-text) !important;
+  }
+
+  /* List（章节列表 / 目录） */
+  .ant-list,
+  .ant-list .ant-list-header,
+  .ant-list .ant-list-footer,
+  .ant-list .ant-list-item {
+    color: var(--pom-text) !important;
+  }
+  .ant-list-split .ant-list-item,
+  .ant-list-split .ant-list-header,
+  .ant-list-bordered {
+    border-color: var(--pom-border) !important;
+  }
+  .ant-list .current-chapter-menu-item {
+    color: var(--pom-text-muted) !important;
+  }
+
+  /* Input / PageHeader */
+  .ant-input,
+  input[type='text'],
+  input[type='number'] {
+    background: var(--pom-bg) !important;
+    border-color: var(--pom-border) !important;
+    color: var(--pom-text-muted) !important;
+  }
+  .ant-page-header-heading,
+  .ant-page-header-content {
+    color: var(--pom-text) !important;
+  }
+  .ant-page-header-heading-title {
+    color: var(--pom-text-muted) !important;
+  }
+  .ant-page-header-heading-sub-title {
+    color: var(--pom-text) !important;
+  }
+}
+
+/* light theme 覆盖（v1.1 §9 亮色对齐原 app） */
+:root[data-color-mode='light'] {
+  .ant-layout,
+  .ant-layout-content,
+  .ant-layout-header {
+    background: var(--pom-bg) var(--pom-bg-image) repeat !important;
+  }
+  .read-screen {
+    background: var(--pom-bg) var(--pom-bg-image) repeat !important;
+  }
+  .read-region {
+    background: var(--pom-fg) var(--pom-fg-image) repeat !important;
+  }
+}
+
+/* 滚动条（v1.1 §11.3 / T5.3 — 8px 细条） */
+::-webkit-scrollbar {
+  width: var(--pom-scrollbar-width);
+  height: var(--pom-scrollbar-width);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--pom-scrollbar-thumb);
+  border-radius: var(--pom-radius-sm);
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: var(--pom-scrollbar-track);
+}
+
+/* Modal 内部滚动条（弹窗跟随方案派生） */
+.ant-modal[data-pom-scheme] ::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--pom-modal-fg) 30%, transparent);
+}
+.ant-modal[data-pom-scheme] ::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--pom-modal-fg) 50%, transparent);
+}
+.ant-modal[data-pom-scheme] ::-webkit-scrollbar-track,
+.ant-modal[data-pom-scheme] ::-webkit-scrollbar-corner {
+  background: transparent;
+}
