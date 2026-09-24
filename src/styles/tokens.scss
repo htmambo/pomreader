@@ -53,3 +53,22 @@
   --pom-text-on-card: #262626;
   --pom-scrollbar-thumb: #c9b98f;
 }
+
+/* 暗色主题（theme=6，黑色）
+ * <html data-pom-theme="6"> 由 app.component effect 同步
+ * 覆盖 --pom-* token 让所有 modal / 卡片 / 输入框统一暗色
+ * 与 reader.scss .theme-6 + ng-zorro-overrides.scss [data-pom-theme='6'] 协同
+ */
+[data-pom-theme='6'] {
+  --pom-bg: #111111;
+  --pom-bg-image: none;
+  --pom-fg: #1a1a1a;
+  --pom-fg-image: none;
+  --pom-text: #e0e0e0;
+  --pom-text-muted: #999999;
+  --pom-border: #333333;
+  --pom-card: #1f1f1f;
+  --pom-text-on-card: #e0e0e0;
+  --pom-scrollbar-thumb: #444444;
+  --pom-scrollbar-track: #1a1a1a;
+}

@@ -263,6 +263,37 @@
     border-color: #bf2c24;
   }
 
+  /* nz-upload drag 区域（导入本地 TXT）
+   * 默认 ng-zorro 是浅蓝/灰白底，暗色 modal 内反差强烈。覆盖为暗色边框 + 透明背景 */
+  .ant-modal .ant-upload.ant-upload-drag {
+    background: transparent;
+    border-color: #444444;
+  }
+  .ant-modal .ant-upload.ant-upload-drag:hover,
+  .ant-modal .ant-upload.ant-upload-drag.ant-upload-over {
+    border-color: #bf2c24;
+  }
+  .ant-modal .ant-upload-drag .ant-upload-text {
+    color: #e0e0e0;
+  }
+  .ant-modal .ant-upload-drag .ant-upload-hint {
+    color: #999999;
+  }
+  /* nz-button 非 primary / 非 dangerous（展开全部等） */
+  .ant-modal .ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous):not(.ant-btn-link) {
+    background: #2a2a2a;
+    border-color: #444444;
+    color: #e0e0e0;
+  }
+  .ant-modal .ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous):not(.ant-btn-link):hover {
+    border-color: #bf2c24;
+    color: #bf2c24;
+  }
+  /* link 按钮在暗色 modal 内 */
+  .ant-modal .ant-btn-link {
+    color: #ed4259;
+  }
+
   /* nz-list 目录预览（import-online）— 暗色背景下文字/边框提亮 */
   .ant-modal .ant-list,
   .ant-modal .ant-list-bordered {
