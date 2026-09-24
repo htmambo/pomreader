@@ -225,4 +225,29 @@
 
 ---
 
-## Round 7/10 — 2026-09-24 (待 re-review)
+## Round 7/10 — 2026-09-24 (commit 46fc986 修复后 re-review)
+
+**Provider:** coding-bridge
+**Kind:** code
+**VERDICT:** ✅ **APPROVED**
+
+### Round 6 修复验证
+
+| # | Finding | 状态 |
+|---|---|---|
+| P1 | bookDelete 缺 _deleted:true | ✅ Fixed（_deleted: true as const 字面量类型） |
+| P2 | migration 携带旧 _rev | ✅ Fixed（解构剥离） |
+| P3 | reader UI 错误反馈 | ✅ Fixed（try-catch + return false） |
+| P4 | chapterPutMany 409 边界注释 | ✅ Fixed |
+| P5 | as cast 注释 | ✅ Fixed |
+
+### Reviewer 非阻塞建议（后续可选）
+
+1. 错误消息用户友好化（`删除失败：bookDelete partial failure: 2/15 docs failed: ...[409]` 太技术化）
+2. `_oldRev` 未使用变量 lint（可改 `_` 或配置忽略）
+3. cast 一致性（提取公共 `bulkRemove` helper）
+
+**Review Loop 状态：CLOSE（APPROVED）**
+
+按 CLAUDE.md §1.5 协议：APPROVED = pass。`commit + push to origin`。
+后续 3 个非阻塞建议可作为下一轮 backlog，不阻塞本轮交付。
