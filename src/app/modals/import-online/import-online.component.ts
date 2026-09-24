@@ -48,11 +48,11 @@ import { Book } from '../../core/models/book.model';
       } @else if (resolved()) {
         <h4>{{ resolved()!.title }} <small>({{ resolved()!.author }})</small></h4>
         <p class="hint">共 {{ resolved()!.chapters.length }} 章，点击下方"确认导入"加入书架</p>
-        <nz-list [nzDataSource]="resolved()!.chapters" [nzRenderItem]="chapterTpl" nzSize="small" nzBordered>
-          <ng-template #chapterTpl let-item let-index>
-            <nz-list-item>{{ index + 1 }}. {{ item.title }}</nz-list-item>
-          </ng-template>
-        </nz-list>
+        <ul nz-list nzSize="small" nzBordered>
+          @for (ch of resolved()!.chapters; track ch.url; let i = $index) {
+            <li nz-list-item>{{ i + 1 }}. {{ ch.title }}</li>
+          }
+        </ul>
       }
 
       @if (importing()) {
