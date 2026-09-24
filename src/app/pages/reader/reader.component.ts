@@ -9,6 +9,8 @@ import {
   computed,
   effect,
   untracked,
+  viewChild,
+  ElementRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { take } from 'rxjs/operators';
@@ -25,15 +27,18 @@ import {
   PAGE_WIDTHS,
   MIN_FONT_SIZE,
   MAX_FONT_SIZE,
+  ReadMode,
 } from '../../core/models/settings.model';
 import { Chapter } from '../../core/models/chapter.model';
 import { Book } from '../../core/models/book.model';
+import { normalizeParagraphIndent } from '../../core/logic/text-format';
 
 interface ReaderViewSettings {
   theme: number;
   fontSize: number;
   fontFamily: number;
   pageWidth: number;
+  readMode: ReadMode;
 }
 
 @Component({
@@ -43,6 +48,7 @@ interface ReaderViewSettings {
   template: `
     <div
       class="reader-page theme-{{ view().theme }} w{{ view().pageWidth }}"
+      [class.paged]="paged()"
       [style.font-size.px]="view().fontSize"
     >
       @if (book(); as b) {
@@ -65,14 +71,28 @@ interface ReaderViewSettings {
                   <i><span nz-icon nzType="file-text"></span>{{ b.author }}</i>
                   <i>{{ wordCount() }}字</i>
                   <i>第 {{ chapterIndex() + 1 }} / {{ chapters().length }} 章</i>
+                  @if (paged()) {
+                    <i>第 {{ pageIndex() + 1 }} / {{ totalPages() }} 页</i>
+                  }
                 </div>
               </div>
               @if (chapterLoading()) {
                 <p class="chapter-loading">章节加载中...</p>
               } @else if (chapterError()) {
                 <p class="chapter-loading">该章节加载失败。<a (click)="retryLoad()">重试</a></p>
+              } @else if (paged()) {
+                <div class="paged-viewport" #pagedViewport>
+                  <pre
+                    class="read-content paged-content"
+                    #pagedContent
+                    [class.ready]="pageReady()"
+                    [style.column-width.px]="pageW()"
+                    [style.transform]="'translateX(' + -pageIndex() * pageW() + 'px)'"
+                    >{{ displayContent() }}</pre
+                  >
+                </div>
               } @else {
-                <pre class="read-content">{{ currentChapter()?.content }}</pre>
+                <pre class="read-content">{{ displayContent() }}</pre>
               }
             </div>
           </div>
@@ -212,6 +232,17 @@ interface ReaderViewSettings {
                       </span>
                     </cite>
                   </li>
+                  <li class="read-mode">
+                    <i>阅读模式</i>
+                    @for (m of readModes; track m.id) {
+                      <span
+                        class="ff-btn"
+                        [class.act]="draft().readMode === m.id"
+                        (click)="setReadMode(m.id)"
+                        >{{ m.name }}</span
+                      >
+                    }
+                  </li>
                 </ul>
                 <div class="btn-wrap">
                   <a class="red-btn" (click)="saveSettings()">保存</a>
@@ -222,7 +253,7 @@ interface ReaderViewSettings {
           }
         </div>
 
-        @if (showGoTop()) {
+        @if (showGoTop() && !paged()) {
           <div class="right-bar-list">
             <dl>
               <dd class="go-top" title="返回顶部" (click)="scrollToTop()">
@@ -257,12 +288,35 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   /** 是否有 NzModal 打开（键盘翻页期间跳过，避免背景翻页） */
   protected readonly modalOpen = signal(false);
 
+  /** 翻页模式：当前页码 / 总页数 / 每页宽度（视口实测 px） */
+  protected readonly pageIndex = signal(0);
+  protected readonly totalPages = signal(1);
+  protected readonly pageW = signal(0);
+  /** 测量定位完成前隐藏正文，避免切章/重排闪烁 */
+  protected readonly pageReady = signal(false);
+  /** 是否翻页模式（设置面板草稿预览实时生效） */
+  protected readonly paged = computed(() => this.view().readMode === 'paged');
+
+  protected readonly readModes: { id: ReadMode; name: string }[] = [
+    { id: 'scroll', name: '滚动' },
+    { id: 'paged', name: '翻页' },
+  ];
+
+  private readonly viewportRef = viewChild<ElementRef<HTMLElement>>('pagedViewport');
+  private readonly contentRef = viewChild<ElementRef<HTMLElement>>('pagedContent');
+  /** 首次测量时应用的恢复页码（-1 = 最后一页）；null = 无待恢复 */
+  private restoredPage: number | null = null;
+  private lastMeasuredChapter = -1;
+  private measureRaf = 0;
+  private resizeObserver: ResizeObserver | null = null;
+
   /** 设置面板草稿：打开面板期间页面实时预览草稿值，保存才落盘 */
   protected readonly draft = signal<ReaderViewSettings>({
     theme: 0,
     fontSize: 18,
     fontFamily: 1,
     pageWidth: 800,
+    readMode: 'paged',
   });
 
   protected readonly themes = [
@@ -293,6 +347,94 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     // 触发逻辑需写 signal，移出 effect 响应式上下文（Angular 18 NG0600）
     untracked(() => this.ensureChapterLoaded(idx, chs));
   });
+
+  /** 翻页模式测量：内容/视图设置/视口宽度/章节变化后，下一帧重新测量分页 */
+  private readonly measureEffect = effect(() => {
+    if (!this.paged()) return;
+    // 依赖收集：渲染正文、视图设置（字号/字体/宽度/主题）、视口宽度、章节序号
+    this.displayContent();
+    this.view();
+    this.pageW();
+    this.chapterIndex();
+    untracked(() => this.scheduleMeasure());
+  });
+
+  /** 视口宽度监听：窗口缩放使实际宽度偏离档位值时触发重排 */
+  private readonly resizeEffect = effect(() => {
+    const vp = this.viewportRef()?.nativeElement;
+    untracked(() => {
+      this.resizeObserver?.disconnect();
+      this.resizeObserver = null;
+      if (!vp) return;
+      this.resizeObserver = new ResizeObserver(() => {
+        const w = vp.clientWidth;
+        if (w > 0 && w !== this.pageW()) this.pageW.set(w);
+      });
+      this.resizeObserver.observe(vp);
+    });
+  });
+
+  private scheduleMeasure(): void {
+    this.pageReady.set(false);
+    cancelAnimationFrame(this.measureRaf);
+    this.measureRaf = requestAnimationFrame(() => this.measure(0));
+  }
+
+  /**
+   * 渲染后测量分页（CSS 多列：每列一页）。
+   * 两阶段：先同步 pageW（驱动模板 column-width 绑定），宽度稳定后再读 scrollWidth 算总页数。
+   */
+  private measure(retry: number): void {
+    const vp = this.viewportRef()?.nativeElement;
+    const content = this.contentRef()?.nativeElement;
+    if (!vp || !content || vp.clientWidth <= 0) {
+      // @if 分支尚未渲染完成，下一帧重试
+      if (retry < 5) this.measureRaf = requestAnimationFrame(() => this.measure(retry + 1));
+      return;
+    }
+    const w = vp.clientWidth;
+    if (w !== this.pageW()) {
+      // column-width 绑定待更新，先同步宽度，下一轮 effect 再测量
+      this.pageW.set(w);
+      return;
+    }
+
+    const total = Math.max(1, Math.round(content.scrollWidth / w));
+    const chapterChanged = this.lastMeasuredChapter !== this.chapterIndex();
+    const oldTotal = this.totalPages();
+    const oldIdx = this.pageIndex();
+
+    let idx: number;
+    if (this.restoredPage !== null) {
+      // 进度恢复：-1 = 最后一页
+      idx = this.restoredPage === -1 ? total - 1 : Math.min(this.restoredPage, total - 1);
+      this.restoredPage = null;
+    } else if (this.reader.pageOffset() === -1) {
+      // 向前越过章首：进入上一章末页（prevChapter 写入的哨兵）
+      idx = total - 1;
+    } else if (chapterChanged) {
+      idx = 0;
+    } else if (oldTotal !== total && oldTotal > 1) {
+      // 同章重排（设置变更/窗口缩放）：按页码比例近似保持阅读位置
+      idx = Math.round((oldIdx / (oldTotal - 1)) * (total - 1));
+    } else {
+      idx = Math.min(oldIdx, total - 1);
+    }
+
+    this.totalPages.set(total);
+    this.pageIndex.set(idx);
+    this.lastMeasuredChapter = this.chapterIndex();
+    this.pageReady.set(true);
+    // 同步真实页码并落盘（解析 -1 哨兵 / 应用恢复页码）
+    this.reader.setPageOffset(idx);
+
+    if (chapterChanged) {
+      // 异步字体（AppKai woff2）加载完成后文字宽度可能变化，兜底重测一次
+      document.fonts?.ready.then(() => {
+        if (this.lastMeasuredChapter === this.chapterIndex()) this.scheduleMeasure();
+      });
+    }
+  }
 
   /** 当前章未加载时抓取正文，并预加载下一章（失败静默） */
   private ensureChapterLoaded(idx: number, chs: Chapter[]): void {
@@ -325,6 +467,11 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
 
   readonly currentChapter = computed<Chapter | undefined>(
     () => this.chapters()[this.chapterIndex()]
+  );
+
+  /** 渲染用正文：段首缩进规范化兜底（旧库数据中首段缩进被 trim 剥掉的也能正确显示） */
+  readonly displayContent = computed(() =>
+    normalizeParagraphIndent(this.currentChapter()?.content ?? '')
   );
 
   /** 当前生效的视图设置：面板打开时用草稿（预览），否则用已保存值 */
@@ -365,6 +512,11 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
         ? book.progress.chapterIndex
         : chapterId;
 
+    // 翻页模式的章内页码恢复（scrollOffset 字段复用为页码；-1 = 最后一页）
+    if (fromDefaultEntry && book.progress?.scrollOffset !== undefined) {
+      this.restoredPage = book.progress.scrollOffset;
+    }
+
     this.reader.openBook(bookId, startChapter);
     this.chapterIndex.set(startChapter);
 
@@ -380,6 +532,8 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.scrollEl?.removeEventListener('scroll', this.onScroll);
+    this.resizeObserver?.disconnect();
+    cancelAnimationFrame(this.measureRaf);
   }
 
   back(): void {
@@ -387,21 +541,52 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   }
   next(): void {
     if (this.chapterIndex() >= this.chapters().length - 1) return;
+    if (this.paged()) this.pageReady.set(false);
     this.chapterIndex.update((i) => i + 1);
     this.reader.nextChapter();
     this.scrollToTop();
   }
   prev(): void {
     if (this.chapterIndex() === 0) return;
+    if (this.paged()) this.pageReady.set(false);
     this.chapterIndex.update((i) => i - 1);
     this.reader.prevChapter();
     this.scrollToTop();
   }
   goTo(i: number): void {
+    if (this.paged()) this.pageReady.set(false);
     this.chapterIndex.set(i);
     this.reader.goToChapter(i);
     this.catalogOpen.set(false);
     this.scrollToTop();
+  }
+
+  /** 翻页模式：向后翻一页；已到本章末页则切下一章（首页） */
+  flipNext(): void {
+    if (!this.pageReady()) return;
+    if (this.pageIndex() < this.totalPages() - 1) {
+      const p = this.pageIndex() + 1;
+      this.pageIndex.set(p);
+      this.reader.setPageOffset(p);
+    } else {
+      this.next();
+    }
+  }
+
+  /** 翻页模式：向前翻一页；已在本章首页则切上一章（末页，-1 哨兵由测量解析） */
+  flipPrev(): void {
+    if (!this.pageReady()) return;
+    if (this.pageIndex() > 0) {
+      const p = this.pageIndex() - 1;
+      this.pageIndex.set(p);
+      this.reader.setPageOffset(p);
+    } else {
+      this.prev();
+    }
+  }
+
+  setReadMode(readMode: ReadMode): void {
+    this.draft.update((d) => ({ ...d, readMode }));
   }
 
   /** 重试加载当前失败章节 */
@@ -459,6 +644,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     this.settings.update('fontSize', d.fontSize);
     this.settings.update('fontFamily', d.fontFamily);
     this.settings.update('pageWidth', d.pageWidth);
+    this.settings.update('readMode', d.readMode);
     this.settingsOpen.set(false);
   }
 
@@ -486,11 +672,13 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
 
     switch (event.key) {
       case 'ArrowLeft':
-        this.prev();
+        if (this.paged()) this.flipPrev();
+        else this.prev();
         event.preventDefault();
         break;
       case 'ArrowRight':
-        this.next();
+        if (this.paged()) this.flipNext();
+        else this.next();
         event.preventDefault();
         break;
     }
@@ -663,6 +851,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
       fontSize: s.fontSize,
       fontFamily: s.fontFamily,
       pageWidth: s.pageWidth,
+      readMode: s.readMode,
     };
   }
 }

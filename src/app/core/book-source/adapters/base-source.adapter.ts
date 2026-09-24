@@ -5,6 +5,7 @@ import {
   PageFetcher,
   ResolvedBook,
 } from '../book-source.adapter';
+import { finalizeChapterContent } from '../../logic/text-format';
 
 /**
  * 适配器基类 — 封装通用解析逻辑（DOMParser + 选择器），6 站复用。
@@ -65,11 +66,13 @@ export abstract class BaseSourceAdapter implements BookSourceAdapter {
     }
   }
 
-  /** HTML 节点 → 纯文本（保留段落换行） */
+  /** HTML 节点 → 纯文本（保留段落换行 + 段首缩进规范化） */
   protected toPlainText(node: Element): string {
     // 移除脚本/样式/广告
     node.querySelectorAll('script, style, ins, .adsbygoogle').forEach((n) => n.remove());
     const text = node.textContent ?? '';
-    return text.replace(/\s+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+    return finalizeChapterContent(
+      text.replace(/\s+\n/g, '\n').replace(/\n{3,}/g, '\n\n')
+    );
   }
 }

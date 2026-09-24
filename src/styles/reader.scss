@@ -260,6 +260,45 @@
   color: var(--r-text);
 }
 
+/* ---------- 翻页模式（章内分页，CSS 多列：每列一页） ---------- */
+/* 纵向预算：header 60+16 / text-wrap margin 24 / chapter-control 70+24 / 页底 padding 40 */
+.reader-page.paged .text-wrap {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 234px);
+  min-height: 420px;
+}
+.reader-page.paged .main-text-wrap {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.reader-page.paged .text-head {
+  flex: none;
+}
+.reader-page.paged .paged-viewport {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.reader-page.paged .paged-content {
+  height: 100%;
+  margin-bottom: 0;
+  /* 覆盖全局 pre { overflow: auto }：列横向溢出必须可见，翻页靠 transform 平移 */
+  overflow: visible;
+  column-gap: 0;
+  column-fill: auto;
+  opacity: 0;
+  will-change: transform;
+  transition:
+    transform 0.28s ease,
+    opacity 0.15s ease;
+}
+.reader-page.paged .paged-content.ready {
+  opacity: 1;
+}
+
 /* ---------- 上一章 / 下一章 ---------- */
 .reader-page .chapter-control {
   height: 70px;
@@ -524,8 +563,9 @@
 .reader-page .theme-list .swatch.theme-5 { background: #e0e0e0; }
 .reader-page .theme-list .swatch.theme-6 { background: #191b1c; }
 
-/* 正文字体 */
-.reader-page .font-family .ff-btn {
+/* 正文字体 / 阅读模式按钮 */
+.reader-page .font-family .ff-btn,
+.reader-page .read-mode .ff-btn {
   display: inline-block;
   width: 78px;
   height: 34px;
@@ -549,12 +589,14 @@
 .reader-page .font-family .ff-btn.ff-3 {
   font-family: KaiTi, 'Kaiti SC', 'STKaiti', 'AppKai', 'Noto Serif CJK SC', serif;
 }
-.reader-page .font-family .ff-btn.act {
+.reader-page .font-family .ff-btn.act,
+.reader-page .read-mode .ff-btn.act {
   color: var(--r-accent);
   border: 1px solid var(--r-accent);
   background: #fff0f2;
 }
-.reader-page.theme-6 .font-family .ff-btn.act {
+.reader-page.theme-6 .font-family .ff-btn.act,
+.reader-page.theme-6 .read-mode .ff-btn.act {
   background: rgba(255, 255, 255, 0.05);
 }
 

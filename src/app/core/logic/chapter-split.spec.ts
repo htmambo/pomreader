@@ -154,5 +154,13 @@ describe('chapter-split', () => {
       const chapters = toChapters('b', imported, text);
       expect(chapters[0].title).toBe('序言');
     });
+
+    it('章节正文定稿：去首尾空白行，首段缩进不被剥掉，无缩进段落自动补全角空格', () => {
+      const text = '第一章\n\n　　已有缩进\n没有缩进\n\n第二章\n内容';
+      const imported = splitChapters(text);
+      const chapters = toChapters('b', imported, text);
+      expect(chapters[0].content).toBe('　　已有缩进\n　　没有缩进');
+      expect(chapters[1].content).toBe('　　内容');
+    });
   });
 });

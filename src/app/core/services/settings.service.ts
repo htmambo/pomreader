@@ -48,6 +48,10 @@ export class SettingsService {
           typeof parsed.pageWidth === 'number' && PAGE_WIDTHS.includes(parsed.pageWidth)
             ? parsed.pageWidth
             : DEFAULT_SETTINGS.pageWidth,
+        readMode:
+          parsed.readMode === 'scroll' || parsed.readMode === 'paged'
+            ? parsed.readMode
+            : DEFAULT_SETTINGS.readMode,
       };
       return merged;
     } catch {

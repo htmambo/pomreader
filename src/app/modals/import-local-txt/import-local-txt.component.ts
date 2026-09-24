@@ -5,7 +5,8 @@ import { ScrollingModule } from '@angular/cdk/scrolling';
 import { NzUploadModule, NzUploadFile } from 'ng-zorro-antd/upload';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
-import { splitChapters, ImportedChapter } from '../../core/logic/chapter-split';
+import { splitChapters, toChapters, ImportedChapter } from '../../core/logic/chapter-split';
+import { finalizeChapterContent } from '../../core/logic/text-format';
 import { ToastService } from '../../core/services/toast.service';
 import { BookService } from '../../core/services/book.service';
 import { Book } from '../../core/models/book.model';
@@ -198,7 +199,7 @@ export class ImportLocalTxtComponent {
     if (!ic || !this.fullText) return '';
     const lines = this.fullText.split(/\r?\n/);
     const slice = lines.slice(ic.startLine, ic.endLine + 1);
-    const text = slice.join('\n').trim();
+    const text = finalizeChapterContent(slice.join('\n'));
     if (text.length <= 500) return text;
     return text.slice(0, 500) + '...';
   }
@@ -248,13 +249,7 @@ export class ImportLocalTxtComponent {
         importedAt: new Date().toISOString(),
         source: 'local-txt',
       };
-      const lines = this.fullText.split(/\r?\n/);
-      const chapters: Chapter[] = this.chapters().map((c, i) => ({
-        bookId: id,
-        index: i,
-        title: c.title === '__preamble__' ? '序章' : c.title,
-        content: lines.slice(c.startLine, c.endLine + 1).join('\n').trim(),
-      }));
+      const chapters: Chapter[] = toChapters(id, this.chapters(), this.fullText);
       await this.books.addBook(book, chapters);
       this.toast.success(`已导入：${book.title}（${chapters.length} 章）`);
       return true;

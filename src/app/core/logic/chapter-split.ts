@@ -1,3 +1,5 @@
+import { finalizeChapterContent } from './text-format';
+
 /**
  * TXT → 章节切分（行为级重写）
  * 来源：v1.1 §7.1 + SPEC §5.1
@@ -96,7 +98,7 @@ export function splitChapters(
 
 /**
  * 把 ImportedChapter[] 转换为 Chapter[]（带 bookId + index + content）
- * 用于导入流程最后一步
+ * 用于导入流程最后一步；正文经 finalizeChapterContent 定稿（去首尾空白行 + 段首缩进规范化）
  */
 export function toChapters(
   bookId: string,
@@ -108,6 +110,6 @@ export function toChapters(
     bookId,
     index: i,
     title: ic.title === '__preamble__' ? '序章' : ic.title,
-    content: lines.slice(ic.startLine, ic.endLine + 1).join('\n').trim(),
+    content: finalizeChapterContent(lines.slice(ic.startLine, ic.endLine + 1).join('\n')),
   }));
 }

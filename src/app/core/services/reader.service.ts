@@ -17,9 +17,15 @@ export class ReaderService {
   private readonly books = inject(BookService);
   private readonly _currentBookId = signal<string | null>(null);
   private readonly _currentChapterIndex = signal<number>(0);
+  /**
+   * 章内页码（翻页模式用，持久化到 BookProgress.scrollOffset 字段）。
+   * 哨兵值 -1：表示「目标章的最后一页」，由 reader 组件渲染测量后解析成真实页码。
+   */
+  private readonly _pageOffset = signal<number>(0);
 
   readonly currentBookId: Signal<string | null> = this._currentBookId.asReadonly();
   readonly currentChapterIndex: Signal<number> = this._currentChapterIndex.asReadonly();
+  readonly pageOffset: Signal<number> = this._pageOffset.asReadonly();
 
   readonly progress: Signal<{ bookId: string; chapter: number } | null> = computed(() => {
     const bookId = this._currentBookId();
@@ -30,42 +36,55 @@ export class ReaderService {
   openBook(bookId: string, chapter = 0): void {
     this._currentBookId.set(bookId);
     this._currentChapterIndex.set(Math.max(0, chapter));
+    this._pageOffset.set(0);
     this.saveProgress();
   }
 
   nextChapter(): void {
     this._currentChapterIndex.update((i) => i + 1);
+    this._pageOffset.set(0);
     this.saveProgress();
   }
 
   prevChapter(): void {
     this._currentChapterIndex.update((i) => Math.max(0, i - 1));
+    this._pageOffset.set(-1);
     this.saveProgress();
   }
 
   goToChapter(index: number): void {
     this._currentChapterIndex.set(Math.max(0, index));
+    this._pageOffset.set(0);
     this.saveProgress();
   }
 
-  /** 保存进度到 PouchDB（嵌入 Book 文档） */
+  /** 翻页后由 reader 组件同步真实页码（并落盘） */
+  setPageOffset(page: number): void {
+    this._pageOffset.set(Math.max(0, page));
+    this.saveProgress();
+  }
+
+  /** 保存进度到 PouchDB（嵌入 Book 文档；scrollOffset 字段复用为章内页码） */
   saveProgress(): void {
     const bookId = this._currentBookId();
     if (!bookId) return;
-    void this.books.updateProgress(bookId, this._currentChapterIndex());
+    void this.books.updateProgress(bookId, this._currentChapterIndex(), this._pageOffset());
   }
 
   /**
    * 从 PouchDB 恢复当前书的进度
-   * 调用时机：reader 组件初始化时；恢复后调用方可用返回的 chapter 跳页
+   * 调用时机：reader 组件初始化时；恢复后调用方可用返回的 chapter/page 跳页
+   * page 为 -1 时表示「最后一页」（待渲染测量后解析）
    */
-  async restoreProgress(): Promise<{ bookId: string; chapter: number } | null> {
+  async restoreProgress(): Promise<{ bookId: string; chapter: number; page: number } | null> {
     const bookId = this._currentBookId();
     if (!bookId) return null;
     const book = this.books.getById(bookId);
     if (book?.progress) {
       this._currentChapterIndex.set(book.progress.chapterIndex);
-      return { bookId, chapter: book.progress.chapterIndex };
+      const page = book.progress.scrollOffset ?? 0;
+      this._pageOffset.set(page);
+      return { bookId, chapter: book.progress.chapterIndex, page };
     }
     return null;
   }
