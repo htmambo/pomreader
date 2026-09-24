@@ -291,12 +291,14 @@
   column-fill: auto;
   opacity: 0;
   will-change: transform;
-  transition:
-    transform 0.28s ease,
-    opacity 0.15s ease;
+  /* transition 只在 .ready 态生效：隐藏立即完成（跨章无淡出漏光），
+   * 定位跳变不触发动画，仅在就绪态的页码/偏移变化才有滑动过渡 */
 }
 .reader-page.paged .paged-content.ready {
   opacity: 1;
+  transition:
+    transform 0.28s ease,
+    opacity 0.15s ease;
 }
 
 /* ---------- 上一章 / 下一章 ---------- */

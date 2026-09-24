@@ -87,7 +87,7 @@ interface ReaderViewSettings {
                     #pagedContent
                     [class.ready]="pageReady()"
                     [style.column-width.px]="pageW()"
-                    [style.transform]="'translateX(' + -pageIndex() * pageW() + 'px)'"
+                    [style.transform]="'translateX(' + (-pageIndex() * pageW() + entryOffset()) + 'px)'"
                     >{{ displayContent() }}</pre
                   >
                 </div>
@@ -304,11 +304,16 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private readonly viewportRef = viewChild<ElementRef<HTMLElement>>('pagedViewport');
   private readonly contentRef = viewChild<ElementRef<HTMLElement>>('pagedContent');
+  /** 跨章入场偏移（px）：+w 内容从右侧滑入（向后），-w 从左侧滑入（向前）；0 = 仅淡入 */
+  protected readonly entryOffset = signal(0);
   /** 首次测量时应用的恢复页码（-1 = 最后一页）；null = 无待恢复 */
   private restoredPage: number | null = null;
   private lastMeasuredChapter = -1;
   private measureRaf = 0;
+  private revealRaf = 0;
   private resizeObserver: ResizeObserver | null = null;
+  /** 跨章切换的入场方向（下次测量消费后清空） */
+  private entryDir: 'next' | 'prev' | null = null;
 
   /** 设置面板草稿：打开面板期间页面实时预览草稿值，保存才落盘 */
   protected readonly draft = signal<ReaderViewSettings>({
@@ -356,7 +361,11 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     this.view();
     this.pageW();
     this.chapterIndex();
-    untracked(() => this.scheduleMeasure());
+    untracked(() => {
+      // 仅跨章切换时隐藏待定位；同章重排（设置/缩放）保持可见、平滑滑到新页码
+      const hide = this.lastMeasuredChapter !== this.chapterIndex();
+      this.scheduleMeasure(hide);
+    });
   });
 
   /** 视口宽度监听：窗口缩放使实际宽度偏离档位值时触发重排 */
@@ -374,8 +383,8 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   });
 
-  private scheduleMeasure(): void {
-    this.pageReady.set(false);
+  private scheduleMeasure(hide: boolean): void {
+    if (hide) this.pageReady.set(false);
     cancelAnimationFrame(this.measureRaf);
     this.measureRaf = requestAnimationFrame(() => this.measure(0));
   }
@@ -424,14 +433,25 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     this.totalPages.set(total);
     this.pageIndex.set(idx);
     this.lastMeasuredChapter = this.chapterIndex();
-    this.pageReady.set(true);
+    // 入场方向偏移：向后（下一章首页）内容从右侧滑入；向前（上一章末页）从左侧滑入
+    if (chapterChanged && this.entryDir) {
+      this.entryOffset.set(this.entryDir === 'next' ? w : -w);
+    }
+    this.entryDir = null;
     // 同步真实页码并落盘（解析 -1 哨兵 / 应用恢复页码）
     this.reader.setPageOffset(idx);
+
+    // 两帧显示：本帧渲染隐藏态（含入场偏移），下一帧淡入并滑到目标位置
+    cancelAnimationFrame(this.revealRaf);
+    this.revealRaf = requestAnimationFrame(() => {
+      this.pageReady.set(true);
+      if (this.entryOffset() !== 0) this.entryOffset.set(0);
+    });
 
     if (chapterChanged) {
       // 异步字体（AppKai woff2）加载完成后文字宽度可能变化，兜底重测一次
       document.fonts?.ready.then(() => {
-        if (this.lastMeasuredChapter === this.chapterIndex()) this.scheduleMeasure();
+        if (this.lastMeasuredChapter === this.chapterIndex()) this.scheduleMeasure(false);
       });
     }
   }
@@ -534,6 +554,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     this.scrollEl?.removeEventListener('scroll', this.onScroll);
     this.resizeObserver?.disconnect();
     cancelAnimationFrame(this.measureRaf);
+    cancelAnimationFrame(this.revealRaf);
   }
 
   back(): void {
@@ -541,20 +562,20 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   }
   next(): void {
     if (this.chapterIndex() >= this.chapters().length - 1) return;
-    if (this.paged()) this.pageReady.set(false);
+    if (this.paged()) this.entryDir = 'next';
     this.chapterIndex.update((i) => i + 1);
     this.reader.nextChapter();
     this.scrollToTop();
   }
   prev(): void {
     if (this.chapterIndex() === 0) return;
-    if (this.paged()) this.pageReady.set(false);
+    if (this.paged()) this.entryDir = 'prev';
     this.chapterIndex.update((i) => i - 1);
     this.reader.prevChapter();
     this.scrollToTop();
   }
   goTo(i: number): void {
-    if (this.paged()) this.pageReady.set(false);
+    if (this.paged()) this.entryDir = i >= this.chapterIndex() ? 'next' : 'prev';
     this.chapterIndex.set(i);
     this.reader.goToChapter(i);
     this.catalogOpen.set(false);
