@@ -1,9 +1,9 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ScrollingModule } from '@angular/cdk/scrolling';
 import { NzUploadModule, NzUploadFile } from 'ng-zorro-antd/upload';
 import { NzButtonModule } from 'ng-zorro-antd/button';
-import { NzListModule } from 'ng-zorro-antd/list';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { splitChapters, ImportedChapter } from '../../core/logic/chapter-split';
 import { ToastService } from '../../core/services/toast.service';
@@ -12,6 +12,7 @@ import { Book } from '../../core/models/book.model';
 import { Chapter } from '../../core/models/chapter.model';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB（security-reviewer L4 缓解）
+const DEFAULT_DISPLAY_COUNT = 50;
 
 /**
  * 导入本地 TXT（modal 内容组件）
@@ -20,7 +21,7 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB（security-reviewer L4 缓解�
 @Component({
   selector: 'app-import-local-txt',
   standalone: true,
-  imports: [CommonModule, FormsModule, NzUploadModule, NzButtonModule, NzListModule, NzIconModule],
+  imports: [CommonModule, FormsModule, ScrollingModule, NzUploadModule, NzButtonModule, NzIconModule],
   template: `
     <div class="import-local-txt">
       <p>将 TXT 文件拖到下方或点击选择（≤ 50MB）：</p>
@@ -40,15 +41,36 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB（security-reviewer L4 缓解�
       }
 
       @if (chapters().length > 0) {
-        <h4>识别到 {{ chapters().length }} 个章节：</h4>
-        <nz-list [nzDataSource]="chapters()" nzBordered>
-          <ng-template let-item let-index>
-            <nz-list-item>
-              <strong>{{ index + 1 }}.</strong> {{ item.title }}
-              <small class="range">（{{ item.endLine - item.startLine + 1 }} 行）</small>
-            </nz-list-item>
-          </ng-template>
-        </nz-list>
+        <h4>
+          识别到 {{ chapters().length }} 个章节
+          <small class="hint-inline">（{{ chaptersPreview().length }} 预览 / {{ chapters().length }} 总数）</small>
+          @if (chapters().length > DEFAULT_DISPLAY_COUNT) {
+            <button nz-button nzType="link" nzSize="small" (click)="toggleShowAll()">
+              {{ showAll() ? '收起' : '展开全部' }}
+            </button>
+          }
+        </h4>
+        <cdk-virtual-scroll-viewport itemSize="64" class="chapter-list">
+          <div
+            *cdkVirtualFor="let item of chaptersPreview(); let i = index"
+            class="chapter-item"
+            [class.expanded]="selectedIndex() === i"
+            (click)="togglePreview(i)"
+          >
+            <div class="chapter-row">
+              <strong>{{ i + 1 }}.</strong>
+              <span class="title">{{ item.title }}</span>
+              <span class="range">（{{ item.endLine - item.startLine + 1 }} 行）</span>
+            </div>
+            @if (selectedIndex() === i) {
+              <pre class="preview">{{ previewOf(i) }}</pre>
+            }
+          </div>
+        </cdk-virtual-scroll-viewport>
+        <p class="hint-tip">
+          <span nz-icon nzType="info-circle"></span>
+          点击章节可预览前 ~500 字
+        </p>
       } @else if (filename()) {
         <p class="hint warn">
           <span nz-icon nzType="warning"></span>
@@ -80,6 +102,69 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB（security-reviewer L4 缓解�
         color: var(--pom-text);
         margin-left: 8px;
       }
+      h4 {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .hint-inline {
+        color: var(--pom-text);
+        font-weight: normal;
+        font-size: 12px;
+      }
+      .chapter-list {
+        height: 320px;
+        border: 1px solid var(--pom-border);
+        border-radius: 4px;
+        background: var(--pom-card);
+      }
+      .chapter-item {
+        padding: 6px 12px;
+        line-height: 24px;
+        border-bottom: 1px solid var(--pom-border);
+        color: var(--pom-text);
+      }
+      .chapter-item strong {
+        color: var(--pom-text-muted);
+        margin-right: 8px;
+      }
+      .chapter-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+      }
+      .chapter-row .title {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .chapter-item.expanded {
+        background: var(--pom-border);
+      }
+      .preview {
+        margin: 8px 0 0 24px;
+        padding: 8px 12px;
+        background: var(--pom-bg);
+        border-left: 3px solid var(--pom-text-muted);
+        color: var(--pom-text);
+        font-size: 12px;
+        line-height: 1.5;
+        max-height: 200px;
+        overflow: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .hint-tip {
+        margin: 8px 0 0;
+        color: var(--pom-text);
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
     `,
   ],
 })
@@ -88,6 +173,35 @@ export class ImportLocalTxtComponent {
   readonly chapters = signal<ImportedChapter[]>([]);
   readonly lineCount = signal(0);
   readonly fileSize = signal('');
+  readonly showAll = signal(false);
+  readonly selectedIndex = signal<number | null>(null);
+  readonly DEFAULT_DISPLAY_COUNT = DEFAULT_DISPLAY_COUNT;
+
+  readonly chaptersPreview = computed<ImportedChapter[]>(() => {
+    const all = this.chapters();
+    if (this.showAll() || all.length <= DEFAULT_DISPLAY_COUNT) return all;
+    return all.slice(0, DEFAULT_DISPLAY_COUNT);
+  });
+
+  toggleShowAll(): void {
+    this.showAll.update((v) => !v);
+  }
+
+  togglePreview(i: number): void {
+    this.selectedIndex.update((cur) => (cur === i ? null : i));
+  }
+
+  /** 返回第 i 个章节的前 ~500 字预览 */
+  previewOf(i: number): string {
+    const chs = this.chapters();
+    const ic = chs[i];
+    if (!ic || !this.fullText) return '';
+    const lines = this.fullText.split(/\r?\n/);
+    const slice = lines.slice(ic.startLine, ic.endLine + 1);
+    const text = slice.join('\n').trim();
+    if (text.length <= 500) return text;
+    return text.slice(0, 500) + '...';
+  }
 
   private fullText = '';
   private readonly toast = inject(ToastService);
