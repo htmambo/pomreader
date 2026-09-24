@@ -26,7 +26,8 @@ export class BookService {
   readonly chaptersVersion = signal(0);
 
   async load(): Promise<void> {
-    const res = await fetch('/assets/data/books.json');
+    // 相对路径：Electron file:// 下相对 index.html 解析；ng serve 下相对 baseURL /
+    const res = await fetch('assets/data/books.json');
     const data = (await res.json()) as Book[];
     this._books.set(data);
   }
@@ -38,7 +39,7 @@ export class BookService {
   async getChapters(bookId: string): Promise<Chapter[]> {
     const cached = this._chaptersCache().get(bookId);
     if (cached) return cached;
-    const res = await fetch(`/assets/data/chapters/${bookId}.json`);
+    const res = await fetch(`assets/data/chapters/${bookId}.json`);
     if (!res.ok) return [];
     const data = (await res.json()) as Chapter[];
     return data.map((c, i) => ({ ...c, index: i, bookId }));

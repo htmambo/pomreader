@@ -10,11 +10,11 @@
   --r-accent: #ed4259;
   --r-red: #bf2c24;
   --r-body-bg: #ede7da;
-  --r-body-img: url('/assets/themes/reader/body_base_bg.png');
+  --r-body-img: url('../assets/themes/reader/body_base_bg.png');
   --r-content-bg: #faf5eb;
-  --r-content-img: url('/assets/themes/reader/basic_bg.png');
+  --r-content-img: url('../assets/themes/reader/basic_bg.png');
   --r-panel-bg: #fcf9f2;
-  --r-panel-img: url('/assets/themes/reader/base_theme_popup.png');
+  --r-panel-img: url('../assets/themes/reader/base_theme_popup.png');
   --r-text: #262626;
   --r-muted: rgba(0, 0, 0, 0.4);
   --r-icon: #000;
@@ -36,27 +36,27 @@
 /* ---------- 主题配色 ---------- */
 .reader-page.theme-1 {
   --r-body-bg: #e0ce9e;
-  --r-body-img: url('/assets/themes/reader/body_theme1_bg.png');
+  --r-body-img: url('../assets/themes/reader/body_theme1_bg.png');
   --r-content-bg: #f3e9c6;
-  --r-content-img: url('/assets/themes/reader/theme_1_bg.png');
+  --r-content-img: url('../assets/themes/reader/theme_1_bg.png');
   --r-panel-bg: #f8f1d9;
-  --r-panel-img: url('/assets/themes/reader/theme_1_popup_bg.png');
+  --r-panel-img: url('../assets/themes/reader/theme_1_popup_bg.png');
 }
 .reader-page.theme-2 {
   --r-body-bg: #cddfcd;
-  --r-body-img: url('/assets/themes/reader/body_theme2_bg.png');
+  --r-body-img: url('../assets/themes/reader/body_theme2_bg.png');
   --r-content-bg: #e2eee2;
-  --r-content-img: url('/assets/themes/reader/theme_2_bg.png');
+  --r-content-img: url('../assets/themes/reader/theme_2_bg.png');
   --r-panel-bg: #f3fbf3;
-  --r-panel-img: url('/assets/themes/reader/theme_2_popup_bg.png');
+  --r-panel-img: url('../assets/themes/reader/theme_2_popup_bg.png');
 }
 .reader-page.theme-3 {
   --r-body-bg: #cfdde1;
-  --r-body-img: url('/assets/themes/reader/body_theme3_bg.png');
+  --r-body-img: url('../assets/themes/reader/body_theme3_bg.png');
   --r-content-bg: #e2eff3;
-  --r-content-img: url('/assets/themes/reader/theme_3_bg.png');
+  --r-content-img: url('../assets/themes/reader/theme_3_bg.png');
   --r-panel-bg: #e7f5f6;
-  --r-panel-img: url('/assets/themes/reader/theme_3_popup_bg.png');
+  --r-panel-img: url('../assets/themes/reader/theme_3_popup_bg.png');
 }
 .reader-page.theme-4 {
   --r-body-bg: #ebcece;
@@ -68,19 +68,19 @@
 }
 .reader-page.theme-5 {
   --r-body-bg: #d0d0d0;
-  --r-body-img: url('/assets/themes/reader/body_theme5_bg.png');
+  --r-body-img: url('../assets/themes/reader/body_theme5_bg.png');
   --r-content-bg: #dcdcdc;
-  --r-content-img: url('/assets/themes/reader/theme_5_bg.png');
+  --r-content-img: url('../assets/themes/reader/theme_5_bg.png');
   --r-panel-bg: #e8e8e8;
-  --r-panel-img: url('/assets/themes/reader/theme_5_popup_bg.png');
+  --r-panel-img: url('../assets/themes/reader/theme_5_popup_bg.png');
 }
 .reader-page.theme-6 {
   --r-body-bg: #0f1112;
-  --r-body-img: url('/assets/themes/reader/body_theme6_bg.png');
+  --r-body-img: url('../assets/themes/reader/body_theme6_bg.png');
   --r-content-bg: #111111;
-  --r-content-img: url('/assets/themes/reader/theme_6_bg.png');
+  --r-content-img: url('../assets/themes/reader/theme_6_bg.png');
   --r-panel-bg: #111111;
-  --r-panel-img: url('/assets/themes/reader/theme_6_bg.png');
+  --r-panel-img: url('../assets/themes/reader/theme_6_bg.png');
   --r-text: #666666;
   --r-muted: #666666;
   --r-icon: #999999;
