@@ -84,6 +84,16 @@ src/
 - 加 CDP 截图对比原 app（视觉保真验证）
 - 加 Playwright E2E 测试
 
+## 排错（Linux 打包 / 运行）
+
+| 症状 | 原因 | 解决 |
+|---|---|---|
+| 启动报 `Cannot find module 'iconv-lite'` 并卡死 | 该依赖被放在 `devDependencies`，electron-builder 只打包 `dependencies` | 把运行时依赖移到 `dependencies` 后重新打包 |
+| 打开过阅读页后关闭窗口，进程不退出、再次启动打不开界面 | 抓取用的隐藏窗口（`render-handler.ts`）未随主窗口销毁，`window-all-closed` 不触发；单实例锁又把新启动转发给僵尸进程 | 已在 `electron/main.ts` 修复：主窗口 `closed` 时销毁所有残留窗口 |
+| 启动报 `libva error: i965_drv_video.so init failed` / `vaInitialize failed` | Chromium 尝试 VA-API 视频硬解，系统只有旧 i965 驱动，在 Comet Lake+ / 混合显卡上初始化失败。**无害警告**，会自动退回软件解码 | 装新驱动即可消除：`sudo pacman -S intel-media-driver`（可用 `libva-utils` 的 `vainfo` 验证） |
+| 打包 `pacman` 目标失败：`libcrypt.so.1: cannot open shared object file` | electron-builder 内置的 fpm(ruby) 需要 `libcrypt.so.1` | `sudo pacman -S libxcrypt-compat` |
+| 打包警告 `desktopName is not set in package.json` | 窗口 WM_CLASS 与 .desktop 文件不匹配，任务栏/启动器无法关联窗口 | `desktopName` 放 package.json **根级**（非 `build` 内），并在 `build.linux` 设 `syncDesktopName: true` |
+
 ## 相关文档
 
 - `../docs/Architecture/2026-09-24-POMREADER_UI_CLONE_DESIGN.md` — 设计稿 v1.1

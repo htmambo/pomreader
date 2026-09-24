@@ -5,6 +5,7 @@
   "author": "果农 <guonong@hongshu.com>",
   "homepage": "https://github.com/htmambo/pomreader",
   "main": "dist-electron/main.js",
+  "desktopName": "pomreader.desktop",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
@@ -34,6 +35,7 @@
     "@ant-design/icons-angular": "^18.0.0",
     "@ctrl/tinycolor": "^4.2.1",
     "@types/pouchdb-browser": "^6.1.5",
+    "iconv-lite": "^0.6.3",
     "ng-zorro-antd": "^18.2.1",
     "pouchdb-browser": "^9.0.0",
     "rxjs": "~7.8.0",
@@ -51,7 +53,6 @@
     "cross-env": "^7.0.3",
     "electron": "^44.4.5",
     "electron-builder": "^26.16.1",
-    "iconv-lite": "^0.6.3",
     "jasmine-core": "~5.2.0",
     "jsdom": "^26.1.0",
     "karma": "~6.4.0",
@@ -87,6 +88,7 @@
         "pacman"
       ],
       "category": "Office",
+      "syncDesktopName": true,
       "maintainer": "果农 <guonong@hongshu.com>",
       "icon": "build/icon.png",
       "desktop": {
