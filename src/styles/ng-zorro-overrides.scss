@@ -105,6 +105,11 @@
   background: #d9363e;
   border-color: #d9363e;
 }
+/* 目录预览列表（import-online）— 长目录可滚动，避免撑爆 modal */
+.ant-modal .ant-list-items {
+  max-height: 400px;
+  overflow: auto;
+}
 
 /* ============================================================
  * 第 7 套主题（暗色 / theme-6 / 黑色）— modal 配色覆盖
