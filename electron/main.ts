@@ -51,11 +51,18 @@ function createWindow(): void {
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
     // 生产模式：加载 Angular build 产物（application builder 输出到 browser/ 子目录）
-    mainWindow.loadFile(path.join(__dirname, '..', 'electron', 'www', 'browser', 'index.html'));
+    // 用 file:// URL + 绝对路径，避免 path.join `__dirname/..` 在 asar 内解析异常
+    const indexPath = path.resolve(__dirname, '..', 'electron', 'www', 'browser', 'index.html');
+    mainWindow.loadURL('file://' + indexPath);
   }
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+    // 主窗口关闭后销毁残留的隐藏窗口（如 render-handler 的抓取窗口），
+    // 否则 window-all-closed 永不触发，进程无法退出
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.destroy();
+    }
   });
 }
 
