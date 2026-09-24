@@ -102,10 +102,10 @@ export class DbService {
   }
 
   async bookPut(book: Book): Promise<void> {
-    // rest-sibling 解构：防御外部 book 对象含 _id/type 字段污染 PouchDB 文档（N4）
+    // rest-sibling + spread 在前（N4 防御 + Round 5 顺序建议）
     const { id, ...rest } = book;
     const _id = BOOK_PREFIX + id;
-    const baseDoc: BookDoc = { _id, type: 'book', id, ...rest };
+    const baseDoc: BookDoc = { ...rest, _id, type: 'book', id };
     await this.bookPutWithRetry(baseDoc, book.progress);
   }
 
@@ -136,21 +136,26 @@ export class DbService {
     const _id = BOOK_PREFIX + bookId;
     const bookDoc = (await this.db.get<BookDoc>(_id)) as StoredBookDoc;
     const chapters = await this.chapterAllRaw(bookId);
-    // 改用 bulkDocs 一次原子删除，避免 Promise.all 首个 reject 导致孤儿文档（N2）
-    const removeDocs: PouchDB.Core.RemoveDocument[] = [
-      bookDoc as PouchDB.Core.RemoveDocument,
-      ...chapters.map((c) => c as PouchDB.Core.RemoveDocument),
+    // bulkDocs 一次原子删除，避免 Promise.all 首个 reject 导致孤儿文档（N2）
+    // 显式联合类型替代 as unknown as（N6 一致性）
+    type DeleteBatch = PouchDB.Core.RemoveDocument;
+    const removeDocs: DeleteBatch[] = [
+      bookDoc as DeleteBatch,
+      ...chapters.map((c) => c as DeleteBatch),
     ];
     const results = await this.db.bulkDocs(
-      removeDocs as unknown as PouchDB.Core.PutDocument<BookDoc | ChapterDoc>[],
+      removeDocs as PouchDB.Core.PutDocument<BookDoc | ChapterDoc>[],
     );
+    // 删除操作：409 = _rev 过期 = 文档未被删除——必须暴露，不能静默（Round 5）
     const failures = results.filter(
-      (r): r is PouchDB.Core.Error => 'error' in r && r.status !== 409,
+      (r): r is PouchDB.Core.Error => 'error' in r,
     );
     if (failures.length > 0) {
+      const detail = failures
+        .map((f) => `${f.id ?? '?'}[${f.name ?? f.status ?? '?'}]`)
+        .join(', ');
       throw new Error(
-        `bookDelete partial failure: ${failures.length}/${removeDocs.length} docs failed: ` +
-          failures.map((f) => `${f.id ?? '?'}[${f.status ?? '?'}]`).join(', '),
+        `bookDelete partial failure: ${failures.length}/${removeDocs.length} docs failed: ${detail}`,
       );
     }
   }
@@ -190,10 +195,10 @@ export class DbService {
   }
 
   async chapterPut(chapter: Chapter): Promise<void> {
-    // rest-sibling 解构：防御外部 chapter 对象含 _id/type 字段污染 PouchDB 文档（N4）
+    // rest-sibling + spread 在前（N4 防御 + Round 5 顺序建议）
     const { bookId, index, ...rest } = chapter;
     const _id = CHAPTER_PREFIX + bookId + CHAPTER_SEP + index;
-    const baseDoc: ChapterDoc = { _id, type: 'chapter', bookId, index, ...rest };
+    const baseDoc: ChapterDoc = { ...rest, _id, type: 'chapter', bookId, index };
     await this.chapterPutWithRetry(baseDoc);
   }
 
@@ -201,12 +206,17 @@ export class DbService {
     if (chapters.length === 0) return;
     // 等迁移完成，避免与 migrateLegacyChapterIds 写入新 _id 撞 409（N1）
     await this.ensureMigrated();
-    // 一次性 bulk 写，避免千章规模下串行 N 次 IndexedDB 事务
-    const docs: ChapterDoc[] = chapters.map((c) => ({
-      _id: CHAPTER_PREFIX + c.bookId + CHAPTER_SEP + c.index,
-      type: 'chapter',
-      ...c,
-    }));
+    // 一次性 bulk 写 + rest-sibling + spread 在前（N4 一致性）
+    const docs: ChapterDoc[] = chapters.map((c) => {
+      const { bookId, index, ...rest } = c;
+      return {
+        ...rest,
+        _id: CHAPTER_PREFIX + bookId + CHAPTER_SEP + index,
+        type: 'chapter',
+        bookId,
+        index,
+      };
+    });
     const res = await this.db.bulkDocs(docs);
     // 过滤 409（已有相同 _id 通常表示幂等写入）；其他失败 throw
     const failures = res.filter(
@@ -272,7 +282,7 @@ export class DbService {
 
       // 仅记录非 409 失败（409 是并发冲突，下次启动会再尝试旧 _id → 幂等）
       const fatalFailures = results.filter(
-        (r) => 'error' in r && r.status !== 409,
+        (r): r is PouchDB.Core.Error => 'error' in r && r.status !== 409,
       );
       if (fatalFailures.length > 0) {
         console.warn(

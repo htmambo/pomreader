@@ -164,6 +164,36 @@
 
 ---
 
-## Round 5/5 — 2026-09-24 (待 re-review)
+## Round 5/5 — 2026-09-24 (commit fb25fd4 修复后 re-review)
 
-(下面填入第五轮 verdict；如仍 NEEDS_CHANGES 则按 CLAUDE.md §1.5 exhaustion 停下暴露 residual risks)
+**Provider:** coding-bridge
+**Kind:** code
+**VERDICT:** NEEDS_CHANGES
+
+### Round 4 修复验证
+
+| # | Finding | 状态 |
+|---|---|---|
+| N1 | chapterPutMany 迁移竞态 | ✅ Fixed |
+| N2 | bookDelete Promise.all → bulkDocs | ⚠️ Partially Fixed（409 过滤语义错误；删除必须严格） |
+| N3 | 错误消息 fallback boolean | ⚠️ Partially Fixed（bookDelete 没用 f.name） |
+| N4 | 对象展开字段覆盖 | ⚠️ Partially Fixed（chapterPutMany 未应用；spread 顺序问题） |
+| N5 | 迁移缺 type 检查 | ✅ Fixed |
+| N6 | 双重类型断言 | ⚠️ Partially Fixed（bookDelete 未消除 as unknown as） |
+
+### 新 Risks
+
+1. **P中**：**409 过滤语义错误（核心）**
+   - 删除操作 409 = _rev 过期 = 文档未被删除
+   - bookDelete 不能过滤 409，必须 throw
+2. **P低**：bookDelete 错误消息没用 f.name（与 chapterPutMany 不一致）
+3. **P低**：chapterPutMany 没用 rest-sibling + spread 在前
+4. **P低**：bookPut / chapterPut spread 顺序（应在后）
+5. **P低**：bookDelete 仍用 as unknown as
+6. **P低**：migration fatalFailures 缺 type predicate
+
+**第 5 轮已用尽；用户放宽 REVIEW_MAX_ROUNDS=10，继续 Round 6。**
+
+---
+
+## Round 6/10 — 2026-09-24 (待 re-review)
