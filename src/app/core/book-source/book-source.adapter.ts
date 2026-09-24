@@ -19,6 +19,11 @@ export interface ResolvedBook {
 export interface PageFetcher {
   /** 抓取 URL 并按编码解码返回 HTML 文本 */
   fetchHtml(url: string, encoding?: 'auto' | 'utf-8' | 'gbk'): Promise<string>;
+  /**
+   * 可选：渲染抓取 —— 隐藏 BrowserWindow 真实加载页面（执行 JS、应用 CSS），
+   * 提取渲染后 DOM 的可视正文文本。用于静态解析失效的站点（JS 渲染/水印混淆）兜底。
+   */
+  fetchRendered?(url: string): Promise<string>;
 }
 
 /** 每站配置：编码 + DOM 选择器规则（失效时只改一处） */

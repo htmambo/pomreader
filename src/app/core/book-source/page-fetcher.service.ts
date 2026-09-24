@@ -9,6 +9,7 @@ declare global {
         url: string,
         encoding?: 'auto' | 'utf-8' | 'gbk'
       ) => Promise<{ html?: string; error?: string }>;
+      fetchRendered: (url: string) => Promise<{ text?: string; error?: string }>;
       openExternal: (url: string) => Promise<void>;
     };
   }
@@ -33,5 +34,16 @@ export class PageFetcherService implements PageFetcher {
     // 浏览器降级
     const r = await fetch(url, { mode: 'no-cors' });
     return await r.text();
+  }
+
+  async fetchRendered(url: string): Promise<string> {
+    if (window.pomAPI?.fetchRendered) {
+      const res = await window.pomAPI.fetchRendered(url);
+      if (res.error) throw new FetchError(res.error as FetchError['code']);
+      if (!res.text) throw new FetchError('parse-failed');
+      return res.text;
+    }
+    // 浏览器环境无渲染抓取能力
+    throw new FetchError('source-unavailable');
   }
 }

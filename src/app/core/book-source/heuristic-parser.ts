@@ -135,11 +135,16 @@ export function parseCatalog(doc: Document, baseUrl: string): { title: string; a
 
 /**
  * 解析正文页（复刻 fS：文字密度评分找正文容器）
+ *
+ * 下钻时带 0.6 骤降截断：子节点分数不足父节点 60% 即停止，
+ * 容器停留在段落聚合层（如 #content），不会钻入单个段落/行内节点。
  */
 export function parseChapterContent(doc: Document): string {
+  const SKIP_TAGS = ['A', 'BUTTON', 'SCRIPT', 'STYLE'];
+  const BREAK_TAGS = ['BR', 'DIV', 'P'];
   const scores = new Map<Node, number>();
-  // 展平所有节点（跳过 A/BUTTON/SCRIPT）
-  const nodes = flattenNodes(doc.body, ['A', 'BUTTON', 'SCRIPT']);
+  // 展平所有节点（跳过 A/BUTTON/SCRIPT/STYLE 子树）
+  const nodes = flattenNodes(doc.body, SKIP_TAGS);
 
   for (const node of nodes) {
     if (node.nodeType !== 1) continue;
@@ -149,15 +154,13 @@ export function parseChapterContent(doc: Document): string {
     scores.set(node, density);
   }
 
-  // 找文字密度最高的路径
-  const path: Node[] = [];
-  let cur: Node | null = doc.body;
-  while (cur) {
-    path.push(cur);
+  // 从 body 沿最高分子节点下钻，分数骤降 40%（< 0.6 倍）即截断
+  let container: Node = doc.body;
+  while (container) {
     let best: Node | null = null;
     let bestScore = -1;
-    for (let i = 0; i < cur.childNodes.length; i++) {
-      const child: Node = cur.childNodes[i];
+    for (let i = 0; i < container.childNodes.length; i++) {
+      const child: Node = container.childNodes[i];
       if (child.nodeType !== 1) continue;
       const sc = scores.get(child) ?? 0;
       if (sc > bestScore) {
@@ -165,28 +168,71 @@ export function parseChapterContent(doc: Document): string {
         best = child;
       }
     }
-    cur = best;
+    if (!best) break;
+    if (0.6 * (scores.get(container) ?? 0) > bestScore) break;
+    container = best;
   }
 
-  // 最深的高密度节点 = 正文容器
-  const container = (path[path.length - 1] as Element) ?? doc.body;
-  // 提取段落：按 <p> 或 <br> 分段
-  container.querySelectorAll('script, style, ins, .adsbygoogle').forEach((n) => n.remove());
+  // 复刻 fS 段落提取：遍历容器内所有节点，累积文本节点，
+  // 遇 BR/DIV/P 边界断段，trim 去空行；先剔除脚本/样式/广告节点
+  if (container.nodeType === 1) {
+    (container as Element)
+      .querySelectorAll('script, style, ins, .adsbygoogle')
+      .forEach((n) => n.remove());
+  }
   const paragraphs: string[] = [];
-
-  const pNodes = container.querySelectorAll('p, div');
-  if (pNodes.length > 0) {
-    for (const p of Array.from(pNodes)) {
-      const t = p.textContent?.trim();
-      if (t && t.length > 10) paragraphs.push(t);
+  let buf = '';
+  for (const node of flattenNodes(container, SKIP_TAGS)) {
+    if (node.nodeName === '#text') {
+      buf += node.nodeValue ?? '';
+    } else if (node.nodeType === 1 && BREAK_TAGS.includes((node as Element).tagName)) {
+      paragraphs.push(...buf.split('\n'));
+      buf = '';
     }
   }
-  if (paragraphs.length === 0) {
-    const t = container.textContent?.trim();
-    if (t) paragraphs.push(t);
-  }
+  paragraphs.push(...buf.split('\n'));
 
-  return paragraphs.join('\n\n');
+  return paragraphs
+    .map((t) => t && t.trim())
+    .filter((t) => t)
+    .join('\n\n');
+}
+
+/** 全角 ASCII → 半角，并去除水印常见分隔/空白字符 */
+function normalizeWatermarkText(t: string): string {
+  let out = '';
+  for (const ch of t) {
+    const code = ch.codePointAt(0)!;
+    out += code >= 0xff01 && code <= 0xff5e ? String.fromCharCode(code - 0xfee0) : ch;
+  }
+  return out.replace(/[\s*_|·~．。]/g, '').toLowerCase();
+}
+
+/**
+ * 通用"静态解析结果可疑"判定（成立时应走渲染兜底）：
+ * 1. 文本过短 —— 依赖 JS 渲染的站点，静态抓取拿不到正文；
+ * 2. 文本中多次出现站点域名 —— 水印/混淆站特征
+ *    （正文被注入域名水印，正常小说不会反复提到书源域名）。
+ */
+export function looksObfuscated(text: string, pageUrl: string): boolean {
+  if (text.length < 100) return true;
+  let host = '';
+  try {
+    host = new URL(pageUrl).hostname.replace(/^www\./, '');
+  } catch {
+    return false;
+  }
+  const needle = normalizeWatermarkText(host);
+  if (!needle) return false;
+  const hay = normalizeWatermarkText(text);
+  let count = 0;
+  let idx = 0;
+  while ((idx = hay.indexOf(needle, idx)) !== -1) {
+    count++;
+    if (count >= 2) return true;
+    idx += needle.length;
+  }
+  return false;
 }
 
 function getMeta(doc: Document, property: string): string | null {

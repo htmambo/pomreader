@@ -11,6 +11,7 @@ import { KehuanAdapter } from './adapters/kehuan.adapter';
 import { HeuristicAdapter } from './adapters/heuristic.adapter';
 import { FetchError } from './fetch-error';
 import { SOURCE_CONFIG } from './book-source.config';
+import { looksObfuscated } from './heuristic-parser';
 
 const FIXTURES = join(__dirname, 'adapters', '__fixtures__');
 
@@ -155,5 +156,76 @@ describe('HeuristicAdapter（通用启发式兜底）', () => {
   it('目录为空抛 catalog-empty', async () => {
     const fetcher = mockFetcher({ [catUrl]: '<html><body></body></html>' });
     await expect(adapter.fetchCatalog(catUrl, fetcher)).rejects.toThrow('catalog-empty');
+  });
+});
+
+describe('HeuristicAdapter 正文解析（对齐原版 fS：0.6 骤降截断）', () => {
+  const adapter = new HeuristicAdapter();
+  const hetushuUrl = 'https://www.hetushu.com/book/5/3347.html';
+
+  it('hetushu 章节页：提取完整正文而非单个叶子节点', async () => {
+    const fetcher = mockFetcher({ [hetushuUrl]: loadFixture('hetushu-chapter.html') });
+    const text = await adapter.fetchChapter({ title: '楔子', url: hetushuUrl }, fetcher);
+    // 修复前下钻到 <tt> 水印叶子只返回"和图书"；修复后应停在 #content 提取全部段落
+    expect(text.length).toBeGreaterThan(4000);
+    expect(text).toContain('这是小姐的血肉');
+    expect(text).toContain('蒙住了这天');
+  });
+});
+
+describe('looksObfuscated（通用可疑判定 → 渲染兜底）', () => {
+  it('静态文本过短 → 可疑（JS 渲染站特征）', () => {
+    expect(looksObfuscated('和图书', 'https://www.hetushu.com/book/5/3347.html')).toBe(true);
+  });
+
+  it('正文多次出现站点域名 → 可疑（水印混淆站特征）', () => {
+    const text = '开头……heｔushu.com.cｏｍ……中段……www.hetushu.com.com……结尾'.repeat(3);
+    expect(looksObfuscated(text, 'https://www.hetushu.com/book/5/3347.html')).toBe(true);
+  });
+
+  it('正常正文（不含域名、足够长）→ 不可疑', () => {
+    const text = '范慎很困难地撑着上眼皮，看着指头算自己这辈子做过些什么有意义的事情。'.repeat(10);
+    expect(looksObfuscated(text, 'https://www.hetushu.com/book/5/3347.html')).toBe(false);
+  });
+});
+
+describe('HeuristicAdapter 渲染兜底', () => {
+  const adapter = new HeuristicAdapter();
+  const hetushuUrl = 'https://www.hetushu.com/book/5/3347.html';
+  const chUrl = 'https://www.unknown-site.com/book/123/1.html';
+
+  it('静态结果可疑时调用 fetchRendered 并采用渲染结果', async () => {
+    const rendered = '范慎很困难地撑着上眼皮，看着指头算自己这辈子做过些什么有意义的事情。'.repeat(200);
+    const fetcher: PageFetcher = {
+      fetchHtml: vi.fn(async () => loadFixture('hetushu-chapter.html')),
+      fetchRendered: vi.fn(async () => rendered),
+    };
+    const text = await adapter.fetchChapter({ title: '楔子', url: hetushuUrl }, fetcher);
+    expect(fetcher.fetchRendered).toHaveBeenCalledWith(hetushuUrl);
+    expect(text).toBe(rendered);
+  });
+
+  it('渲染抓取失败时回退静态结果', async () => {
+    const fetcher: PageFetcher = {
+      fetchHtml: vi.fn(async () => loadFixture('hetushu-chapter.html')),
+      fetchRendered: vi.fn(async () => {
+        throw new FetchError('timeout');
+      }),
+    };
+    const text = await adapter.fetchChapter({ title: '楔子', url: hetushuUrl }, fetcher);
+    expect(text).toContain('这是小姐的血肉');
+  });
+
+  it('静态结果正常时不触发渲染抓取', async () => {
+    // 构造足够长且无域名的正常正文（过短会按 JS 渲染站特征触发兜底）
+    const para = '范慎很困难地撑着上眼皮，看着指头算自己这辈子做过些什么有意义的事情。'.repeat(6);
+    const cleanHtml = `<html><body><div id="content"><div>${para}</div><div>${para}</div></div></body></html>`;
+    const fetcher: PageFetcher = {
+      fetchHtml: vi.fn(async () => cleanHtml),
+      fetchRendered: vi.fn(async () => '不应被调用'),
+    };
+    const text = await adapter.fetchChapter({ title: '第一章', url: chUrl }, fetcher);
+    expect(fetcher.fetchRendered).not.toHaveBeenCalled();
+    expect(text).toContain('范慎');
   });
 });
