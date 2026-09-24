@@ -109,6 +109,34 @@
 
 ---
 
-## Round 3/5 — 2026-09-24 (待 re-review)
+## Round 3/5 — 2026-09-24 (commit 07fc131 修复后 re-review)
 
-(下面填入第三轮 verdict)
+**Provider:** coding-bridge
+**Kind:** code
+**VERDICT:** NEEDS_CHANGES
+
+### Round 2 修复验证（4 findings）
+
+| # | Finding | 状态 |
+|---|---|---|
+| 1 | P1 历史数据兼容 | ⚠️ Partially Fixed（迁移逻辑 OK，但 N+1 + 并发窗口期重复章节） |
+| 2 | P2 eslint-disable 注释位置 | ✅ Fixed |
+| 3 | P3 afterClose 订阅 | ✅ Fixed |
+| 4 | P3 bulkDocs 409 容忍 | ✅ Accepted（业务决定） |
+
+### 新 Risks
+
+| # | Severity | Summary |
+|---|---|---|
+| R3-1 | P2 中 | migrateLegacyChapterIds N+1 查询（allDocs 拿 _id 后逐个 get）；千章规模 1000 次 IO |
+| R3-2 | P2 中 | 迁移窗口期 chapterAll 返回重复章节（旧 _id 还在、新 _id 已写） |
+| R3-3 | P3 低 | bulkDocs 返回结果未检查；非 409 失败静默 |
+| R3-4 | P4 极低 | 正则 + HIGH_CHAR 边界 OK（验证通过） |
+| R3-5 | P4 极低 | tombstones/migrated 顺序 OK（验证通过） |
+| R3-6 | P4 极低 | migrated 字段完整性 OK（验证通过） |
+
+---
+
+## Round 4/5 — 2026-09-24 (待 re-review)
+
+(下面填入第四轮 verdict)

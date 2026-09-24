@@ -64,11 +64,17 @@ const HIGH_CHAR = '￰';
 @Injectable({ providedIn: 'root' })
 export class DbService {
   private readonly db = new PouchDB<BookDoc | ChapterDoc>(DB_NAME);
+  /** 启动时一次性迁移旧 chapter _id 的 Promise
+   *  上层读操作通过 ensureMigrated() await 避免迁移窗口期返回重复章节（R3-2） */
+  private readonly migrationPromise: Promise<void>;
 
   constructor() {
-    // 启动时一次性迁移旧 chapter _id（Round 2 review P1）
-    // fire-and-forget：失败不阻塞应用启动
-    void this.migrateLegacyChapterIds();
+    this.migrationPromise = this.migrateLegacyChapterIds();
+  }
+
+  /** 上层读操作（chapterAll / chapterGet / bookDelete 等）调用，避免迁移窗口期返回重复 */
+  private async ensureMigrated(): Promise<void> {
+    await this.migrationPromise;
   }
 
   // ============ Book 操作 ============
@@ -124,6 +130,7 @@ export class DbService {
 
   /** 删除一本书并级联删除其所有章节 */
   async bookDelete(bookId: string): Promise<void> {
+    await this.ensureMigrated();
     const _id = BOOK_PREFIX + bookId;
     const bookDoc = (await this.db.get<BookDoc>(_id)) as StoredBookDoc;
     const chapters = await this.chapterAllRaw(bookId);
@@ -136,6 +143,7 @@ export class DbService {
   // ============ Chapter 操作 ============
 
   async chapterAll(bookId: string): Promise<Chapter[]> {
+    await this.ensureMigrated();
     const chapters = await this.chapterAllRaw(bookId);
     return chapters.map((d) => this.chapterDocToChapter(d));
   }
@@ -154,6 +162,7 @@ export class DbService {
   }
 
   async chapterGet(bookId: string, idx: number): Promise<Chapter | null> {
+    await this.ensureMigrated();
     try {
       const doc = await this.db.get<ChapterDoc>(
         CHAPTER_PREFIX + bookId + CHAPTER_SEP + idx,
@@ -191,24 +200,28 @@ export class DbService {
   /**
    * 迁移旧 chapter _id（`chapter:{bookId}:{idx}` 冒号分隔）到新格式
    * （`chapter:{bookId}{idx}` Unit Separator 分隔）。
-   * Round 2 review 指出：CHAPTER_SEP 改为 U+001F 是 breaking change，
-   * 旧库 chapter 文档查询不到 / bookDelete 级联失败。
-   * 启动时 fire-and-forget 执行；本地单机场景，无并发。
+   * Round 2 review 指出：CHAPTER_SEP 改为 U+001F 是 breaking change。
+   * 用 allDocs({include_docs: true}) 一次拉取（R3-1：消除 N+1）。
+   * 检查 bulkDocs 返回结果过滤非 409 失败（R3-3）。
+   * 上层读操作通过 ensureMigrated() await 避免迁移窗口期重复章节（R3-2）。
    */
   private async migrateLegacyChapterIds(): Promise<void> {
     try {
       const res = await this.db.allDocs<ChapterDoc>({
         startkey: CHAPTER_PREFIX,
         endkey: CHAPTER_PREFIX + HIGH_CHAR,
+        include_docs: true,
       });
-      const oldIds = res.rows
-        .map((r) => r.id)
-        .filter((id) => id.startsWith(CHAPTER_PREFIX) && !id.includes(CHAPTER_SEP));
-      if (oldIds.length === 0) return;
+      const oldDocs = res.rows
+        .map((r) => r.doc)
+        .filter(
+          (d): d is StoredChapterDoc =>
+            !!d &&
+            !d._id.includes(CHAPTER_SEP) &&
+            !(d as { _deleted?: boolean })._deleted,
+        );
+      if (oldDocs.length === 0) return;
 
-      const oldDocs = await Promise.all(
-        oldIds.map((id) => this.db.get<ChapterDoc>(id) as Promise<StoredChapterDoc>),
-      );
       const migrated = oldDocs
         .map((doc): (ChapterDoc & { _rev: string }) | null => {
           const m = doc._id.match(/^chapter:(.+):(\d+)$/);
@@ -226,12 +239,22 @@ export class DbService {
         _rev: d._rev,
         _deleted: true as const,
       }));
-      await this.db.bulkDocs([
+      const results = await this.db.bulkDocs([
         ...tombstones,
         ...migrated,
       ] as unknown as PouchDB.Core.PutDocument<ChapterDoc>[]);
+
+      // 仅记录非 409 失败（409 是并发冲突，下次启动会再尝试旧 _id → 幂等）
+      const fatalFailures = results.filter(
+        (r) => 'error' in r && r.status !== 409,
+      );
+      if (fatalFailures.length > 0) {
+        console.warn(
+          '[DbService] legacy chapter migration partial failure:',
+          fatalFailures.map((f) => ('id' in f ? f.id : 'unknown')),
+        );
+      }
     } catch (e) {
-      // 迁移失败不阻塞应用启动；用户可在设置里手动 destroy 旧库
       console.warn('[DbService] legacy chapter _id migration failed:', e);
     }
   }
