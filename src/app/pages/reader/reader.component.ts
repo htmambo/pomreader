@@ -522,10 +522,16 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
       nzOkDanger: true,
       nzCancelText: '取消',
       nzOnOk: async () => {
-        await this.books.deleteBook(b.id);
-        this.msg.success(`已删除：${b.title}`);
-        this.router.navigate(['/bookshelf']);
-        return true;
+        try {
+          await this.books.deleteBook(b.id);
+          this.msg.success(`已删除：${b.title}`);
+          this.router.navigate(['/bookshelf']);
+          return true;
+        } catch (e) {
+          // bookDelete 现在严格 throw（含 409）—— 给用户可见反馈，modal 保持打开（P3）
+          this.msg.error(`删除失败：${(e as Error).message ?? e}`);
+          return false;
+        }
       },
     });
     ref.afterClose.pipe(take(1)).subscribe(() => this.modalOpen.set(false));

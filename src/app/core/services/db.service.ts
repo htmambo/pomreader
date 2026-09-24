@@ -136,17 +136,23 @@ export class DbService {
     const _id = BOOK_PREFIX + bookId;
     const bookDoc = (await this.db.get<BookDoc>(_id)) as StoredBookDoc;
     const chapters = await this.chapterAllRaw(bookId);
-    // bulkDocs 一次原子删除，避免 Promise.all 首个 reject 导致孤儿文档（N2）
-    // 显式联合类型替代 as unknown as（N6 一致性）
-    type DeleteBatch = PouchDB.Core.RemoveDocument;
-    const removeDocs: DeleteBatch[] = [
-      bookDoc as DeleteBatch,
-      ...chapters.map((c) => c as DeleteBatch),
+    // bulkDocs 一次原子删除。必须显式构造 {_id, _rev, _deleted: true}：
+    // PouchDB.Core.RemoveDocument 要求 _deleted: true，否则 bulkDocs 把文档当作更新（P1）
+    // PouchDB 类型上 RemoveDocument 不显式包含 _deleted 字段，但运行时必须设置 true
+    type RemoveDoc = { _id: string; _rev: string; _deleted: true };
+    const removeDocs: RemoveDoc[] = [
+      { _id: bookDoc._id, _rev: bookDoc._rev, _deleted: true },
+      ...chapters.map((c) => ({
+        _id: c._id,
+        _rev: c._rev,
+        _deleted: true as const,
+      })),
     ];
     const results = await this.db.bulkDocs(
-      removeDocs as PouchDB.Core.PutDocument<BookDoc | ChapterDoc>[],
+      removeDocs as unknown as PouchDB.Core.PutDocument<BookDoc | ChapterDoc>[],
     );
     // 删除操作：409 = _rev 过期 = 文档未被删除——必须暴露，不能静默（Round 5）
+    // 与 chapterPutMany（创建操作，409=幂等成功）语义不同
     const failures = results.filter(
       (r): r is PouchDB.Core.Error => 'error' in r,
     );
@@ -218,7 +224,9 @@ export class DbService {
       };
     });
     const res = await this.db.bulkDocs(docs);
-    // 过滤 409（已有相同 _id 通常表示幂等写入）；其他失败 throw
+    // 创建操作：409 = 文档已存在 = 幂等成功
+    // 注意：若已存在 chapter 内容不同，409 仍被忽略——适用于首次导入场景，
+    // 不适用于「编辑后再导入」等覆写场景（业务上不会出现，章节内容在 reader 内编辑）
     const failures = res.filter(
       (r): r is PouchDB.Core.Error => 'error' in r && r.status !== 409,
     );
@@ -257,15 +265,17 @@ export class DbService {
       if (oldDocs.length === 0) return;
 
       const migrated = oldDocs
-        .map((doc): (ChapterDoc & { _rev: string }) | null => {
+        .map((doc): (ChapterDoc & { _rev?: string }) | null => {
           const m = doc._id.match(/^chapter:(.+):(\d+)$/);
           if (!m) return null;
           const [, bookId, idxStr] = m;
           const idx = parseInt(idxStr, 10);
           if (Number.isNaN(idx)) return null;
-          return { ...doc, _id: CHAPTER_PREFIX + bookId + CHAPTER_SEP + idx };
+          // 剥离旧 _rev：新 _id 文档不应携带旧 _rev，否则 PouchDB 当 update 处理 → 409 (P2)
+          const { _rev: _oldRev, ...rest } = doc;
+          return { ...rest, _id: CHAPTER_PREFIX + bookId + CHAPTER_SEP + idx };
         })
-        .filter((d): d is ChapterDoc & { _rev: string } => !!d);
+        .filter((d): d is ChapterDoc & { _rev?: string } => !!d);
 
       // PouchDB 改 _id 等价于「删旧 + 建新」
       const tombstones = oldDocs.map((d) => ({
@@ -274,7 +284,11 @@ export class DbService {
         _deleted: true as const,
       }));
       // 显式联合类型（N6：替代 as unknown as 双重断言）
-      type MigrationBatch = (ChapterDoc & { _rev: string }) | PouchDB.Core.RemoveDocument;
+      // PouchDB bulkDocs 类型签名只接受 PutDocument[]，但删除需要传
+      // { _deleted: true } 文档，类型系统无法表达 put+remove 混合语义，cast 必要
+      type MigrationBatch =
+        | (ChapterDoc & { _rev?: string })
+        | { _id: string; _rev: string; _deleted: true };
       const batch: MigrationBatch[] = [...tombstones, ...migrated];
       const results = await this.db.bulkDocs(
         batch as PouchDB.Core.PutDocument<ChapterDoc>[],

@@ -196,4 +196,33 @@
 
 ---
 
-## Round 6/10 — 2026-09-24 (待 re-review)
+## Round 6/10 — 2026-09-24 (commit a3533cc 修复后 re-review)
+
+**Provider:** coding-bridge
+**Kind:** code
+**VERDICT:** NEEDS_CHANGES
+
+### Round 5 修复验证
+
+| # | Finding | 状态 |
+|---|---|---|
+| 核心 | bookDelete 409 不过滤 | ✅ Fixed |
+| 次要1 | 错误消息 f.name | ✅ Fixed |
+| 次要2 | DeleteBatch 联合类型 | ⚠️ Partially Fixed（暴露了 P1 真严重 bug） |
+| 次要3 | chapterPutMany rest-sibling | ✅ Fixed |
+| 次要4 | bookPut / chapterPut spread 在前 | ✅ Fixed |
+| 次要5 | migration type predicate | ✅ Fixed |
+
+### 新 Risks
+
+| # | Severity | Summary |
+|---|---|---|
+| **P1** | **P严重** | **bookDelete 缺 _deleted:true** — Round 5 改 DeleteBatch 类型时把 PouchDB.Core.RemoveDocument（运行时实际是 { _id, _rev }）当作 RemoveDocument cast，运行时未设置 _deleted:true → bulkDocs 执行更新而非删除 → **静默数据丢失** |
+| **P2** | P高 | migration migrated 携带旧 _rev — 新 _id 文档不应有 _rev，否则 PouchDB 当 update 处理 → 409 → 旧文档已删新文档未创建 → 数据丢失 |
+| P3 | P中 | bookDelete throw 没在 reader UI 捕获，modal 不关闭用户无反馈 |
+| P4 | P低 | chapterPutMany 409 语义需文档化边界条件 |
+| P5 | P低 | as cast 注释 |
+
+---
+
+## Round 7/10 — 2026-09-24 (待 re-review)
