@@ -151,6 +151,48 @@ export class BookService {
     }
   }
 
+  /** 强制重新抓取某章正文（忽略 loaded 标记，用于已缓存内容异常时手动刷新） */
+  async refreshChapter(bookId: string, index: number): Promise<boolean> {
+    const cached = this._chaptersCache().get(bookId);
+    let ch = cached?.[index];
+    if (!ch) {
+      const fromDb = await this.db.chapterGet(bookId, index);
+      if (fromDb) ch = fromDb;
+    }
+    if (!ch || !ch.sourceUrl) return false;
+    try {
+      const entry: CatalogEntry = { title: ch.title, url: ch.sourceUrl };
+      const content = await this.sources.fetchChapter(entry);
+      const updated: Chapter = { ...ch, content, loaded: true };
+      await this.db.chapterPut(updated);
+      this._chaptersCache.update((m) => {
+        const list = m.get(bookId);
+        if (!list) return m;
+        const next = new Map(m);
+        next.set(bookId, list.map((c) => (c.index === index ? updated : c)));
+        return next;
+      });
+      this.chaptersVersion.update((v) => v + 1);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** 清空全书章节正文缓存（标记为未加载，之后阅读时按需重新抓取） */
+  async clearChapterContents(bookId: string): Promise<void> {
+    const cached = this._chaptersCache().get(bookId) ?? (await this.db.chapterAll(bookId));
+    if (!cached || cached.length === 0) return;
+    const cleared: Chapter[] = cached.map((c) => ({ ...c, content: '', loaded: false }));
+    await this.db.chapterPutMany(cleared);
+    this._chaptersCache.update((m) => {
+      const next = new Map(m);
+      next.set(bookId, cleared);
+      return next;
+    });
+    this.chaptersVersion.update((v) => v + 1);
+  }
+
   /** 更新某章字段（内部 / 旧 API 兼容） */
   async updateChapter(bookId: string, index: number, patch: Partial<Chapter>): Promise<void> {
     const cached = this._chaptersCache().get(bookId);
