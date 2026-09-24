@@ -66,6 +66,49 @@
 
 ---
 
-## Round 2/5 — 2026-09-24 (待 re-review)
+## Round 2/5 — 2026-09-24 (commit 59a8e85 修复后 re-review)
 
-(下面填入第二轮 verdict)
+**Provider:** coding-bridge
+**Kind:** code
+**VERDICT:** NEEDS_CHANGES
+
+### Findings (Round 1 修复验证 + 新风险)
+
+#### Round 1 修复验证（11 项）
+
+| # | Finding | 状态 |
+|---|---|---|
+| P1.1 | chapter _id 前缀冲突 (U+001F 分隔) | ✅ Fixed（但引入新风险 1：历史数据兼容） |
+| P1.2 | chapterPutMany bulkDocs | ✅ Fixed |
+| P2.3 | placeholder 真实 URL | ✅ Fixed |
+| P2.4 | bookPut 409 retry | ⚠️ Partially Fixed（无 backoff/jitter；本地够用） |
+| P2.5 | modalOpen signal 拦截键盘 | ✅ Fixed |
+| P3.6 | jump dialog error signal + nzStatus | ✅ Fixed |
+| P3.7 | eslint-disable 注释 | ⚠️ Partially Fixed（注释位置错 → 见新风险 2） |
+| P3.8 | seedIfEmpty 改 bookAll().length | ✅ Fixed |
+| P4.10 | coverColor 实时 lowercase | ✅ Fixed |
+| P4.11 | .modal-list-scrollable 自定义 class | ✅ Fixed |
+
+#### 新 Risks
+
+1. **P1 严重：CHAPTER_SEP `:` → `\x1f` 是 breaking change**
+   - 旧库 chapter 文档 _id 仍是 `chapter:bookId:1`，新查询不到；bookDelete 不级联
+   - 修复：DbService 构造时 fire-and-forget 调 `migrateLegacyChapterIds()`：扫描旧 _id + bulkDocs 「删旧 + 建新」
+
+2. **P2 低：eslint-disable-next-line 注释位置错误**
+   - 之前放在函数签名行，应在解构语句上一行
+   - 修复：移动注释到 `const { _id, _rev, type, ...rest } = doc;` 上一行
+
+3. **P3 低：afterClose 订阅未销毁隐患**
+   - 直接 `subscribe` 返回的 Subscription 未管理（虽然 NgModal 自动 complete 自身 Subject）
+   - 修复：加 `.pipe(take(1))` 明确只触发一次
+
+4. **P3 低：chapterPutMany 缺少 409 冲突容忍**
+   - 部分文档失败时整批 throw；本地单机不会触发，业务上 OK
+   - 决定：暂不修（本地场景，业务可接受；后续接入远程同步时再补 retry）
+
+---
+
+## Round 3/5 — 2026-09-24 (待 re-review)
+
+(下面填入第三轮 verdict)

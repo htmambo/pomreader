@@ -10,6 +10,7 @@ import {
   effect,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { take } from 'rxjs/operators';
 import { ActivatedRoute, Router } from '@angular/router';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzModalService } from 'ng-zorro-antd/modal';
@@ -503,7 +504,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
       nzCancelText: '取消',
       nzWidth: 360,
     });
-    ref.afterClose.subscribe(() => this.modalOpen.set(false));
+    ref.afterClose.pipe(take(1)).subscribe(() => this.modalOpen.set(false));
   }
 
   /** 左侧"删除"按钮：弹确认 modal，确认后调 BookService.deleteBook + 回书架 */
@@ -527,7 +528,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
         return true;
       },
     });
-    ref.afterClose.subscribe(() => this.modalOpen.set(false));
+    ref.afterClose.pipe(take(1)).subscribe(() => this.modalOpen.set(false));
   }
 
   /** 左侧"编辑"按钮：弹 modal 修改当前书籍的书名 / 作者 / 源地址 */
@@ -555,7 +556,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
       nzCancelText: '取消',
       nzWidth: 420,
     });
-    ref.afterClose.subscribe(() => this.modalOpen.set(false));
+    ref.afterClose.pipe(take(1)).subscribe(() => this.modalOpen.set(false));
   }
 
   /** 切换章节后把滚动条跳回顶部（用户阅读习惯） */

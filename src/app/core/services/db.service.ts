@@ -65,6 +65,12 @@ const HIGH_CHAR = '￰';
 export class DbService {
   private readonly db = new PouchDB<BookDoc | ChapterDoc>(DB_NAME);
 
+  constructor() {
+    // 启动时一次性迁移旧 chapter _id（Round 2 review P1）
+    // fire-and-forget：失败不阻塞应用启动
+    void this.migrateLegacyChapterIds();
+  }
+
   // ============ Book 操作 ============
 
   async bookAll(): Promise<Book[]> {
@@ -182,6 +188,54 @@ export class DbService {
     }
   }
 
+  /**
+   * 迁移旧 chapter _id（`chapter:{bookId}:{idx}` 冒号分隔）到新格式
+   * （`chapter:{bookId}{idx}` Unit Separator 分隔）。
+   * Round 2 review 指出：CHAPTER_SEP 改为 U+001F 是 breaking change，
+   * 旧库 chapter 文档查询不到 / bookDelete 级联失败。
+   * 启动时 fire-and-forget 执行；本地单机场景，无并发。
+   */
+  private async migrateLegacyChapterIds(): Promise<void> {
+    try {
+      const res = await this.db.allDocs<ChapterDoc>({
+        startkey: CHAPTER_PREFIX,
+        endkey: CHAPTER_PREFIX + HIGH_CHAR,
+      });
+      const oldIds = res.rows
+        .map((r) => r.id)
+        .filter((id) => id.startsWith(CHAPTER_PREFIX) && !id.includes(CHAPTER_SEP));
+      if (oldIds.length === 0) return;
+
+      const oldDocs = await Promise.all(
+        oldIds.map((id) => this.db.get<ChapterDoc>(id) as Promise<StoredChapterDoc>),
+      );
+      const migrated = oldDocs
+        .map((doc): (ChapterDoc & { _rev: string }) | null => {
+          const m = doc._id.match(/^chapter:(.+):(\d+)$/);
+          if (!m) return null;
+          const [, bookId, idxStr] = m;
+          const idx = parseInt(idxStr, 10);
+          if (Number.isNaN(idx)) return null;
+          return { ...doc, _id: CHAPTER_PREFIX + bookId + CHAPTER_SEP + idx };
+        })
+        .filter((d): d is ChapterDoc & { _rev: string } => !!d);
+
+      // PouchDB 改 _id 等价于「删旧 + 建新」
+      const tombstones = oldDocs.map((d) => ({
+        _id: d._id,
+        _rev: d._rev,
+        _deleted: true as const,
+      }));
+      await this.db.bulkDocs([
+        ...tombstones,
+        ...migrated,
+      ] as unknown as PouchDB.Core.PutDocument<ChapterDoc>[]);
+    } catch (e) {
+      // 迁移失败不阻塞应用启动；用户可在设置里手动 destroy 旧库
+      console.warn('[DbService] legacy chapter _id migration failed:', e);
+    }
+  }
+
   // ============ Seed + 诊断 ============
 
   /**
@@ -293,14 +347,14 @@ export class DbService {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private bookDocToBook(doc: StoredBookDoc): Book {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { _id, _rev, type, ...rest } = doc;
     return rest as Book;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private chapterDocToChapter(doc: StoredChapterDoc): Chapter {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { _id, _rev, type, ...rest } = doc;
     return rest as Chapter;
   }
