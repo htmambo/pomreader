@@ -3,8 +3,11 @@ import { RouterOutlet } from '@angular/router';
 import { NzLayoutModule } from 'ng-zorro-antd/layout';
 import { NzMenuModule } from 'ng-zorro-antd/menu';
 import { NzButtonModule } from 'ng-zorro-antd/button';
-import { NzIconModule, NZ_ICONS } from 'ng-zorro-antd/icon';
-import { BookOutline, SearchOutline, FileTextOutline, MoonOutline, SunOutline } from '@ant-design/icons-angular/icons';
+import { NzIconModule, NZ_ICONS, provideNzIconsPatch } from 'ng-zorro-antd/icon';
+import {
+  BookOutline, SearchOutline, FileTextOutline, MoonOutline, SunOutline,
+  ArrowLeftOutline, MenuOutline, SettingOutline, CloseOutline,
+} from '@ant-design/icons-angular/icons';
 import { ThemeService } from './core/services/theme.service';
 import { PageHeaderComponent } from './shared/components/page-header/page-header.component';
 import { SidebarComponent } from './shared/components/sidebar/sidebar.component';
@@ -22,11 +25,10 @@ import { SidebarComponent } from './shared/components/sidebar/sidebar.component'
     SidebarComponent,
   ],
   providers: [
-    {
-      provide: NZ_ICONS,
-      useValue: [BookOutline, SearchOutline, FileTextOutline, MoonOutline, SunOutline],
-      multi: true,
-    },
+    provideNzIconsPatch([
+      BookOutline, SearchOutline, FileTextOutline, MoonOutline, SunOutline,
+      ArrowLeftOutline, MenuOutline, SettingOutline, CloseOutline,
+    ]),
   ],
   template: `
     <nz-layout class="app-layout">

@@ -2,24 +2,8 @@
  * pomreader-ui-clone 入口样式
  * ============================================================ */
 
+/* ng-zorro 全局样式（v18 合并 CSS，所有组件） */
+@import 'ng-zorro-antd/ng-zorro-antd.min.css';
+
 @import './styles/tokens.scss';
 @import './styles/ng-zorro-overrides.scss';
-
-html,
-body {
-  height: 100%;
-  margin: 0;
-  font-family: var(--pom-font-family);
-  font-size: var(--pom-font-size-base);
-  color: var(--pom-text);
-  background: var(--pom-bg) var(--pom-bg-image) repeat;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
-}

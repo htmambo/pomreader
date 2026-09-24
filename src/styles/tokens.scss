@@ -36,12 +36,14 @@
   --pom-scrollbar-track: transparent;
 }
 
-/* light theme（与原 vendor #e2d1a5 / #f4eac7 / #cdc0a4 对齐） */
+/* light theme（与原 vendor #e2d1a5 / #f4eac7 / #cdc0a4 对齐）
+ * 注：背景纹理图 assets/themes/* 未在仓内（占位）；先用纯色 TODO -->
+ */
 :root[data-color-mode='light'][data-default-theme='1'] {
   --pom-bg: #e2d1a5;
-  --pom-bg-image: url('/assets/themes/body_light_bg.png');
+  --pom-bg-image: none;
   --pom-fg: #f4eac7;
-  --pom-fg-image: url('/assets/themes/reader_light_bg.png');
+  --pom-fg-image: none;
   --pom-text: #262626;
   --pom-text-muted: #8c8c8c;
   --pom-border: #d4cba0;
@@ -55,9 +57,9 @@
 /* dark theme（与原 vendor #161819 / #666666 / #999999 / #26292b 对齐） */
 :root[data-color-mode='dark'][data-default-theme='1'] {
   --pom-bg: #161819;
-  --pom-bg-image: url('/assets/themes/body_dark_bg.png');
+  --pom-bg-image: none;
   --pom-fg: #0e0f11;
-  --pom-fg-image: url('/assets/themes/reader_dark_bg.png');
+  --pom-fg-image: none;
   --pom-text: #666666;
   --pom-text-muted: #999999;
   --pom-border: #26292b;
