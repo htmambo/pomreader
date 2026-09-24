@@ -27,7 +27,7 @@ import { Book } from '../../core/models/book.model';
       <div class="url-row">
         <input
           nz-input
-          placeholder="https://www.xbiquge.cc/book/9231/"
+          placeholder="https://example.com/book/123/"
           [(ngModel)]="url"
           [disabled]="loading() || importing()"
           (keyup.enter)="parse()"
@@ -48,7 +48,7 @@ import { Book } from '../../core/models/book.model';
       } @else if (resolved()) {
         <h4>{{ resolved()!.title }} <small>({{ resolved()!.author }})</small></h4>
         <p class="hint">共 {{ resolved()!.chapters.length }} 章，点击下方"确认导入"加入书架</p>
-        <ul nz-list nzSize="small" nzBordered>
+        <ul nz-list nzSize="small" nzBordered class="modal-list-scrollable">
           @for (ch of resolved()!.chapters; track ch.url; let i = $index) {
             <li nz-list-item>{{ i + 1 }}. {{ ch.title }}</li>
           }

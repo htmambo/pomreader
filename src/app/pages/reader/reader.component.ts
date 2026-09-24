@@ -245,6 +245,8 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   /** 在线书按需加载状态 */
   protected readonly chapterLoading = signal(false);
   protected readonly chapterError = signal(false);
+  /** 是否有 NzModal 打开（键盘翻页期间跳过，避免背景翻页） */
+  protected readonly modalOpen = signal(false);
 
   /** 设置面板草稿：打开面板期间页面实时预览草稿值，保存才落盘 */
   protected readonly draft = signal<ReaderViewSettings>({
@@ -451,6 +453,8 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   /** 键盘左右方向键翻章（在输入框内不响应，避免误触） */
   @HostListener('document:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
+    // Modal 打开期间不响应（避免背景翻页）
+    if (this.modalOpen()) return;
     // 跳过正在输入的状态（input/textarea/contenteditable）
     const target = event.target as HTMLElement | null;
     if (
@@ -484,6 +488,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
     const current = this.chapterIndex() + 1;
+    this.modalOpen.set(true);
     const ref = this.modal.create({
       nzTitle: '跳转到指定章节',
       nzContent: JumpChapterDialogComponent,
@@ -491,10 +496,6 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
       nzOnOk: (instance: JumpChapterDialogComponent) => {
         const target = instance.target();
         if (target === null) return false; // 用户没输入或输入无效
-        if (target < 1 || target > total) {
-          this.msg.error(`章节号需在 1-${total} 之间`);
-          return false;
-        }
         this.goTo(target - 1);
         return true;
       },
@@ -502,8 +503,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
       nzCancelText: '取消',
       nzWidth: 360,
     });
-    // modal 引用释放（避免类型未使用警告）
-    void ref;
+    ref.afterClose.subscribe(() => this.modalOpen.set(false));
   }
 
   /** 左侧"删除"按钮：弹确认 modal，确认后调 BookService.deleteBook + 回书架 */
@@ -513,7 +513,8 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
       this.msg.warning('当前书籍信息尚未加载');
       return;
     }
-    this.modal.confirm({
+    this.modalOpen.set(true);
+    const ref = this.modal.confirm({
       nzTitle: '确认删除',
       nzContent: `确定删除《${b.title}》及其全部 ${b.chapterCount} 章？此操作不可撤销。`,
       nzOkText: '删除',
@@ -526,6 +527,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
         return true;
       },
     });
+    ref.afterClose.subscribe(() => this.modalOpen.set(false));
   }
 
   /** 左侧"编辑"按钮：弹 modal 修改当前书籍的书名 / 作者 / 源地址 */
@@ -535,6 +537,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
       this.msg.warning('当前书籍信息尚未加载');
       return;
     }
+    this.modalOpen.set(true);
     const ref = this.modal.create({
       nzTitle: '修改书籍信息',
       nzContent: EditBookInfoDialogComponent,
@@ -552,7 +555,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
       nzCancelText: '取消',
       nzWidth: 420,
     });
-    void ref;
+    ref.afterClose.subscribe(() => this.modalOpen.set(false));
   }
 
   /** 切换章节后把滚动条跳回顶部（用户阅读习惯） */

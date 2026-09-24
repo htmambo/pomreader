@@ -94,6 +94,7 @@ export interface EditBookInfoResult {
           nz-input
           class="cover-color-hex"
           [(ngModel)]="coverColor"
+          (ngModelChange)="onCoverColorChange($event)"
           placeholder="#177ddc"
           maxlength="7"
         />
@@ -177,6 +178,11 @@ export class EditBookInfoDialogComponent {
   protected sourceUrl = this.data.book.sourceUrl ?? '';
   protected coverImageUrl = this.data.book.coverImageUrl ?? '';
   protected coverColor = this.data.book.coverColor;
+
+  /** 手动输入框实时小写化（color picker 输出小写，避免大小写闪烁） */
+  onCoverColorChange(value: string): void {
+    if (typeof value === 'string') this.coverColor = value.toLowerCase();
+  }
 
   /** nzOnOk 回调：返回用户编辑结果（null = 输入无效） */
   result(): EditBookInfoResult | null {

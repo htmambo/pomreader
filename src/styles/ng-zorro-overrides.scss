@@ -105,8 +105,10 @@
   background: #d9363e;
   border-color: #d9363e;
 }
-/* 目录预览列表（import-online）— 长目录可滚动，避免撑爆 modal */
-.ant-modal .ant-list-items {
+/* 目录预览列表（import-online）— 长目录可滚动，避免撑爆 modal
+ * 用自定义 class `.modal-list-scrollable` 替代 `.ant-list-items`，
+ * 解耦 ng-zorro 内部 DOM 结构，升级 ng-zorro 大版本不会断 */
+.ant-modal .modal-list-scrollable {
   max-height: 400px;
   overflow: auto;
 }

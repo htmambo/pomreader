@@ -29,18 +29,32 @@ interface JumpDialogData {
       [nzMax]="data.total"
       [nzStep]="1"
       nzPlaceHolder="输入章节号"
+      [nzStatus]="errorMsg() ? 'error' : ''"
       style="width: 100%;"
     ></nz-input-number>
+    @if (errorMsg()) {
+      <p style="margin: 6px 0 0; color: #ff4d4f; font-size: 12px;">{{ errorMsg() }}</p>
+    }
   `,
 })
 export class JumpChapterDialogComponent {
   protected readonly data = inject<JumpDialogData>(NZ_MODAL_DATA);
   /** 用户输入的章节号（1-based） */
   protected value: number | null = this.data.current;
+  protected readonly errorMsg = signal('');
 
   /** nzOnOk 回调用：返回用户输入（null = 无效输入） */
   target(): number | null {
-    if (this.value == null || !Number.isFinite(this.value)) return null;
-    return Math.floor(this.value);
+    if (this.value == null || !Number.isFinite(this.value)) {
+      this.errorMsg.set('请输入有效的章节号');
+      return null;
+    }
+    const v = Math.floor(this.value);
+    if (v < 1 || v > this.data.total) {
+      this.errorMsg.set(`章节号需在 1-${this.data.total} 之间`);
+      return null;
+    }
+    this.errorMsg.set('');
+    return v;
   }
 }
