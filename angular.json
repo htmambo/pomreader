@@ -7,7 +7,7 @@
   },
   "newProjectRoot": "projects",
   "projects": {
-    "pomreader-ui-clone": {
+    "pomreader": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
@@ -43,7 +43,11 @@
             "styles": [
               "src/styles.scss"
             ],
-            "scripts": []
+            "scripts": [],
+            "allowedCommonJsDependencies": [
+              "pouchdb-browser",
+              "events"
+            ]
           },
           "configurations": {
             "production": {
@@ -73,10 +77,10 @@
           "builder": "@angular-devkit/build-angular:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "pomreader-ui-clone:build:production"
+              "buildTarget": "pomreader:build:production"
             },
             "development": {
-              "buildTarget": "pomreader-ui-clone:build:development"
+              "buildTarget": "pomreader:build:development"
             }
           },
           "defaultConfiguration": "development"

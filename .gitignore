@@ -48,3 +48,4 @@ Thumbs.db
 /electron/www
 /release
 /build
+.ace-tool/

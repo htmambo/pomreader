@@ -1,7 +1,9 @@
 {
-  "name": "pomreader-ui-clone",
+  "name": "pomreader",
   "version": "1.0.0",
   "description": "白虎阅读 — Angular + Electron 跨平台阅读器",
+  "author": "果农 <guonong@hongshu.com>",
+  "homepage": "https://github.com/htmambo/pomreader",
   "main": "dist-electron/main.js",
   "scripts": {
     "ng": "ng",
@@ -14,8 +16,8 @@
     "build:electron": "tsc -p electron/tsconfig.electron.json",
     "watch:electron": "tsc -p electron/tsconfig.electron.json --watch",
     "electron": "npm run build:electron && electron .",
-    "dev": "concurrently -k -n web,ele \"ng build --watch --configuration development\" \"npm run watch:electron\" \"wait-on http://localhost:4200 && cross-env POM_DEV_URL=http://localhost:4200 electron .\"",
-    "dev:file": "concurrently -k -n web,ele \"ng build --watch --configuration development\" \"npm run watch:electron\" \"wait-on electron/www/index.html && electron .\"",
+    "dev": "concurrently -k -n web,ele \"ng build --watch --configuration development\" \"npm run watch:electron\" \"wait-on electron/www/browser/index.html && electron .\"",
+    "dev:file": "concurrently -k -n web,ele \"ng build --watch --configuration development\" \"npm run watch:electron\" \"wait-on electron/www/browser/index.html && electron .\"",
     "dist": "npm run build && npm run build:electron && electron-builder",
     "dist:linux": "npm run build && npm run build:electron && electron-builder --linux"
   },
@@ -31,7 +33,9 @@
     "@angular/router": "^18.2.0",
     "@ant-design/icons-angular": "^18.0.0",
     "@ctrl/tinycolor": "^4.2.1",
+    "@types/pouchdb-browser": "^6.1.5",
     "ng-zorro-antd": "^18.2.1",
+    "pouchdb-browser": "^9.0.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "zone.js": "~0.14.10"
@@ -45,11 +49,11 @@
     "@vitest/coverage-v8": "^2.1.9",
     "concurrently": "^9.0.0",
     "cross-env": "^7.0.3",
-    "electron": "^31.0.0",
-    "electron-builder": "^24.13.3",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.16.1",
     "iconv-lite": "^0.6.3",
     "jasmine-core": "~5.2.0",
-    "jsdom": "^25.0.1",
+    "jsdom": "^26.1.0",
     "karma": "~6.4.0",
     "karma-chrome-launcher": "~3.2.0",
     "karma-coverage": "~2.2.0",
@@ -79,11 +83,14 @@
         "pacman"
       ],
       "category": "Office",
+      "maintainer": "果农 <guonong@hongshu.com>",
       "icon": "build/icon.png",
       "desktop": {
-        "Name": "白虎阅读",
-        "Comment": "Angular + Electron 跨平台小说阅读器",
-        "Categories": "Office;Utility;"
+        "entry": {
+          "Name": "白虎阅读",
+          "Comment": "Angular + Electron 跨平台小说阅读器",
+          "Categories": "Office;Utility;"
+        }
       }
     },
     "win": {
