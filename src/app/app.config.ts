@@ -13,10 +13,6 @@ import { GlobalErrorHandler } from './core/services/global-error-handler';
 import { BookService } from './core/services/book.service';
 import { BookSourceRegistry } from './core/book-source/book-source.registry';
 import { XbiqugeAdapter } from './core/book-source/adapters/xbiquge.adapter';
-import { Dushu369Adapter } from './core/book-source/adapters/dushu369.adapter';
-import { Guoxue123Adapter } from './core/book-source/adapters/guoxue123.adapter';
-import { Readers365Adapter } from './core/book-source/adapters/readers365.adapter';
-import { KehuanAdapter } from './core/book-source/adapters/kehuan.adapter';
 import { HeuristicAdapter } from './core/book-source/adapters/heuristic.adapter';
 
 registerLocaleData(zh);
@@ -28,10 +24,6 @@ function initBooks(books: BookService) {
 function initBookSources(registry: BookSourceRegistry) {
   return () => {
     registry.register(new XbiqugeAdapter());
-    registry.register(new Dushu369Adapter());
-    registry.register(new Guoxue123Adapter());
-    registry.register(new Readers365Adapter());
-    registry.register(new KehuanAdapter());
     registry.register(new HeuristicAdapter()); // 通用兜底（任意 URL 可试）
     return registry.supportedSources();
   };

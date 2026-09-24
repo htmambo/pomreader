@@ -4,10 +4,6 @@ import { join } from 'path';
 import { PageFetcher, BookSourceAdapter } from './book-source.adapter';
 import { BookSourceRegistry } from './book-source.registry';
 import { XbiqugeAdapter } from './adapters/xbiquge.adapter';
-import { Dushu369Adapter } from './adapters/dushu369.adapter';
-import { Guoxue123Adapter } from './adapters/guoxue123.adapter';
-import { Readers365Adapter } from './adapters/readers365.adapter';
-import { KehuanAdapter } from './adapters/kehuan.adapter';
 import { HeuristicAdapter } from './adapters/heuristic.adapter';
 import { FetchError } from './fetch-error';
 import { SOURCE_CONFIG } from './book-source.config';
@@ -30,30 +26,17 @@ describe('BookSourceRegistry', () => {
   function makeRegistry(): BookSourceRegistry {
     const reg = BookSourceRegistry.forTest(mockFetcher({}));
     reg.register(new XbiqugeAdapter());
-    reg.register(new Dushu369Adapter());
-    reg.register(new Guoxue123Adapter());
-    reg.register(new Readers365Adapter());
-    reg.register(new KehuanAdapter());
     reg.register(new HeuristicAdapter());
     return reg;
   }
 
-  it('6 站 URL 各命中对应适配器（不抛 unsupported-source）', async () => {
+  it('笔趣阁 URL 命中 XbiqugeAdapter（不抛 unsupported-source）', async () => {
     const reg = makeRegistry();
-    const cases: string[] = [
-      'https://www.xbiquge.cc/book/9231/',
-      'http://www.dushu369.com/book/1',
-      'http://www.guoxue123.com/book/1',
-      'http://www.readers365.com/book/1',
-      'http://www.khuan.net.cn/book/1',
-    ];
-    for (const url of cases) {
+    try {
+      await reg.fetchCatalog('https://www.xbiquge.cc/book/9231/');
+    } catch (e) {
       // 空 HTML 会抛 catalog-empty，但绝不是 unsupported-source
-      try {
-        await reg.fetchCatalog(url);
-      } catch (e) {
-        expect((e as Error).message).not.toContain('unsupported-source');
-      }
+      expect((e as Error).message).not.toContain('unsupported-source');
     }
   });
 
@@ -72,8 +55,8 @@ describe('BookSourceRegistry', () => {
     await expect(reg.fetchCatalog('not-a-url')).rejects.toThrow();
   });
 
-  it('supportedSources 返回 6 个适配器名', () => {
-    expect(makeRegistry().supportedSources()).toHaveLength(6);
+  it('supportedSources 返回 2 个适配器名', () => {
+    expect(makeRegistry().supportedSources()).toHaveLength(2);
   });
 });
 
@@ -116,14 +99,8 @@ describe('XbiqugeAdapter', () => {
 
 describe('encoding fallback（auto 侦测）', () => {
   // 编码逻辑在主进程，这里只验证 config 编码字段正确
-  it('xbiquge/kehuan = utf-8', () => {
+  it('xbiquge = utf-8', () => {
     expect(SOURCE_CONFIG.xbiquge.encoding).toBe('utf-8');
-    expect(SOURCE_CONFIG.kehuan.encoding).toBe('utf-8');
-  });
-  it('dushu369/guoxue123/readers365 = gbk', () => {
-    expect(SOURCE_CONFIG.dushu369.encoding).toBe('gbk');
-    expect(SOURCE_CONFIG.guoxue123.encoding).toBe('gbk');
-    expect(SOURCE_CONFIG.readers365.encoding).toBe('gbk');
   });
 });
 
