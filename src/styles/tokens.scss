@@ -37,7 +37,7 @@
 }
 
 /* light theme（与原 vendor #e2d1a5 / #f4eac7 / #cdc0a4 对齐）
- * 注：背景纹理图 assets/themes/* 未在仓内（占位）；先用纯色 TODO -->
+ * 注：阅读页纹理图位于 assets/themes/reader/（见 styles/reader.scss）
  */
 :root[data-color-mode='light'][data-default-theme='1'] {
   --pom-bg: #e2d1a5;

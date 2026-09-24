@@ -1,12 +1,17 @@
-import { Injectable, signal, computed, Signal, effect } from '@angular/core';
-import { Settings, DEFAULT_SETTINGS } from '../models/settings.model';
+import { Injectable, signal, Signal, effect } from '@angular/core';
+import {
+  Settings,
+  DEFAULT_SETTINGS,
+  PAGE_WIDTHS,
+  MIN_FONT_SIZE,
+  MAX_FONT_SIZE,
+} from '../models/settings.model';
 
 const STORAGE_KEY = 'pom.settings';
 
 /**
- * SettingsService — 阅读设置（字号/字体色/界面背景/默认主题）
+ * SettingsService — 阅读设置（主题/字号/字体/页面宽度）
  * v1.1 §3 持久化限定：仅存元数据 + 进度（不存章节正文）
- * v1.1 code-reviewer R1 修订：fontSize 已并入 Settings 单一 signal（之前独立 localStorage key）
  */
 @Injectable({ providedIn: 'root' })
 export class SettingsService {
@@ -32,15 +37,25 @@ export class SettingsService {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (!stored) return DEFAULT_SETTINGS;
       const parsed = JSON.parse(stored) as Partial<Settings>;
-      // v1.1 code-reviewer M1 缓解：白名单字段 + 校验
+      // 白名单字段 + 校验
       const merged: Settings = {
-        fontColor: this.validateHex(parsed.fontColor) ?? DEFAULT_SETTINGS.fontColor,
-        screenBg: this.validateHex(parsed.screenBg) ?? DEFAULT_SETTINGS.screenBg,
-        defaultTheme: typeof parsed.defaultTheme === 'boolean' ? parsed.defaultTheme : DEFAULT_SETTINGS.defaultTheme,
-        colorMode: parsed.colorMode === 'dark' || parsed.colorMode === 'light' ? parsed.colorMode : DEFAULT_SETTINGS.colorMode,
-        fontSize: typeof parsed.fontSize === 'number' && parsed.fontSize >= 14 && parsed.fontSize <= 28
-          ? parsed.fontSize
-          : DEFAULT_SETTINGS.fontSize,
+        theme: this.validateInt(parsed.theme, 0, 6) ?? DEFAULT_SETTINGS.theme,
+        fontSize:
+          this.validateInt(parsed.fontSize, MIN_FONT_SIZE, MAX_FONT_SIZE) ??
+          DEFAULT_SETTINGS.fontSize,
+        fontFamily: this.validateInt(parsed.fontFamily, 1, 3) ?? DEFAULT_SETTINGS.fontFamily,
+        pageWidth:
+          typeof parsed.pageWidth === 'number' && PAGE_WIDTHS.includes(parsed.pageWidth)
+            ? parsed.pageWidth
+            : DEFAULT_SETTINGS.pageWidth,
+        defaultTheme:
+          typeof parsed.defaultTheme === 'boolean'
+            ? parsed.defaultTheme
+            : DEFAULT_SETTINGS.defaultTheme,
+        colorMode:
+          parsed.colorMode === 'dark' || parsed.colorMode === 'light'
+            ? parsed.colorMode
+            : DEFAULT_SETTINGS.colorMode,
       };
       return merged;
     } catch {
@@ -48,8 +63,8 @@ export class SettingsService {
     }
   }
 
-  private validateHex(c: unknown): string | null {
-    return typeof c === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(c) ? c : null;
+  private validateInt(v: unknown, min: number, max: number): number | null {
+    return typeof v === 'number' && Number.isInteger(v) && v >= min && v <= max ? v : null;
   }
 
   private persist(s: Settings): void {

@@ -10,6 +10,7 @@ import {
   BookOutline, SearchOutline, FileTextOutline, MoonOutline, SunOutline,
   ArrowLeftOutline, MenuOutline, SettingOutline, CloseOutline,
   PlusOutline, LinkOutline, WarningOutline,
+  CheckOutline, MinusOutline, ArrowUpOutline,
 } from '@ant-design/icons-angular/icons';
 import { ThemeService } from './core/services/theme.service';
 import { PageHeaderComponent } from './shared/components/page-header/page-header.component';
@@ -32,6 +33,7 @@ import { SidebarComponent } from './shared/components/sidebar/sidebar.component'
       BookOutline, SearchOutline, FileTextOutline, MoonOutline, SunOutline,
       ArrowLeftOutline, MenuOutline, SettingOutline, CloseOutline,
       PlusOutline, LinkOutline, WarningOutline,
+      CheckOutline, MinusOutline, ArrowUpOutline,
     ]),
   ],
   template: `

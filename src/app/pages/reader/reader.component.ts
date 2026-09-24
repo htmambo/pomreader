@@ -1,223 +1,241 @@
-import { Component, inject, OnInit, signal, computed } from '@angular/core';
+import {
+  Component,
+  inject,
+  OnInit,
+  AfterViewInit,
+  OnDestroy,
+  signal,
+  computed,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
-import { FormsModule } from '@angular/forms';
-import { NzButtonModule } from 'ng-zorro-antd/button';
-import { NzDrawerModule } from 'ng-zorro-antd/drawer';
-import { NzListModule } from 'ng-zorro-antd/list';
 import { NzIconModule } from 'ng-zorro-antd/icon';
-import { NzModalModule } from 'ng-zorro-antd/modal';
-import { NzSliderModule } from 'ng-zorro-antd/slider';
-import { NzInputNumberModule } from 'ng-zorro-antd/input-number';
-import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
 import { BookService } from '../../core/services/book.service';
 import { ReaderService } from '../../core/services/reader.service';
 import { SettingsService } from '../../core/services/settings.service';
-import { ThemeService } from '../../core/services/theme.service';
-import { resolveSchemeColors } from '../../core/logic/theme-resolver';
+import {
+  PAGE_WIDTHS,
+  MIN_FONT_SIZE,
+  MAX_FONT_SIZE,
+} from '../../core/models/settings.model';
 import { Chapter } from '../../core/models/chapter.model';
 import { Book } from '../../core/models/book.model';
+
+interface ReaderViewSettings {
+  theme: number;
+  fontSize: number;
+  fontFamily: number;
+  pageWidth: number;
+}
 
 @Component({
   selector: 'app-reader',
   standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    NzButtonModule,
-    NzDrawerModule,
-    NzListModule,
-    NzIconModule,
-    NzModalModule,
-    NzSliderModule,
-    NzInputNumberModule,
-    NzCheckboxModule,
-  ],
+  imports: [CommonModule, NzIconModule],
   template: `
-    @if (book(); as b) {
-      <div class="reader" [style.font-size.px]="fontSize()">
-        <header class="toolbar">
-          <button nz-button nzType="text" (click)="back()">
-            <span nz-icon nzType="arrow-left"></span> 返回
-          </button>
-          <span class="title">{{ b.title }}</span>
-          <button nz-button nzType="text" (click)="drawerOpen.set(true)">
-            <span nz-icon nzType="menu"></span> 目录
-          </button>
-          <button nz-button nzType="text" (click)="settingsOpen.set(true)">
-            <span nz-icon nzType="setting"></span> 设置
-          </button>
-          <button nz-button nzType="text" (click)="toggleTheme()">
-            <span nz-icon [nzType]="theme.mode() === 'dark' ? 'sun' : 'moon'"></span>
-          </button>
+    <div
+      class="reader-page theme-{{ view().theme }} w{{ view().pageWidth }}"
+      [style.font-size.px]="view().fontSize"
+    >
+      @if (book(); as b) {
+        <header class="read-header">
+          <div class="wrap-center">
+            <a class="back-link" (click)="back()">
+              <span nz-icon nzType="arrow-left"></span> 返回书架
+            </a>
+            <span class="book-title">{{ b.title }}</span>
+          </div>
         </header>
 
-        <article
-          class="content read-region"
-          [style.background]="bgImage()"
-          [style.color]="settings.settings().fontColor"
-        >
-          <h2 class="chapter-title">{{ currentChapter()?.title }}</h2>
-          <pre class="chapter-body">{{ currentChapter()?.content }}</pre>
+        <div class="read-main-wrap ff-{{ view().fontFamily }}">
+          <div class="text-wrap">
+            <div class="main-text-wrap">
+              <div class="text-head">
+                <h3>{{ currentChapter()?.title }}</h3>
+                <div class="text-info">
+                  <i><span nz-icon nzType="book"></span>{{ b.title }}</i>
+                  <i><span nz-icon nzType="file-text"></span>{{ b.author }}</i>
+                  <i>{{ wordCount() }}字</i>
+                  <i>第 {{ chapterIndex() + 1 }} / {{ chapters().length }} 章</i>
+                </div>
+              </div>
+              <pre class="read-content">{{ currentChapter()?.content }}</pre>
+            </div>
+          </div>
 
-          <nav class="chapter-nav">
-            <button nz-button (click)="prev()" [disabled]="chapterIndex() === 0">
-              上一章
-            </button>
-            <span class="position">
-              第 {{ chapterIndex() + 1 }} / {{ chapters().length }} 章
-            </span>
-            <button
-              nz-button
+          <div class="chapter-control">
+            <a [class.disabled]="chapterIndex() === 0" (click)="prev()">上一章</a>
+            <span class="divider"></span>
+            <a
+              [class.disabled]="chapterIndex() >= chapters().length - 1"
               (click)="next()"
-              [disabled]="chapterIndex() >= chapters().length - 1"
+              >下一章</a
             >
-              下一章
-            </button>
-          </nav>
-        </article>
+          </div>
+        </div>
 
-        <nz-drawer
-          [nzVisible]="drawerOpen()"
-          nzPlacement="left"
-          nzTitle="目录"
-          (nzOnClose)="drawerOpen.set(false)"
-        >
-          <ng-container *nzDrawerContent>
-            <nz-list [nzDataSource]="chapters()" nzBordered>
-              <ng-template let-item let-index>
-                <nz-list-item
-                  [class.current-chapter-menu-item]="index === chapterIndex()"
-                  (click)="goTo(index)"
-                  style="cursor: pointer;"
-                >
-                  {{ item.title }}
-                </nz-list-item>
-              </ng-template>
-            </nz-list>
-          </ng-container>
-        </nz-drawer>
+        <div class="left-bar-list">
+          <dl>
+            <dd [class.act]="catalogOpen()" (click)="toggleCatalog()">
+              <a
+                ><i><span nz-icon nzType="menu"></span><span class="lbl">目录</span></i></a
+              >
+            </dd>
+            <dd [class.act]="settingsOpen()" (click)="toggleSettings()">
+              <a
+                ><i><span nz-icon nzType="setting"></span><span class="lbl">设置</span></i></a
+              >
+            </dd>
+            <dd (click)="back()">
+              <a
+                ><i><span nz-icon nzType="book"></span><span class="lbl">书架</span></i></a
+              >
+            </dd>
+          </dl>
 
-        <nz-modal
-          [nzVisible]="settingsOpen()"
-          nzTitle="阅读效果配置"
-          (nzOnCancel)="closeSettings()"
-          (nzOnOk)="settingsOpen.set(false)"
-          [nzOkText]="'保存'"
-          [nzCancelText]="'取消'"
-        >
-          <ng-container *nzModalContent>
-            <div class="setting-row">
-              <label>字号：</label>
-              <nz-input-number
-                [(ngModel)]="fontSizeLocal"
-                [nzMin]="14"
-                [nzMax]="28"
-                [nzStep]="1"
-                (ngModelChange)="onFontSizeChange($event)"
-              ></nz-input-number>
+          @if (catalogOpen()) {
+            <div class="panel-wrap catalog">
+              <a class="close-panel" (click)="catalogOpen.set(false)">
+                <span nz-icon nzType="close"></span>
+              </a>
+              <div class="panel-box">
+                <div class="catalog-tab"><span>目录</span></div>
+                <div class="catalog-list">
+                  @for (ch of chapters(); track ch.index; let i = $index) {
+                    <a
+                      class="catalog-item"
+                      [class.on]="i === chapterIndex()"
+                      (click)="goTo(i)"
+                      >{{ ch.title }}</a
+                    >
+                  }
+                </div>
+              </div>
             </div>
-            <div class="setting-row">
-              <label>字体颜色：</label>
-              <input
-                type="color"
-                [(ngModel)]="fontColorLocal"
-                (ngModelChange)="onFontColorChange($event)"
-              />
+          }
+
+          @if (settingsOpen()) {
+            <div class="panel-wrap setting">
+              <a class="close-panel" (click)="cancelSettings()">
+                <span nz-icon nzType="close"></span>
+              </a>
+              <div class="panel-box">
+                <h4>设置</h4>
+                <ul>
+                  <li class="theme-list">
+                    <i>阅读主题</i>
+                    @for (t of themes; track t.id) {
+                      <span
+                        class="swatch theme-{{ t.id }}"
+                        [class.act]="draft().theme === t.id"
+                        [title]="t.name"
+                        (click)="setTheme(t.id)"
+                      >
+                        @if (draft().theme === t.id) {
+                          <span nz-icon nzType="check"></span>
+                        }
+                      </span>
+                    }
+                  </li>
+                  <li class="font-family">
+                    <i>正文字体</i>
+                    @for (f of fontFamilies; track f.id) {
+                      <span
+                        class="ff-btn ff-{{ f.id }}"
+                        [class.act]="draft().fontFamily === f.id"
+                        (click)="setFontFamily(f.id)"
+                        >{{ f.name }}</span
+                      >
+                    }
+                  </li>
+                  <li class="font-size">
+                    <i>字体大小</i>
+                    <cite>
+                      <span class="step" (click)="stepFontSize(-1)">
+                        <span nz-icon nzType="minus"></span>
+                      </span>
+                      <b></b>
+                      <span class="value">{{ draft().fontSize }}</span>
+                      <b></b>
+                      <span class="step" (click)="stepFontSize(1)">
+                        <span nz-icon nzType="plus"></span>
+                      </span>
+                    </cite>
+                  </li>
+                  <li class="page-width">
+                    <i>页面宽度</i>
+                    <cite>
+                      <span class="step" (click)="stepPageWidth(-1)">
+                        <span nz-icon nzType="minus"></span>
+                      </span>
+                      <b></b>
+                      <span class="value">{{ draft().pageWidth }}</span>
+                      <b></b>
+                      <span class="step" (click)="stepPageWidth(1)">
+                        <span nz-icon nzType="plus"></span>
+                      </span>
+                    </cite>
+                  </li>
+                </ul>
+                <div class="btn-wrap">
+                  <a class="red-btn" (click)="saveSettings()">保存</a>
+                  <a class="grey-btn" (click)="cancelSettings()">取消</a>
+                </div>
+              </div>
             </div>
-            <div class="setting-row">
-              <label>界面背景：</label>
-              <input
-                type="color"
-                [(ngModel)]="bgLocal"
-                (ngModelChange)="onBgChange($event)"
-              />
-            </div>
-            <div class="setting-row">
-              <label>
-                <input
-                  type="checkbox"
-                  [(ngModel)]="defaultThemeLocal"
-                  (ngModelChange)="settings.update('defaultTheme', $event)"
-                />
-                使用默认配置
-              </label>
-            </div>
-          </ng-container>
-        </nz-modal>
-      </div>
-    } @else {
-      <p>书籍加载中...</p>
-    }
+          }
+        </div>
+
+        @if (showGoTop()) {
+          <div class="right-bar-list">
+            <dl>
+              <dd class="go-top" title="返回顶部" (click)="scrollToTop()">
+                <a><i><span nz-icon nzType="arrow-up"></span></i></a>
+              </dd>
+            </dl>
+          </div>
+        }
+      } @else {
+        <p class="reader-loading">书籍加载中...</p>
+      }
+    </div>
   `,
-  styles: [
-    `
-      .reader {
-        padding: 0 16px;
-      }
-      .toolbar {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 16px;
-      }
-      .toolbar .title {
-        flex: 1;
-        text-align: center;
-        font-weight: 600;
-        color: var(--pom-text-muted);
-      }
-      .read-region {
-        padding: 24px;
-        border-radius: 8px;
-        min-height: 60vh;
-      }
-      .chapter-title {
-        text-align: center;
-        margin-bottom: 24px;
-        color: inherit;
-      }
-      .chapter-body {
-        white-space: pre-wrap;
-        line-height: 1.8;
-        font-family: var(--pom-font-family);
-      }
-      .chapter-nav {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 16px;
-        margin-top: 32px;
-      }
-      .position {
-        color: var(--pom-text);
-      }
-      .setting-row {
-        margin: 16px 0;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-    `,
-  ],
 })
-export class ReaderComponent implements OnInit {
+export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly books = inject(BookService);
   protected readonly reader = inject(ReaderService);
   protected readonly settings = inject(SettingsService);
-  protected readonly theme = inject(ThemeService);
 
-  protected readonly drawerOpen = signal(false);
+  protected readonly catalogOpen = signal(false);
   protected readonly settingsOpen = signal(false);
+  protected readonly showGoTop = signal(false);
   protected readonly chapterIndex = signal(0);
   protected readonly chapters = signal<Chapter[]>([]);
 
-  protected fontSizeLocal = 16;
-  protected fontColorLocal = '#262626';
-  protected bgLocal = '#CDC0A4';
-  protected defaultThemeLocal = true;
+  /** 设置面板草稿：打开面板期间页面实时预览草稿值，保存才落盘 */
+  protected readonly draft = signal<ReaderViewSettings>({
+    theme: 0,
+    fontSize: 18,
+    fontFamily: 1,
+    pageWidth: 800,
+  });
+
+  protected readonly themes = [
+    { id: 0, name: '默认' },
+    { id: 1, name: '牛皮纸' },
+    { id: 2, name: '淡绿色' },
+    { id: 3, name: '淡蓝色' },
+    { id: 4, name: '淡粉色' },
+    { id: 5, name: '灰色' },
+    { id: 6, name: '黑色' },
+  ];
+  protected readonly fontFamilies = [
+    { id: 1, name: '雅黑' },
+    { id: 2, name: '宋体' },
+    { id: 3, name: '楷书' },
+  ];
 
   readonly book = computed<Book | undefined>(() =>
     this.books.getById(this.reader.currentBookId() ?? '')
@@ -227,11 +245,20 @@ export class ReaderComponent implements OnInit {
     () => this.chapters()[this.chapterIndex()]
   );
 
-  readonly fontSize = computed(() => this.settings.settings().fontSize);
-  readonly bgImage = computed(() => {
-    const colors = resolveSchemeColors(this.theme.mode(), undefined, this.bgLocal);
-    return colors.bg;
+  /** 当前生效的视图设置：面板打开时用草稿（预览），否则用已保存值 */
+  readonly view = computed<ReaderViewSettings>(() => {
+    if (this.settingsOpen()) return this.draft();
+    return this.pickSaved();
   });
+
+  readonly wordCount = computed(() =>
+    (this.currentChapter()?.content ?? '').replace(/\s+/g, '').length
+  );
+
+  private scrollEl: Element | null = null;
+  private readonly onScroll = () => {
+    this.showGoTop.set((this.scrollEl?.scrollTop ?? 0) > 300);
+  };
 
   async ngOnInit(): Promise<void> {
     const params = this.route.snapshot.params;
@@ -251,59 +278,104 @@ export class ReaderComponent implements OnInit {
 
     const chs = await this.books.getChapters(bookId);
     this.chapters.set(chs);
+  }
 
-    this.fontSizeLocal = this.settings.settings().fontSize;
-    this.fontColorLocal = this.settings.settings().fontColor;
-    this.bgLocal = this.settings.settings().screenBg;
-    this.defaultThemeLocal = this.settings.settings().defaultTheme;
+  ngAfterViewInit(): void {
+    // 阅读页全屏时滚动容器是 nz-content（app 壳层），不是 window
+    this.scrollEl = document.querySelector('nz-content.no-padding');
+    this.scrollEl?.addEventListener('scroll', this.onScroll, { passive: true });
+  }
+
+  ngOnDestroy(): void {
+    this.scrollEl?.removeEventListener('scroll', this.onScroll);
   }
 
   back(): void {
     this.router.navigate(['/bookshelf']);
   }
   next(): void {
+    if (this.chapterIndex() >= this.chapters().length - 1) return;
     this.chapterIndex.update((i) => i + 1);
     this.reader.nextChapter();
     this.scrollToTop();
   }
   prev(): void {
-    this.chapterIndex.update((i) => Math.max(0, i - 1));
+    if (this.chapterIndex() === 0) return;
+    this.chapterIndex.update((i) => i - 1);
     this.reader.prevChapter();
     this.scrollToTop();
   }
   goTo(i: number): void {
     this.chapterIndex.set(i);
     this.reader.goToChapter(i);
-    this.drawerOpen.set(false);
+    this.catalogOpen.set(false);
     this.scrollToTop();
   }
 
-  /** 切换章节后把滚动条跳到目标章节顶部（用户阅读习惯） */
-  private scrollToTop(): void {
-    // 用 queueMicrotask 等 Angular 渲染完新章节内容
-    queueMicrotask(() => {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      const content = document.querySelector('.reader .content');
-      if (content instanceof HTMLElement) content.scrollTop = 0;
-    });
-  }
-  toggleTheme(): void {
-    this.theme.toggleMode();
-  }
-  onFontSizeChange(size: number | string): void {
-    const n = typeof size === 'number' ? size : parseInt(String(size), 10);
-    if (!isNaN(n)) {
-      this.settings.update('fontSize', n);
-    }
-  }
-  onFontColorChange(c: string): void {
-    this.settings.update('fontColor', c);
-  }
-  onBgChange(c: string): void {
-    this.settings.update('screenBg', c);
+  toggleCatalog(): void {
+    this.catalogOpen.update((v) => !v);
+    if (this.catalogOpen()) this.settingsOpen.set(false);
   }
 
-  closeSettings(): void {
+  toggleSettings(): void {
+    if (this.settingsOpen()) {
+      this.cancelSettings();
+      return;
+    }
+    this.draft.set(this.pickSaved());
+    this.catalogOpen.set(false);
+    this.settingsOpen.set(true);
+  }
+
+  setTheme(theme: number): void {
+    this.draft.update((d) => ({ ...d, theme }));
+  }
+  setFontFamily(fontFamily: number): void {
+    this.draft.update((d) => ({ ...d, fontFamily }));
+  }
+  stepFontSize(delta: number): void {
+    this.draft.update((d) => ({
+      ...d,
+      fontSize: Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, d.fontSize + delta)),
+    }));
+  }
+  stepPageWidth(delta: number): void {
+    this.draft.update((d) => {
+      const i = PAGE_WIDTHS.indexOf(d.pageWidth);
+      const next = Math.min(PAGE_WIDTHS.length - 1, Math.max(0, i + delta));
+      return { ...d, pageWidth: PAGE_WIDTHS[next] };
+    });
+  }
+
+  saveSettings(): void {
+    const d = this.draft();
+    this.settings.update('theme', d.theme);
+    this.settings.update('fontSize', d.fontSize);
+    this.settings.update('fontFamily', d.fontFamily);
+    this.settings.update('pageWidth', d.pageWidth);
     this.settingsOpen.set(false);
+  }
+
+  cancelSettings(): void {
+    this.settingsOpen.set(false);
+  }
+
+  /** 切换章节后把滚动条跳回顶部（用户阅读习惯） */
+  scrollToTop(): void {
+    // 用 queueMicrotask 等 Angular 渲染完新章节内容
+    queueMicrotask(() => {
+      const el = this.scrollEl ?? document.querySelector('nz-content.no-padding');
+      el?.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
+
+  private pickSaved(): ReaderViewSettings {
+    const s = this.settings.settings();
+    return {
+      theme: s.theme,
+      fontSize: s.fontSize,
+      fontFamily: s.fontFamily,
+      pageWidth: s.pageWidth,
+    };
   }
 }
