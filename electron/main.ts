@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, webContents } from 'electron';
 import * as path from 'path';
 import { registerFetchHandler } from './ipc/fetch-handler';
+import { registerRenderHandler } from './ipc/render-handler';
 import { registerExternalHandler } from './ipc/external-handler';
 
 // 沿用原 vendor 兼容补丁 ⑤：防双实例 IndexedDB 锁争用
@@ -60,6 +61,7 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   registerFetchHandler(ipcMain);
+  registerRenderHandler(ipcMain);
   registerExternalHandler(ipcMain);
   createWindow();
 

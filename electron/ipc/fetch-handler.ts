@@ -4,11 +4,11 @@ import { decodeBuffer, EncodingMode } from './encoding';
 
 const FETCH_TIMEOUT_MS = 15000;
 const MAX_BYTES = 8 * 1024 * 1024; // 8MB 响应上限，防内存爆炸
-const UA =
+export const UA =
   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36';
 
 /** SSRF 防护：拒绝内网地址 */
-function isPrivateHost(host: string): boolean {
+export function isPrivateHost(host: string): boolean {
   if (host === 'localhost' || host === '::1') return true;
   if (/^127\./.test(host)) return true;
   if (/^10\./.test(host)) return true;

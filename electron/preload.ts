@@ -12,6 +12,10 @@ contextBridge.exposeInMainWorld('pomAPI', {
   ): Promise<{ html?: string; error?: string }> =>
     ipcRenderer.invoke('pom:fetch-html', url, encoding),
 
+  /** 渲染抓取：隐藏窗口真实加载页面（执行 JS）后提取可视正文（静态解析失效站点兜底） */
+  fetchRendered: (url: string): Promise<{ text?: string; error?: string }> =>
+    ipcRenderer.invoke('pom:fetch-rendered', url),
+
   /** 外链走系统浏览器 */
   openExternal: (url: string): Promise<void> =>
     ipcRenderer.invoke('pom:open-external', url),
