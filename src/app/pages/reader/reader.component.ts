@@ -264,15 +264,28 @@ export class ReaderComponent implements OnInit {
   next(): void {
     this.chapterIndex.update((i) => i + 1);
     this.reader.nextChapter();
+    this.scrollToTop();
   }
   prev(): void {
     this.chapterIndex.update((i) => Math.max(0, i - 1));
     this.reader.prevChapter();
+    this.scrollToTop();
   }
   goTo(i: number): void {
     this.chapterIndex.set(i);
     this.reader.goToChapter(i);
     this.drawerOpen.set(false);
+    this.scrollToTop();
+  }
+
+  /** 切换章节后把滚动条跳到目标章节顶部（用户阅读习惯） */
+  private scrollToTop(): void {
+    // 用 queueMicrotask 等 Angular 渲染完新章节内容
+    queueMicrotask(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      const content = document.querySelector('.reader .content');
+      if (content instanceof HTMLElement) content.scrollTop = 0;
+    });
   }
   toggleTheme(): void {
     this.theme.toggleMode();
