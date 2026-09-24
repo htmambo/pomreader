@@ -28,7 +28,7 @@ import { NzTypographyModule } from 'ng-zorro-antd/typography';
         本项目不进行任何形式的商业活动。如有版权问题请联系作者删除。
       </p>
       <p nz-typography nzType="secondary" style="margin-top: 32px;">
-        — pomreader-ui-clone v1.0 · 2026-09-24
+        — pomreader-ui-clone v1.0.6 · 2026-09-24
       </p>
     </div>
   `,

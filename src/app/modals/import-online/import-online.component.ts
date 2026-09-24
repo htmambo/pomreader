@@ -6,16 +6,16 @@ import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzListModule } from 'ng-zorro-antd/list';
 import { NzIconModule } from 'ng-zorro-antd/icon';
-import { resolveSource, ResolvedSource } from '../../core/logic/online-source-resolver';
+import { BookSourceRegistry } from '../../core/book-source/book-source.registry';
+import { FetchError, FETCH_ERROR_MESSAGES } from '../../core/book-source/fetch-error';
+import { ResolvedBook } from '../../core/book-source/book-source.adapter';
 import { ToastService } from '../../core/services/toast.service';
 import { BookService } from '../../core/services/book.service';
 import { Book } from '../../core/models/book.model';
-import { Chapter } from '../../core/models/chapter.model';
 
 /**
  * 导入在线书页（modal 内容组件）
- * 由 NzModalService.create({ nzContent: ImportOnlineComponent }) 调用
- * 自身只渲染内容；确认按钮 / 取消按钮由 ModalService 模板提供
+ * 真实抓取：URL → BookSourceRegistry.fetchCatalog → 目录预览 → 导入入库 + 预加载前 3 章
  */
 @Component({
   selector: 'app-import-online',
@@ -23,11 +23,11 @@ import { Chapter } from '../../core/models/chapter.model';
   imports: [CommonModule, FormsModule, NzInputModule, NzButtonModule, NzListModule, NzIconModule],
   template: `
     <div class="import-online">
-      <p>输入书源 URL（mock 实现，返回 5-10 章假结果）：</p>
+      <p class="hint">输入书源完整 URL（支持：{{ supported }}）：</p>
       <div class="url-row">
         <input
           nz-input
-          placeholder="https://example.com/book/123"
+          placeholder="https://www.xbiquge.cc/book/9231/"
           [(ngModel)]="url"
           [disabled]="loading() || importing()"
           (keyup.enter)="parse()"
@@ -40,15 +40,15 @@ import { Chapter } from '../../core/models/chapter.model';
 
       @if (loading()) {
         <p class="hint">解析中...</p>
-      } @else if (resolved()?.error) {
+      } @else if (errorMsg()) {
         <p class="hint error">
           <span nz-icon nzType="warning"></span>
-          {{ errorMessage(resolved()!.error!) }}
+          {{ errorMsg() }}
         </p>
       } @else if (resolved()) {
         <h4>{{ resolved()!.title }} <small>({{ resolved()!.author }})</small></h4>
-        <p class="hint">共 {{ resolved()!.chapters?.length || 0 }} 章，点击下方"确认导入"加入书架</p>
-        <nz-list [nzDataSource]="resolved()!.chapters || []" [nzRenderItem]="chapterTpl" nzBordered>
+        <p class="hint">共 {{ resolved()!.chapters.length }} 章，点击下方"确认导入"加入书架</p>
+        <nz-list [nzDataSource]="resolved()!.chapters" [nzRenderItem]="chapterTpl" nzSize="small" nzBordered>
           <ng-template #chapterTpl let-item let-index>
             <nz-list-item>{{ index + 1 }}. {{ item.title }}</nz-list-item>
           </ng-template>
@@ -56,7 +56,7 @@ import { Chapter } from '../../core/models/chapter.model';
       }
 
       @if (importing()) {
-        <p class="hint">正在加入书架...</p>
+        <p class="hint">正在加入书架并预加载前 3 章...</p>
       }
     </div>
   `,
@@ -95,11 +95,14 @@ export class ImportOnlineComponent {
   url = '';
   readonly loading = signal(false);
   readonly importing = signal(false);
-  readonly resolved = signal<ResolvedSource | null>(null);
+  readonly resolved = signal<ResolvedBook | null>(null);
+  readonly errorMsg = signal('');
 
+  readonly supported = inject(BookSourceRegistry).supportedSources().join(' / ');
+
+  private readonly registry = inject(BookSourceRegistry);
   private readonly toast = inject(ToastService);
   private readonly books = inject(BookService);
-  // nzData 透传（保留扩展位）
   readonly modalData = inject(NZ_MODAL_DATA, { optional: true });
 
   ngOnInit(): void {
@@ -107,7 +110,6 @@ export class ImportOnlineComponent {
       const prefill = (this.modalData as Record<string, unknown>)['url'];
       if (typeof prefill === 'string') {
         this.url = prefill;
-        // 从万能搜索带入的 URL 直接解析，点「确认导入」即可导入
         this.parse();
       }
     }
@@ -120,14 +122,16 @@ export class ImportOnlineComponent {
     }
     this.loading.set(true);
     this.resolved.set(null);
+    this.errorMsg.set('');
     try {
-      const r = await resolveSource(this.url);
+      const r = await this.registry.fetchCatalog(this.url);
       this.resolved.set(r);
-      if (r.error) {
-        this.toast.error(this.errorMessage(r.error));
-      }
     } catch (e) {
-      this.toast.error(`解析失败：${(e as Error).message}`);
+      const msg = e instanceof FetchError
+        ? FETCH_ERROR_MESSAGES[e.code]
+        : `解析失败：${(e as Error).message}`;
+      this.errorMsg.set(msg);
+      this.toast.error(msg);
     } finally {
       this.loading.set(false);
     }
@@ -135,9 +139,9 @@ export class ImportOnlineComponent {
 
   async confirm(): Promise<boolean> {
     const r = this.resolved();
-    if (!r || r.error || !r.chapters || r.chapters.length === 0) {
+    if (!r || r.chapters.length === 0) {
       this.toast.warn('请先解析一个有效的 URL');
-      return false; // 阻止关闭
+      return false;
     }
     this.importing.set(true);
     try {
@@ -153,31 +157,14 @@ export class ImportOnlineComponent {
         source: 'online',
         sourceUrl: this.url,
       };
-      const chapters: Chapter[] = r.chapters.map((c, i) => ({
-        bookId: id,
-        index: i,
-        title: c.title,
-        content: `（在线导入占位章节 — ${c.title}）`,
-      }));
-      this.books.addBook(book, chapters);
+      await this.books.importOnlineBook(book, r.chapters);
       this.toast.success(`已导入：${book.title}`);
       this.importing.set(false);
-      return true; // 允许关闭
+      return true;
     } catch (e) {
       this.toast.error(`导入失败：${(e as Error).message}`);
       this.importing.set(false);
       return false;
-    }
-  }
-
-  errorMessage(code: string): string {
-    switch (code) {
-      case 'source-unavailable':
-        return '该书源暂时不可用，请稍后重试。';
-      case 'invalid-url':
-        return 'URL 格式无效。';
-      default:
-        return `解析失败：${code}`;
     }
   }
 }

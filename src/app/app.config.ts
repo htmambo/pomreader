@@ -11,11 +11,28 @@ import { importProvidersFrom } from '@angular/core';
 import { routes } from './app.routes';
 import { GlobalErrorHandler } from './core/services/global-error-handler';
 import { BookService } from './core/services/book.service';
+import { BookSourceRegistry } from './core/book-source/book-source.registry';
+import { XbiqugeAdapter } from './core/book-source/adapters/xbiquge.adapter';
+import { Dushu369Adapter } from './core/book-source/adapters/dushu369.adapter';
+import { Guoxue123Adapter } from './core/book-source/adapters/guoxue123.adapter';
+import { Readers365Adapter } from './core/book-source/adapters/readers365.adapter';
+import { KehuanAdapter } from './core/book-source/adapters/kehuan.adapter';
 
 registerLocaleData(zh);
 
 function initBooks(books: BookService) {
   return () => books.load();
+}
+
+function initBookSources(registry: BookSourceRegistry) {
+  return () => {
+    registry.register(new XbiqugeAdapter());
+    registry.register(new Dushu369Adapter());
+    registry.register(new Guoxue123Adapter());
+    registry.register(new Readers365Adapter());
+    registry.register(new KehuanAdapter());
+    return registry.supportedSources();
+  };
 }
 
 export const appConfig: ApplicationConfig = {
@@ -32,6 +49,12 @@ export const appConfig: ApplicationConfig = {
       provide: APP_INITIALIZER,
       useFactory: initBooks,
       deps: [BookService],
+      multi: true,
+    },
+    {
+      provide: APP_INITIALIZER,
+      useFactory: initBookSources,
+      deps: [BookSourceRegistry],
       multi: true,
     },
   ],

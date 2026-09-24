@@ -1,6 +1,8 @@
 {
   "name": "pomreader-ui-clone",
   "version": "1.0.0",
+  "description": "白虎阅读 — Angular + Electron 跨平台阅读器",
+  "main": "dist-electron/main.js",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
@@ -8,7 +10,14 @@
     "watch": "ng build --watch --configuration development",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "build:electron": "tsc -p electron/tsconfig.electron.json",
+    "watch:electron": "tsc -p electron/tsconfig.electron.json --watch",
+    "electron": "npm run build:electron && electron .",
+    "dev": "concurrently -k -n web,ele \"ng build --watch --configuration development\" \"npm run watch:electron\" \"wait-on http://localhost:4200 && cross-env POM_DEV_URL=http://localhost:4200 electron .\"",
+    "dev:file": "concurrently -k -n web,ele \"ng build --watch --configuration development\" \"npm run watch:electron\" \"wait-on electron/www/index.html && electron .\"",
+    "dist": "npm run build && npm run build:electron && electron-builder",
+    "dist:linux": "npm run build && npm run build:electron && electron-builder --linux"
   },
   "private": true,
   "dependencies": {
@@ -32,16 +41,58 @@
     "@angular/cli": "^18.2.21",
     "@angular/compiler-cli": "^18.2.0",
     "@types/jasmine": "~5.1.0",
+    "@types/node": "^20.14.0",
     "@vitest/coverage-v8": "^2.1.9",
+    "concurrently": "^9.0.0",
+    "cross-env": "^7.0.3",
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3",
+    "iconv-lite": "^0.6.3",
     "jasmine-core": "~5.2.0",
     "jsdom": "^25.0.1",
     "karma": "~6.4.0",
     "karma-chrome-launcher": "~3.2.0",
     "karma-coverage": "~2.2.0",
     "karma-jasmine": "~5.1.0",
-    "karma-jasmine-html-reporter": "~2.1.0",
+    "karma-jasmine-html-reporter": "^2.1.0",
     "puppeteer-core": "^23.11.1",
     "typescript": "~5.5.2",
-    "vitest": "^2.1.9"
+    "vitest": "^2.1.9",
+    "wait-on": "^8.0.0"
+  },
+  "build": {
+    "appId": "com.baihu.reader",
+    "productName": "白虎阅读",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist-electron/**/*",
+      "electron/www/**/*",
+      "electron/preload.js",
+      "package.json"
+    ],
+    "linux": {
+      "target": [
+        "tar.gz",
+        "pacman"
+      ],
+      "category": "Office",
+      "icon": "build/icon.png",
+      "desktop": {
+        "Name": "白虎阅读",
+        "Comment": "Angular + Electron 跨平台小说阅读器",
+        "Categories": "Office;Utility;"
+      }
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "build/icon.png"
+    }
   }
 }

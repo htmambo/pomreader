@@ -1,189 +1,261 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  ViewChild,
+  inject,
+  signal,
+  afterNextRender,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzButtonModule } from 'ng-zorro-antd/button';
-import { NzListModule } from 'ng-zorro-antd/list';
 import { NzIconModule } from 'ng-zorro-antd/icon';
+import { NzDropDownModule } from 'ng-zorro-antd/dropdown';
+import { NzMenuModule } from 'ng-zorro-antd/menu';
+import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { NzMessageService } from 'ng-zorro-antd/message';
-import { BookService } from '../../core/services/book.service';
-import { Book } from '../../core/models/book.model';
+import { GOOD_SITES } from '../../core/data/good-sites';
 import { ImportOnlineComponent } from '../../modals/import-online/import-online.component';
-import { ResolvedSource } from '../../core/logic/online-source-resolver';
 
-interface SearchResult {
-  title: string;
-  author: string;
-  source: string;
-  book?: Book;            // 来自本地库
-  external?: ResolvedSource; // 来自 mock 外部源
-}
+type EncodingMode = 'auto' | 'utf-8' | 'gbk';
 
+/**
+ * 万能搜索 — Electron webview 内嵌浏览器（对标原 vendor）
+ * - webview 加载搜索引擎 / 6 书签站
+ * - 地址栏同步、前进/后退/刷新/跳转
+ * - 编码手动切换（auto/UTF-8/GBK）兜底
+ * - 「导入在线书页」按钮预填当前 URL 打开导入 modal
+ *
+ * 浏览器环境（ng serve）webview 不识别 → 降级提示
+ */
 @Component({
   selector: 'app-universal-search',
   standalone: true,
-  imports: [CommonModule, FormsModule, NzInputModule, NzButtonModule, NzListModule, NzIconModule],
+  imports: [CommonModule, FormsModule, NzInputModule, NzButtonModule, NzIconModule, NzDropDownModule, NzMenuModule],
+  schemas: [NO_ERRORS_SCHEMA],
   template: `
-    <h2>万能搜索</h2>
-    <div class="search-bar">
-      <input
-        nz-input
-        placeholder="输入书名 / 作者 / 关键字"
-        [(ngModel)]="keyword"
-        (keyup.enter)="search()"
-        style="width: 320px; margin-right: 8px;"
-      />
-      <button nz-button nzType="primary" (click)="search()" [disabled]="!keyword.trim() || searching()">
-        {{ searching() ? '搜索中...' : '搜索' }}
-      </button>
-    </div>
+    <div class="search-page">
+      <div class="toolbar">
+        <button nz-button nzType="text" (click)="back()" [disabled]="!canGoBack()" title="后退">
+          <span nz-icon nzType="arrow-left"></span>
+        </button>
+        <button nz-button nzType="text" (click)="forward()" [disabled]="!canGoForward()" title="前进">
+          <span nz-icon nzType="arrow-right"></span>
+        </button>
+        <button nz-button nzType="text" (click)="reload()" title="刷新">
+          <span nz-icon [nzType]="loading() ? 'loading' : 'reload'"></span>
+        </button>
+        <input
+          nz-input
+          [(ngModel)]="url"
+          (keyup.enter)="go()"
+          placeholder="输入网址或搜索词，回车跳转"
+          style="flex: 1;"
+        />
+        <button nz-button nzType="primary" (click)="go()" title="跳转">跳转</button>
+        <button
+          nz-button
+          nz-dropdown
+          [nzDropdownMenu]="encMenu"
+          nzTrigger="click"
+          nzPlacement="bottomRight"
+          title="编码"
+        >
+          <span nz-icon nzType="translation"></span>
+          {{ encodingLabel() }}
+        </button>
+        <nz-dropdown-menu #encMenu="nzDropdownMenu">
+          <ul nz-menu>
+            <li nz-menu-item (click)="setEncoding('auto')">自动侦测</li>
+            <li nz-menu-item (click)="setEncoding('utf-8')">UTF-8</li>
+            <li nz-menu-item (click)="setEncoding('gbk')">GBK</li>
+          </ul>
+        </nz-dropdown-menu>
+        <button nz-button nzType="primary" (click)="openImport()" title="导入在线书页">
+          <span nz-icon nzType="download"></span>
+          导入在线书页
+        </button>
+      </div>
 
-    @if (searching()) {
-      <p class="hint">搜索中...</p>
-    } @else if (results().length > 0) {
-      <p class="hint">共 {{ results().length }} 条结果</p>
-      <nz-list [nzDataSource]="results()" [nzRenderItem]="itemTpl" nzBordered>
-        <ng-template #itemTpl let-item>
-          <nz-list-item (click)="openResult(item)" style="cursor: pointer;">
-            <div class="result-row">
-              <div class="result-info">
-                <span class="title">{{ item.title }}</span>
-                <span class="author">{{ item.author }}</span>
-              </div>
-              <span class="source-tag" [class.local]="item.book" [class.external]="item.external">
-                <span nz-icon [nzType]="item.book ? 'book' : 'link'"></span>
-                {{ item.book ? '本地库' : '外部源' }}
-              </span>
-            </div>
-          </nz-list-item>
-        </ng-template>
-      </nz-list>
-    } @else if (searched()) {
-      <p class="hint">未找到匹配结果</p>
-    }
+      <div class="bookmarks">
+        @for (site of sites; track site.url) {
+          <button nz-button nzSize="small" (click)="go(site.url)">{{ site.name }}</button>
+        }
+      </div>
+
+      @if (isElectron()) {
+        <div class="webview-wrap" [class.loading]="loading()">
+          @if (loading()) {
+            <div class="loading-mask"><span nz-icon nzType="loading"></span></div>
+          }
+          <webview
+            #webviewRef
+            src="https://www.baidu.com/"
+            allowpopups
+            partition="persist:universal-search"
+            style="width: 100%; height: 100%;"
+          ></webview>
+        </div>
+      } @else {
+        <div class="not-electron">
+          <p>此功能需 Electron 环境运行。</p>
+          <p>开发请运行：<code>npm run dev</code></p>
+        </div>
+      }
+    </div>
   `,
   styles: [
     `
-      .search-bar {
-        margin: 16px 0;
-        display: flex;
-        align-items: center;
-      }
-      .hint {
-        color: var(--pom-text);
-        margin: 16px 0;
-      }
-      .result-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        width: 100%;
-      }
-      .result-info {
+      .search-page {
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        height: calc(100vh - 64px);
       }
-      .title {
-        font-weight: 600;
-        color: var(--pom-text-muted);
+      .toolbar {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        padding: 8px 16px;
+        border-bottom: 1px solid var(--pom-border);
       }
-      .author {
-        color: var(--pom-text);
-        font-size: 12px;
+      .bookmarks {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        padding: 8px 16px;
+        border-bottom: 1px solid var(--pom-border);
       }
-      .source-tag {
-        font-size: 12px;
-        padding: 2px 8px;
-        border-radius: 10px;
+      .webview-wrap {
+        position: relative;
+        flex: 1;
+        overflow: hidden;
+      }
+      .loading-mask {
+        position: absolute;
+        inset: 0;
         display: flex;
         align-items: center;
-        gap: 4px;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.4);
+        z-index: 10;
+        font-size: 24px;
       }
-      .source-tag.local {
+      .not-electron {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: var(--pom-text);
+        gap: 8px;
+      }
+      code {
         background: var(--pom-border);
-        color: var(--pom-text-muted);
-      }
-      .source-tag.external {
-        background: #177ddc;
-        color: white;
+        padding: 2px 6px;
+        border-radius: 4px;
       }
     `,
   ],
 })
 export class UniversalSearchComponent {
-  keyword = '';
-  readonly searching = signal(false);
-  readonly results = signal<SearchResult[]>([]);
-  readonly searched = signal(false);
-
-  private readonly books = inject(BookService);
-  private readonly router = inject(Router);
   private readonly modal = inject(NzModalService);
   private readonly msg = inject(NzMessageService);
 
-  readonly localCount = computed(() => this.books.count());
+  readonly sites = GOOD_SITES;
+  url = 'https://www.baidu.com/';
+  readonly loading = signal(false);
+  readonly isElectron = signal(false);
+  encoding: EncodingMode = 'auto';
 
-  search(): void {
-    if (!this.keyword.trim()) return;
-    this.searching.set(true);
-    this.searched.set(true);
-    setTimeout(() => {
-      const results: SearchResult[] = [];
-      const lower = this.keyword.toLowerCase();
-      // 1. 本地库匹配（title / author）
-      for (const b of this.books.books()) {
-        if (
-          b.title.toLowerCase().includes(lower) ||
-          b.author.toLowerCase().includes(lower)
-        ) {
-          results.push({
-            title: b.title,
-            author: b.author,
-            source: '本地库',
-            book: b,
-          });
-        }
-      }
-      // 2. mock 外部源（永远展示 1-3 条，模拟「万能」搜索）
-      const extCount = 1 + Math.floor(Math.random() * 3);
-      for (let i = 0; i < extCount; i++) {
-        results.push({
-          title: `${this.keyword}（外部源 ${i + 1}）`,
-          author: `mock-source-${i + 1}.example.com`,
-          source: '外部源（mock）',
-          external: {
-            title: `${this.keyword}（外部源 ${i + 1}）`,
-            author: `mock-source-${i + 1}.example.com`,
-            chapters: [
-              { title: '第一章 风起云涌', url: '#' },
-              { title: '第二章 山雨欲来', url: '#' },
-            ],
-          },
-        });
-      }
-      this.results.set(results);
-      this.searching.set(false);
-    }, 300);
+  @ViewChild('webviewRef') webviewRef?: ElementRef<HTMLWebViewElement>;
+
+  constructor() {
+    // 探测是否 Electron 环境（webview 标签可用）
+    this.isElectron.set(typeof window !== 'undefined' && !!(window as any).pomAPI);
+
+    afterNextRender(() => {
+      this.attachWebview();
+    });
   }
 
-  openResult(r: SearchResult): void {
-    if (r.book) {
-      // 本地库 → 直接打开阅读器
-      this.router.navigate(['/reader', r.book.id, 0]);
-    } else if (r.external) {
-      // 外部源 → 弹出导入 modal，预填 URL
-      this.modal.create({
-        nzTitle: '导入在线书页',
-        nzContent: ImportOnlineComponent,
-        nzData: { url: `https://${r.external.author}/book/${encodeURIComponent(this.keyword)}` },
-        nzOkText: '确认导入',
-        nzCancelText: '取消',
-        nzWidth: 640,
-        nzOnOk: (instance: ImportOnlineComponent) => instance.confirm(),
-      });
+  private attachWebview(): void {
+    const wv = this.webviewRef?.nativeElement;
+    if (!wv) return;
+    wv.addEventListener('will-navigate', (e: any) => {
+      // 安全：拦截非 http/https 协议（file:/javascript:/data:）
+      if (!/^https?:\/\//.test(e.url)) {
+        e.preventDefault?.();
+        return;
+      }
+      this.url = e.url;
+    });
+    wv.addEventListener('did-start-loading', () => this.loading.set(true));
+    wv.addEventListener('did-stop-loading', () => {
+      this.loading.set(false);
+      this.url = wv.getURL();
+    });
+    wv.addEventListener('new-window', (e: any) => {
+      e.preventDefault?.();
+      wv.loadURL(e.url);
+    });
+  }
+
+  encodingLabel(): string {
+    return this.encoding === 'auto' ? '自动' : this.encoding.toUpperCase();
+  }
+
+  canGoBack(): boolean {
+    return this.webviewRef?.nativeElement?.canGoBack?.() ?? false;
+  }
+  canGoForward(): boolean {
+    return this.webviewRef?.nativeElement?.canGoForward?.() ?? false;
+  }
+
+  back(): void {
+    this.webviewRef?.nativeElement?.goBack?.();
+  }
+  forward(): void {
+    this.webviewRef?.nativeElement?.goForward?.();
+  }
+  reload(): void {
+    this.webviewRef?.nativeElement?.reload?.();
+  }
+
+  go(target?: string): void {
+    let u = (target ?? this.url).trim();
+    if (!u) return;
+    // 看起来不像 URL 则当搜索词走百度
+    if (!/^https?:\/\//.test(u) && u.includes(' ') || (!/\./.test(u) && u.length > 0 && !/^https?:/.test(u))) {
+      u = 'https://www.baidu.com/s?wd=' + encodeURIComponent(u);
+    } else if (!/^https?:\/\//.test(u)) {
+      u = 'http://' + u;
     }
+    this.url = u;
+    this.webviewRef?.nativeElement?.loadURL?.(u);
+  }
+
+  setEncoding(mode: EncodingMode): void {
+    this.encoding = mode;
+    const wv = this.webviewRef?.nativeElement as any;
+    if (wv?.getWebContentsId) {
+      const id = String(wv.getWebContentsId());
+      (window as any).pomAPI?.setWebviewEncoding?.(id, mode);
+    }
+    // 切换后重新加载当前页使编码生效
+    this.reload();
+  }
+
+  openImport(): void {
+    this.modal.create({
+      nzTitle: '导入在线书页',
+      nzContent: ImportOnlineComponent,
+      nzData: { url: this.url },
+      nzOkText: '确认导入',
+      nzCancelText: '取消',
+      nzWidth: 640,
+      nzOnOk: (instance: ImportOnlineComponent) => instance.confirm(),
+    });
   }
 }

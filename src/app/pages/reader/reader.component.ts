@@ -6,6 +6,7 @@ import {
   OnDestroy,
   signal,
   computed,
+  effect,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -59,7 +60,13 @@ interface ReaderViewSettings {
                   <i>第 {{ chapterIndex() + 1 }} / {{ chapters().length }} 章</i>
                 </div>
               </div>
-              <pre class="read-content">{{ currentChapter()?.content }}</pre>
+              @if (chapterLoading()) {
+                <p class="chapter-loading">章节加载中...</p>
+              } @else if (chapterError()) {
+                <p class="chapter-loading">该章节加载失败。<a (click)="retryLoad()">重试</a></p>
+              } @else {
+                <pre class="read-content">{{ currentChapter()?.content }}</pre>
+              }
             </div>
           </div>
 
@@ -213,6 +220,9 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   protected readonly showGoTop = signal(false);
   protected readonly chapterIndex = signal(0);
   protected readonly chapters = signal<Chapter[]>([]);
+  /** 在线书按需加载状态 */
+  protected readonly chapterLoading = signal(false);
+  protected readonly chapterError = signal(false);
 
   /** 设置面板草稿：打开面板期间页面实时预览草稿值，保存才落盘 */
   protected readonly draft = signal<ReaderViewSettings>({
@@ -240,6 +250,38 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly book = computed<Book | undefined>(() =>
     this.books.getById(this.reader.currentBookId() ?? '')
   );
+
+  /** 按需加载：当前章未加载时触发抓取；渲染后预加载下一章（spec §5.3） */
+  private readonly loadEffect = effect(() => {
+    const idx = this.chapterIndex();
+    const chs = this.chapters();
+    // 依赖版本号使在线章节更新后刷新
+    this.books.chaptersVersion();
+    const ch = chs[idx];
+    if (!ch) return;
+    if (ch.sourceUrl && !ch.loaded) {
+      this.chapterLoading.set(true);
+      this.chapterError.set(false);
+      this.books.loadChapterContent(this.reader.currentBookId() ?? '', idx).then(
+        () => {
+          this.chapterLoading.set(false);
+          const updated = this.books.getChaptersSync(this.reader.currentBookId() ?? '');
+          if (updated) this.chapters.set(updated);
+          const stillMissing = updated?.[idx] && !updated[idx].loaded;
+          if (stillMissing) this.chapterError.set(true);
+        },
+        () => {
+          this.chapterLoading.set(false);
+          this.chapterError.set(true);
+        }
+      );
+    }
+    // 预加载下一章（失败静默）
+    const next = chs[idx + 1];
+    if (next?.sourceUrl && !next.loaded) {
+      this.books.loadChapterContent(this.reader.currentBookId() ?? '', idx + 1);
+    }
+  });
 
   readonly currentChapter = computed<Chapter | undefined>(
     () => this.chapters()[this.chapterIndex()]
@@ -310,6 +352,20 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     this.reader.goToChapter(i);
     this.catalogOpen.set(false);
     this.scrollToTop();
+  }
+
+  /** 重试加载当前失败章节 */
+  retryLoad(): void {
+    const idx = this.chapterIndex();
+    const id = this.reader.currentBookId() ?? '';
+    this.chapterLoading.set(true);
+    this.chapterError.set(false);
+    this.books.loadChapterContent(id, idx).then(() => {
+      this.chapterLoading.set(false);
+      const updated = this.books.getChaptersSync(id);
+      if (updated) this.chapters.set(updated);
+      if (updated?.[idx] && !updated[idx].loaded) this.chapterError.set(true);
+    });
   }
 
   toggleCatalog(): void {

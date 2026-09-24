@@ -8,9 +8,10 @@ import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule, NZ_ICONS, provideNzIconsPatch } from 'ng-zorro-antd/icon';
 import {
   BookOutline, SearchOutline, FileTextOutline,
-  ArrowLeftOutline, MenuOutline, SettingOutline, CloseOutline,
+  ArrowLeftOutline, ArrowRightOutline, MenuOutline, SettingOutline, CloseOutline,
   PlusOutline, LinkOutline, WarningOutline,
   CheckOutline, MinusOutline, ArrowUpOutline,
+  ReloadOutline, DownloadOutline, TranslationOutline, LoadingOutline,
 } from '@ant-design/icons-angular/icons';
 import { PageHeaderComponent } from './shared/components/page-header/page-header.component';
 import { SidebarComponent } from './shared/components/sidebar/sidebar.component';
@@ -30,9 +31,10 @@ import { SidebarComponent } from './shared/components/sidebar/sidebar.component'
   providers: [
     provideNzIconsPatch([
       BookOutline, SearchOutline, FileTextOutline,
-      ArrowLeftOutline, MenuOutline, SettingOutline, CloseOutline,
+      ArrowLeftOutline, ArrowRightOutline, MenuOutline, SettingOutline, CloseOutline,
       PlusOutline, LinkOutline, WarningOutline,
       CheckOutline, MinusOutline, ArrowUpOutline,
+      ReloadOutline, DownloadOutline, TranslationOutline, LoadingOutline,
     ]),
   ],
   template: `

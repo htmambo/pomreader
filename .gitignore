@@ -35,8 +35,16 @@ yarn-error.log
 /coverage
 /libpeerconnection.log
 testem.log
+# /typings 排除的是根 typings，但 src/typings 是源码需保留
 /typings
+!/src/typings
 
 # System files
 .DS_Store
 Thumbs.db
+
+# Electron 构建产物
+/dist-electron
+/electron/www
+/release
+/build

@@ -587,6 +587,19 @@
   color: var(--r-muted);
 }
 
+/* 在线章节按需加载状态 */
+.reader-page .chapter-loading {
+  margin: 40px 0;
+  padding: 24px;
+  text-align: center;
+  color: var(--r-muted);
+}
+.reader-page .chapter-loading a {
+  color: var(--pom-accent, #bf2c24);
+  cursor: pointer;
+  margin-left: 8px;
+}
+
 /* ---------- 窄屏适配 ---------- */
 @media (max-width: 700px) {
   .reader-page .main-text-wrap {

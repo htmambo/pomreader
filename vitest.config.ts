@@ -8,7 +8,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
-      include: ['src/app/core/logic/**/*.ts'],
+      include: ['src/app/core/logic/**/*.ts', 'src/app/core/book-source/**/*.ts'],
       thresholds: {
         lines: 90,
         functions: 90,

@@ -9,8 +9,7 @@ import { ImportOnlineComponent } from '../../../modals/import-online/import-onli
 import { ImportLocalTxtComponent } from '../../../modals/import-local-txt/import-local-txt.component';
 
 /**
- * PageHeader — 顶部 3 标签 + 导入按钮
- * 与原 vendor 一致：当前版本 / 官方 QQ 群 / 追求极致，开心就好
+ * PageHeader — 导入按钮
  */
 @Component({
   selector: 'app-page-header',
@@ -18,9 +17,6 @@ import { ImportLocalTxtComponent } from '../../../modals/import-local-txt/import
   imports: [CommonModule, NzTagModule, NzButtonModule, NzIconModule, NzDropDownModule],
   template: `
     <div class="page-header">
-      <div class="tags">
-        <nz-tag nzColor="default">当前版本: 1.0.6</nz-tag>
-      </div>
       <div class="actions">
         <button nz-button nzType="primary" nz-dropdown [nzDropdownMenu]="importMenu" nzTrigger="click">
           <span nz-icon nzType="plus"></span>
