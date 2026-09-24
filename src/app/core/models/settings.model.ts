@@ -5,6 +5,7 @@ export interface Settings {
   screenBg: string;             // #RRGGBB
   defaultTheme: boolean;        // 是否跟随默认主题
   colorMode: ColorMode;
+  fontSize: number;             // 阅读字号（v1.1 code-reviewer R1 修订：reactive）
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -12,4 +13,5 @@ export const DEFAULT_SETTINGS: Settings = {
   screenBg: '#CDC0A4',
   defaultTheme: true,
   colorMode: 'light',
+  fontSize: 16,
 };

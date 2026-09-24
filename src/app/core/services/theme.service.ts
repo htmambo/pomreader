@@ -1,28 +1,25 @@
-import { Injectable, signal, computed, effect, Signal } from '@angular/core';
+import { Injectable, signal, computed, Signal, effect, inject } from '@angular/core';
 import { ColorMode } from '../models/color-mode.model';
+import { SettingsService } from './settings.service';
 
-const STORAGE_KEY = 'pom.theme';
-const DEFAULT_KEY = 'pom.default-theme';
+const MODE_KEY = 'pom.theme';
 
 /**
  * ThemeService — 全局 light/dark 主题管理
- * v1.1 §9.3 修订：applyToHtml() 打在 <html> 上（确保 ng-zorro 覆盖层继承 CSS var）
+ * v1.1 §9.3 修订：applyToHtml() 打在 <html> 上
+ * v1.1 code-reviewer R2 修订：defaultTheme 由 SettingsService 单源；本 service 仅管 mode
  */
 @Injectable({ providedIn: 'root' })
 export class ThemeService {
+  private readonly settingsService = inject(SettingsService);
   private readonly _mode = signal<ColorMode>(this.loadMode());
-  private readonly _defaultTheme = signal<boolean>(this.loadDefault());
   readonly mode: Signal<ColorMode> = this._mode.asReadonly();
-  readonly defaultTheme: Signal<boolean> = this._defaultTheme.asReadonly();
   readonly effectiveMode: Signal<ColorMode> = computed(() => this._mode());
 
   constructor() {
     effect(() => {
       this.applyToHtml();
       this.persistMode(this._mode());
-    });
-    effect(() => {
-      this.persistDefault(this._defaultTheme());
     });
   }
 
@@ -34,50 +31,30 @@ export class ThemeService {
     this._mode.set(mode);
   }
 
-  toggleDefaultTheme(): void {
-    this._defaultTheme.update((v) => !v);
-  }
-
   /**
    * 把 data-color-mode / data-default-theme 写到 <html> 元素
    * v1.1 §9.3 修订：原 vendor 是 <body>，改为 <html> 避免弹窗背景闪烁
+   * v1.1 code-reviewer R2 修订：defaultTheme 来自 SettingsService（单源）
    */
   applyToHtml(): void {
     if (typeof document === 'undefined') return;
     const root = document.documentElement;
     root.setAttribute('data-color-mode', this._mode());
-    root.setAttribute('data-default-theme', this._defaultTheme() ? '1' : '0');
+    root.setAttribute('data-default-theme', this.settingsService.settings().defaultTheme ? '1' : '0');
   }
 
   private loadMode(): ColorMode {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY) as ColorMode | null;
+      const stored = localStorage.getItem(MODE_KEY) as ColorMode | null;
       return stored === 'dark' || stored === 'light' ? stored : 'light';
     } catch {
       return 'light';
     }
   }
 
-  private loadDefault(): boolean {
-    try {
-      const stored = localStorage.getItem(DEFAULT_KEY);
-      return stored === null ? true : stored === '1';
-    } catch {
-      return true;
-    }
-  }
-
   private persistMode(mode: ColorMode): void {
     try {
-      localStorage.setItem(STORAGE_KEY, mode);
-    } catch {
-      /* quota / disabled */
-    }
-  }
-
-  private persistDefault(v: boolean): void {
-    try {
-      localStorage.setItem(DEFAULT_KEY, v ? '1' : '0');
+      localStorage.setItem(MODE_KEY, mode);
     } catch {
       /* quota / disabled */
     }

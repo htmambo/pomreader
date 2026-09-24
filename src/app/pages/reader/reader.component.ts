@@ -227,7 +227,7 @@ export class ReaderComponent implements OnInit {
     () => this.chapters()[this.chapterIndex()]
   );
 
-  readonly fontSize = computed(() => this.fontSizeLocal);
+  readonly fontSize = computed(() => this.settings.settings().fontSize);
   readonly bgImage = computed(() => {
     const colors = resolveSchemeColors(this.theme.mode(), undefined, this.bgLocal);
     return colors.bg;
@@ -252,7 +252,7 @@ export class ReaderComponent implements OnInit {
     const chs = await this.books.getChapters(bookId);
     this.chapters.set(chs);
 
-    this.fontSizeLocal = this.settings.readerFontSize();
+    this.fontSizeLocal = this.settings.settings().fontSize;
     this.fontColorLocal = this.settings.settings().fontColor;
     this.bgLocal = this.settings.settings().screenBg;
     this.defaultThemeLocal = this.settings.settings().defaultTheme;
@@ -280,7 +280,7 @@ export class ReaderComponent implements OnInit {
   onFontSizeChange(size: number | string): void {
     const n = typeof size === 'number' ? size : parseInt(String(size), 10);
     if (!isNaN(n)) {
-      this.settings.updateReaderFontSize(n);
+      this.settings.update('fontSize', n);
     }
   }
   onFontColorChange(c: string): void {
