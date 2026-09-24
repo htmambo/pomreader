@@ -75,7 +75,11 @@
       "dist-electron/**/*",
       "electron/www/**/*",
       "electron/preload.js",
-      "package.json"
+      "package.json",
+      "node_modules/**/*",
+      "!**/node_modules/*/{CHANGELOG,README,readme,readme.md,*.markdown,*.md,*.map}",
+      "!**/node_modules/.cache",
+      "!**/{.DS_Store,.git,.github,test,tests,docs,doc,coverage,example,examples}"
     ],
     "linux": {
       "target": [
