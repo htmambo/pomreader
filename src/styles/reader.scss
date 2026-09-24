@@ -177,15 +177,26 @@
   max-width: calc(100vw - 32px);
   margin: 0 auto;
 }
+/* 正文字体：跨平台 fallback 链
+ *  优先 Windows → macOS → Linux (Noto CJK) → 通用族
+ *  实测：Manjaro 系统 `fc-match 'Microsoft YaHei'` 落到 Droid Sans Fallback（无衬线 fallback）
+ *        `fc-match Simsun` 落到 Noto Serif CJK KR（衬线字体）
+ *        `fc-match Kaiti` 同 fallback 到 Droid Sans Fallback
+ *  显式列出 Noto Sans/Serif CJK SC 后，Linux 优先命中正确的衬线/无衬线字体
+ */
 .reader-page .read-main-wrap.ff-1 {
-  font-family: 'Microsoft YaHei', PingFangSC-Regular, HelveticaNeue-Light,
-    'Helvetica Neue Light', sans-serif;
+  font-family: 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB',
+    'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Micro Hei',
+    sans-serif;
 }
 .reader-page .read-main-wrap.ff-2 {
-  font-family: PingFangSC-Regular, Simsun, serif;
+  font-family: SimSun, 'Songti SC', 'STSong', 'Noto Serif CJK SC',
+    'Source Han Serif SC', serif;
 }
 .reader-page .read-main-wrap.ff-3 {
-  font-family: Kaiti, 'Kaiti SC', STKaiti, serif;
+  /* Linux 无专门的「楷体」字体；fallback 到衬线保持传统印刷感 */
+  font-family: KaiTi, 'Kaiti SC', 'STKaiti', '楷体', 'Noto Serif CJK SC',
+    'Source Han Serif SC', serif;
 }
 .reader-page .text-wrap {
   min-height: 600px;
@@ -513,13 +524,13 @@
   color: var(--r-text);
 }
 .reader-page .font-family .ff-btn.ff-1 {
-  font-family: 'Microsoft YaHei', PingFangSC-Regular, sans-serif;
+  font-family: 'Microsoft YaHei', 'PingFang SC', 'Noto Sans CJK SC', sans-serif;
 }
 .reader-page .font-family .ff-btn.ff-2 {
-  font-family: Simsun, serif;
+  font-family: SimSun, 'Songti SC', 'Noto Serif CJK SC', serif;
 }
 .reader-page .font-family .ff-btn.ff-3 {
-  font-family: Kaiti, 'Kaiti SC', STKaiti, serif;
+  font-family: KaiTi, 'Kaiti SC', 'STKaiti', 'Noto Serif CJK SC', serif;
 }
 .reader-page .font-family .ff-btn.act {
   color: var(--r-accent);
