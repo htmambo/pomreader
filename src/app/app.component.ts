@@ -7,6 +7,7 @@ import { NzIconModule, NZ_ICONS, provideNzIconsPatch } from 'ng-zorro-antd/icon'
 import {
   BookOutline, SearchOutline, FileTextOutline, MoonOutline, SunOutline,
   ArrowLeftOutline, MenuOutline, SettingOutline, CloseOutline,
+  PlusOutline, LinkOutline, WarningOutline,
 } from '@ant-design/icons-angular/icons';
 import { ThemeService } from './core/services/theme.service';
 import { PageHeaderComponent } from './shared/components/page-header/page-header.component';
@@ -28,6 +29,7 @@ import { SidebarComponent } from './shared/components/sidebar/sidebar.component'
     provideNzIconsPatch([
       BookOutline, SearchOutline, FileTextOutline, MoonOutline, SunOutline,
       ArrowLeftOutline, MenuOutline, SettingOutline, CloseOutline,
+      PlusOutline, LinkOutline, WarningOutline,
     ]),
   ],
   template: `

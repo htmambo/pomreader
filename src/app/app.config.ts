@@ -3,6 +3,7 @@ import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideNzI18n, zh_CN } from 'ng-zorro-antd/i18n';
+import { NzModalService } from 'ng-zorro-antd/modal';
 import { registerLocaleData } from '@angular/common';
 import zh from '@angular/common/locales/zh';
 import { FormsModule } from '@angular/forms';
@@ -32,6 +33,7 @@ export const appConfig: ApplicationConfig = {
     provideAnimations(),
     provideNzI18n(zh_CN),
     importProvidersFrom(FormsModule),
+    NzModalService, // ng-zorro 18 NzModalService 不自动 providedIn:'root'，需显式提供
     { provide: ErrorHandler, useClass: GlobalErrorHandler },
     {
       provide: APP_INITIALIZER,
