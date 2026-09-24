@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, webContents } from 'electron';
 import * as path from 'path';
 import { registerFetchHandler } from './ipc/fetch-handler';
 import { registerExternalHandler } from './ipc/external-handler';
@@ -62,6 +62,17 @@ app.whenReady().then(() => {
   registerFetchHandler(ipcMain);
   registerExternalHandler(ipcMain);
   createWindow();
+
+  // 拦截所有 webContents（含 webview）的 window.open / target=_blank：
+  // 阻止新窗弹窗，改为在当前 webContents 内跳转（原 vendor 兼容补丁 ③ 现代等价）
+  app.on('web-contents-created', (_e, wc) => {
+    wc.setWindowOpenHandler(({ url }) => {
+      if (/^https?:\/\//.test(url)) {
+        wc.loadURL(url);
+      }
+      return { action: 'deny' };
+    });
+  });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

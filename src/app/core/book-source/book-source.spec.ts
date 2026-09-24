@@ -8,6 +8,7 @@ import { Dushu369Adapter } from './adapters/dushu369.adapter';
 import { Guoxue123Adapter } from './adapters/guoxue123.adapter';
 import { Readers365Adapter } from './adapters/readers365.adapter';
 import { KehuanAdapter } from './adapters/kehuan.adapter';
+import { HeuristicAdapter } from './adapters/heuristic.adapter';
 import { FetchError } from './fetch-error';
 import { SOURCE_CONFIG } from './book-source.config';
 
@@ -32,6 +33,7 @@ describe('BookSourceRegistry', () => {
     reg.register(new Guoxue123Adapter());
     reg.register(new Readers365Adapter());
     reg.register(new KehuanAdapter());
+    reg.register(new HeuristicAdapter());
     return reg;
   }
 
@@ -54,19 +56,23 @@ describe('BookSourceRegistry', () => {
     }
   });
 
-  it('未知 URL 抛 unsupported-source', async () => {
+  it('未知 URL 走启发式兜底（不抛 unsupported-source）', async () => {
     const reg = makeRegistry();
-    await expect(reg.fetchCatalog('https://www.unknown.com/book/1')).rejects.toThrow();
+    // unknown URL 现在由 HeuristicAdapter 处理（空 HTML 抛 catalog-empty，非 unsupported）
     try {
       await reg.fetchCatalog('https://www.unknown.com/book/1');
     } catch (e) {
-      expect(e).toBeInstanceOf(FetchError);
-      expect((e as FetchError).code).toBe('unsupported-source');
+      expect((e as Error).message).not.toContain('unsupported-source');
     }
   });
 
-  it('supportedSources 返回 5 个适配器名', () => {
-    expect(makeRegistry().supportedSources()).toHaveLength(5);
+  it('非 http URL 抛 unsupported-source', async () => {
+    const reg = makeRegistry();
+    await expect(reg.fetchCatalog('not-a-url')).rejects.toThrow();
+  });
+
+  it('supportedSources 返回 6 个适配器名', () => {
+    expect(makeRegistry().supportedSources()).toHaveLength(6);
   });
 });
 
@@ -117,5 +123,37 @@ describe('encoding fallback（auto 侦测）', () => {
     expect(SOURCE_CONFIG.dushu369.encoding).toBe('gbk');
     expect(SOURCE_CONFIG.guoxue123.encoding).toBe('gbk');
     expect(SOURCE_CONFIG.readers365.encoding).toBe('gbk');
+  });
+});
+
+describe('HeuristicAdapter（通用启发式兜底）', () => {
+  const adapter = new HeuristicAdapter();
+  const catUrl = 'https://www.unknown-site.com/book/123/';
+  const chUrl = 'https://www.unknown-site.com/book/123/1.html';
+
+  it('match 任意 http URL', () => {
+    expect(adapter.match('https://anything.com/x')).toBe(true);
+    expect(adapter.match('http://foo.org/y')).toBe(true);
+    expect(adapter.match('not-a-url')).toBe(false);
+  });
+
+  it('fetchCatalog 用启发式解析任意站点目录', async () => {
+    const fetcher = mockFetcher({ [catUrl]: loadFixture('xbiquge-catalog.html') });
+    const r = await adapter.fetchCatalog(catUrl, fetcher);
+    // 启发式应能从 xbiquge fixture 提取出书名和章节
+    expect(r.chapters.length).toBeGreaterThan(0);
+    expect(r.title).toBeTruthy();
+  });
+
+  it('fetchChapter 用启发式提取正文', async () => {
+    const fetcher = mockFetcher({ [chUrl]: loadFixture('xbiquge-chapter.html') });
+    const text = await adapter.fetchChapter({ title: '第一章', url: chUrl }, fetcher);
+    expect(text).toContain('风起云涌');
+    expect(text).not.toContain('广告');
+  });
+
+  it('目录为空抛 catalog-empty', async () => {
+    const fetcher = mockFetcher({ [catUrl]: '<html><body></body></html>' });
+    await expect(adapter.fetchCatalog(catUrl, fetcher)).rejects.toThrow('catalog-empty');
   });
 });

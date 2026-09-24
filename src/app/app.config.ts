@@ -17,6 +17,7 @@ import { Dushu369Adapter } from './core/book-source/adapters/dushu369.adapter';
 import { Guoxue123Adapter } from './core/book-source/adapters/guoxue123.adapter';
 import { Readers365Adapter } from './core/book-source/adapters/readers365.adapter';
 import { KehuanAdapter } from './core/book-source/adapters/kehuan.adapter';
+import { HeuristicAdapter } from './core/book-source/adapters/heuristic.adapter';
 
 registerLocaleData(zh);
 
@@ -31,6 +32,7 @@ function initBookSources(registry: BookSourceRegistry) {
     registry.register(new Guoxue123Adapter());
     registry.register(new Readers365Adapter());
     registry.register(new KehuanAdapter());
+    registry.register(new HeuristicAdapter()); // 通用兜底（任意 URL 可试）
     return registry.supportedSources();
   };
 }

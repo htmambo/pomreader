@@ -17,6 +17,9 @@ import { ImportLocalTxtComponent } from '../../../modals/import-local-txt/import
   imports: [CommonModule, NzTagModule, NzButtonModule, NzIconModule, NzDropDownModule],
   template: `
     <div class="page-header">
+      <div class="tags">
+        <!-- <nz-tag nzColor="default">当前版本: 1.0.6</nz-tag> -->
+      </div>
       <div class="actions">
         <button nz-button nzType="primary" nz-dropdown [nzDropdownMenu]="importMenu" nzTrigger="click">
           <span nz-icon nzType="plus"></span>

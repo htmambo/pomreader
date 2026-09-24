@@ -38,10 +38,10 @@ type EncodingMode = 'auto' | 'utf-8' | 'gbk';
   template: `
     <div class="search-page">
       <div class="toolbar">
-        <button nz-button nzType="text" (click)="back()" [disabled]="!canGoBack()" title="后退">
+        <button nz-button nzType="text" (click)="back()" [disabled]="!canBack()" title="后退">
           <span nz-icon nzType="arrow-left"></span>
         </button>
-        <button nz-button nzType="text" (click)="forward()" [disabled]="!canGoForward()" title="前进">
+        <button nz-button nzType="text" (click)="forward()" [disabled]="!canFwd()" title="前进">
           <span nz-icon nzType="arrow-right"></span>
         </button>
         <button nz-button nzType="text" (click)="reload()" title="刷新">
@@ -167,12 +167,16 @@ export class UniversalSearchComponent {
   url = 'https://www.baidu.com/';
   readonly loading = signal(false);
   readonly isElectron = signal(false);
+  /** webview 是否已 dom-ready（未就绪时调 canGoBack 等会抛错） */
+  readonly wvReady = signal(false);
+  /** 后退/前进可用状态（did-stop-loading 时更新，模板绑 signal 而非每次变更检测调原生 API） */
+  readonly canBack = signal(false);
+  readonly canFwd = signal(false);
   encoding: EncodingMode = 'auto';
 
   @ViewChild('webviewRef') webviewRef?: ElementRef<HTMLWebViewElement>;
 
   constructor() {
-    // 探测是否 Electron 环境（webview 标签可用）
     this.isElectron.set(typeof window !== 'undefined' && !!(window as any).pomAPI);
 
     afterNextRender(() => {
@@ -183,8 +187,12 @@ export class UniversalSearchComponent {
   private attachWebview(): void {
     const wv = this.webviewRef?.nativeElement;
     if (!wv) return;
+
+    wv.addEventListener('dom-ready', () => {
+      this.wvReady.set(true);
+      this.refreshNavState();
+    });
     wv.addEventListener('will-navigate', (e: any) => {
-      // 安全：拦截非 http/https 协议（file:/javascript:/data:）
       if (!/^https?:\/\//.test(e.url)) {
         e.preventDefault?.();
         return;
@@ -194,32 +202,44 @@ export class UniversalSearchComponent {
     wv.addEventListener('did-start-loading', () => this.loading.set(true));
     wv.addEventListener('did-stop-loading', () => {
       this.loading.set(false);
-      this.url = wv.getURL();
+      if (this.wvReady()) {
+        this.url = wv.getURL();
+        this.refreshNavState();
+      }
     });
     wv.addEventListener('new-window', (e: any) => {
-      e.preventDefault?.();
-      wv.loadURL(e.url);
+      // 主进程 setWindowOpenHandler 已 deny + loadURL 在当前 webview 跳转
+      // 这里仅同步地址栏（did-stop-loading 也会刷新，保留作即时反馈）
+      if (/^https?:\/\//.test(e.url)) this.url = e.url;
     });
+  }
+
+  /** 刷新后退/前进可用状态（仅 webview 就绪后调） */
+  private refreshNavState(): void {
+    const wv = this.webviewRef?.nativeElement;
+    if (!wv || !this.wvReady()) return;
+    try {
+      this.canBack.set(wv.canGoBack());
+      this.canFwd.set(wv.canGoForward());
+    } catch {
+      // 容错：偶发未完全就绪
+    }
   }
 
   encodingLabel(): string {
     return this.encoding === 'auto' ? '自动' : this.encoding.toUpperCase();
   }
 
-  canGoBack(): boolean {
-    return this.webviewRef?.nativeElement?.canGoBack?.() ?? false;
-  }
-  canGoForward(): boolean {
-    return this.webviewRef?.nativeElement?.canGoForward?.() ?? false;
-  }
-
   back(): void {
+    if (!this.wvReady()) return;
     this.webviewRef?.nativeElement?.goBack?.();
   }
   forward(): void {
+    if (!this.wvReady()) return;
     this.webviewRef?.nativeElement?.goForward?.();
   }
   reload(): void {
+    if (!this.wvReady()) return;
     this.webviewRef?.nativeElement?.reload?.();
   }
 
@@ -233,17 +253,17 @@ export class UniversalSearchComponent {
       u = 'http://' + u;
     }
     this.url = u;
-    this.webviewRef?.nativeElement?.loadURL?.(u);
+    if (this.wvReady()) this.webviewRef?.nativeElement?.loadURL?.(u);
   }
 
   setEncoding(mode: EncodingMode): void {
     this.encoding = mode;
+    if (!this.wvReady()) return;
     const wv = this.webviewRef?.nativeElement as any;
     if (wv?.getWebContentsId) {
       const id = String(wv.getWebContentsId());
       (window as any).pomAPI?.setWebviewEncoding?.(id, mode);
     }
-    // 切换后重新加载当前页使编码生效
     this.reload();
   }
 

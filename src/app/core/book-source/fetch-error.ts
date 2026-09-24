@@ -18,5 +18,5 @@ export const FETCH_ERROR_MESSAGES: Record<FetchErrorCode, string> = {
   'source-unavailable': '该书源暂时不可用，请稍后重试。',
   timeout: '请求超时，请稍后重试。',
   'parse-failed': '页面解析失败，该书源可能已改版。',
-  'unsupported-source': '暂不支持该书源，当前支持：笔趣阁 / 读书369 / 国学123 / 读书人365 / 科幻小说网。',
+  'unsupported-source': 'URL 无效，请输入完整的 http/https 书页地址。',
 };

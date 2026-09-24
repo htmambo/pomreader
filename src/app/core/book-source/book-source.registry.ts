@@ -10,8 +10,9 @@ import { FetchError } from './fetch-error';
 
 /**
  * 书源适配器注册表（spec §4.3）
- * - register() 开放扩展（后续可加站或用户自配）
- * - 未知 URL 抛 unsupported-source（不兜底）
+ * - 专用适配器优先（5 站固定选择器）
+ * - 启发式适配器兜底（复刻原 vendor 通用解析，任意 URL 可试）
+ * - register() 开放扩展
  */
 @Injectable({ providedIn: 'root' })
 export class BookSourceRegistry {
@@ -19,7 +20,6 @@ export class BookSourceRegistry {
   private fetcher: PageFetcher | null = null;
 
   constructor() {
-    // DI 环境下懒注入；测试用 forTest 直接覆盖
     try {
       this.fetcher = inject(PageFetcherService);
     } catch {
@@ -27,7 +27,6 @@ export class BookSourceRegistry {
     }
   }
 
-  /** 测试用：直接注入 fetcher 绕过 Angular DI */
   static forTest(fetcher: PageFetcher): BookSourceRegistry {
     const reg = new BookSourceRegistry();
     reg.fetcher = fetcher;
@@ -43,10 +42,15 @@ export class BookSourceRegistry {
     this.adapters.push(adapter);
   }
 
+  /** 专用适配器优先；找不到走启发式兜底（匹配任意 http URL） */
   private resolve(url: string): BookSourceAdapter {
-    const a = this.adapters.find((x) => x.match(url));
-    if (!a) throw new FetchError('unsupported-source');
-    return a;
+    // 1. 专用适配器（hostPattern 限定具体域名）
+    const specific = this.adapters.find((x) => x.name !== '通用（启发式）' && x.match(url));
+    if (specific) return specific;
+    // 2. 启发式兜底
+    const heuristic = this.adapters.find((x) => x.name === '通用（启发式）' && x.match(url));
+    if (heuristic) return heuristic;
+    throw new FetchError('unsupported-source');
   }
 
   async fetchCatalog(url: string): Promise<ResolvedBook> {

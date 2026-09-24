@@ -23,7 +23,7 @@ import { Book } from '../../core/models/book.model';
   imports: [CommonModule, FormsModule, NzInputModule, NzButtonModule, NzListModule, NzIconModule],
   template: `
     <div class="import-online">
-      <p class="hint">输入书源完整 URL（支持：{{ supported }}）：</p>
+      <p class="hint">输入书页完整 URL（支持笔趣阁等 5 站 + 通用启发式解析任意书源）：</p>
       <div class="url-row">
         <input
           nz-input
