@@ -6,6 +6,18 @@
  * 页宽：.w640 / .w800 / .w900 / .w1280
  * ============================================================ */
 
+/* 应用内嵌楷书（覆盖 Linux 无 KaiTi 的问题）
+ *   源：AR PL UKai CN（文鼎开源楷书，Arphic Public License）
+ *   子集：基础汉字 + ASCII + CJK 标点 + 数字，pyftsubset 提取
+ *   体积 ~6MB（CJK 字形数据大）
+ *   替代 Linux 上的「KaiTi / Kaiti SC / 楷体」缺失
+ */
+@font-face {
+  font-family: 'AppKai';
+  src: url('/assets/fonts/ukai-cn-subset.woff2') format('woff2');
+  font-display: swap;
+}
+
 .reader-page {
   --r-accent: #ed4259;
   --r-red: #bf2c24;
@@ -183,20 +195,24 @@
  *        `fc-match Simsun` 落到 Noto Serif CJK KR（衬线字体）
  *        `fc-match Kaiti` 同 fallback 到 Droid Sans Fallback
  *  显式列出 Noto Sans/Serif CJK SC 后，Linux 优先命中正确的衬线/无衬线字体
+ *  楷书 ff-3：Linux 无原生 KaiTi，应用内嵌 'AppKai'（AR PL UKai CN 子集）兜底
+ *  雅黑 ff-1：Linux 用 Noto Sans CJK SC + 加粗（Black weight）模拟黑体感
  */
 .reader-page .read-main-wrap.ff-1 {
   font-family: 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB',
     'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Micro Hei',
     sans-serif;
+  /* Linux 上 Noto Sans CJK SC 偏瘦；黑体感靠 800 weight（系统提供）模拟 */
+  font-weight: 500;
 }
 .reader-page .read-main-wrap.ff-2 {
   font-family: SimSun, 'Songti SC', 'STSong', 'Noto Serif CJK SC',
     'Source Han Serif SC', serif;
 }
 .reader-page .read-main-wrap.ff-3 {
-  /* Linux 无专门的「楷体」字体；fallback 到衬线保持传统印刷感 */
-  font-family: KaiTi, 'Kaiti SC', 'STKaiti', '楷体', 'Noto Serif CJK SC',
-    'Source Han Serif SC', serif;
+  font-family: KaiTi, 'Kaiti SC', 'STKaiti', '楷体',
+    'AppKai', /* 内嵌 AR PL UKai CN，Linux 兜底 */
+    'Noto Serif CJK SC', 'Source Han Serif SC', serif;
 }
 .reader-page .text-wrap {
   min-height: 600px;
@@ -525,12 +541,13 @@
 }
 .reader-page .font-family .ff-btn.ff-1 {
   font-family: 'Microsoft YaHei', 'PingFang SC', 'Noto Sans CJK SC', sans-serif;
+  font-weight: 500;
 }
 .reader-page .font-family .ff-btn.ff-2 {
   font-family: SimSun, 'Songti SC', 'Noto Serif CJK SC', serif;
 }
 .reader-page .font-family .ff-btn.ff-3 {
-  font-family: KaiTi, 'Kaiti SC', 'STKaiti', 'Noto Serif CJK SC', serif;
+  font-family: KaiTi, 'Kaiti SC', 'STKaiti', 'AppKai', 'Noto Serif CJK SC', serif;
 }
 .reader-page .font-family .ff-btn.act {
   color: var(--r-accent);
