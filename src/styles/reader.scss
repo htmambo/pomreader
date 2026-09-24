@@ -435,6 +435,12 @@
 .reader-page .catalog-item:nth-child(-n + 2) {
   border-top: none;
 }
+.reader-page .catalog-item .not-loaded {
+  float: right;
+  margin-top: 13px;
+  font-size: 14px;
+  opacity: 0.45;
+}
 .reader-page .catalog-item:hover,
 .reader-page .catalog-item.on {
   color: var(--r-accent);

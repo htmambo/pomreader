@@ -8,6 +8,7 @@ import {
   signal,
   computed,
   effect,
+  untracked,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { take } from 'rxjs/operators';
@@ -109,6 +110,11 @@ interface ReaderViewSettings {
                 ><i><span nz-icon nzType="edit"></span><span class="lbl">编辑</span></i></a
               >
             </dd>
+            <dd (click)="refreshContent()">
+              <a
+                ><i><span nz-icon nzType="reload"></span><span class="lbl">刷新</span></i></a
+              >
+            </dd>
             <dd (click)="back()">
               <a
                 ><i><span nz-icon nzType="book"></span><span class="lbl">书架</span></i></a
@@ -134,7 +140,9 @@ interface ReaderViewSettings {
                       class="catalog-item"
                       [class.on]="i === chapterIndex()"
                       (click)="goTo(i)"
-                      >{{ ch.title }}</a
+                      >{{ ch.title }}@if (ch.sourceUrl && !ch.loaded) {
+                        <span nz-icon nzType="download" class="not-loaded" title="未下载"></span>
+                      }</a
                     >
                   }
                 </div>
@@ -282,15 +290,22 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     const chs = this.chapters();
     // 依赖版本号使在线章节更新后刷新
     this.books.chaptersVersion();
+    // 触发逻辑需写 signal，移出 effect 响应式上下文（Angular 18 NG0600）
+    untracked(() => this.ensureChapterLoaded(idx, chs));
+  });
+
+  /** 当前章未加载时抓取正文，并预加载下一章（失败静默） */
+  private ensureChapterLoaded(idx: number, chs: Chapter[]): void {
     const ch = chs[idx];
     if (!ch) return;
+    const id = this.reader.currentBookId() ?? '';
     if (ch.sourceUrl && !ch.loaded) {
       this.chapterLoading.set(true);
       this.chapterError.set(false);
-      this.books.loadChapterContent(this.reader.currentBookId() ?? '', idx).then(
+      this.books.loadChapterContent(id, idx).then(
         () => {
           this.chapterLoading.set(false);
-          const updated = this.books.getChaptersSync(this.reader.currentBookId() ?? '');
+          const updated = this.books.getChaptersSync(id);
           if (updated) this.chapters.set(updated);
           const stillMissing = updated?.[idx] && !updated[idx].loaded;
           if (stillMissing) this.chapterError.set(true);
@@ -304,9 +319,9 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     // 预加载下一章（失败静默）
     const next = chs[idx + 1];
     if (next?.sourceUrl && !next.loaded) {
-      this.books.loadChapterContent(this.reader.currentBookId() ?? '', idx + 1);
+      this.books.loadChapterContent(id, idx + 1);
     }
-  });
+  }
 
   readonly currentChapter = computed<Chapter | undefined>(
     () => this.chapters()[this.chapterIndex()]
@@ -563,6 +578,73 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
       nzWidth: 420,
     });
     ref.afterClose.pipe(take(1)).subscribe(() => this.modalOpen.set(false));
+  }
+
+  /** 左侧"刷新"按钮：章节内容异常时重新抓取（本章 / 全书清空重抓） */
+  refreshContent(): void {
+    const ch = this.chapters()[this.chapterIndex()];
+    if (!ch?.sourceUrl) {
+      this.msg.info('本地书籍无需刷新');
+      return;
+    }
+    this.modalOpen.set(true);
+    const ref = this.modal.create({
+      nzTitle: '刷新章节内容',
+      nzContent:
+        '当前章节内容异常时可重新抓取本章；若全书章节内容都有问题，可清空全部章节缓存，之后阅读时按需重新抓取。',
+      nzFooter: [
+        {
+          label: '取消',
+          onClick: () => ref.destroy(),
+        },
+        {
+          label: '清空全书重抓',
+          type: 'primary',
+          danger: true,
+          onClick: async () => {
+            await this.doRefreshAll();
+            ref.destroy();
+          },
+        },
+        {
+          label: '刷新本章',
+          type: 'primary',
+          onClick: async () => {
+            await this.doRefreshChapter();
+            ref.destroy();
+          },
+        },
+      ],
+      nzWidth: 420,
+    });
+    ref.afterClose.pipe(take(1)).subscribe(() => this.modalOpen.set(false));
+  }
+
+  /** 强制重抓当前章（忽略已缓存内容） */
+  private async doRefreshChapter(): Promise<void> {
+    const idx = this.chapterIndex();
+    const id = this.reader.currentBookId() ?? '';
+    this.chapterLoading.set(true);
+    this.chapterError.set(false);
+    const ok = await this.books.refreshChapter(id, idx);
+    this.chapterLoading.set(false);
+    const updated = this.books.getChaptersSync(id);
+    if (updated) this.chapters.set(updated);
+    if (ok) {
+      this.msg.success('本章内容已刷新');
+    } else {
+      this.chapterError.set(true);
+      this.msg.error('刷新失败，请稍后重试');
+    }
+  }
+
+  /** 清空全书章节缓存；当前章由 loadEffect 自动重新抓取 */
+  private async doRefreshAll(): Promise<void> {
+    const id = this.reader.currentBookId() ?? '';
+    await this.books.clearChapterContents(id);
+    const updated = this.books.getChaptersSync(id);
+    if (updated) this.chapters.set(updated);
+    this.msg.success('已清空全书章节缓存，将在阅读时重新抓取');
   }
 
   /** 切换章节后把滚动条跳回顶部（用户阅读习惯） */
