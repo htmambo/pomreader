@@ -137,6 +137,33 @@
 
 ---
 
-## Round 4/5 — 2026-09-24 (待 re-review)
+## Round 4/5 — 2026-09-24 (commit 0bbce65 修复后 re-review)
 
-(下面填入第四轮 verdict)
+**Provider:** coding-bridge
+**Kind:** code
+**VERDICT:** NEEDS_CHANGES
+
+### Round 3 修复验证
+
+| # | Finding | 状态 |
+|---|---|---|
+| R3-1 | N+1 → include_docs | ✅ Fixed |
+| R3-2 | 迁移窗口期重复 → ensureMigrated | ✅ Fixed |
+| R3-3 | bulkDocs 结果未检查 → 过滤 409 | ✅ Fixed |
+
+### 新 Risks
+
+| # | Severity | Summary |
+|---|---|---|
+| N1 | P高 | chapterPutMany 与迁移竞态 409 抛错 |
+| N2 | P中 | bookDelete Promise.all 部分失败 → 孤儿文档 |
+| N3 | P中 | chapterPutMany 错误消息 fallback 为 boolean |
+| N4 | P低 | 对象展开字段覆盖（book/chapter 含 _id/type 字段污染） |
+| N5 | P低 | 迁移过滤器缺少 type === 'chapter' 检查 |
+| N6 | P低 | as unknown as 双重类型断言 |
+
+---
+
+## Round 5/5 — 2026-09-24 (待 re-review)
+
+(下面填入第五轮 verdict；如仍 NEEDS_CHANGES 则按 CLAUDE.md §1.5 exhaustion 停下暴露 residual risks)
