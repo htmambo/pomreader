@@ -119,6 +119,68 @@
  * 配色对齐 reader.scss 中 .theme-6 的 r-content-bg / r-text / r-border
  * ============================================================ */
 [data-pom-theme='6'] {
+  /* ============================================================
+   * 全局页面级控件（不限 modal）：暗色背景下避免白底按钮 / 白底 input 反差
+   * 覆盖万能搜索页的地址栏 + 「自动」按钮 + 4 个快捷方式按钮
+   * ============================================================ */
+  .ant-input {
+    background: #1f1f1f;
+    border-color: #444444;
+    color: #e0e0e0;
+  }
+  .ant-input::placeholder {
+    color: #666666;
+  }
+  .ant-input:hover {
+    border-color: #bf2c24;
+  }
+  .ant-input:focus,
+  .ant-input-focused {
+    background: #1f1f1f;
+    border-color: #bf2c24;
+    box-shadow: 0 0 0 2px rgba(191, 44, 36, 0.2);
+  }
+  .ant-input-number {
+    background: #1f1f1f;
+    border-color: #444444;
+    color: #e0e0e0;
+  }
+  .ant-input-number-handler-wrap {
+    background: #2a2a2a;
+    border-left-color: #444444;
+  }
+  .ant-input-number-handler {
+    border-color: #444444;
+  }
+  .ant-input-number-handler:hover {
+    background: #333333;
+  }
+  /* nz-button default（非 primary/danger/text/link）— 「自动」、快捷方式按钮等 */
+  .ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous):not(.ant-btn-text):not(.ant-btn-link) {
+    background: #2a2a2a;
+    border-color: #444444;
+    color: #e0e0e0;
+  }
+  .ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous):not(.ant-btn-text):not(.ant-btn-link):hover {
+    border-color: #bf2c24;
+    color: #bf2c24;
+  }
+  /* nz-button text 类型（后退/前进/刷新）— 导航按钮 */
+  .ant-btn.ant-btn-text {
+    color: #e0e0e0;
+  }
+  .ant-btn.ant-btn-text:hover:not([disabled]) {
+    color: #bf2c24;
+    background: rgba(191, 44, 36, 0.08);
+  }
+  .ant-btn.ant-btn-text[disabled] {
+    color: #444444;
+  }
+  /* nz-button link 类型 */
+  .ant-btn.ant-btn-link {
+    color: #ed4259;
+  }
+
   .ant-modal-content,
   .ant-modal-confirm-body,
   .ant-modal-confirm-body-wrapper {
