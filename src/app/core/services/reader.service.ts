@@ -1,11 +1,16 @@
 import { Injectable, signal, computed, Signal, inject } from '@angular/core';
 import { BookService } from './book.service';
 
-const PROGRESS_KEY = 'pom.reader.progress';
+/** 旧版 localStorage key（v1 持久化方案）—— 一次性迁移用 */
+const LEGACY_PROGRESS_KEY = 'pom.reader.progress';
 
 /**
- * ReaderService — 阅读进度管理
- * v1.1 §13 P3 + v1.1 §6 服务层
+ * ReaderService — 阅读进度管理（v2：持久化到 PouchDB Book 文档）
+ *
+ * v1: localStorage 存 { bookId, chapter }
+ * v2: 嵌入 Book 文档的 progress 字段（与 bookId 强耦合，删除书自动级联）
+ *
+ * 首次启动时调用 `migrateLegacyProgress()` 把 v1 localStorage 数据迁移到 PouchDB
  */
 @Injectable({ providedIn: 'root' })
 export class ReaderService {
@@ -43,26 +48,48 @@ export class ReaderService {
     this.saveProgress();
   }
 
+  /** 保存进度到 PouchDB（嵌入 Book 文档） */
   saveProgress(): void {
     const bookId = this._currentBookId();
     if (!bookId) return;
-    try {
-      localStorage.setItem(
-        PROGRESS_KEY,
-        JSON.stringify({ bookId, chapter: this._currentChapterIndex() })
-      );
-    } catch {
-      /* quota */
-    }
+    void this.books.updateProgress(bookId, this._currentChapterIndex());
   }
 
-  restoreProgress(): { bookId: string; chapter: number } | null {
+  /**
+   * 从 PouchDB 恢复当前书的进度
+   * 调用时机：reader 组件初始化时；恢复后调用方可用返回的 chapter 跳页
+   */
+  async restoreProgress(): Promise<{ bookId: string; chapter: number } | null> {
+    const bookId = this._currentBookId();
+    if (!bookId) return null;
+    const book = this.books.getById(bookId);
+    if (book?.progress) {
+      this._currentChapterIndex.set(book.progress.chapterIndex);
+      return { bookId, chapter: book.progress.chapterIndex };
+    }
+    return null;
+  }
+
+  /**
+   * 一次性迁移：把 v1 localStorage 里的 progress 迁移到 PouchDB Book 文档
+   * 调用时机：BookService.load() 完成后
+   */
+  migrateLegacyProgress(): void {
     try {
-      const stored = localStorage.getItem(PROGRESS_KEY);
-      if (!stored) return null;
-      return JSON.parse(stored);
+      const stored = localStorage.getItem(LEGACY_PROGRESS_KEY);
+      if (!stored) return;
+      const parsed = JSON.parse(stored) as { bookId?: string; chapter?: number };
+      if (parsed.bookId && typeof parsed.chapter === 'number') {
+        void this.books.updateProgress(parsed.bookId, parsed.chapter);
+      }
+      localStorage.removeItem(LEGACY_PROGRESS_KEY);
     } catch {
-      return null;
+      // corrupt data, just drop
+      try {
+        localStorage.removeItem(LEGACY_PROGRESS_KEY);
+      } catch {
+        /* localStorage 不可用，忽略 */
+      }
     }
   }
 }

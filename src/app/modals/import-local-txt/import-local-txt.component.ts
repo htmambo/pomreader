@@ -230,7 +230,7 @@ export class ImportLocalTxtComponent {
     return false; // 阻止默认上传
   };
 
-  confirm(): boolean {
+  async confirm(): Promise<boolean> {
     if (this.chapters().length === 0) {
       this.toast.warn('请先选择文件');
       return false;
@@ -255,7 +255,7 @@ export class ImportLocalTxtComponent {
         title: c.title === '__preamble__' ? '序章' : c.title,
         content: lines.slice(c.startLine, c.endLine + 1).join('\n').trim(),
       }));
-      this.books.addBook(book, chapters);
+      await this.books.addBook(book, chapters);
       this.toast.success(`已导入：${book.title}（${chapters.length} 章）`);
       return true;
     } catch (e) {
