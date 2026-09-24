@@ -43,3 +43,228 @@
 ::-webkit-scrollbar-corner {
   background: var(--pom-scrollbar-track);
 }
+
+/* ============================================================
+ * NzModal 配色对齐牛皮纸主题（confirm / 信息弹窗通用）
+ * ng-zorro 默认是 Ant 蓝白底，跟项目米色 + 深棕主题不搭
+ * ============================================================ */
+.ant-modal-content,
+.ant-modal-confirm-body,
+.ant-modal-confirm-body-wrapper {
+  background: var(--pom-card);
+  color: var(--pom-text);
+}
+.ant-modal-header,
+.ant-modal-confirm-body .ant-modal-confirm-body-wrapper {
+  background: var(--pom-card);
+  border-bottom-color: var(--pom-border);
+}
+.ant-modal-title,
+.ant-modal-confirm-title {
+  color: var(--pom-text) !important;
+  font-weight: 600;
+}
+.ant-modal-body,
+.ant-modal-confirm-paragraph {
+  color: var(--pom-text);
+}
+.ant-modal-close-x {
+  color: var(--pom-text-muted);
+}
+.ant-modal-close-x:hover {
+  color: var(--pom-accent);
+  background: transparent;
+}
+/* 默认 OK 按钮（非 danger）用项目强调色 */
+.ant-modal .ant-btn-primary:not(.ant-btn-dangerous) {
+  background: var(--pom-accent);
+  border-color: var(--pom-accent);
+  box-shadow: none;
+}
+.ant-modal .ant-btn-primary:not(.ant-btn-dangerous):hover,
+.ant-modal .ant-btn-primary:not(.ant-btn-dangerous):focus {
+  background: var(--pom-accent-hover);
+  border-color: var(--pom-accent-hover);
+}
+/* Cancel 按钮 + 默认按钮 */
+.ant-modal .ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous) {
+  border-color: var(--pom-border);
+  color: var(--pom-text);
+  background: transparent;
+}
+.ant-modal .ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous):hover {
+  border-color: var(--pom-accent);
+  color: var(--pom-accent);
+}
+/* Danger 按钮（删除确认）保留 ng-zorro 红 + 适配文字色 */
+.ant-modal .ant-btn-dangerous {
+  background: #ff4d4f;
+  border-color: #ff4d4f;
+}
+.ant-modal .ant-btn-dangerous:hover {
+  background: #d9363e;
+  border-color: #d9363e;
+}
+
+/* ============================================================
+ * 第 7 套主题（暗色 / theme-6 / 黑色）— modal 配色覆盖
+ * <html data-pom-theme="6"> 由 app.component 根据 settings.theme 同步
+ * 配色对齐 reader.scss 中 .theme-6 的 r-content-bg / r-text / r-border
+ * ============================================================ */
+[data-pom-theme='6'] {
+  .ant-modal-content,
+  .ant-modal-confirm-body,
+  .ant-modal-confirm-body-wrapper {
+    background: #111111;
+    color: #c9c9c9;
+  }
+  .ant-modal-header,
+  .ant-modal-confirm-body-wrapper {
+    background: #111111;
+    border-bottom-color: #444444;
+  }
+  .ant-modal-title,
+  .ant-modal-confirm-title {
+    color: #e0e0e0 !important;
+    font-weight: 600;
+  }
+  .ant-modal-body,
+  .ant-modal-confirm-paragraph {
+    color: #c9c9c9;
+  }
+  .ant-modal-close-x {
+    color: #999999;
+  }
+  .ant-modal-close-x:hover {
+    color: #ed4259;
+    background: transparent;
+  }
+  /* OK 按钮（项目强调色 + 暗色主题下用 hover 色） */
+  .ant-modal .ant-btn-primary:not(.ant-btn-dangerous) {
+    background: #bf2c24;
+    border-color: #bf2c24;
+  }
+  .ant-modal .ant-btn-primary:not(.ant-btn-dangerous):hover,
+  .ant-modal .ant-btn-primary:not(.ant-btn-dangerous):focus {
+    background: #ed4259;
+    border-color: #ed4259;
+  }
+  /* Cancel 按钮：暗色背景下的边框 + 文字 */
+  .ant-modal .ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous) {
+    border-color: #444444;
+    color: #c9c9c9;
+    background: transparent;
+  }
+  .ant-modal .ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous):hover {
+    border-color: #ed4259;
+    color: #ed4259;
+  }
+  /* Danger 按钮（删除确认）在暗色主题下保持高对比 */
+  .ant-modal .ant-btn-dangerous {
+    background: #ff4d4f;
+    border-color: #ff4d4f;
+  }
+  /* Mask 遮罩更深（暗色背景上需要更强对比） */
+  .ant-modal-mask {
+    background: rgba(0, 0, 0, 0.7);
+  }
+
+  /* modal 内输入框（nz-input / color picker / textarea） */
+  .ant-modal .ant-input,
+  .ant-modal textarea.ant-input {
+    background: #1f1f1f;
+    border-color: #444444;
+    color: #e0e0e0;
+  }
+  .ant-modal .ant-input::placeholder,
+  .ant-modal textarea.ant-input::placeholder {
+    color: #666666;
+  }
+  .ant-modal .ant-input:hover,
+  .ant-modal textarea.ant-input:hover {
+    border-color: #ed4259;
+  }
+  .ant-modal .ant-input:focus,
+  .ant-modal textarea.ant-input:focus,
+  .ant-modal .ant-input-focused,
+  .ant-modal textarea.ant-input-focused {
+    background: #1f1f1f;
+    border-color: #bf2c24;
+    box-shadow: 0 0 0 2px rgba(191, 44, 36, 0.2);
+  }
+  /* nz-input-number 控件 */
+  .ant-modal .ant-input-number {
+    background: #1f1f1f;
+    border-color: #444444;
+    color: #e0e0e0;
+  }
+  .ant-modal .ant-input-number-handler-wrap {
+    background: #2a2a2a;
+    border-left-color: #444444;
+  }
+  .ant-modal .ant-input-number-handler {
+    border-color: #444444;
+  }
+  .ant-modal .ant-input-number-handler:hover {
+    background: #333333;
+  }
+  .ant-modal .ant-input-number-handler:hover .ant-input-number-handler-up-inner,
+  .ant-modal .ant-input-number-handler:hover .ant-input-number-handler-down-inner {
+    color: #ed4259;
+  }
+  /* color picker input（自定义封面色板） */
+  .ant-modal input[type='color'] {
+    background: #1f1f1f;
+    border-color: #444444;
+  }
+  /* 封面 preset swatch 按钮在暗色主题下边框颜色提亮 */
+  .ant-modal .cover-swatch.active {
+    border-color: #e0e0e0;
+    box-shadow: 0 0 0 1px #1f1f1f;
+  }
+
+  /* ============================================================
+   * nzContent 内容区全元素配色（覆盖默认 dark theme 下的黑色文字）
+   * 包括 confirm 弹窗的 paragraph、自定义 label、form item label 等
+   * ============================================================ */
+  .ant-modal-confirm-content,
+  .ant-modal p,
+  .ant-modal div,
+  .ant-modal label:not(.ant-checkbox-wrapper):not(.ant-radio-wrapper),
+  .ant-modal small {
+    color: #c9c9c9;
+  }
+  /* nzContent 内表单 label（更亮，对应标题层级） */
+  .ant-modal .field-label,
+  .ant-modal .ant-form-item-label > label {
+    color: #e0e0e0;
+  }
+  /* confirm 弹窗的图标背景 */
+  .ant-modal-confirm .ant-modal-confirm-bubble {
+    background: #2a2a2a;
+  }
+  /* nz-input-affix-wrapper（前后缀输入框） */
+  .ant-modal .ant-input-affix-wrapper,
+  .ant-modal .ant-input-number {
+    background: #1f1f1f;
+    border-color: #444444;
+    color: #e0e0e0;
+  }
+  .ant-modal .ant-input-affix-wrapper-focused,
+  .ant-modal .ant-input-affix-wrapper:focus,
+  .ant-modal .ant-input-affix-wrapper:hover {
+    border-color: #bf2c24;
+  }
+
+  /* nz-list 目录预览（import-online）— 暗色背景下文字/边框提亮 */
+  .ant-modal .ant-list,
+  .ant-modal .ant-list-bordered {
+    border-color: #444444;
+  }
+  .ant-modal .ant-list-item {
+    color: #e0e0e0;
+  }
+  .ant-modal .ant-list-item:hover {
+    background: #2a2a2a;
+  }
+}

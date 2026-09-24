@@ -96,6 +96,10 @@
 .reader-page.w800 { --r-page-w: 800px; }
 .reader-page.w900 { --r-page-w: 900px; }
 .reader-page.w1280 { --r-page-w: 1280px; }
+.reader-page.w1440 { --r-page-w: 1440px; }
+.reader-page.w1680 { --r-page-w: 1680px; }
+.reader-page.w1840 { --r-page-w: 1840px; }
+
 
 /* ---------- 顶部栏 ---------- */
 .reader-page .read-header {
@@ -336,6 +340,26 @@
   border-right: none;
   background: var(--r-panel-bg) var(--r-panel-img) repeat;
   box-shadow: -10px 5px 25px -4px rgba(0, 0, 0, 0.2);
+}
+
+/* 左侧栏底部"删除"按钮：推到最底 + 红色警告色 */
+.reader-page .left-bar-list dl {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.reader-page .left-bar-list dd.danger {
+  margin-top: auto;
+}
+.reader-page .left-bar-list dd.danger a .anticon,
+.reader-page .left-bar-list dd.danger a .lbl {
+  color: #ff4d4f;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+.reader-page .left-bar-list dd.danger a:hover .anticon,
+.reader-page .left-bar-list dd.danger a:hover .lbl {
+  opacity: 1;
 }
 .reader-page .right-bar-list dd.go-top a i {
   padding-top: 20px;

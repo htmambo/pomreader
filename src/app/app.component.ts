@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, effect } from '@angular/core';
 import { RouterOutlet, Router, NavigationEnd } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map, startWith } from 'rxjs/operators';
@@ -15,6 +15,7 @@ import {
 } from '@ant-design/icons-angular/icons';
 import { PageHeaderComponent } from './shared/components/page-header/page-header.component';
 import { SidebarComponent } from './shared/components/sidebar/sidebar.component';
+import { SettingsService } from './core/services/settings.service';
 
 @Component({
   selector: 'app-root',
@@ -87,6 +88,7 @@ import { SidebarComponent } from './shared/components/sidebar/sidebar.component'
 })
 export class AppComponent {
   private readonly router = inject(Router);
+  private readonly settings = inject(SettingsService);
 
   /** 当前路由是否在 reader 页面（用于全屏） */
   readonly isReader = toSignal(
@@ -97,4 +99,12 @@ export class AppComponent {
     ),
     { initialValue: this.router.url.startsWith('/reader/') }
   );
+
+  constructor() {
+    // 主题切换：把 settings.theme 同步到 <html data-pom-theme>，全站 modal 配色据此切换
+    effect(() => {
+      const theme = this.settings.settings().theme;
+      document.documentElement.dataset['pomTheme'] = String(theme);
+    });
+  }
 }

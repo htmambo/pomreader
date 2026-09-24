@@ -4,6 +4,7 @@ import {
   OnInit,
   AfterViewInit,
   OnDestroy,
+  HostListener,
   signal,
   computed,
   effect,
@@ -11,9 +12,13 @@ import {
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { NzIconModule } from 'ng-zorro-antd/icon';
+import { NzModalService } from 'ng-zorro-antd/modal';
+import { NzMessageService } from 'ng-zorro-antd/message';
 import { BookService } from '../../core/services/book.service';
 import { ReaderService } from '../../core/services/reader.service';
 import { SettingsService } from '../../core/services/settings.service';
+import { JumpChapterDialogComponent } from './jump-chapter-dialog.component';
+import { EditBookInfoDialogComponent } from './edit-book-info-dialog.component';
 import {
   PAGE_WIDTHS,
   MIN_FONT_SIZE,
@@ -93,9 +98,24 @@ interface ReaderViewSettings {
                 ><i><span nz-icon nzType="setting"></span><span class="lbl">设置</span></i></a
               >
             </dd>
+            <dd (click)="openJumpDialog()">
+              <a
+                ><i><span nz-icon nzType="swap"></span><span class="lbl">进度</span></i></a
+              >
+            </dd>
+            <dd (click)="openEditBookInfoDialog()">
+              <a
+                ><i><span nz-icon nzType="edit"></span><span class="lbl">编辑</span></i></a
+              >
+            </dd>
             <dd (click)="back()">
               <a
                 ><i><span nz-icon nzType="book"></span><span class="lbl">书架</span></i></a
+              >
+            </dd>
+            <dd class="danger" (click)="confirmDelete()">
+              <a
+                ><i><span nz-icon nzType="delete"></span><span class="lbl">删除</span></i></a
               >
             </dd>
           </dl>
@@ -214,6 +234,8 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly books = inject(BookService);
   protected readonly reader = inject(ReaderService);
   protected readonly settings = inject(SettingsService);
+  private readonly modal = inject(NzModalService);
+  private readonly msg = inject(NzMessageService);
 
   protected readonly catalogOpen = signal(false);
   protected readonly settingsOpen = signal(false);
@@ -315,8 +337,18 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     if (chapterId >= book.chapterCount) chapterId = 0;
 
-    this.reader.openBook(bookId, chapterId);
-    this.chapterIndex.set(chapterId);
+    // 恢复阅读进度：
+    // - 书架 / book-card 默认跳 /reader/{bookId}/0（chapterId=0）
+    // - 当 chapterId=0 时优先用 PouchDB 持久化的 progress.chapterIndex
+    // - 当 chapterId>0 时视为深链接（如 /reader/{bookId}/5）尊重 URL
+    const fromDefaultEntry = chapterId === 0;
+    const startChapter =
+      fromDefaultEntry && book.progress?.chapterIndex
+        ? book.progress.chapterIndex
+        : chapterId;
+
+    this.reader.openBook(bookId, startChapter);
+    this.chapterIndex.set(startChapter);
 
     const chs = await this.books.getChapters(bookId);
     this.chapters.set(chs);
@@ -414,6 +446,113 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
 
   cancelSettings(): void {
     this.settingsOpen.set(false);
+  }
+
+  /** 键盘左右方向键翻章（在输入框内不响应，避免误触） */
+  @HostListener('document:keydown', ['$event'])
+  onKeydown(event: KeyboardEvent): void {
+    // 跳过正在输入的状态（input/textarea/contenteditable）
+    const target = event.target as HTMLElement | null;
+    if (
+      target &&
+      (target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable)
+    ) {
+      return;
+    }
+    // 章节加载中不响应（避免重复触发）
+    if (this.chapterLoading()) return;
+
+    switch (event.key) {
+      case 'ArrowLeft':
+        this.prev();
+        event.preventDefault();
+        break;
+      case 'ArrowRight':
+        this.next();
+        event.preventDefault();
+        break;
+    }
+  }
+
+  /** 左侧"进度"按钮：弹 NzModal 输入章节号跳转 */
+  openJumpDialog(): void {
+    const total = this.chapters().length;
+    if (total === 0) {
+      this.msg.warning('章节列表尚未加载');
+      return;
+    }
+    const current = this.chapterIndex() + 1;
+    const ref = this.modal.create({
+      nzTitle: '跳转到指定章节',
+      nzContent: JumpChapterDialogComponent,
+      nzData: { current, total },
+      nzOnOk: (instance: JumpChapterDialogComponent) => {
+        const target = instance.target();
+        if (target === null) return false; // 用户没输入或输入无效
+        if (target < 1 || target > total) {
+          this.msg.error(`章节号需在 1-${total} 之间`);
+          return false;
+        }
+        this.goTo(target - 1);
+        return true;
+      },
+      nzOkText: '跳转',
+      nzCancelText: '取消',
+      nzWidth: 360,
+    });
+    // modal 引用释放（避免类型未使用警告）
+    void ref;
+  }
+
+  /** 左侧"删除"按钮：弹确认 modal，确认后调 BookService.deleteBook + 回书架 */
+  confirmDelete(): void {
+    const b = this.book();
+    if (!b) {
+      this.msg.warning('当前书籍信息尚未加载');
+      return;
+    }
+    this.modal.confirm({
+      nzTitle: '确认删除',
+      nzContent: `确定删除《${b.title}》及其全部 ${b.chapterCount} 章？此操作不可撤销。`,
+      nzOkText: '删除',
+      nzOkDanger: true,
+      nzCancelText: '取消',
+      nzOnOk: async () => {
+        await this.books.deleteBook(b.id);
+        this.msg.success(`已删除：${b.title}`);
+        this.router.navigate(['/bookshelf']);
+        return true;
+      },
+    });
+  }
+
+  /** 左侧"编辑"按钮：弹 modal 修改当前书籍的书名 / 作者 / 源地址 */
+  openEditBookInfoDialog(): void {
+    const b = this.book();
+    if (!b) {
+      this.msg.warning('当前书籍信息尚未加载');
+      return;
+    }
+    const ref = this.modal.create({
+      nzTitle: '修改书籍信息',
+      nzContent: EditBookInfoDialogComponent,
+      nzData: { book: b },
+      nzOnOk: async (instance: EditBookInfoDialogComponent) => {
+        const patch = instance.result();
+        if (!patch) return false; // 输入校验失败
+        const updated = { ...b, ...patch };
+        // 复用 addBook：会保留原有 progress、写入 PouchDB、刷新内存 signal
+        await this.books.addBook(updated, []);
+        this.msg.success('书籍信息已更新');
+        return true;
+      },
+      nzOkText: '保存',
+      nzCancelText: '取消',
+      nzWidth: 420,
+    });
+    void ref;
   }
 
   /** 切换章节后把滚动条跳回顶部（用户阅读习惯） */
