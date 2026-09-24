@@ -10,16 +10,9 @@ import { FormsModule } from '@angular/forms';
 import { importProvidersFrom } from '@angular/core';
 import { routes } from './app.routes';
 import { GlobalErrorHandler } from './core/services/global-error-handler';
-import { ThemeService } from './core/services/theme.service';
 import { BookService } from './core/services/book.service';
 
 registerLocaleData(zh);
-
-function initTheme(theme: ThemeService) {
-  return () => {
-    theme.applyToHtml();
-  };
-}
 
 function initBooks(books: BookService) {
   return () => books.load();
@@ -35,12 +28,6 @@ export const appConfig: ApplicationConfig = {
     importProvidersFrom(FormsModule),
     NzModalService, // ng-zorro 18 NzModalService 不自动 providedIn:'root'，需显式提供
     { provide: ErrorHandler, useClass: GlobalErrorHandler },
-    {
-      provide: APP_INITIALIZER,
-      useFactory: initTheme,
-      deps: [ThemeService],
-      multi: true,
-    },
     {
       provide: APP_INITIALIZER,
       useFactory: initBooks,

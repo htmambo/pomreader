@@ -14,7 +14,7 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
   imports: [CommonModule, RouterLink, RouterLinkActive, NzMenuModule, NzIconModule],
   template: `
     <h1 class="logo">白虎阅读</h1>
-    <ul nz-menu nzTheme="dark" nzMode="inline">
+    <ul nz-menu nzTheme="light" nzMode="inline">
       <li nz-menu-item [routerLink]="['/bookshelf']" routerLinkActive="ant-menu-item-selected">
         <span nz-icon nzType="book"></span>
         <span>书架</span>

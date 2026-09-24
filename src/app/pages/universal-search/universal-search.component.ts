@@ -44,8 +44,8 @@ interface SearchResult {
       <p class="hint">搜索中...</p>
     } @else if (results().length > 0) {
       <p class="hint">共 {{ results().length }} 条结果</p>
-      <nz-list [nzDataSource]="results()" nzBordered>
-        <ng-template let-item>
+      <nz-list [nzDataSource]="results()" [nzRenderItem]="itemTpl" nzBordered>
+        <ng-template #itemTpl let-item>
           <nz-list-item (click)="openResult(item)" style="cursor: pointer;">
             <div class="result-row">
               <div class="result-info">

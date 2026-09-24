@@ -1,6 +1,6 @@
 /* ============================================================
  * 设计 token（提取自原 vendor 白虎阅读 index.prod.html / styles bundle）
- * 与 v1.1 §9.1 / STATUS.md 2026-09-24 暗色适配保持一致
+ * 全站固定亮色方案（阅读页主题独立，见 styles/reader.scss）
  * ============================================================ */
 
 :root {
@@ -34,12 +34,14 @@
   /* 滚动条 */
   --pom-scrollbar-width: 8px;
   --pom-scrollbar-track: transparent;
-}
 
-/* light theme（与原 vendor #e2d1a5 / #f4eac7 / #cdc0a4 对齐）
- * 注：阅读页纹理图位于 assets/themes/reader/（见 styles/reader.scss）
- */
-:root[data-color-mode='light'][data-default-theme='1'] {
+  /* 强调色（起点红） */
+  --pom-accent: #bf2c24;
+  --pom-accent-hover: #ed4259;
+
+  /* 亮色配色（与原 vendor #e2d1a5 / #f4eac7 / #cdc0a4 对齐）
+   * 注：阅读页纹理图位于 assets/themes/reader/（见 styles/reader.scss）
+   */
   --pom-bg: #e2d1a5;
   --pom-bg-image: none;
   --pom-fg: #f4eac7;
@@ -50,29 +52,4 @@
   --pom-card: #faf6e8;
   --pom-text-on-card: #262626;
   --pom-scrollbar-thumb: #c9b98f;
-  --pom-modal-fg: var(--pom-text);
-  --pom-modal-bg: var(--pom-card);
-}
-
-/* dark theme（与原 vendor #161819 / #666666 / #999999 / #26292b 对齐） */
-:root[data-color-mode='dark'][data-default-theme='1'] {
-  --pom-bg: #161819;
-  --pom-bg-image: none;
-  --pom-fg: #0e0f11;
-  --pom-fg-image: none;
-  --pom-text: #666666;
-  --pom-text-muted: #999999;
-  --pom-border: #26292b;
-  --pom-card: #1b1d1e;
-  --pom-text-on-card: #999999;
-  --pom-scrollbar-thumb: #2e3236;
-  --pom-modal-fg: var(--pom-text-muted);
-  --pom-modal-bg: #1b1d1e;
-}
-
-/* 弹窗跟随方案（v1.1 §7.3 / v1.1 §13 P5 弹窗跟随）
- * 通过 inline CSS variable --pom-modal-fg / --pom-modal-bg 覆盖 */
-.ant-modal[data-pom-scheme] {
-  --pom-modal-fg: var(--modal-fg);
-  --pom-modal-bg: var(--modal-bg);
 }

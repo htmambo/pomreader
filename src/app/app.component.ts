@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, computed } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterOutlet, Router, NavigationEnd } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map, startWith } from 'rxjs/operators';
@@ -7,12 +7,11 @@ import { NzMenuModule } from 'ng-zorro-antd/menu';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule, NZ_ICONS, provideNzIconsPatch } from 'ng-zorro-antd/icon';
 import {
-  BookOutline, SearchOutline, FileTextOutline, MoonOutline, SunOutline,
+  BookOutline, SearchOutline, FileTextOutline,
   ArrowLeftOutline, MenuOutline, SettingOutline, CloseOutline,
   PlusOutline, LinkOutline, WarningOutline,
   CheckOutline, MinusOutline, ArrowUpOutline,
 } from '@ant-design/icons-angular/icons';
-import { ThemeService } from './core/services/theme.service';
 import { PageHeaderComponent } from './shared/components/page-header/page-header.component';
 import { SidebarComponent } from './shared/components/sidebar/sidebar.component';
 
@@ -30,7 +29,7 @@ import { SidebarComponent } from './shared/components/sidebar/sidebar.component'
   ],
   providers: [
     provideNzIconsPatch([
-      BookOutline, SearchOutline, FileTextOutline, MoonOutline, SunOutline,
+      BookOutline, SearchOutline, FileTextOutline,
       ArrowLeftOutline, MenuOutline, SettingOutline, CloseOutline,
       PlusOutline, LinkOutline, WarningOutline,
       CheckOutline, MinusOutline, ArrowUpOutline,
@@ -84,8 +83,7 @@ import { SidebarComponent } from './shared/components/sidebar/sidebar.component'
     `,
   ],
 })
-export class AppComponent implements OnInit {
-  private readonly theme = inject(ThemeService);
+export class AppComponent {
   private readonly router = inject(Router);
 
   /** 当前路由是否在 reader 页面（用于全屏） */
@@ -97,8 +95,4 @@ export class AppComponent implements OnInit {
     ),
     { initialValue: this.router.url.startsWith('/reader/') }
   );
-
-  ngOnInit(): void {
-    this.theme.applyToHtml();
-  }
 }

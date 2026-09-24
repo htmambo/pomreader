@@ -5,12 +5,11 @@ import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzDropDownModule } from 'ng-zorro-antd/dropdown';
 import { NzModalService } from 'ng-zorro-antd/modal';
-import { ThemeService } from '../../../core/services/theme.service';
 import { ImportOnlineComponent } from '../../../modals/import-online/import-online.component';
 import { ImportLocalTxtComponent } from '../../../modals/import-local-txt/import-local-txt.component';
 
 /**
- * PageHeader — 顶部 3 标签 + 主题切换 + 导入按钮
+ * PageHeader — 顶部 3 标签 + 导入按钮
  * 与原 vendor 一致：当前版本 / 官方 QQ 群 / 追求极致，开心就好
  */
 @Component({
@@ -20,9 +19,7 @@ import { ImportLocalTxtComponent } from '../../../modals/import-local-txt/import
   template: `
     <div class="page-header">
       <div class="tags">
-        <nz-tag nzColor="default">当前版本: 1.0.6 内部测试</nz-tag>
-        <nz-tag nzColor="default">官方QQ群：613536760</nz-tag>
-        <nz-tag nzColor="default">追求极致，开心就好！</nz-tag>
+        <nz-tag nzColor="default">当前版本: 1.0.6</nz-tag>
       </div>
       <div class="actions">
         <button nz-button nzType="primary" nz-dropdown [nzDropdownMenu]="importMenu" nzTrigger="click">
@@ -41,15 +38,6 @@ import { ImportLocalTxtComponent } from '../../../modals/import-local-txt/import
             </li>
           </ul>
         </nz-dropdown-menu>
-        <button
-          nz-button
-          nzType="text"
-          (click)="theme.toggleMode()"
-          [attr.aria-label]="theme.mode() === 'dark' ? '切换到亮色' : '切换到暗色'"
-        >
-          <span nz-icon [nzType]="theme.mode() === 'dark' ? 'sun' : 'moon'"></span>
-          {{ theme.mode() === 'dark' ? '亮色' : '暗色' }}
-        </button>
       </div>
     </div>
   `,
@@ -74,7 +62,6 @@ import { ImportLocalTxtComponent } from '../../../modals/import-local-txt/import
   ],
 })
 export class PageHeaderComponent {
-  protected readonly theme = inject(ThemeService);
   private readonly modal = inject(NzModalService);
 
   openImportOnline(): void {

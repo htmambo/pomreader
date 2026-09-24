@@ -48,8 +48,8 @@ import { Chapter } from '../../core/models/chapter.model';
       } @else if (resolved()) {
         <h4>{{ resolved()!.title }} <small>({{ resolved()!.author }})</small></h4>
         <p class="hint">共 {{ resolved()!.chapters?.length || 0 }} 章，点击下方"确认导入"加入书架</p>
-        <nz-list [nzDataSource]="resolved()!.chapters || []" nzBordered>
-          <ng-template let-item let-index>
+        <nz-list [nzDataSource]="resolved()!.chapters || []" [nzRenderItem]="chapterTpl" nzBordered>
+          <ng-template #chapterTpl let-item let-index>
             <nz-list-item>{{ index + 1 }}. {{ item.title }}</nz-list-item>
           </ng-template>
         </nz-list>
@@ -105,7 +105,11 @@ export class ImportOnlineComponent {
   ngOnInit(): void {
     if (this.modalData && typeof this.modalData === 'object') {
       const prefill = (this.modalData as Record<string, unknown>)['url'];
-      if (typeof prefill === 'string') this.url = prefill;
+      if (typeof prefill === 'string') {
+        this.url = prefill;
+        // 从万能搜索带入的 URL 直接解析，点「确认导入」即可导入
+        this.parse();
+      }
     }
   }
 

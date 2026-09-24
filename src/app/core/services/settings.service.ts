@@ -48,14 +48,6 @@ export class SettingsService {
           typeof parsed.pageWidth === 'number' && PAGE_WIDTHS.includes(parsed.pageWidth)
             ? parsed.pageWidth
             : DEFAULT_SETTINGS.pageWidth,
-        defaultTheme:
-          typeof parsed.defaultTheme === 'boolean'
-            ? parsed.defaultTheme
-            : DEFAULT_SETTINGS.defaultTheme,
-        colorMode:
-          parsed.colorMode === 'dark' || parsed.colorMode === 'light'
-            ? parsed.colorMode
-            : DEFAULT_SETTINGS.colorMode,
       };
       return merged;
     } catch {
