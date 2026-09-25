@@ -31,7 +31,7 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: true,
     title: '白虎阅读',
-    icon: path.join(__dirname, '..', 'build', 'icon.png'),
+    icon: path.join(__dirname, '..', 'electron', 'icons', 'icon.png'),
     webPreferences: {
       // webview 标签显式开启（Electron 默认禁用）
       webviewTag: true,

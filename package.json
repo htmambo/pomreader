@@ -70,11 +70,12 @@
     "productName": "白虎阅读",
     "directories": {
       "output": "release",
-      "buildResources": "build"
+      "buildResources": "electron/icons"
     },
     "files": [
       "dist-electron/**/*",
       "electron/www/**/*",
+      "electron/icons/**/*",
       "electron/preload.js",
       "package.json",
       "node_modules/**/*",
@@ -90,7 +91,7 @@
       "category": "Office",
       "syncDesktopName": true,
       "maintainer": "果农 <guonong@hongshu.com>",
-      "icon": "build/icon.png",
+      "icon": "electron/icons",
       "desktop": {
         "entry": {
           "Name": "白虎阅读",
@@ -100,12 +101,13 @@
       }
     },
     "win": {
-      "target": "nsis",
-      "icon": "build/icon.png"
+      "target": "nsis"
     },
     "mac": {
-      "target": "dmg",
-      "icon": "build/icon.png"
+      "target": "dmg"
+    },
+    "pacman": {
+      "afterInstall": "electron/scripts/after-install.sh"
     }
   }
 }
