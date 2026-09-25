@@ -1,21 +1,25 @@
 import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzModalModule, NzModalService } from 'ng-zorro-antd/modal';
+import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { CoverService } from '../../core/cover/cover.service';
+import { SettingsService } from '../../core/services/settings.service';
+import { BookshelfSort } from '../../core/models/settings.model';
 import { ToastService } from '../../core/services/toast.service';
 import { PageHeaderComponent } from '../../shared/components/page-header/page-header.component';
 
 /**
- * CacheSettingsComponent — 封面缓存管理页（实施计划 T-019 / spec FR-3.5）
- * 提供缓存大小展示 + 一键清理（带二次确认）
+ * CacheSettingsComponent — 设置页（书架排序 + 封面缓存管理）
+ * 排序规则改动即时生效：SettingsService signal → bookshelf sortedBooks computed
  */
 @Component({
   selector: 'app-cache-settings',
   standalone: true,
-  imports: [CommonModule, NzButtonModule, NzIconModule, NzModalModule, NzSpinModule, PageHeaderComponent],
+  imports: [CommonModule, FormsModule, NzButtonModule, NzIconModule, NzModalModule, NzRadioModule, NzSpinModule, PageHeaderComponent],
   templateUrl: './cache-settings.component.html',
   styleUrls: ['./cache-settings.component.scss'],
 })
@@ -23,9 +27,19 @@ export class CacheSettingsComponent {
   private cover = inject(CoverService);
   private modal = inject(NzModalService);
   private toast = inject(ToastService);
+  private settingsService = inject(SettingsService);
 
   loading = signal(false);
   size = signal(0);
+
+  /** 书架排序当前值（模板双向绑定用 getter/setter 直通 SettingsService） */
+  get bookshelfSort(): BookshelfSort {
+    return this.settingsService.settings().bookshelfSort;
+  }
+  set bookshelfSort(v: BookshelfSort) {
+    this.settingsService.update('bookshelfSort', v);
+    this.toast.success('书架排序已更新');
+  }
 
   ngOnInit() {
     void this.refresh();

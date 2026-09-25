@@ -6,12 +6,18 @@ export const MAX_FONT_SIZE = 28;
 /** 阅读模式：scroll 整章滚动 / paged 章内分页（左右翻页） */
 export type ReadMode = 'scroll' | 'paged';
 
+/** 书架排序：imported 入库顺序（新→旧）/ lastRead 最近阅读（新→旧，未读排后）/ title 书名（拼音升序） */
+export type BookshelfSort = 'imported' | 'lastRead' | 'title';
+
+export const BOOKSHELF_SORTS: BookshelfSort[] = ['imported', 'lastRead', 'title'];
+
 export interface Settings {
   theme: number;              // 阅读主题 0-6：默认/牛皮纸/淡绿/淡蓝/淡粉/灰/黑
   fontSize: number;           // 阅读字号 14-28
   fontFamily: number;         // 正文字体：1 雅黑 / 2 宋体 / 3 楷书
   pageWidth: number;          // 页面宽度 640/800/900/1280/1440/1680/1840
   readMode: ReadMode;         // 阅读模式：滚动 / 翻页
+  bookshelfSort: BookshelfSort; // 书架排序规则
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -20,4 +26,5 @@ export const DEFAULT_SETTINGS: Settings = {
   fontFamily: 1,
   pageWidth: 800,
   readMode: 'paged',
+  bookshelfSort: 'imported',
 };

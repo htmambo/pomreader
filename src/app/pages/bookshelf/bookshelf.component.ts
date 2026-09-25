@@ -1,12 +1,14 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, computed, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { NzGridModule } from 'ng-zorro-antd/grid';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzModalModule, NzModalService } from 'ng-zorro-antd/modal';
 import { BookService } from '../../core/services/book.service';
+import { SettingsService } from '../../core/services/settings.service';
 import { ToastService } from '../../core/services/toast.service';
 import { BookCardComponent } from '../../shared/components/book-card/book-card.component';
 import { Book } from '../../core/models/book.model';
+import { sortBooks } from '../../core/logic/bookshelf-sort';
 import { CoverGeneratorDialogComponent } from '../../shared/components/cover-generator-dialog/cover-generator-dialog.component';
 import {
   EditBookInfoDialogComponent,
@@ -19,9 +21,9 @@ import {
   imports: [CommonModule, NzGridModule, NzEmptyModule, BookCardComponent],
   template: `
     <h2>书架</h2>
-    @if (books().length > 0) {
+    @if (sortedBooks().length > 0) {
       <div nz-row [nzGutter]="[16, 16]">
-        @for (book of books(); track book.id) {
+        @for (book of sortedBooks(); track book.id) {
           <div nz-col nzXs="12" nzSm="8" nzMd="6" nzLg="4" nzXl="3">
             <app-book-card
               [book]="book"
@@ -39,9 +41,15 @@ import {
 })
 export class BookshelfComponent implements OnInit {
   private readonly bookService = inject(BookService);
+  private readonly settings = inject(SettingsService);
   private readonly modal = inject(NzModalService);
   private readonly toast = inject(ToastService);
   readonly books = this.bookService.books;
+
+  /** 按设置页的 bookshelfSort 规则排序后的展示列表（纯函数，响应设置/书籍双 signal） */
+  readonly sortedBooks = computed(() =>
+    sortBooks(this.books(), this.settings.settings().bookshelfSort),
+  );
 
   ngOnInit(): void {
     if (this.books().length === 0) {

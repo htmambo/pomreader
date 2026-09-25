@@ -6,6 +6,7 @@ import { registerExternalHandler } from './ipc/external-handler';
 import { registerBookSourceHandler } from './ipc/booksource-handler';
 import { registerCoverHandler } from './ipc/cover-handler';
 import { registerExtensionHandler } from './ipc/extension-handler';
+import { loadWindowState, trackWindowState } from './window-state';
 
 // 沿用原 vendor 兼容补丁 ⑤：防双实例 IndexedDB 锁争用
 if (!app.requestSingleInstanceLock()) {
@@ -27,10 +28,13 @@ if (process.platform === 'linux') {
 
 let mainWindow: BrowserWindow | null = null;
 
-function createWindow(): void {
+function createWindow(userData: string): void {
+  // 恢复上次窗口状态：位置（校验显示器可见性后）/ 尺寸 / 最大化 / 最小化
+  const state = loadWindowState(userData);
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: state.width,
+    height: state.height,
+    ...(state.x !== undefined && state.y !== undefined ? { x: state.x, y: state.y } : {}),
     show: false,
     autoHideMenuBar: true,
     title: '白虎阅读',
@@ -45,7 +49,14 @@ function createWindow(): void {
     },
   });
 
-  mainWindow.once('ready-to-show', () => mainWindow?.show());
+  if (state.isMaximized) mainWindow.maximize();
+  trackWindowState(mainWindow, userData);
+
+  mainWindow.once('ready-to-show', () => {
+    mainWindow?.show();
+    // 上次以最小化关闭 → 启动后同样最小化（先 show 再 minimize 避免闪烁）
+    if (state.isMinimized) mainWindow?.minimize();
+  });
 
   const devUrl = process.env['POM_DEV_URL'];
   if (devUrl) {
@@ -77,7 +88,7 @@ app.whenReady().then(() => {
   registerBookSourceHandler(ipcMain, userData);
   registerCoverHandler(ipcMain, userData);
   registerExtensionHandler(ipcMain, userData);
-  createWindow();
+  createWindow(userData);
 
   // 拦截所有 webContents（含 webview）的 window.open / target=_blank：
   // 阻止新窗弹窗，改为在当前 webContents 内跳转（原 vendor 兼容补丁 ③ 现代等价）
@@ -91,7 +102,7 @@ app.whenReady().then(() => {
   });
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) createWindow(userData);
   });
 });
 

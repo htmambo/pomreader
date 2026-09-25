@@ -367,4 +367,110 @@
   .ant-modal .ant-list-item:hover {
     background: #2a2a2a;
   }
+
+  /* ============================================================
+   * nz-dropdown 菜单（书架「导入」下拉 + 书卡右键菜单）
+   * 默认白底在暗色主题下反差强烈；ul[nz-menu] 在 dropdown 内即 .ant-dropdown-menu
+   * ============================================================ */
+  .ant-dropdown-menu {
+    background: #1f1f1f;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  }
+  .ant-dropdown-menu-item,
+  .ant-dropdown-menu-submenu-title,
+  .ant-dropdown-menu .ant-menu-item {
+    color: #e0e0e0;
+  }
+  .ant-dropdown-menu-item:hover,
+  .ant-dropdown-menu-submenu-title:hover,
+  .ant-dropdown-menu .ant-menu-item:hover,
+  .ant-dropdown-menu .ant-menu-item-active {
+    background: #2a2a2a;
+    color: #e0e0e0;
+  }
+  .ant-dropdown-menu-item-divider,
+  .ant-dropdown-menu .ant-menu-item-divider {
+    background: #333333;
+  }
+  /* 危险项（从书架移除）保持红色，hover 稍提亮 */
+  .ant-dropdown-menu-item-danger,
+  .ant-dropdown-menu .ant-menu-item-danger {
+    color: #ff4d4f;
+  }
+  .ant-dropdown-menu-item-danger:hover,
+  .ant-dropdown-menu .ant-menu-item-danger:hover {
+    background: #2a2a2a;
+    color: #ff7875;
+  }
+
+  /* ============================================================
+   * 设置页元素（书架排序 nz-radio-button + 清理 nzDanger 按钮）
+   * ============================================================ */
+  .ant-radio-button-wrapper {
+    background: #1f1f1f;
+    border-color: #444444;
+    color: #e0e0e0;
+  }
+  .ant-radio-button-wrapper:hover {
+    color: #ed4259;
+  }
+  .ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled) {
+    background: #2a2a2a;
+    border-color: #bf2c24;
+    color: #ed4259;
+  }
+  .ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled)::before {
+    background: #bf2c24;
+  }
+  /* nzDanger 默认按钮（设置页「一键清理」）：去掉白底，保留红框红字 */
+  .ant-btn-dangerous:not(.ant-btn-primary) {
+    background: transparent;
+    border-color: #ff4d4f;
+    color: #ff4d4f;
+  }
+  .ant-btn-dangerous:not(.ant-btn-primary):hover {
+    background: rgba(255, 77, 79, 0.12);
+    border-color: #ff7875;
+    color: #ff7875;
+  }
+  /* 页面级 primary 按钮（书架「导入」/ 市场「拉取」）与 modal 内强调色对齐 */
+  .ant-btn-primary:not(.ant-btn-dangerous) {
+    background: #bf2c24;
+    border-color: #bf2c24;
+    box-shadow: none;
+  }
+  .ant-btn-primary:not(.ant-btn-dangerous):hover,
+  .ant-btn-primary:not(.ant-btn-dangerous):focus {
+    background: #ed4259;
+    border-color: #ed4259;
+  }
+
+  /* nz-select（导入在线书页的书源选择等）触发框 + 下拉面板 */
+  .ant-select:not(.ant-select-customize-input) .ant-select-selector {
+    background: #1f1f1f;
+    border-color: #444444;
+    color: #e0e0e0;
+  }
+  .ant-select:not(.ant-select-customize-input) .ant-select-selector:hover,
+  .ant-select-focused:not(.ant-select-customize-input) .ant-select-selector {
+    border-color: #bf2c24;
+  }
+  .ant-select .ant-select-arrow,
+  .ant-select .ant-select-clear {
+    color: #999999;
+    background: transparent;
+  }
+  .ant-select-dropdown {
+    background: #1f1f1f;
+  }
+  .ant-select-item {
+    color: #e0e0e0;
+  }
+  .ant-select-item-option-active:not(.ant-select-item-option-disabled) {
+    background: #2a2a2a;
+  }
+  .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
+    background: rgba(191, 44, 36, 0.16);
+    color: #ed4259;
+  }
 }

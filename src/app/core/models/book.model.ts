@@ -18,7 +18,10 @@ export interface Book {
   coverImageUrl?: string;
   chapterCount: number;
   totalChars: number;
+  /** 入库时间（ISO 字符串） */
   importedAt: string;
+  /** 最后阅读时间（ISO 字符串，可选）；随 updateProgress 一同刷新，未读过则无此字段 */
+  lastReadAt?: string;
   source: BookSource;
   sourceUrl?: string;
   /** 阅读进度（嵌入 Book 文档） */

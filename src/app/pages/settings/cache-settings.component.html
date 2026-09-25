@@ -1,4 +1,14 @@
-<app-page-header title="封面缓存" subtitle="管理下载到本地的封面文件"></app-page-header>
+<app-page-header title="设置" subtitle="书架排序与封面缓存管理"></app-page-header>
+
+<div class="sort-panel">
+  <h3>书架排序</h3>
+  <nz-radio-group [(ngModel)]="bookshelfSort">
+    <label nz-radio-button nzValue="imported">入库顺序</label>
+    <label nz-radio-button nzValue="lastRead">最近阅读</label>
+    <label nz-radio-button nzValue="title">书名</label>
+  </nz-radio-group>
+  <p class="sort-hint">入库顺序 / 最近阅读均为新→旧（未读过的书在「最近阅读」下排最后）；书名为拼音升序。</p>
+</div>
 
 <div class="cache-panel">
   @if (loading()) {

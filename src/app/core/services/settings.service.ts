@@ -5,6 +5,7 @@ import {
   PAGE_WIDTHS,
   MIN_FONT_SIZE,
   MAX_FONT_SIZE,
+  BOOKSHELF_SORTS,
 } from '../models/settings.model';
 
 const STORAGE_KEY = 'pom.settings';
@@ -52,6 +53,9 @@ export class SettingsService {
           parsed.readMode === 'scroll' || parsed.readMode === 'paged'
             ? parsed.readMode
             : DEFAULT_SETTINGS.readMode,
+        bookshelfSort: BOOKSHELF_SORTS.includes(parsed.bookshelfSort!)
+          ? parsed.bookshelfSort!
+          : DEFAULT_SETTINGS.bookshelfSort,
       };
       return merged;
     } catch {

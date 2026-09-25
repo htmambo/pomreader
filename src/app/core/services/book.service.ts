@@ -218,10 +218,11 @@ export class BookService {
   async updateProgress(bookId: string, chapterIndex: number, scrollOffset?: number): Promise<void> {
     try {
       await this.db.bookUpdateProgress(bookId, chapterIndex, scrollOffset);
-      // 同步更新内存 signal（不阻塞调用方）
-      const progress = { chapterIndex, scrollOffset, updatedAt: new Date().toISOString() };
+      // 同步更新内存 signal（不阻塞调用方）；进度与最后阅读时间共用同一时间戳
+      const now = new Date().toISOString();
+      const progress = { chapterIndex, scrollOffset, updatedAt: now };
       this._books.update((list) =>
-        list.map((b) => (b.id === bookId ? { ...b, progress } : b)),
+        list.map((b) => (b.id === bookId ? { ...b, progress, lastReadAt: now } : b)),
       );
     } catch (e) {
       // progress 写失败不影响主流程

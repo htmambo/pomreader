@@ -11,12 +11,16 @@ export interface BookDoc {
   id: string;
   title: string;
   author: string;
+  /** 题材/类型（可选；用于封面生成器的 kind 文案） */
+  kind?: string;
   coverColor: string;
   /** 封面图片 URL（可选）；为空时 book-card 用 SVG + 底色 fallback */
   coverImageUrl?: string;
   chapterCount: number;
   totalChars: number;
   importedAt: string;
+  /** 最后阅读时间（ISO 字符串）；随进度更新一同刷新 */
+  lastReadAt?: string;
   source: 'local-txt' | 'online' | 'mock';
   sourceUrl?: string;
   /** 阅读进度（嵌入，与 bookId 强耦合） */
@@ -119,13 +123,15 @@ export class DbService {
     scrollOffset?: number,
   ): Promise<void> {
     const _id = BOOK_PREFIX + bookId;
+    const now = new Date().toISOString();
     const progress = {
       chapterIndex,
       scrollOffset,
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
     };
     await this.bookUpdateWithRetry(_id, (doc) => {
       doc.progress = progress;
+      doc.lastReadAt = now;
       return doc;
     });
   }

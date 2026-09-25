@@ -34,6 +34,11 @@ export interface EditBookInfoResult {
         修改当前书籍的书名 / 作者 / 源地址（不影响章节内容）
       </p>
 
+      <div class="book-times">
+        <span>入库时间：{{ formatTime(data.book.importedAt) }}</span>
+        <span>最后阅读：{{ data.book.lastReadAt ? formatTime(data.book.lastReadAt) : '尚未阅读' }}</span>
+      </div>
+
       <label class="field-label">书名</label>
       <input
         nz-input
@@ -117,6 +122,17 @@ export interface EditBookInfoResult {
   `,
   styles: [
     `
+      .book-times {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin: 0 0 4px;
+        padding: 6px 10px;
+        border-radius: 4px;
+        background: var(--pom-bg);
+        font-size: 12px;
+        color: var(--pom-text-muted);
+      }
       .edit-book-form .field-label {
         display: block;
         margin: 12px 0 4px;
@@ -197,6 +213,12 @@ export class EditBookInfoDialogComponent {
   /** 手动输入框实时小写化（color picker 输出小写，避免大小写闪烁） */
   onCoverColorChange(value: string): void {
     if (typeof value === 'string') this.coverColor = value.toLowerCase();
+  }
+
+  /** ISO 时间 → 本地可读格式（无效值原样返回） */
+  formatTime(iso: string): string {
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? iso : d.toLocaleString('zh-CN', { hour12: false });
   }
 
   /** nzOnOk 回调：返回用户编辑结果（null = 输入无效） */
