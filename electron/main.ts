@@ -3,6 +3,9 @@ import * as path from 'path';
 import { registerFetchHandler } from './ipc/fetch-handler';
 import { registerRenderHandler } from './ipc/render-handler';
 import { registerExternalHandler } from './ipc/external-handler';
+import { registerBookSourceHandler } from './ipc/booksource-handler';
+import { registerCoverHandler } from './ipc/cover-handler';
+import { registerExtensionHandler } from './ipc/extension-handler';
 
 // 沿用原 vendor 兼容补丁 ⑤：防双实例 IndexedDB 锁争用
 if (!app.requestSingleInstanceLock()) {
@@ -67,9 +70,13 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  const userData = app.getPath('userData');
   registerFetchHandler(ipcMain);
   registerRenderHandler(ipcMain);
   registerExternalHandler(ipcMain);
+  registerBookSourceHandler(ipcMain, userData);
+  registerCoverHandler(ipcMain, userData);
+  registerExtensionHandler(ipcMain, userData);
   createWindow();
 
   // 拦截所有 webContents（含 webview）的 window.open / target=_blank：

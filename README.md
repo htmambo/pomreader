@@ -31,6 +31,12 @@ npm test
 - localStorage（仅元数据 + 阅读进度）
 - Vitest（logic 单测 ≥ 90%）
 
+## 书源与扩展
+
+- [书源开发指南](docs/Usage/BOOKSOURCE_GUIDE.md) — JS 书源头部 `@key` 规范、函数签名、`legado.http` 宿主 API、沙箱硬化细节
+- [扩展开发指南](docs/Usage/EXTENSION_GUIDE.md) — UserScript 头部、v1 限制（仅元数据加载 + eval 测试入口）、`ad-remover.js` 示例
+- [封面缓存说明](docs/Usage/COVER_CACHE.md) — 缓存目录、SSRF 防护、`local://` / `asset://` / `data:` / `http(s)` 渲染协议、`/settings/cache` 管理页
+
 ## 项目结构
 
 ```

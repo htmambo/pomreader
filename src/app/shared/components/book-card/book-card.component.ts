@@ -1,33 +1,39 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, inject, output, ViewChild, TemplateRef, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { NzDropdownMenuComponent } from 'ng-zorro-antd/dropdown';
+import { NzContextMenuService } from 'ng-zorro-antd/dropdown';
+import { NzMenuModule } from 'ng-zorro-antd/menu';
+import { NzIconModule } from 'ng-zorro-antd/icon';
 import { Book } from '../../../core/models/book.model';
+import { ToastService } from '../../../core/services/toast.service';
+import { CoverService } from '../../../core/cover/cover.service';
 
 /**
- * BookCard — 书架单本书（SVG 封面 + 标题 + 作者 + 进度）
- * 与原 vendor 一致：CSS variable 上色
+ * BookCard — 书架单本书
+ * - 左键点击：进入阅读器
+ * - 右键菜单：NzContextMenuService.create()（ng-zorro 标准右键方案，避开 nz-dropdown 指令绑定）
  */
 @Component({
   selector: 'app-book-card',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, NzDropdownMenuComponent, NzMenuModule, NzIconModule],
   template: `
     <a
       class="book-card"
       [routerLink]="['/reader', book.id, 0]"
       [style.--cover-color]="book.coverColor"
       [attr.aria-label]="book.title + ' — ' + book.author"
+      (contextmenu)="onContextMenu($event)"
     >
       @if (book.coverImageUrl) {
-        <!-- 模式 1: 用户提供的封面图片（与原 vendor 一致：用户填 URL 时显示图片） -->
+        <!-- 模式 1: 用户提供的封面图片 -->
         <img class="cover cover-img" [src]="book.coverImageUrl" [alt]="book.title" loading="lazy" />
       } @else {
-        <!-- 模式 2: 默认 SVG 装饰封面（原 vendor fallback） -->
+        <!-- 模式 2: 默认 SVG 装饰封面 -->
         <svg class="cover" viewBox="0 0 100 140" preserveAspectRatio="none">
           <rect width="100" height="140" fill="var(--cover-color)" />
-          <!-- 顶部装饰条：渐变高亮 -->
           <rect width="100" height="8" fill="rgba(255,255,255,.18)" />
-          <!-- 底部斜线底纹 -->
           <g stroke="rgba(255,255,255,.08)" stroke-width="0.6">
             <line x1="-10" y1="135" x2="20" y2="105" />
             <line x1="10" y1="135" x2="40" y2="105" />
@@ -36,14 +42,7 @@ import { Book } from '../../../core/models/book.model';
             <line x1="70" y1="135" x2="100" y2="105" />
             <line x1="90" y1="135" x2="120" y2="105" />
           </g>
-          <text
-            x="50"
-            y="60"
-            text-anchor="middle"
-            fill="rgba(255,255,255,.92)"
-            font-size="10"
-            font-weight="600"
-          >
+          <text x="50" y="60" text-anchor="middle" fill="rgba(255,255,255,.92)" font-size="10" font-weight="600">
             {{ book.title }}
           </text>
           <text x="50" y="78" text-anchor="middle" fill="rgba(255,255,255,.72)" font-size="7">
@@ -63,6 +62,33 @@ import { Book } from '../../../core/models/book.model';
         <div class="author">{{ book.author }}</div>
       </div>
     </a>
+
+    <!-- 右键菜单模板：通过 NzContextMenuService.create(event, menu) 渲染 -->
+    <nz-dropdown-menu #cardMenu="nzDropdownMenu">
+      <ul nz-menu>
+        <li nz-menu-item (click)="refreshCover(); closeMenu()">
+          <span nz-icon nzType="reload"></span> 刷新封面
+        </li>
+        <li nz-menu-item (click)="generateCover.emit(book); closeMenu()">
+          <span nz-icon nzType="appstore"></span> 生成封面
+        </li>
+        <li nz-menu-item (click)="editInfo.emit(book); closeMenu()">
+          <span nz-icon nzType="edit"></span> 编辑书籍信息
+        </li>
+        <li nz-menu-item [routerLink]="['/source-search']" [queryParams]="{ keyword: book.title }" (click)="closeMenu()">
+          <span nz-icon nzType="search"></span> 用此书名重新搜索
+        </li>
+        @if (book.coverImageUrl) {
+          <li nz-menu-item (click)="copyLink(book.coverImageUrl!); closeMenu()">
+            <span nz-icon nzType="copy"></span> 复制封面链接
+          </li>
+        }
+        <li nz-menu-divider></li>
+        <li nz-menu-item nzDanger (click)="deleteBook(); closeMenu()">
+          <span nz-icon nzType="delete"></span> 从书架移除
+        </li>
+      </ul>
+    </nz-dropdown-menu>
   `,
   styles: [
     `
@@ -101,15 +127,68 @@ import { Book } from '../../../core/models/book.model';
         color: var(--pom-text);
         margin-top: 2px;
       }
+      :host { display: block; }
     `,
   ],
 })
-export class BookCardComponent {
+export class BookCardComponent implements OnDestroy {
   @Input({ required: true }) book!: Book;
 
-  formatChars(n: number): string {
-    if (n >= 10000) return `${(n / 10000).toFixed(1)}万字`;
-    if (n >= 1000) return `${(n / 1000).toFixed(1)}千字`;
-    return `${n}字`;
+  @ViewChild('cardMenu', { static: true }) cardMenu!: NzDropdownMenuComponent;
+
+  private toast = inject(ToastService);
+  private cover = inject(CoverService);
+  private contextMenu = inject(NzContextMenuService);
+
+  /** 通知父组件删除该书（BookshelfComponent 接收） */
+  readonly remove = output<Book>();
+  /** 通知父组件打开「生成封面」对话框 */
+  readonly generateCover = output<Book>();
+  /** 通知父组件打开「编辑书籍信息」对话框 */
+  readonly editInfo = output<Book>();
+
+  onContextMenu(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.contextMenu.create(event, this.cardMenu);
+  }
+
+  closeMenu(): void {
+    this.contextMenu.close();
+  }
+
+  ngOnDestroy(): void {
+    this.contextMenu.close();
+  }
+
+  /** 刷新封面：调用 CoverService 重新走 IPC（命中缓存直返，未命中重下） */
+  async refreshCover(): Promise<void> {
+    if (!this.book.coverImageUrl) {
+      this.toast.warn('该书没有封面 URL');
+      return;
+    }
+    try {
+      const localRef = await this.cover.resolve(this.book.coverImageUrl);
+      this.book.coverImageUrl = localRef;
+      this.toast.success(`已刷新封面：${this.book.title}`);
+    } catch (e) {
+      this.toast.error(`刷新失败: ${(e as Error).message}`);
+    }
+  }
+
+  copyLink(url: string): void {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(
+        () => this.toast.success('链接已复制'),
+        () => this.toast.error('复制失败'),
+      );
+    } else {
+      this.toast.warn('当前环境不支持剪贴板 API');
+    }
+  }
+
+  deleteBook(): void {
+    // 二次确认由 BookshelfComponent 处理（这里只发事件）
+    this.remove.emit(this.book);
   }
 }

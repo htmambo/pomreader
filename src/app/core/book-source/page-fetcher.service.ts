@@ -11,6 +11,40 @@ declare global {
       ) => Promise<{ html?: string; error?: string }>;
       fetchRendered: (url: string) => Promise<{ text?: string; error?: string }>;
       openExternal: (url: string) => Promise<void>;
+      /**
+       * 书源 HTTP 代理（T-002 sandbox.service.ts 用）
+       * 完整类型定义在 sandbox.service.ts 的同源声明中（page-fetcher.ts 跨文件引用）
+       */
+      booksourceHttpProxy?: (req: {
+        url: string;
+        method?: string;
+        headers?: Record<string, string>;
+        body?: string | null;
+      }) => Promise<{ status: number; headers: Record<string, string>; body: string }>;
+      /** 书源文件读取（T-004 js-source.adapter.ts 用） */
+      booksourceRead?: (fileName: string, sourceDir?: string) => Promise<string>;
+      /** 书源列表（T-004 registry 用） */
+      booksourceList?: () => Promise<Array<{
+        fileName: string;
+        name: string;
+        url: string;
+        enabled: boolean;
+        sourceDir?: string;
+        [key: string]: unknown;
+      }>>;
+      /** 扩展系统 IPC（T-010 ExtensionService 用） */
+      extensionList?: () => Promise<unknown[]>;
+      extensionRead?: (fileName: string) => Promise<string>;
+      extensionSave?: (fileName: string, content: string) => Promise<void>;
+      extensionDelete?: (fileName: string) => Promise<void>;
+      extensionEval?: (fileName: string, args: unknown[]) => Promise<unknown>;
+      /** 封面缓存 IPC（T-008 CoverService 用） */
+      coverResolveCache?: (req: { url: string; referer?: string; headers?: Record<string, string> }) => Promise<{
+        localPath: string;
+        localRef: string;
+      }>;
+      coverCacheSize?: () => Promise<number>;
+      coverCacheClear?: () => Promise<number>;
     };
   }
 }

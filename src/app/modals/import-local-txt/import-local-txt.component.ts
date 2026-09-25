@@ -11,6 +11,7 @@ import { ToastService } from '../../core/services/toast.service';
 import { BookService } from '../../core/services/book.service';
 import { Book } from '../../core/models/book.model';
 import { Chapter } from '../../core/models/chapter.model';
+import { randomCoverFor } from '../../core/cover/generators/random';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB（security-reviewer L4 缓解）
 const DEFAULT_DISPLAY_COUNT = 50;
@@ -244,6 +245,8 @@ export class ImportLocalTxtComponent {
         title: baseTitle,
         author: '本地导入',
         coverColor: '#8b4513',
+        // 本地 TXT 无源站封面 —— 随机选一款内置 SVG 模板生成
+        coverImageUrl: randomCoverFor({ title: baseTitle, author: '本地导入' }),
         chapterCount: this.chapters().length,
         totalChars: this.fullText.length,
         importedAt: new Date().toISOString(),

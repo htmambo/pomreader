@@ -11,6 +11,8 @@ export interface Book {
   id: string;
   title: string;
   author: string;
+  /** 题材/类型（可选；用于封面生成器的 kind 文案，如"玄幻"/"言情"/"科幻"） */
+  kind?: string;
   coverColor: string;
   /** 封面图片 URL（可选）；为空时 book-card 用 SVG + 底色 fallback */
   coverImageUrl?: string;

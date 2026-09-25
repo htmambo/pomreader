@@ -21,7 +21,6 @@ import { BookService } from '../../core/services/book.service';
 import { ReaderService } from '../../core/services/reader.service';
 import { SettingsService } from '../../core/services/settings.service';
 import { JumpChapterDialogComponent } from './jump-chapter-dialog.component';
-import { EditBookInfoDialogComponent } from './edit-book-info-dialog.component';
 import {
   PAGE_WIDTHS,
   MIN_FONT_SIZE,
@@ -122,11 +121,6 @@ interface ReaderViewSettings {
             <dd (click)="openJumpDialog()">
               <a
                 ><i><span nz-icon nzType="swap"></span><span class="lbl">进度</span></i></a
-              >
-            </dd>
-            <dd (click)="openEditBookInfoDialog()">
-              <a
-                ><i><span nz-icon nzType="edit"></span><span class="lbl">编辑</span></i></a
               >
             </dd>
             <dd (click)="refreshContent()">
@@ -837,33 +831,6 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
           return false;
         }
       },
-      nzKeyboard: false,
-    });
-  }
-
-  /** 左侧"编辑"按钮：弹 modal 修改当前书籍的书名 / 作者 / 源地址 */
-  openEditBookInfoDialog(): void {
-    const b = this.book();
-    if (!b) {
-      this.msg.warning('当前书籍信息尚未加载');
-      return;
-    }
-    this.modal.create({
-      nzTitle: '修改书籍信息',
-      nzContent: EditBookInfoDialogComponent,
-      nzData: { book: b },
-      nzOnOk: async (instance: EditBookInfoDialogComponent) => {
-        const patch = instance.result();
-        if (!patch) return false; // 输入校验失败
-        const updated = { ...b, ...patch };
-        // 复用 addBook：会保留原有 progress、写入 PouchDB、刷新内存 signal
-        await this.books.addBook(updated, []);
-        this.msg.success('书籍信息已更新');
-        return true;
-      },
-      nzOkText: '保存',
-      nzCancelText: '取消',
-      nzWidth: 420,
       nzKeyboard: false,
     });
   }

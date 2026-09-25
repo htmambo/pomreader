@@ -1,0 +1,23 @@
+.cache-panel {
+  padding: 24px;
+  max-width: 600px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.size-display {
+  display: flex;
+  flex-direction: column;
+}
+
+.size-value {
+  font-size: 24px;
+  font-weight: bold;
+  color: var(--pom-text);
+}
+
+.size-label {
+  font-size: 12px;
+  color: var(--pom-text-muted);
+}

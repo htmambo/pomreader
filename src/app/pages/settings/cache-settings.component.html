@@ -1,0 +1,20 @@
+<app-page-header title="封面缓存" subtitle="管理下载到本地的封面文件"></app-page-header>
+
+<div class="cache-panel">
+  @if (loading()) {
+    <nz-spin nzSimple></nz-spin>
+  } @else {
+    <div class="size-display">
+      <span class="size-value">{{ formatSize(size()) }}</span>
+      <span class="size-label">当前缓存占用</span>
+    </div>
+    <button nz-button nzDanger (click)="clearCache()" [disabled]="size() === 0">
+      <span nz-icon nzType="delete"></span>
+      一键清理
+    </button>
+    <button nz-button (click)="refresh()">
+      <span nz-icon nzType="reload"></span>
+      刷新
+    </button>
+  }
+</div>

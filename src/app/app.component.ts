@@ -12,6 +12,9 @@ import {
   PlusOutline, LinkOutline, WarningOutline,
   CheckOutline, MinusOutline, ArrowUpOutline,
   ReloadOutline, DownloadOutline, TranslationOutline, LoadingOutline,
+  AppstoreOutline, CloudDownloadOutline, CopyOutline, DeleteOutline,
+  DragOutline, EditOutline, GlobalOutline,
+  InfoOutline, InfoCircleOutline, RobotOutline, SwapOutline,
 } from '@ant-design/icons-angular/icons';
 import { PageHeaderComponent } from './shared/components/page-header/page-header.component';
 import { SidebarComponent } from './shared/components/sidebar/sidebar.component';
@@ -36,6 +39,9 @@ import { SettingsService } from './core/services/settings.service';
       PlusOutline, LinkOutline, WarningOutline,
       CheckOutline, MinusOutline, ArrowUpOutline,
       ReloadOutline, DownloadOutline, TranslationOutline, LoadingOutline,
+      AppstoreOutline, CloudDownloadOutline, CopyOutline, DeleteOutline,
+      DragOutline, EditOutline, GlobalOutline,
+      InfoOutline, InfoCircleOutline, RobotOutline, SwapOutline,
     ]),
   ],
   template: `

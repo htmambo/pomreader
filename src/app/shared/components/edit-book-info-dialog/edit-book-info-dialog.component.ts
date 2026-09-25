@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NZ_MODAL_DATA } from 'ng-zorro-antd/modal';
 import { NzInputModule } from 'ng-zorro-antd/input';
-import { Book } from '../../core/models/book.model';
+import { Book } from '../../../core/models/book.model';
 
 interface EditBookInfoData {
   book: Book;
@@ -13,13 +13,14 @@ export interface EditBookInfoResult {
   title: string;
   author: string;
   sourceUrl?: string;
+  kind?: string;
   coverColor: string;
   coverImageUrl?: string;
 }
 
 /**
- * 编辑书籍元信息（书名 / 作者 / 源地址）— modal 内容组件
- * 由 reader.component.openEditBookInfoDialog 通过 NzModalService.create 弹出
+ * 编辑书籍元信息（书名 / 作者 / 源地址 / 封面）— modal 内容组件
+ * 入口：书卡右键菜单「编辑书籍信息」（bookshelf 通过 NzModalService.create 弹出）
  * nzOnOk 回调里调 instance.result() 拿用户编辑结果（null = 无效输入）
  */
 @Component({
@@ -56,6 +57,19 @@ export interface EditBookInfoResult {
         nz-input
         [(ngModel)]="sourceUrl"
         placeholder="https:// ... （在线书填源 URL，本地导入留空）"
+      />
+
+      <label class="field-label">
+        题材/类型
+        <span style="color: var(--pom-text-muted); font-weight: normal;">
+          (可选；用于「生成封面」选择模板风格，如：玄幻 / 言情 / 科幻 / 武侠 / 悬疑)
+        </span>
+      </label>
+      <input
+        nz-input
+        [(ngModel)]="kind"
+        placeholder="留空则各封面模板用自身默认风格"
+        maxlength="20"
       />
 
       <label class="field-label">
@@ -176,6 +190,7 @@ export class EditBookInfoDialogComponent {
   protected title = this.data.book.title;
   protected author = this.data.book.author;
   protected sourceUrl = this.data.book.sourceUrl ?? '';
+  protected kind = this.data.book.kind ?? '';
   protected coverImageUrl = this.data.book.coverImageUrl ?? '';
   protected coverColor = this.data.book.coverColor;
 
@@ -189,6 +204,7 @@ export class EditBookInfoDialogComponent {
     const t = this.title.trim();
     const a = this.author.trim();
     const u = this.sourceUrl.trim();
+    const k = this.kind.trim();
     const img = this.coverImageUrl.trim();
     const c = this.coverColor.trim();
 
@@ -202,6 +218,7 @@ export class EditBookInfoDialogComponent {
 
     const result: EditBookInfoResult = { title: t, author: a, coverColor: color };
     if (u) result.sourceUrl = u;
+    if (k) result.kind = k;
     if (img) result.coverImageUrl = img;
     return result;
   }

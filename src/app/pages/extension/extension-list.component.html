@@ -1,0 +1,66 @@
+<div class="extension-page">
+  <app-page-header
+    title="扩展管理"
+    [subtitle]="'共 ' + extensions().length + ' 个扩展'"
+  ></app-page-header>
+
+  @if (loading()) {
+    <div class="state-block">
+      <nz-spin nzSimple></nz-spin>
+      <p>正在加载扩展列表...</p>
+    </div>
+  } @else if (extensions().length === 0) {
+    <nz-empty
+      nzNotFoundContent="尚未安装任何扩展"
+      nzNotFoundImage="simple"
+    ></nz-empty>
+  } @else {
+    <div class="ext-list">
+      @for (ext of extensions(); track ext.fileName) {
+        <div class="ext-card">
+          <div class="ext-card-head">
+            <div class="title-block">
+              <h3 class="ext-name">{{ ext.name }}</h3>
+              <span class="ext-version">v{{ ext.version || '1' }}</span>
+            </div>
+            <nz-switch
+              [ngModel]="ext.enabled"
+              (ngModelChange)="onToggle(ext, $event)"
+            ></nz-switch>
+          </div>
+
+          <div class="meta-row">
+            <span class="meta-author">{{ ext.author || '未知作者' }}</span>
+            <nz-tag class="meta-cat">{{ ext.category || 'general' }}</nz-tag>
+            <nz-tag class="meta-runat">{{ ext.runAt }}</nz-tag>
+          </div>
+
+          @if (ext.description) {
+            <p class="ext-desc">{{ ext.description }}</p>
+          }
+
+          <div class="tags-row">
+            @for (m of ext.matchPatterns.slice(0, 3); track m) {
+              <nz-tag class="match-tag" nzColor="geekblue">
+                <span nz-icon nzType="link"></span>
+                {{ m }}
+              </nz-tag>
+            }
+            @if (ext.matchPatterns.length > 3) {
+              <span class="more">+{{ ext.matchPatterns.length - 3 }}</span>
+            }
+          </div>
+
+          @if (ext.grants.length > 0) {
+            <div class="grants-row">
+              <span class="grants-label">权限：</span>
+              @for (g of ext.grants; track g) {
+                <nz-tag class="grant-tag">{{ g }}</nz-tag>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+  }
+</div>

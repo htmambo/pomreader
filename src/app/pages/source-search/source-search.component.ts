@@ -1,0 +1,244 @@
+import { Component, inject, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
+import { NzInputModule } from 'ng-zorro-antd/input';
+import { NzButtonModule } from 'ng-zorro-antd/button';
+import { NzListModule } from 'ng-zorro-antd/list';
+import { NzIconModule } from 'ng-zorro-antd/icon';
+import { NzSpinModule } from 'ng-zorro-antd/spin';
+import { NzAlertModule } from 'ng-zorro-antd/alert';
+import { NzTagModule } from 'ng-zorro-antd/tag';
+import { MultiSourceSearchService, SearchResultItem } from '../../core/book-source/multi-source-search.service';
+import { ToastService } from '../../core/services/toast.service';
+
+/**
+ * 书源搜索页（实施计划 T-006 + spec FR-2）
+ *
+ * - 跨书源聚合搜索（MultiSourceSearchService）
+ * - 加载态 / 空态 / 部分失败容错
+ * - 命中项可「导入书架」：跳 /import-online 并预填 URL + 书源（导入 modal 选书源用）
+ */
+@Component({
+  selector: 'app-source-search',
+  standalone: true,
+  imports: [
+    CommonModule,
+    FormsModule,
+    NzInputModule,
+    NzButtonModule,
+    NzListModule,
+    NzIconModule,
+    NzSpinModule,
+    NzAlertModule,
+    NzTagModule,
+  ],
+  template: `
+    <div class="source-search-page">
+      <header class="page-header">
+        <div>
+          <h2>书源搜索</h2>
+          <p class="subtitle">跨书源聚合搜索（v1：启用 duck-typed search() 的书源）</p>
+        </div>
+      </header>
+
+      <div class="search-bar">
+        <input
+          nz-input
+          [(ngModel)]="keyword"
+          (keyup.enter)="search()"
+          placeholder="输入书名或作者"
+          [disabled]="loading()"
+        />
+        <button
+          nz-button
+          nzType="primary"
+          [disabled]="loading() || !keyword.trim()"
+          (click)="search()"
+        >
+          <span nz-icon [nzType]="loading() ? 'loading' : 'search'"></span>
+          {{ loading() ? '搜索中' : '搜索' }}
+        </button>
+      </div>
+
+      @if (loading()) {
+        <div class="state-block">
+          <nz-spin nzSimple></nz-spin>
+          <p>正在聚合 {{ sourceCount() }} 个书源...</p>
+        </div>
+      } @else if (searched() && results().length === 0) {
+        <nz-alert
+          nzType="info"
+          nzMessage="未找到匹配结果"
+          nzDescription="可尝试更换关键词，或确认书源列表中至少有一个实现了 search() 接口"
+          nzShowIcon
+        ></nz-alert>
+      } @else if (results().length > 0) {
+        <div class="result-meta">
+          命中 {{ results().length }} 条，去重后展示
+        </div>
+        <ul nz-list nzBordered>
+          @for (r of results(); track r.url + r.source) {
+            <li nz-list-item class="result-item">
+              <div class="result-main">
+                <div class="result-line-1">
+                  <span class="book-name">{{ r.name || '（无书名）' }}</span>
+                  <nz-tag nzColor="blue">{{ r.author || '未知作者' }}</nz-tag>
+                  <nz-tag>{{ r.sourceName }}</nz-tag>
+                  <span class="latency">{{ r.latencyMs }}ms</span>
+                </div>
+                @if (r.intro) {
+                  <p class="intro">{{ r.intro }}</p>
+                }
+                <div class="result-line-2">
+                  <a [href]="r.url" target="_blank" rel="noopener" class="url">{{ r.url }}</a>
+                  <button nz-button nzSize="small" nzType="primary" (click)="importBook(r)">
+                    <span nz-icon nzType="download"></span>
+                    导入书架
+                  </button>
+                </div>
+              </div>
+            </li>
+          }
+        </ul>
+      } @else {
+        <nz-alert
+          nzType="info"
+          nzMessage="提示"
+          nzDescription="请输入关键词并点击搜索"
+          nzShowIcon
+        ></nz-alert>
+      }
+    </div>
+  `,
+  styles: [
+    `
+      .source-search-page {
+        padding: 16px 24px;
+        max-width: 960px;
+        margin: 0 auto;
+      }
+      .page-header h2 {
+        margin: 0 0 4px;
+      }
+      .subtitle {
+        margin: 0;
+        color: var(--pom-text-muted, #888);
+        font-size: 12px;
+      }
+      .search-bar {
+        display: flex;
+        gap: 8px;
+        margin: 16px 0;
+      }
+      .search-bar input[nz-input] {
+        flex: 1;
+      }
+      .state-block {
+        text-align: center;
+        padding: 48px 0;
+        color: var(--pom-text-muted, #888);
+      }
+      .state-block p {
+        margin-top: 12px;
+      }
+      .result-meta {
+        font-size: 12px;
+        color: var(--pom-text-muted, #888);
+        margin: 8px 0;
+      }
+      .result-item {
+        padding: 12px 16px;
+      }
+      .result-main {
+        width: 100%;
+      }
+      .result-line-1 {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .book-name {
+        font-size: 15px;
+        font-weight: 600;
+      }
+      .latency {
+        font-size: 11px;
+        color: var(--pom-text-muted, #888);
+        margin-left: auto;
+      }
+      .intro {
+        margin: 8px 0;
+        font-size: 13px;
+        color: var(--pom-text-muted, #888);
+        line-height: 1.5;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .result-line-2 {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 6px;
+      }
+      .url {
+        flex: 1;
+        font-size: 11px;
+        color: var(--pom-text-muted, #888);
+        text-decoration: none;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .url:hover {
+        text-decoration: underline;
+      }
+    `,
+  ],
+})
+export class SourceSearchComponent {
+  private readonly searchSvc = inject(MultiSourceSearchService);
+  private readonly router = inject(Router);
+  private readonly toast = inject(ToastService);
+
+  keyword = '';
+  readonly loading = signal(false);
+  readonly searched = signal(false);
+  readonly results = signal<SearchResultItem[]>([]);
+  readonly sourceCount = signal(0);
+
+  async search(): Promise<void> {
+    const kw = this.keyword.trim();
+    if (!kw) return;
+
+    this.loading.set(true);
+    this.searched.set(true);
+    try {
+      const items = await this.searchSvc.searchAll(kw);
+      this.results.set(items);
+      this.sourceCount.set(this.searchSvc['registry']?.supportedSources?.().length ?? 0);
+      if (items.length === 0) {
+        this.toast.info('未找到匹配结果');
+      }
+    } catch (e) {
+      // searchAll 内部已隔离单源失败；此处只兜底整体异常
+      this.toast.error(`搜索失败：${(e as Error).message}`);
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  /** 跳导入 modal 并预填 URL + 书源 */
+  importBook(r: SearchResultItem): void {
+    if (!r.url) {
+      this.toast.warn('该条目缺少 URL，无法导入');
+      return;
+    }
+    this.router.navigate(['/import-online'], {
+      queryParams: { url: r.url, source: r.source },
+    });
+  }
+}

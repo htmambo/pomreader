@@ -19,6 +19,12 @@
   - 父设计稿：[2026-09-24-POMREADER_UI_CLONE_DESIGN.md v1.1](../Architecture/2026-09-24-POMREADER_UI_CLONE_DESIGN.md) Round 1 APPROVED
 
 ### 2026-09（独立仓库阶段）
+- ✅ [legado → pomreader 能力迁移（书源 JS / 市场 / 封面 / 扩展 / 代理）](Archive/2026-09/LEGADO_MIGRATION_PLAN.md) — Completed 2026-09-26
+  - 4 大模块 20 个任务全部完成；140/140 单测 + 0 TS 错误 + ng build 成功
+  - Phase 0 spec + Phase 1 plan（Critic Round 2 OKAY + 外部 APPROVED）
+  - Phase 2-A review 5 → 临时放宽 10 → Round 8 APPROVED（沙箱硬化 + SSRF 重定向 + 代理 session.setProxy）
+  - Phase 4 综合 APPROVED
+  - 增量需求：HTTP 代理配置 schema + session.setProxy（用户 2026-09-26）
 - ✅ [阅读页 Esc 栈式关闭](Archive/2026-09/READER_ESC_HANDLER_PLAN.md) — Completed 2026-09-25
   - 阅读页 `@HostListener('document:keydown')` 增加 `Escape` 分支
   - 4 处 modal 加 `nzKeyboard: false` 由组件统一接管 Esc

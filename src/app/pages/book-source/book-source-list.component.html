@@ -1,0 +1,41 @@
+<app-page-header title="书源管理" [subtitle]="'共 ' + sources().length + ' 个书源'"></app-page-header>
+
+<div class="filter-bar">
+  <input
+    nz-input
+    placeholder="搜索书源（名称 / 作者 / 标签）"
+    [(ngModel)]="filter"
+    class="filter-input"
+  />
+  <button nz-button nzType="primary" (click)="openEditor()">
+    <span nz-icon nzType="plus"></span>新建书源
+  </button>
+</div>
+
+@if (!loading() && sources().length === 0) {
+  <nz-empty nzNotFoundContent="暂无书源"></nz-empty>
+} @else {
+  <div class="source-list">
+    @for (src of filtered(); track src.fileName) {
+      <div class="source-card">
+        <div class="source-info">
+          <h3>{{ src.name }}</h3>
+          <p class="meta">{{ src.author || '未知作者' }} · {{ src.url || '无 URL' }}</p>
+          @if (src.description) {
+            <p class="desc">{{ src.description }}</p>
+          }
+          <div class="tags">
+            @for (tag of src.tags; track tag) {
+              <nz-tag>{{ tag }}</nz-tag>
+            }
+          </div>
+        </div>
+        <div class="source-actions">
+          <nz-switch [ngModel]="src.enabled" (ngModelChange)="toggle(src, $event)"></nz-switch>
+          <button nz-button nzSize="small" (click)="openEditor(src)">编辑</button>
+          <button nz-button nzSize="small" nzDanger (click)="confirmDelete(src)">删除</button>
+        </div>
+      </div>
+    }
+  </div>
+}
