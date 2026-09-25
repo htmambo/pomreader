@@ -221,13 +221,10 @@
   background: var(--r-content-bg) var(--r-content-img) repeat;
 }
 .reader-page .main-text-wrap {
-  padding: 60px 64px;
-}
-.reader-page.w640 .main-text-wrap {
   padding: 32px;
 }
 .reader-page .text-head h3 {
-  height: 32px;
+  height: auto;
   margin: 0 0 12px;
   overflow: hidden;
   font-size: 24px;
@@ -435,10 +432,13 @@
 
 /* ---------- 浮层面板（目录 / 设置） ---------- */
 .reader-page .panel-wrap {
-  position: absolute;
+  /* 与 .left-bar-list 同为 fixed，独立 painting layer，避免被 .left-bar-list
+   * 内的 paint 调度延后；top/left 与 left-bar-list 对齐 */
+  position: fixed;
   z-index: 30;
-  top: 0;
-  left: 69px;
+  top: 119px;
+  /* left = .left-bar-list 实际 left + 69（与原 absolute 偏移一致） */
+  left: max(73px, calc(50% - var(--r-page-w) / 2 + 1px));
   background: var(--r-panel-bg) var(--r-panel-img) repeat;
   box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
 }
@@ -490,15 +490,22 @@
   overflow: auto;
 }
 .reader-page .catalog-item {
+  display: flex;
+  align-items: center;
   overflow: hidden;
   padding-right: 16px;
   font-size: 16px;
   line-height: 40px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   cursor: pointer;
   color: var(--r-text);
   border-top: 1px solid var(--r-divider);
+}
+.reader-page .catalog-item .title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .reader-page .catalog-item:nth-child(-n + 2) {
   border-top: none;
@@ -512,6 +519,23 @@
 .reader-page .catalog-item:hover,
 .reader-page .catalog-item.on {
   color: var(--r-accent);
+}
+/* 在线章节"未下载"标记：CSS 伪元素替代原 <span nz-icon nzType="download">。
+ * 实测：在 N 章大的在线书目录中，ng-zorro nz-icon 组件实例化 × N 次
+ * 是首渲卡顿的主要来源；纯 CSS 伪元素 + SVG mask 由浏览器在
+ * layout 阶段生成，无 Angular 组件实例化与 CD 开销，速度接近正常。
+ * 颜色：background-color + mask-image，用 --r-muted 主题变量（与章节名 --r-text
+ * 形成弱-强对比，避免图标喧宾夺主）；位置：margin-left: auto 推到右侧。 */
+.reader-page .catalog-item.not-loaded::after {
+  content: '';
+  display: inline-block;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-left: auto;
+  background-color: var(--r-muted, rgba(0, 0, 0, 0.4));
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black'%3E%3Cpath d='M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black'%3E%3Cpath d='M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
 /* ---------- 设置面板 ---------- */
@@ -700,15 +724,4 @@
   color: var(--pom-accent, #bf2c24);
   cursor: pointer;
   margin-left: 8px;
-}
-
-/* ---------- 窄屏适配 ---------- */
-@media (max-width: 700px) {
-  .reader-page .main-text-wrap {
-    padding: 24px 16px;
-  }
-  .reader-page .text-head h3 {
-    height: auto;
-    font-size: 20px;
-  }
 }

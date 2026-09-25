@@ -145,112 +145,117 @@ interface ReaderViewSettings {
               >
             </dd>
           </dl>
+        </div>
 
-          @if (catalogOpen()) {
-            <div class="panel-wrap catalog">
-              <a class="close-panel" (click)="catalogOpen.set(false)">
-                <span nz-icon nzType="close"></span>
-              </a>
-              <div class="panel-box">
-                <div class="catalog-tab"><span>目录</span></div>
-                <div class="catalog-list">
-                  @for (ch of chapters(); track ch.index; let i = $index) {
-                    <a
-                      class="catalog-item"
-                      [class.on]="i === chapterIndex()"
-                      (click)="goTo(i)"
-                      >{{ ch.title }}@if (ch.sourceUrl && !ch.loaded) {
-                        <span nz-icon nzType="download" class="not-loaded" title="未下载"></span>
-                      }</a
+        <!-- 浮层面板（目录 / 设置）从 .left-bar-list 内部移出：
+             避免 .left-bar-list 的 position:fixed painting layer 调度，
+             导致 panel-wrap 在 .paged-content (will-change/transform 合成层) 上下文内
+             paint 时序被延后（点击后展示有几十~几百毫秒延迟） -->
+        @if (catalogOpen()) {
+          <div class="panel-wrap catalog">
+            <a class="close-panel" (click)="catalogOpen.set(false)">
+              <span nz-icon nzType="close"></span>
+            </a>
+            <div class="panel-box">
+              <div class="catalog-tab"><span>目录</span></div>
+              <div class="catalog-list" #catalogList>
+                @for (ch of chapters(); track ch.index; let i = $index) {
+                  <a
+                    class="catalog-item"
+                    [class.on]="i === chapterIndex()"
+                    [class.not-loaded]="ch.sourceUrl && !ch.loaded"
+                    [title]="ch.sourceUrl && !ch.loaded ? '未下载' : ''"
+                    (click)="goTo(i)"
+                  >
+                    <span class="title">{{ ch.title }}</span>
+                  </a>
+                }
+              </div>
+            </div>
+          </div>
+        }
+
+        @if (settingsOpen()) {
+          <div class="panel-wrap setting">
+            <a class="close-panel" (click)="cancelSettings()">
+              <span nz-icon nzType="close"></span>
+            </a>
+            <div class="panel-box">
+              <h4>设置</h4>
+              <ul>
+                <li class="theme-list">
+                  <i>阅读主题</i>
+                  @for (t of themes; track t.id) {
+                    <span
+                      class="swatch theme-{{ t.id }}"
+                      [class.act]="draft().theme === t.id"
+                      [title]="t.name"
+                      (click)="setTheme(t.id)"
+                    >
+                      @if (draft().theme === t.id) {
+                        <span nz-icon nzType="check"></span>
+                      }
+                    </span>
+                  }
+                </li>
+                <li class="font-family">
+                  <i>正文字体</i>
+                  @for (f of fontFamilies; track f.id) {
+                    <span
+                      class="ff-btn ff-{{ f.id }}"
+                      [class.act]="draft().fontFamily === f.id"
+                      (click)="setFontFamily(f.id)"
+                      >{{ f.name }}</span
                     >
                   }
-                </div>
+                </li>
+                <li class="font-size">
+                  <i>字体大小</i>
+                  <cite>
+                    <span class="step" (click)="stepFontSize(-1)">
+                      <span nz-icon nzType="minus"></span>
+                    </span>
+                    <b></b>
+                    <span class="value">{{ draft().fontSize }}</span>
+                    <b></b>
+                    <span class="step" (click)="stepFontSize(1)">
+                      <span nz-icon nzType="plus"></span>
+                    </span>
+                  </cite>
+                </li>
+                <li class="page-width">
+                  <i>页面宽度</i>
+                  <cite>
+                    <span class="step" (click)="stepPageWidth(-1)">
+                      <span nz-icon nzType="minus"></span>
+                    </span>
+                    <b></b>
+                    <span class="value">{{ draft().pageWidth }}</span>
+                    <b></b>
+                    <span class="step" (click)="stepPageWidth(1)">
+                      <span nz-icon nzType="plus"></span>
+                    </span>
+                  </cite>
+                </li>
+                <li class="read-mode">
+                  <i>阅读模式</i>
+                  @for (m of readModes; track m.id) {
+                    <span
+                      class="ff-btn"
+                      [class.act]="draft().readMode === m.id"
+                      (click)="setReadMode(m.id)"
+                      >{{ m.name }}</span
+                    >
+                  }
+                </li>
+              </ul>
+              <div class="btn-wrap">
+                <a class="red-btn" (click)="saveSettings()">保存</a>
+                <a class="grey-btn" (click)="cancelSettings()">取消</a>
               </div>
             </div>
-          }
-
-          @if (settingsOpen()) {
-            <div class="panel-wrap setting">
-              <a class="close-panel" (click)="cancelSettings()">
-                <span nz-icon nzType="close"></span>
-              </a>
-              <div class="panel-box">
-                <h4>设置</h4>
-                <ul>
-                  <li class="theme-list">
-                    <i>阅读主题</i>
-                    @for (t of themes; track t.id) {
-                      <span
-                        class="swatch theme-{{ t.id }}"
-                        [class.act]="draft().theme === t.id"
-                        [title]="t.name"
-                        (click)="setTheme(t.id)"
-                      >
-                        @if (draft().theme === t.id) {
-                          <span nz-icon nzType="check"></span>
-                        }
-                      </span>
-                    }
-                  </li>
-                  <li class="font-family">
-                    <i>正文字体</i>
-                    @for (f of fontFamilies; track f.id) {
-                      <span
-                        class="ff-btn ff-{{ f.id }}"
-                        [class.act]="draft().fontFamily === f.id"
-                        (click)="setFontFamily(f.id)"
-                        >{{ f.name }}</span
-                      >
-                    }
-                  </li>
-                  <li class="font-size">
-                    <i>字体大小</i>
-                    <cite>
-                      <span class="step" (click)="stepFontSize(-1)">
-                        <span nz-icon nzType="minus"></span>
-                      </span>
-                      <b></b>
-                      <span class="value">{{ draft().fontSize }}</span>
-                      <b></b>
-                      <span class="step" (click)="stepFontSize(1)">
-                        <span nz-icon nzType="plus"></span>
-                      </span>
-                    </cite>
-                  </li>
-                  <li class="page-width">
-                    <i>页面宽度</i>
-                    <cite>
-                      <span class="step" (click)="stepPageWidth(-1)">
-                        <span nz-icon nzType="minus"></span>
-                      </span>
-                      <b></b>
-                      <span class="value">{{ draft().pageWidth }}</span>
-                      <b></b>
-                      <span class="step" (click)="stepPageWidth(1)">
-                        <span nz-icon nzType="plus"></span>
-                      </span>
-                    </cite>
-                  </li>
-                  <li class="read-mode">
-                    <i>阅读模式</i>
-                    @for (m of readModes; track m.id) {
-                      <span
-                        class="ff-btn"
-                        [class.act]="draft().readMode === m.id"
-                        (click)="setReadMode(m.id)"
-                        >{{ m.name }}</span
-                      >
-                    }
-                  </li>
-                </ul>
-                <div class="btn-wrap">
-                  <a class="red-btn" (click)="saveSettings()">保存</a>
-                  <a class="grey-btn" (click)="cancelSettings()">取消</a>
-                </div>
-              </div>
-            </div>
-          }
-        </div>
+          </div>
+        }
 
         @if (showGoTop() && !paged()) {
           <div class="right-bar-list">
@@ -301,6 +306,8 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private readonly viewportRef = viewChild<ElementRef<HTMLElement>>('pagedViewport');
   private readonly contentRef = viewChild<ElementRef<HTMLElement>>('pagedContent');
+  /** 目录 list DOM 引用（用于打开时滚到当前章节位置） */
+  private readonly catalogListRef = viewChild<ElementRef<HTMLElement>>('catalogList');
   /** 跨章入场偏移（px）：+w 内容从右侧滑入（向后），-w 从左侧滑入（向前）；0 = 仅淡入 */
   protected readonly entryOffset = signal(0);
   /** 首次测量时应用的恢复页码（-1 = 最后一页）；null = 无待恢复 */
@@ -311,6 +318,8 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   private resizeObserver: ResizeObserver | null = null;
   /** 跨章切换的入场方向（下次测量消费后清空） */
   private entryDir: 'next' | 'prev' | null = null;
+  /** ngOnDestroy 守卫：async 路径 pending 时退出阅读页，避免 set signal 触发 NG0600 */
+  private destroyed = false;
 
   /** 设置面板草稿：打开面板期间页面实时预览草稿值，保存才落盘 */
   protected readonly draft = signal<ReaderViewSettings>({
@@ -537,8 +546,19 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     this.reader.openBook(bookId, startChapter);
     this.chapterIndex.set(startChapter);
 
-    const chs = await this.books.getChapters(bookId);
-    this.chapters.set(chs);
+    // 优先同步读内存缓存：刚导入/同会话内已打开的 books 立即填 chapters，
+    // 目录面板点击即见（避免点击时 panel 出现但 list 空导致感知到的"延迟"）。
+    // 缓存未命中（重启 App 后首次打开）才 await PouchDB allDocs；在线书章节数大
+    // 时 allDocs 较慢，是用户报告"目录点击延迟"的根因之一。
+    const cached = this.books.getChaptersSync(bookId);
+    if (cached && cached.length > 0) {
+      this.chapters.set([...cached]); // 浅拷贝，避免组件后续修改污染 BooksService 缓存
+    } else {
+      const chs = await this.books.getChapters(bookId);
+      if (!this.destroyed) {
+        this.chapters.set(chs);
+      }
+    }
   }
 
   ngAfterViewInit(): void {
@@ -548,6 +568,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.destroyed = true;
     this.scrollEl?.removeEventListener('scroll', this.onScroll);
     this.resizeObserver?.disconnect();
     cancelAnimationFrame(this.measureRaf);
@@ -624,6 +645,38 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   toggleCatalog(): void {
     this.catalogOpen.update((v) => !v);
     if (this.catalogOpen()) this.settingsOpen.set(false);
+  }
+
+  constructor() {
+    // 目录打开时滚到当前章节位置；signal 上升沿天然防重复（toggleCatalog 总是翻转）
+    effect(() => {
+      if (!this.catalogOpen()) return;
+      setTimeout(() => {
+        if (!this.catalogOpen()) return; // 50ms 内可能已关闭
+        this.scrollToCurrentChapter();
+      }, 0);
+    });
+  }
+
+  private scrollToCurrentChapter(): void {
+    const list = this.catalogListRef()?.nativeElement;
+    const totalChapters = this.chapters().length;
+    const currentIdx = this.chapterIndex();
+    if (!list || totalChapters === 0) return;
+
+    // grid 2 列布局：row = floor(idx / 2)，itemHeight ~41px（line-height:40 + border-top:1）
+    const itemHeight = 41;
+    const row = Math.floor(currentIdx / 2);
+    const itemTop = row * itemHeight;
+    const listHeight = list.clientHeight;
+    const itemInViewportTop = itemTop - list.scrollTop;
+    const itemInViewportBottom = itemInViewportTop + itemHeight;
+
+    // item 已在视口内不滚动（避免抖动）
+    if (itemInViewportTop >= 0 && itemInViewportBottom <= listHeight) return;
+
+    const targetScroll = Math.max(0, itemTop - (listHeight - itemHeight) / 2);
+    list.scrollTop = targetScroll;
   }
 
   toggleSettings(): void {
