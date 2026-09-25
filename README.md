@@ -1,7 +1,9 @@
 # pomreader
 
 > **白虎阅读**（原 vendor）只发打包产物、无源码。本项目**自写 UI、行为级重写核心逻辑**，交付一份可在浏览器独立运行、与原应用视觉/交互高度一致的 Angular 应用。
-> 父设计稿：`../docs/Architecture/2026-09-24-POMREADER_UI_CLONE_DESIGN.md`（v1.1 Round 1 APPROVED）
+> 父设计稿：[`docs/Architecture/2026-09-24-POMREADER_UI_CLONE_DESIGN.md`](docs/Architecture/2026-09-24-POMREADER_UI_CLONE_DESIGN.md)（v1.1 Round 1 APPROVED）
+
+> 本仓库 2026-09-25 从父仓 `pomreader`（白虎阅读 macOS DMG Linux 重打包项目）拆分，保留子项目 `pomreader-ui-clone` 全部代码与历史，迁移相关文档。父仓后续仅维护白虎阅读 Linux 重打包。
 
 ## 快速启动
 
@@ -96,6 +98,8 @@ src/
 
 ## 相关文档
 
-- `../docs/Architecture/2026-09-24-POMREADER_UI_CLONE_DESIGN.md` — 设计稿 v1.1
-- `../.omc/fullauto/pomreader-ui-clone/spec.md` — fullauto 执行规格
-- `../.omc/plans/fullauto-pomreader-ui-clone-impl.md` — 实施计划
+- [`docs/Architecture/2026-09-24-POMREADER_UI_CLONE_DESIGN.md`](docs/Architecture/2026-09-24-POMREADER_UI_CLONE_DESIGN.md) — 设计稿 v1.1
+- [`docs/Task/Archive/2026-09/POMREADER_UI_CLONE_PLAN.md`](docs/Task/Archive/2026-09/POMREADER_UI_CLONE_PLAN.md) — 子项目入仓计划
+- [`docs/superpowers/specs/2026-09-24-online-search-import-design.md`](docs/superpowers/specs/2026-09-24-online-search-import-design.md) — 在线搜索+导入设计
+
+> 历史 fullauto 审计记录（`.omc/fullauto/pomreader-ui-clone/spec.md` 与 `.omc/plans/fullauto-pomreader-ui-clone-impl.md`）保留在原父仓 `pomreader`，独立仓库不再包含。
