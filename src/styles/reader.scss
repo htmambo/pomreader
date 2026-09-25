@@ -38,7 +38,6 @@
   --r-page-w: 800px;
 
   min-height: 100vh;
-  padding-bottom: 40px;
   color: var(--r-text);
   background: var(--r-body-bg) var(--r-body-img) repeat;
   font-family: PingFangSC-Regular, HelveticaNeue-Light, 'Helvetica Neue Light',
@@ -216,12 +215,12 @@
 }
 .reader-page .text-wrap {
   min-height: 600px;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
   border: 1px solid var(--r-border);
   background: var(--r-content-bg) var(--r-content-img) repeat;
 }
 .reader-page .main-text-wrap {
-  padding: 32px;
+  padding: 16px;
 }
 .reader-page .text-head h3 {
   height: auto;
@@ -262,7 +261,7 @@
 .reader-page.paged .text-wrap {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 234px);
+  height: calc(100vh - 140px);
   min-height: 420px;
 }
 .reader-page.paged .main-text-wrap {
@@ -300,8 +299,7 @@
 
 /* ---------- 上一章 / 下一章 ---------- */
 .reader-page .chapter-control {
-  height: 70px;
-  margin-bottom: 24px;
+  height: 40px;
   font-size: 0;
   text-align: center;
   border: 1px solid var(--r-border);
@@ -311,7 +309,7 @@
   display: inline-block;
   width: 49.5%;
   font-size: 18px;
-  line-height: 70px;
+  line-height: 40px;
   vertical-align: middle;
   cursor: pointer;
   color: var(--r-text);
