@@ -1,8 +1,8 @@
 # 阅读页 Esc 按键栈式关闭
 
-**Status**: 🔄 In progress (2026-09-25)
+**Status**: ✅ Completed (2026-09-25)
 **Scope**: 阅读页添加 Esc 按键栈式退出逻辑（弹窗 → panel → 返回书架）
-**Review Loop**: Round 0/5 — 待外部审查
+**Review Loop**: CLOSE（Round 3 APPROVED）
 
 ---
 
@@ -200,11 +200,12 @@ git reset --hard HEAD~1 && git push --force
 
 | 步骤 | 状态 | 完成日期 | 验收人 | 备注 |
 |---|---|---|---|---|
-| 1 (modalOpen computed) | ⏳ Pending | — | — | — |
-| 2 (nzKeyboard: false) | ⏳ Pending | — | — | — |
-| 3 (closeTopLayer) | ⏳ Pending | — | — | — |
-| 4 (commit) | ⏳ Pending | — | — | — |
-| External Review (Round 1) | ⏳ Pending | — | — | — |
+| 1 (modalOpen computed) | ✅ Completed | 2026-09-25 | 用户 + build/test | 撤回 computed 改直接读 openModals.length（Round 1 P0 修复） |
+| 2 (nzKeyboard: false) | ✅ Completed | 2026-09-25 | 用户 + build/test | — |
+| 3 (closeTopLayer) | ✅ Completed | 2026-09-25 | 用户 + build/test | Esc 优先级：modal > 输入态（Round 2 P1 修复） |
+| 4 (commit) | ✅ Completed | 2026-09-25 | 用户 | hash 1fff315；单 commit 含代码 + 任务跟踪 |
+| External Review (plan) | ✅ Round 2 APPROVED | 2026-09-25 | coding-bridge | — |
+| External Review (code) | ✅ Round 3 APPROVED | 2026-09-25 | coding-bridge | P2/P3 防御性改进留 backlog |
 
 ---
 
