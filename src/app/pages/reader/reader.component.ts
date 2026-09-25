@@ -13,7 +13,6 @@ import {
   ElementRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { take } from 'rxjs/operators';
 import { ActivatedRoute, Router } from '@angular/router';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzModalService } from 'ng-zorro-antd/modal';
@@ -285,8 +284,6 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   /** 在线书按需加载状态 */
   protected readonly chapterLoading = signal(false);
   protected readonly chapterError = signal(false);
-  /** 是否有 NzModal 打开（键盘翻页期间跳过，避免背景翻页） */
-  protected readonly modalOpen = signal(false);
 
   /** 翻页模式：当前页码 / 总页数 / 每页宽度（视口实测 px） */
   protected readonly pageIndex = signal(0);
@@ -673,22 +670,31 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     this.settingsOpen.set(false);
   }
 
-  /** 键盘左右方向键翻章（在输入框内不响应，避免误触） */
+  /** 键盘左右方向键翻章；Esc 栈式退出（弹窗 → panel → 返回书架） */
   @HostListener('document:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
-    // Modal 打开期间不响应（避免背景翻页）
-    if (this.modalOpen()) return;
-    // 跳过正在输入的状态（input/textarea/contenteditable）
     const target = event.target as HTMLElement | null;
-    if (
-      target &&
-      (target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.isContentEditable)
-    ) {
+    // 输入态过滤：input/textarea/contenteditable/select 及其子节点都视为可编辑
+    const inEditable = !!target?.closest(
+      'input, textarea, [contenteditable=true], select'
+    );
+
+    if (event.key === 'Escape') {
+      // Modal 打开时 Esc 优先关闭顶层 Modal（无视输入态，用户期望在 input 中按 Esc 也能取消）
+      if (this.modal.openModals.length > 0) {
+        event.preventDefault();
+        this.closeTopLayer();
+        return;
+      }
+      // 无 Modal 时，输入态 Esc 不响应（避免丢输入）
+      if (inEditable) return;
+      event.preventDefault();
+      this.closeTopLayer();
       return;
     }
-    // 章节加载中不响应（避免重复触发）
+
+    // 翻页/翻章键：modal 期间 + 输入态 + 章节加载中 全部 return
+    if (this.modal.openModals.length > 0 || inEditable) return;
     if (this.chapterLoading()) return;
 
     switch (event.key) {
@@ -705,6 +711,29 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
+  /**
+   * 关闭栈顶层：NzModal 顶层 → settings panel → catalog panel → 返回书架。
+   * 栈管理仅覆盖 NzModal 与本组件内的 2 个 signal panel（catalog/settings）；
+   * 未来引入 nz-drawer / nz-tooltip 等其他 CDK Overlay 浮层时，需在此处扩展。
+   */
+  private closeTopLayer(): void {
+    const topModal = this.modal.openModals[this.modal.openModals.length - 1];
+    if (topModal) {
+      // 走 ng-zorro 标准 cancel 流程，触发 nzOnCancel 钩子并清理浮层
+      topModal.triggerCancel();
+      return;
+    }
+    if (this.settingsOpen()) {
+      this.settingsOpen.set(false);
+      return;
+    }
+    if (this.catalogOpen()) {
+      this.catalogOpen.set(false);
+      return;
+    }
+    this.router.navigate(['/bookshelf']);
+  }
+
   /** 左侧"进度"按钮：弹 NzModal 输入章节号跳转 */
   openJumpDialog(): void {
     const total = this.chapters().length;
@@ -713,8 +742,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
     const current = this.chapterIndex() + 1;
-    this.modalOpen.set(true);
-    const ref = this.modal.create({
+    this.modal.create({
       nzTitle: '跳转到指定章节',
       nzContent: JumpChapterDialogComponent,
       nzData: { current, total },
@@ -727,8 +755,8 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
       nzOkText: '跳转',
       nzCancelText: '取消',
       nzWidth: 360,
+      nzKeyboard: false,
     });
-    ref.afterClose.pipe(take(1)).subscribe(() => this.modalOpen.set(false));
   }
 
   /** 左侧"删除"按钮：弹确认 modal，确认后调 BookService.deleteBook + 回书架 */
@@ -738,8 +766,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
       this.msg.warning('当前书籍信息尚未加载');
       return;
     }
-    this.modalOpen.set(true);
-    const ref = this.modal.confirm({
+    this.modal.confirm({
       nzTitle: '确认删除',
       nzContent: `确定删除《${b.title}》及其全部 ${b.chapterCount} 章？此操作不可撤销。`,
       nzOkText: '删除',
@@ -757,8 +784,8 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
           return false;
         }
       },
+      nzKeyboard: false,
     });
-    ref.afterClose.pipe(take(1)).subscribe(() => this.modalOpen.set(false));
   }
 
   /** 左侧"编辑"按钮：弹 modal 修改当前书籍的书名 / 作者 / 源地址 */
@@ -768,8 +795,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
       this.msg.warning('当前书籍信息尚未加载');
       return;
     }
-    this.modalOpen.set(true);
-    const ref = this.modal.create({
+    this.modal.create({
       nzTitle: '修改书籍信息',
       nzContent: EditBookInfoDialogComponent,
       nzData: { book: b },
@@ -785,8 +811,8 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
       nzOkText: '保存',
       nzCancelText: '取消',
       nzWidth: 420,
+      nzKeyboard: false,
     });
-    ref.afterClose.pipe(take(1)).subscribe(() => this.modalOpen.set(false));
   }
 
   /** 左侧"刷新"按钮：章节内容异常时重新抓取（本章 / 全书清空重抓） */
@@ -796,7 +822,6 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
       this.msg.info('本地书籍无需刷新');
       return;
     }
-    this.modalOpen.set(true);
     const ref = this.modal.create({
       nzTitle: '刷新章节内容',
       nzContent:
@@ -825,8 +850,8 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
         },
       ],
       nzWidth: 420,
+      nzKeyboard: false,
     });
-    ref.afterClose.pipe(take(1)).subscribe(() => this.modalOpen.set(false));
   }
 
   /** 强制重抓当前章（忽略已缓存内容） */
