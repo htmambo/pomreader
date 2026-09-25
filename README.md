@@ -1,4 +1,4 @@
-# pomreader-ui-clone
+# pomreader
 
 > **白虎阅读**（原 vendor）只发打包产物、无源码。本项目**自写 UI、行为级重写核心逻辑**，交付一份可在浏览器独立运行、与原应用视觉/交互高度一致的 Angular 应用。
 > 父设计稿：`../docs/Architecture/2026-09-24-POMREADER_UI_CLONE_DESIGN.md`（v1.1 Round 1 APPROVED）
@@ -15,7 +15,7 @@ npm start
 
 # 3. 生产构建
 npm run build
-# → dist/pomreader-ui-clone/
+# → dist/pomreader/
 
 # 4. 单元测试（Vitest）
 npm test
