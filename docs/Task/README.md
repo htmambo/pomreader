@@ -19,6 +19,15 @@
   - 父设计稿：[2026-09-24-POMREADER_UI_CLONE_DESIGN.md v1.1](../Architecture/2026-09-24-POMREADER_UI_CLONE_DESIGN.md) Round 1 APPROVED
 
 ### 2026-09（独立仓库阶段）
+- ✅ [书源搜索桥接 JS 书源适配器 + 暗色 alert 样式](Archive/2026-09/BOOK_SOURCE_SEARCH_BRIDGE_PLAN.md) — Completed 2026-09-26
+  - 真正根因：`registry.loadAllJsAdapters()` 从未被调用（app.config.ts APP_INITIALIZER 缺失），用户装的 JS 书源从未进 registry → 鸭子类型过滤全部排除 → 聚合搜索永远空
+  - 修复 1：APP_INITIALIZER deps 加 SandboxService（绕开 NG0203 — async 函数 await 后脱离 Angular 注入上下文）
+  - 修复 2：JsSourceAdapter.search() 暴露鸭子类型入口（委托沙箱 legado search 函数）
+  - 修复 3：importBook 用 modal 替代不存在的 /import-online 路由（避免跳默认路由）
+  - 字段规范化：RawSearchItem / ResolvedBook 加 kind? 字段（Book.kind 对应）；pickString helper 统一 fallback 链（legado 标准在前）
+  - JsSourceAdapter.ensureLoaded() 去掉实例级缓存：书源脚本修改后无需重启 dev server 立即生效
+  - 编辑书源页顶部加「测试按钮行为说明」alert（避免误以为「测试正文」能验证书源 JS chapterContent）
+  - 18 条新增单测（203/203 全绿）；tsc 0 错误；外审 Round 1 NEEDS_CHANGES → Round 2 APPROVED
 - ✅ [legado → pomreader 能力迁移（书源 JS / 市场 / 封面 / 扩展 / 代理）](Archive/2026-09/LEGADO_MIGRATION_PLAN.md) — Completed 2026-09-26
   - 4 大模块 20 个任务全部完成；140/140 单测 + 0 TS 错误 + ng build 成功
   - Phase 0 spec + Phase 1 plan（Critic Round 2 OKAY + 外部 APPROVED）
