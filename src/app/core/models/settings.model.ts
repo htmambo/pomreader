@@ -3,6 +3,18 @@ export const PAGE_WIDTHS = [640, 800, 900, 1280, 1440, 1680, 1840];
 export const MIN_FONT_SIZE = 14;
 export const MAX_FONT_SIZE = 28;
 
+export const MIN_FONT_WEIGHT = 100;
+export const MAX_FONT_WEIGHT = 900;
+export const FONT_WEIGHT_STEP = 100;
+
+export const MIN_LINE_HEIGHT = 1.0;
+export const MAX_LINE_HEIGHT = 3.0;
+export const LINE_HEIGHT_STEP = 0.1;
+
+export const MIN_PARAGRAPH_SPACING = 0;
+export const MAX_PARAGRAPH_SPACING = 2.0;
+export const PARAGRAPH_SPACING_STEP = 0.1;
+
 /** 阅读模式：scroll 整章滚动 / paged 章内分页（左右翻页） */
 export type ReadMode = 'scroll' | 'paged';
 
@@ -19,6 +31,10 @@ export interface Settings {
   readMode: ReadMode;         // 阅读模式：滚动 / 翻页
   bookshelfSort: BookshelfSort; // 书架排序规则
   fetchUa: string;            // 抓取 User-Agent（'' = 平台默认 Chrome UA；主进程经 IPC 应用）
+  fontWeight: number;         // 字体粗细 100-900（步长 100）
+  fontColor: string;          // 字体颜色：CSS 颜色字符串，'' = 沿用主题 --r-text
+  paragraphLineHeight: number; // 段落行高 1.0-3.0（步长 0.1）
+  paragraphSpacing: number;   // 段落间距 0-2.0 em（步长 0.1）
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -29,4 +45,8 @@ export const DEFAULT_SETTINGS: Settings = {
   readMode: 'paged',
   bookshelfSort: 'imported',
   fetchUa: '',
+  fontWeight: 400,
+  fontColor: '',
+  paragraphLineHeight: 1.8,
+  paragraphSpacing: 0.2,
 };

@@ -255,6 +255,14 @@
   font-family: inherit;
   color: var(--r-text);
 }
+/* 段落间距：每行作为块级元素，margin-bottom 由组件 [style.--reader-paragraph-spacing] 注入；
+   行内换行靠 white-space: pre-wrap 保留每行行首的全角空格（U+3000）并允许长行换行 */
+.reader-page .read-content .line {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-bottom: var(--reader-paragraph-spacing, 0);
+}
 
 /* ---------- 翻页模式（章内分页，CSS 多列：每列一页） ---------- */
 /* 纵向预算：header 60+16 / text-wrap margin 24 / chapter-control 70+24 / 页底 padding 40 */
@@ -624,9 +632,12 @@
   background: rgba(255, 255, 255, 0.05);
 }
 
-/* 字号 / 页宽步进器 */
+/* 字号 / 页宽 / 字体粗细 / 段落行高 / 段落间距 步进器（统一外观） */
 .reader-page .font-size cite,
-.reader-page .page-width cite {
+.reader-page .page-width cite,
+.reader-page .font-weight cite,
+.reader-page .paragraph-line-height cite,
+.reader-page .paragraph-spacing cite {
   display: inline-flex;
   align-items: center;
   width: 270px;
@@ -637,7 +648,10 @@
   background: var(--r-control-bg);
 }
 .reader-page .font-size cite .step,
-.reader-page .page-width cite .step {
+.reader-page .page-width cite .step,
+.reader-page .font-weight cite .step,
+.reader-page .paragraph-line-height cite .step,
+.reader-page .paragraph-spacing cite .step {
   display: flex;
   flex: 1;
   align-items: center;
@@ -647,24 +661,59 @@
   color: var(--r-icon);
 }
 .reader-page .font-size cite .step:hover,
-.reader-page .page-width cite .step:hover {
+.reader-page .page-width cite .step:hover,
+.reader-page .font-weight cite .step:hover,
+.reader-page .paragraph-line-height cite .step:hover,
+.reader-page .paragraph-spacing cite .step:hover {
   color: var(--r-accent);
 }
 .reader-page .font-size cite b,
-.reader-page .page-width cite b {
+.reader-page .page-width cite b,
+.reader-page .font-weight cite b,
+.reader-page .paragraph-line-height cite b,
+.reader-page .paragraph-spacing cite b {
   flex: none;
   width: 1px;
   height: 20px;
   background: var(--r-border-soft);
 }
 .reader-page .font-size cite .value,
-.reader-page .page-width cite .value {
+.reader-page .page-width cite .value,
+.reader-page .font-weight cite .value,
+.reader-page .paragraph-line-height cite .value,
+.reader-page .paragraph-spacing cite .value {
   flex: 1;
   font-size: 16px;
   line-height: 34px;
   text-align: center;
   cursor: default;
   color: #a6a6a6;
+}
+
+/* 字体颜色选择器：与主题一致的高度和边框 */
+.reader-page .panel-wrap.setting .font-color nz-color-picker {
+  font-size: 0;
+}
+.reader-page .panel-wrap.setting .font-color .ant-color-picker-trigger {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--r-border-soft);
+  border-radius: 2px;
+  background: var(--r-control-bg);
+}
+.reader-page .panel-wrap.setting .font-color .ant-color-picker-trigger:hover {
+  border-color: var(--r-accent);
+}
+
+/* 段落排版分组与上方"字号/字体"分隔 */
+.reader-page .panel-wrap.setting li.divider-row {
+  margin: 28px 0 0;
+  padding-top: 28px;
+  border-top: 1px solid var(--r-divider);
+}
+.reader-page .panel-wrap.setting li.divider-row span {
+  display: block;
+  height: 0;
 }
 
 /* 保存 / 取消 */

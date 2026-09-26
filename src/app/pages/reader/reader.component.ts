@@ -13,8 +13,10 @@ import {
   ElementRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { NzIconModule } from 'ng-zorro-antd/icon';
+import { NzColorPickerModule } from 'ng-zorro-antd/color-picker';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { BookService } from '../../core/services/book.service';
@@ -25,6 +27,15 @@ import {
   PAGE_WIDTHS,
   MIN_FONT_SIZE,
   MAX_FONT_SIZE,
+  MIN_FONT_WEIGHT,
+  MAX_FONT_WEIGHT,
+  FONT_WEIGHT_STEP,
+  MIN_LINE_HEIGHT,
+  MAX_LINE_HEIGHT,
+  LINE_HEIGHT_STEP,
+  MIN_PARAGRAPH_SPACING,
+  MAX_PARAGRAPH_SPACING,
+  PARAGRAPH_SPACING_STEP,
   ReadMode,
 } from '../../core/models/settings.model';
 import { Chapter } from '../../core/models/chapter.model';
@@ -37,12 +48,16 @@ interface ReaderViewSettings {
   fontFamily: number;
   pageWidth: number;
   readMode: ReadMode;
+  fontWeight: number;
+  fontColor: string;
+  paragraphLineHeight: number;
+  paragraphSpacing: number;
 }
 
 @Component({
   selector: 'app-reader',
   standalone: true,
-  imports: [CommonModule, NzIconModule],
+  imports: [CommonModule, FormsModule, NzIconModule, NzColorPickerModule],
   template: `
     <div
       class="reader-page theme-{{ view().theme }} w{{ view().pageWidth }}"
@@ -80,17 +95,34 @@ interface ReaderViewSettings {
                 <p class="chapter-loading">该章节加载失败。<a (click)="retryLoad()">重试</a></p>
               } @else if (paged()) {
                 <div class="paged-viewport" #pagedViewport>
-                  <pre
+                  <div
                     class="read-content paged-content"
                     #pagedContent
                     [class.ready]="pageReady()"
                     [style.column-width.px]="pageW()"
                     [style.transform]="'translateX(' + (-pageIndex() * pageW() + entryOffset()) + 'px)'"
-                    >{{ displayContent() }}</pre
+                    [style.font-weight]="view().fontWeight"
+                    [style.color]="view().fontColor || null"
+                    [style.line-height]="view().paragraphLineHeight"
+                    [style.--reader-paragraph-spacing]="view().paragraphSpacing + 'em'"
                   >
+                    @for (line of lines(); track $index) {
+                      <span class="line">{{ line }}</span>
+                    }
+                  </div>
                 </div>
               } @else {
-                <pre class="read-content">{{ displayContent() }}</pre>
+                <div
+                  class="read-content"
+                  [style.font-weight]="view().fontWeight"
+                  [style.color]="view().fontColor || null"
+                  [style.line-height]="view().paragraphLineHeight"
+                  [style.--reader-paragraph-spacing]="view().paragraphSpacing + 'em'"
+                >
+                  @for (line of lines(); track $index) {
+                    <span class="line">{{ line }}</span>
+                  }
+                </div>
               }
             </div>
           </div>
@@ -217,6 +249,58 @@ interface ReaderViewSettings {
                     </span>
                   </cite>
                 </li>
+                <li class="font-weight">
+                  <i>字体粗细</i>
+                  <cite>
+                    <span class="step" (click)="stepFontWeight(-1)">
+                      <span nz-icon nzType="minus"></span>
+                    </span>
+                    <b></b>
+                    <span class="value">{{ draft().fontWeight }}</span>
+                    <b></b>
+                    <span class="step" (click)="stepFontWeight(1)">
+                      <span nz-icon nzType="plus"></span>
+                    </span>
+                  </cite>
+                </li>
+                <li class="font-color">
+                  <i>字体颜色</i>
+                  <nz-color-picker
+                    [ngModel]="draft().fontColor || null"
+                    (ngModelChange)="setFontColor($event ?? '')"
+                    [nzShowText]="false"
+                    nzTrigger="click"
+                  ></nz-color-picker>
+                </li>
+                <li class="divider-row"><span></span></li>
+                <li class="paragraph-line-height">
+                  <i>段落行高</i>
+                  <cite>
+                    <span class="step" (click)="stepParagraphLineHeight(-1)">
+                      <span nz-icon nzType="minus"></span>
+                    </span>
+                    <b></b>
+                    <span class="value">{{ draft().paragraphLineHeight.toFixed(1) }}</span>
+                    <b></b>
+                    <span class="step" (click)="stepParagraphLineHeight(1)">
+                      <span nz-icon nzType="plus"></span>
+                    </span>
+                  </cite>
+                </li>
+                <li class="paragraph-spacing">
+                  <i>段落间距</i>
+                  <cite>
+                    <span class="step" (click)="stepParagraphSpacing(-1)">
+                      <span nz-icon nzType="minus"></span>
+                    </span>
+                    <b></b>
+                    <span class="value">{{ draft().paragraphSpacing.toFixed(1) }}</span>
+                    <b></b>
+                    <span class="step" (click)="stepParagraphSpacing(1)">
+                      <span nz-icon nzType="plus"></span>
+                    </span>
+                  </cite>
+                </li>
                 <li class="page-width">
                   <i>页面宽度</i>
                   <cite>
@@ -322,6 +406,10 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     fontFamily: 1,
     pageWidth: 800,
     readMode: 'paged',
+    fontWeight: 400,
+    fontColor: '',
+    paragraphLineHeight: 1.8,
+    paragraphSpacing: 0.2,
   });
 
   protected readonly themes = [
@@ -493,6 +581,9 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly displayContent = computed(() =>
     normalizeParagraphIndent(this.currentChapter()?.content ?? '')
   );
+
+  /** 按行拆分后的正文：用于 .read-content 内逐行渲染，使段落间距（margin-bottom）能精确加在每行之间 */
+  readonly lines = computed(() => this.displayContent().split('\n'));
 
   /** 当前生效的视图设置：面板打开时用草稿（预览），否则用已保存值 */
   readonly view = computed<ReaderViewSettings>(() => {
@@ -703,6 +794,43 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
+  stepFontWeight(delta: number): void {
+    this.draft.update((d) => ({
+      ...d,
+      fontWeight: Math.min(
+        MAX_FONT_WEIGHT,
+        Math.max(MIN_FONT_WEIGHT, d.fontWeight + delta * FONT_WEIGHT_STEP),
+      ),
+    }));
+  }
+
+  setFontColor(color: string): void {
+    this.draft.update((d) => ({ ...d, fontColor: color }));
+  }
+
+  stepParagraphLineHeight(delta: number): void {
+    this.draft.update((d) => {
+      const next = snap(d.paragraphLineHeight + delta * LINE_HEIGHT_STEP);
+      return {
+        ...d,
+        paragraphLineHeight: Math.min(MAX_LINE_HEIGHT, Math.max(MIN_LINE_HEIGHT, next)),
+      };
+    });
+  }
+
+  stepParagraphSpacing(delta: number): void {
+    this.draft.update((d) => {
+      const next = snap(d.paragraphSpacing + delta * PARAGRAPH_SPACING_STEP);
+      return {
+        ...d,
+        paragraphSpacing: Math.min(
+          MAX_PARAGRAPH_SPACING,
+          Math.max(MIN_PARAGRAPH_SPACING, next),
+        ),
+      };
+    });
+  }
+
   saveSettings(): void {
     const d = this.draft();
     this.settings.update('theme', d.theme);
@@ -710,6 +838,10 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     this.settings.update('fontFamily', d.fontFamily);
     this.settings.update('pageWidth', d.pageWidth);
     this.settings.update('readMode', d.readMode);
+    this.settings.update('fontWeight', d.fontWeight);
+    this.settings.update('fontColor', d.fontColor);
+    this.settings.update('paragraphLineHeight', d.paragraphLineHeight);
+    this.settings.update('paragraphSpacing', d.paragraphSpacing);
     this.settingsOpen.set(false);
   }
 
@@ -918,6 +1050,16 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
       fontFamily: s.fontFamily,
       pageWidth: s.pageWidth,
       readMode: s.readMode,
+      fontWeight: s.fontWeight,
+      fontColor: s.fontColor,
+      paragraphLineHeight: s.paragraphLineHeight,
+      paragraphSpacing: s.paragraphSpacing,
     };
   }
+}
+
+/** 浮点步进取整：避免 0.1+0.2=0.30000000000000004 之类的漂移。 */
+function snap(value: number, decimals = 1): number {
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
 }
