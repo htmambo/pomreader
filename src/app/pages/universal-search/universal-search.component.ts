@@ -18,6 +18,7 @@ import { NzModalService } from 'ng-zorro-antd/modal';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { GOOD_SITES } from '../../core/data/good-sites';
 import { ImportOnlineComponent } from '../../modals/import-online/import-online.component';
+import { BookSourceRegistry } from '../../core/book-source/book-source.registry';
 import { AutoImportService, isImportableUrl } from '../../core/services/auto-import.service';
 
 type EncodingMode = 'auto' | 'utf-8' | 'gbk';
@@ -170,6 +171,7 @@ export class UniversalSearchComponent {
   private readonly msg = inject(NzMessageService);
   // 注入即激活全局自动导入订阅（root 单例，离开页面后下载完成事件仍能导入）
   private readonly autoImport = inject(AutoImportService);
+  private readonly registry = inject(BookSourceRegistry);
 
   readonly sites = GOOD_SITES;
   url = 'https://www.baidu.com/';
@@ -329,14 +331,29 @@ export class UniversalSearchComponent {
   }
 
   openImport(): void {
+    // 域名匹配：若用户 webview 里访问的 URL 命中某个已启用书源（JsSourceAdapter.hostPattern），
+    // 则注入 source 到 nzData → ImportOnlineComponent 自动预选该书源 → importByUrl 走该书源
+    // 的 JsSourceAdapter.fetchCatalog → Book.bookSourceUuid 锚定到 meta.uuid（而不是 'universal'）
+    const matchedSourceName = this.findMatchingBookSource(this.url);
     this.modal.create({
       nzTitle: '导入在线书页',
       nzContent: ImportOnlineComponent,
-      nzData: { url: this.url },
+      nzData: {
+        url: this.url,
+        ...(matchedSourceName ? { source: matchedSourceName } : {}),
+      },
       nzOkText: '确认导入',
       nzCancelText: '取消',
       nzWidth: 640,
       nzOnOk: (instance: ImportOnlineComponent) => instance.confirm(),
     });
+  }
+
+  /**
+   * 在 registry 里查找首个 match(url) 的 JsSourceAdapter 名（universal-search 用）。
+   * 找不到时返回 undefined → modal 不注入 source，ImportOnlineComponent 走 registry 自动 resolve
+   */
+  private findMatchingBookSource(url: string): string | undefined {
+    return this.registry.findJsSourceAdapterByUrl(url)?.name;
   }
 }

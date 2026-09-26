@@ -9,6 +9,7 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { BookSourceRegistry } from '../../core/book-source/book-source.registry';
+import { UNIVERSAL_BOOK_SOURCE_UUID } from '../../core/book-source/book-source.constants';
 import { FetchError, FETCH_ERROR_MESSAGES } from '../../core/book-source/fetch-error';
 import { ResolvedBook } from '../../core/book-source/book-source.adapter';
 import {
@@ -332,6 +333,13 @@ export class ImportOnlineComponent {
     await this.parse();
   }
 
+  /**
+   * 解析后缓存的 bookSourceUuid（来自 ImportByUrlResult；服务层已统一结构，必有值）
+   * 生命周期：组件实例随 modal 每次 create 重建；parse() 入口显式重置避免多次 parse 残留
+   * 服务层 importByUrl 在万能搜索路径也返回 UNIVERSAL_BOOK_SOURCE_UUID（不再 undefined）
+   */
+  private parsedBookSourceUuid: string = UNIVERSAL_BOOK_SOURCE_UUID;
+
   async parse(): Promise<void> {
     if (!this.url.trim()) {
       this.toast.warn('请输入 URL');
@@ -339,11 +347,13 @@ export class ImportOnlineComponent {
     }
     this.loading.set(true);
     this.resolved.set(null);
+    this.parsedBookSourceUuid = UNIVERSAL_BOOK_SOURCE_UUID; // 显式重置（避免多次 parse 残留）
     this.errorMsg.set('');
     try {
       const src = this.selectedSource() || undefined;
-      const r = await this.importViaSource.importByUrl(this.url, src);
-      this.resolved.set(r);
+      const { book, bookSourceUuid } = await this.importViaSource.importByUrl(this.url, src);
+      this.resolved.set(book);
+      this.parsedBookSourceUuid = bookSourceUuid;
     } catch (e) {
       const msg = e instanceof FetchError
         ? FETCH_ERROR_MESSAGES[e.code]
@@ -379,6 +389,9 @@ export class ImportOnlineComponent {
         importedAt: new Date().toISOString(),
         source: 'online',
         sourceUrl: this.url,
+        // 锚定具体书源：JsSourceAdapter 来源 → meta.uuid（importByUrl 透传）；其它来源 →
+        // UNIVERSAL_BOOK_SOURCE_UUID（服务层统一返回，consumer 不必 ?? 兜底）
+        bookSourceUuid: this.parsedBookSourceUuid,
       };
       await this.books.importOnlineBook(book, r.chapters);
       this.toast.success(`已导入：${book.title}`);

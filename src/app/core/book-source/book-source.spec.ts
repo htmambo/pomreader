@@ -5,6 +5,8 @@ import { PageFetcher, BookSourceAdapter } from './book-source.adapter';
 import { BookSourceRegistry } from './book-source.registry';
 import { XbiqugeAdapter } from './adapters/xbiquge.adapter';
 import { HeuristicAdapter } from './adapters/heuristic.adapter';
+import { JsSourceAdapter } from './js-source/js-source.adapter';
+import { BookSourceMeta } from './js-source/source-meta.types';
 import { FetchError } from './fetch-error';
 import { SOURCE_CONFIG } from './book-source.config';
 import { looksObfuscated } from './heuristic-parser';
@@ -204,5 +206,112 @@ describe('HeuristicAdapter 渲染兜底', () => {
     const text = await adapter.fetchChapter({ title: '第一章', url: chUrl }, fetcher);
     expect(fetcher.fetchRendered).not.toHaveBeenCalled();
     expect(text).toContain('范慎');
+  });
+});
+
+// ========== Registry.getByUuid / findJsSourceAdapterByUrl ==========
+
+/**
+ * 构造 mock JsSourceAdapter：注入 meta（带 uuid + mainUrl 作为 hostPattern 来源）+ sandbox stub
+ * mainUrl 会被 JsSourceAdapter.buildHostPattern 处理（去 www、转义点号）
+ * 例：mainUrl='https://www.hetushu.com' → 匹配 www.hetushu.com 和 hetushu.com
+ */
+function makeMockJsAdapter(name: string, uuid: string, mainUrl: string): JsSourceAdapter {
+  const meta: BookSourceMeta = {
+    sourceKey: uuid,
+    uuid,
+    fileName: `${name}.js`,
+    name,
+    url: mainUrl,
+    urls: [mainUrl],
+    enabled: true,
+    fileSize: 0,
+    modifiedAt: 0,
+    sourceDir: '',
+    sourceType: 'novel',
+    version: '1',
+    tags: [],
+    minDelayMs: 0,
+    requireUrls: [],
+  };
+  const sandbox = {
+    load: async () => ({ fileName: meta.fileName, fns: [] }),
+    call: async () => null,
+  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return new JsSourceAdapter(meta, sandbox as any);
+}
+
+describe('BookSourceRegistry · getByUuid / findJsSourceAdapterByUrl', () => {
+  it('getByUuid 精确匹配 JsSourceAdapter meta.uuid', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    const a = makeMockJsAdapter('hetushu', 'uuid-hetushu-001', 'https://www.hetushu.com');
+    reg.registerJsAdapter(a);
+    expect(reg.getByUuid('uuid-hetushu-001')).toBe(a);
+  });
+
+  it('getByUuid 未命中时返回 undefined（不返回兜底误命中的 adapter）', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    reg.register(new HeuristicAdapter());
+    expect(reg.getByUuid('not-exists')).toBeUndefined();
+  });
+
+  it('getByUuid 严格按 meta.uuid：不通过 name 兜底（防止跨源误命中）', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    reg.register(new HeuristicAdapter());
+    // 即使存在 name === '通用（启发式）' 的 adapter，getByUuid 也不返回
+    expect(reg.getByUuid('通用（启发式）')).toBeUndefined();
+    // 想要按 name 查请用 getByName
+    expect(reg.getByName('通用（启发式）')).toBeDefined();
+  });
+
+  it('getByUuid P0-2 回归：即使存在 name === "universal" 的 adapter 也不误命中', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    // 构造一个 name = 'universal' 的 adapter（不是 JsSourceAdapter，没 meta.uuid）
+    class NamedUniversalAdapter extends HeuristicAdapter {
+      override readonly name = 'universal';
+    }
+    reg.register(new NamedUniversalAdapter());
+    // UNIVERSAL 标识永远返回 undefined（保护 Book.bookSourceUuid = 'universal' 的 invariant）
+    expect(reg.getByUuid('universal')).toBeUndefined();
+  });
+
+  it('getByName 独立 API：按 adapter.name 查（与 getByUuid 语义分离）', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    reg.register(new HeuristicAdapter());
+    expect(reg.getByName('通用（启发式）')).toBeDefined();
+    expect(reg.getByName('不存在的源')).toBeUndefined();
+    expect(reg.getByName('')).toBeUndefined();
+  });
+
+  it('findJsSourceAdapterByUrl：按 hostPattern 匹配首个 JsSourceAdapter', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    const a = makeMockJsAdapter('hetushu', 'uuid-hetushu-001', 'https://www.hetushu.com');
+    reg.registerJsAdapter(a);
+    expect(reg.findJsSourceAdapterByUrl('https://www.hetushu.com/book/5763/')?.name).toBe('hetushu');
+    expect(reg.findJsSourceAdapterByUrl('https://other.com/book/')).toBeUndefined();
+  });
+
+  it('findJsSourceAdapterByUrl：跳过 HeuristicAdapter（match 任意 URL 会误命中）', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    reg.register(new HeuristicAdapter()); // 没 meta.uuid，按 duck typing 跳过
+    expect(reg.findJsSourceAdapterByUrl('https://anywhere.com/')).toBeUndefined();
+  });
+
+  it('findJsSourceAdapterByUrl：空 url 返回 undefined', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    expect(reg.findJsSourceAdapterByUrl('')).toBeUndefined();
+  });
+
+  it('findJsSourceAdapterByUrl：多个 JsSourceAdapter 都 match 时返回首个（按注册顺序）', () => {
+    // 用 mock 适配器（meta.uuid + 自定义 hostPattern）验证「按注册顺序返回首个」语义
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    const first = makeMockJsAdapter('first', 'uuid-first', 'https://first.com');
+    const second = makeMockJsAdapter('second', 'uuid-second', 'https://first.com');
+    reg.registerJsAdapter(first);
+    reg.registerJsAdapter(second);
+    const result = reg.findJsSourceAdapterByUrl('https://first.com/book/');
+    expect(result?.name).toBe('first'); // 注册顺序在前
+    expect(result).toBe(first);
   });
 });

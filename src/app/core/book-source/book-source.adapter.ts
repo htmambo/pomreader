@@ -72,3 +72,19 @@ export interface RawSearchItem {
   intro?: string;
   description?: string;
 }
+
+/**
+ * 鸭子类型提取 adapter 的 meta.uuid（JsSourceAdapter 持有 BookSourceMeta.uuid）。
+ * 用 duck typing 检查 meta 属性而不是 instanceof —— registry 不反向耦合 js-source 子模块。
+ * 返回空字符串视为无效（早期版本 / 损坏数据兜底）。
+ */
+export function extractMetaUuid(adapter: BookSourceAdapter): string | undefined {
+  const meta = (adapter as { meta?: { uuid?: unknown } }).meta;
+  const uuid = meta?.uuid;
+  return typeof uuid === 'string' && uuid ? uuid : undefined;
+}
+
+/** 类型守卫：adapter 是否持有有效 meta.uuid（用于 findJsSourceAdapterByUrl 等跳过无 meta 的内置 adapter） */
+export function hasMetaUuid(adapter: BookSourceAdapter): boolean {
+  return !!extractMetaUuid(adapter);
+}

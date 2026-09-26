@@ -23,6 +23,8 @@ export interface BookDoc {
   lastReadAt?: string;
   source: 'local-txt' | 'online' | 'mock' | 'auto-import';
   sourceUrl?: string;
+  /** 锚定具体书源（legado meta.uuid 全局唯一）；详见 Book.bookSourceUuid */
+  bookSourceUuid?: string;
   /** 阅读进度（嵌入，与 bookId 强耦合） */
   progress?: {
     chapterIndex: number;

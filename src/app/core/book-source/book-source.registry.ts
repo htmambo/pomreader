@@ -4,6 +4,8 @@ import {
   CatalogEntry,
   PageFetcher,
   ResolvedBook,
+  extractMetaUuid,
+  hasMetaUuid,
 } from './book-source.adapter';
 import { PageFetcherService } from './page-fetcher.service';
 import { FetchError } from './fetch-error';
@@ -11,6 +13,7 @@ import { JsSourceAdapter } from './js-source/js-source.adapter';
 import { SandboxService } from './js-source/sandbox.service';
 import { BookSourceMeta } from './js-source/source-meta.types';
 import { BOOK_SOURCE_FEATURE_FLAGS } from './feature-flag';
+import { UNIVERSAL_BOOK_SOURCE_UUID } from './book-source.constants';
 
 /**
  * 书源适配器注册表（spec §4.3）
@@ -128,5 +131,38 @@ export class BookSourceRegistry {
   /** 按书源名查找适配器（T-006 多源搜索用：search(keyword) 鸭子类型） */
   get(name: string): BookSourceAdapter | undefined {
     return this.adapters.find((a) => a.name === name);
+  }
+
+  /**
+   * 按 legado meta.uuid 锚定具体书源（用于阅读时重抓章节列表/正文）。
+   * - JsSourceAdapter 来源：精确匹配 meta.uuid
+   * - UNIVERSAL_BOOK_SOURCE_UUID 永远返回 undefined（保证万能搜索的 bookSourceUuid 不误命中具体书源）
+   * - 空 / 无效输入 → undefined
+   * - 不依赖 instanceof，用 extractMetaUuid 工具（避免 registry 反向耦合 js-source 子模块）
+   *
+   * 注：如需"按 adapter.name 查"请用 `getByName(name)`，两者语义独立。
+   */
+  getByUuid(uuid: string): BookSourceAdapter | undefined {
+    if (!uuid || uuid === UNIVERSAL_BOOK_SOURCE_UUID) return undefined;
+    return this.adapters.find((a) => extractMetaUuid(a) === uuid);
+  }
+
+  /** 按 adapter.name 查找（独立 API，与 getByUuid 语义分离，不混淆 uuid/name 命名空间） */
+  getByName(name: string): BookSourceAdapter | undefined {
+    if (!name) return undefined;
+    return this.adapters.find((a) => a.name === name);
+  }
+
+  /**
+   * 按 URL 查找首个 match 的 JsSourceAdapter（universal-search 等场景用）。
+   * 仅匹配持有有效 meta.uuid 的 JS 书源（内置启发式适配器 match 任意 URL 会误命中，跳过）。
+   * 找不到时返回 undefined（调用方决定 fallback）。
+   */
+  findJsSourceAdapterByUrl(url: string): BookSourceAdapter | undefined {
+    if (!url) return undefined;
+    for (const a of this.adapters) {
+      if (hasMetaUuid(a) && a.match(url)) return a;
+    }
+    return undefined;
   }
 }
