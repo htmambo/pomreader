@@ -158,7 +158,8 @@
 /* ---------- 面包屑 ---------- */
 .reader-page .crumbs-nav {
   width: var(--r-page-w);
-  max-width: calc(100vw - 32px);
+  /* 保证面包屑导航在小屏幕下有左右间距 */
+  max-width: calc(100vw - 132px);
   height: 22px;
   margin: 0 auto 21px;
   font-size: 12px;
