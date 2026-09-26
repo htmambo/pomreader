@@ -133,14 +133,7 @@ export class CoverImgComponent implements OnChanges {
 
     // local:// → electron convertFileSrc
     if (src.startsWith('local://')) {
-      const api = window.electronAPI;
-      if (api?.convertFileSrc) {
-        const abs = src.replace(/^local:\/\//, '');
-        this.resolvedSrc.set(api.convertFileSrc(abs));
-      } else {
-        // ng serve 模式无 electron → 触发 fallback
-        this.failed.set(true);
-      }
+      this.applyLocalRef(src);
       return;
     }
 
@@ -153,7 +146,8 @@ export class CoverImgComponent implements OnChanges {
           // IPC 不可用或失败 → fallback 已是 data:，不再加载 <img>
           this.failed.set(true);
         } else {
-          this.resolvedSrc.set(localRef);
+          // localRef = "local://..." —— 必须再走 convertFileSrc 转 file://，<img> 才能加载
+          this.applyLocalRef(localRef);
         }
       } catch {
         this.failed.set(true);
@@ -170,5 +164,26 @@ export class CoverImgComponent implements OnChanges {
   onError(): void {
     this.failed.set(true);
     this.resolvedSrc.set(null);
+  }
+
+  /**
+   * CoverService / IPC 返回的引用 → <img src> 可加载的字符串。
+   * - "local://..." → window.electronAPI.convertFileSrc() 转 file://（Electron 渲染进程才能加载）
+   * - 其他原样透传（asset:// / 相对路径等）
+   * 无 electronAPI（ng serve 模式）→ 标记 failed 返回 false
+   */
+  private applyLocalRef(localRef: string): boolean {
+    if (!localRef.startsWith('local://')) {
+      this.resolvedSrc.set(localRef);
+      return true;
+    }
+    const api = window.electronAPI;
+    if (!api?.convertFileSrc) {
+      this.failed.set(true);
+      return false;
+    }
+    const abs = localRef.replace(/^local:\/\//, '');
+    this.resolvedSrc.set(api.convertFileSrc(abs));
+    return true;
   }
 }

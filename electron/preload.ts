@@ -1,5 +1,14 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
+// file:// URL 转换：沙盒化 preload 里 electron.convertFileSrc (renderer-only) 和
+// url.pathToFileURL (legacy url polyfill 未提供) 都不可用。
+// 手动拼字符串：缓存路径是 sha256 哈希（[a-f0-9.]），无 #/?/空格等保留字符，无需编码。
+const toFileSrc = (filePath: string): string => {
+  const normalized = filePath.replace(/\\/g, '/');
+  const withSlash = normalized.startsWith('/') ? normalized : `/${normalized}`;
+  return `file://${withSlash}`;
+};
+
 /**
  * 渲染进程 ↔ 主进程桥接（contextIsolation 安全模式）
  * 仅暴露必要能力，不暴露 nodeIntegration / require
@@ -137,4 +146,13 @@ contextBridge.exposeInMainWorld('pomAPI', {
   /** 读取自动导入产出的 utf-8 文本（txtName 限 auto-import/txt 目录内） */
   autoImportReadText: (txtName: string): Promise<string> =>
     ipcRenderer.invoke('pom:auto-import-read-text', txtName),
+});
+
+/**
+ * 标准 Electron API 桥接（contextIsolation 安全模式）
+ * 仅暴露渲染端确实需要的同步 API；不做整模块透传，避免泄漏 ipcRenderer / require 等能力
+ */
+contextBridge.exposeInMainWorld('electronAPI', {
+  /** 把本地绝对路径转成 <img src> 可加载的 file:// URL（renderer 用） */
+  convertFileSrc: (filePath: string): string => toFileSrc(filePath),
 });

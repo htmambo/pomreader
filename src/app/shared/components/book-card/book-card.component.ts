@@ -8,6 +8,7 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 import { Book } from '../../../core/models/book.model';
 import { ToastService } from '../../../core/services/toast.service';
 import { CoverService } from '../../../core/cover/cover.service';
+import { CoverImgComponent } from '../cover-img/cover-img.component';
 
 /**
  * BookCard — 书架单本书
@@ -17,7 +18,7 @@ import { CoverService } from '../../../core/cover/cover.service';
 @Component({
   selector: 'app-book-card',
   standalone: true,
-  imports: [CommonModule, RouterLink, NzDropdownMenuComponent, NzMenuModule, NzIconModule],
+  imports: [CommonModule, RouterLink, NzDropdownMenuComponent, NzMenuModule, NzIconModule, CoverImgComponent],
   template: `
     <a
       class="book-card"
@@ -26,8 +27,13 @@ import { CoverService } from '../../../core/cover/cover.service';
       (contextmenu)="onContextMenu($event)"
     >
       @if (book.coverImageUrl) {
-        <!-- 模式 1: 用户提供的封面图片 -->
-        <img class="cover cover-img" [src]="book.coverImageUrl" [alt]="book.title" loading="lazy" />
+        <!-- 模式 1: 用户提供的封面图片 —— 用 <app-cover-img> 统一处理 local:// / http(s):// / data: 协议转换 -->
+        <app-cover-img
+          class="cover"
+          [src]="book.coverImageUrl"
+          [title]="book.title"
+          aspectRatio="5 / 7"
+        ></app-cover-img>
       } @else {
         <!-- 模式 2: CSS-only 占位（主题自适应：背景 var(--pom-card)、边框 var(--pom-border)、文字 var(--pom-text-muted)） -->
         <div class="cover cover-placeholder">暂无封面</div>
@@ -41,9 +47,11 @@ import { CoverService } from '../../../core/cover/cover.service';
     <!-- 右键菜单模板：通过 NzContextMenuService.create(event, menu) 渲染 -->
     <nz-dropdown-menu #cardMenu="nzDropdownMenu">
       <ul nz-menu>
-        <li nz-menu-item (click)="refreshCover(); closeMenu()">
-          <span nz-icon nzType="reload"></span> 刷新封面
-        </li>
+        @if (book.coverImageUrl?.startsWith('http')) {
+          <li nz-menu-item (click)="refreshCover(); closeMenu()">
+            <span nz-icon nzType="reload"></span> 刷新封面
+          </li>
+        }
         <li nz-menu-item (click)="generateCover.emit(book); closeMenu()">
           <span nz-icon nzType="appstore"></span> 生成封面
         </li>
@@ -157,14 +165,24 @@ export class BookCardComponent implements OnDestroy {
     this.contextMenu.close();
   }
 
-  /** 刷新封面：调用 CoverService 重新走 IPC（命中缓存直返，未命中重下） */
+  /**
+   * 刷新封面：仅对远程 http(s) 封面走 IPC（命中缓存直返，未命中重下）。
+   * 对 data: / local:// 直接拒绝——前者是本地生成无远程源，后者已是本地缓存：
+   * 走 IPC 会被 CoverService 兜底成纯色 SVG 块，且 BookCard 的裸 <img>
+   * 无法渲染 local://，会让原本正常的封面"变乱"。
+   */
   async refreshCover(): Promise<void> {
-    if (!this.book.coverImageUrl) {
+    const url = this.book.coverImageUrl ?? '';
+    if (!url) {
       this.toast.warn('该书没有封面 URL');
       return;
     }
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      this.toast.info('该封面无远程源，无需刷新');
+      return;
+    }
     try {
-      const localRef = await this.cover.resolve(this.book.coverImageUrl);
+      const localRef = await this.cover.resolve(url);
       this.book.coverImageUrl = localRef;
       this.toast.success(`已刷新封面：${this.book.title}`);
     } catch (e) {
