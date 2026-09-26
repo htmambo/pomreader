@@ -11,7 +11,7 @@ import { PageHeaderComponent } from '../../shared/components/page-header/page-he
 import { ToastService } from '../../core/services/toast.service';
 import { parseHeaderMeta } from '../../core/book-source/js-source/header-parser';
 import {
-  matchLinkItems, pickText, pickHtml, absUrl,
+  matchLinkItems, pickText, pickHtml, pickAttr, absUrl,
   generateSourceCode, randomTestKeyword,
   SearchMethod, buildFormBody,
 } from '../../core/book-source/smart-add/smart-rules';
@@ -57,6 +57,7 @@ export class BookSourceEditorComponent {
   readonly ruleSearchRawBody = signal('');
   readonly ruleSearchItem = signal('');
   readonly ruleBookTitle = signal('');
+  readonly ruleBookCover = signal('');
   readonly ruleBookAuthor = signal('');
   readonly ruleChapterItem = signal('');
   readonly ruleContent = signal('');
@@ -190,6 +191,7 @@ export class BookSourceEditorComponent {
     this.ruleSearchRawBody.set(extract('SEARCH_RAW_BODY'));
     this.ruleSearchItem.set(extract('SEARCH_ITEM_RULE'));
     this.ruleBookTitle.set(extract('BOOK_TITLE_RULE'));
+    this.ruleBookCover.set(extract('COVER_RULE'));
     this.ruleBookAuthor.set(extract('BOOK_AUTHOR_RULE'));
     this.ruleChapterItem.set(extract('CHAPTER_ITEM_RULE'));
     this.ruleContent.set(extract('CONTENT_RULE'));
@@ -216,6 +218,7 @@ export class BookSourceEditorComponent {
       SEARCH_RAW_BODY: this.ruleSearchRawBody(),
       SEARCH_ITEM_RULE: this.ruleSearchItem(),
       BOOK_TITLE_RULE: this.ruleBookTitle(),
+      COVER_RULE: this.ruleBookCover(),
       BOOK_AUTHOR_RULE: this.ruleBookAuthor(),
       CHAPTER_ITEM_RULE: this.ruleChapterItem(),
       CONTENT_RULE: this.ruleContent(),
@@ -241,6 +244,7 @@ export class BookSourceEditorComponent {
         searchRawBody: this.ruleSearchRawBody(),
         searchItemPattern: this.ruleSearchItem(),
         bookTitlePattern: this.ruleBookTitle(),
+        coverUrlPattern: this.ruleBookCover(),
         bookAuthorPattern: this.ruleBookAuthor(),
         chapterItemPattern: this.ruleChapterItem(),
         contentPattern: this.ruleContent(),
@@ -330,7 +334,11 @@ export class BookSourceEditorComponent {
       const title = pickText(this.ruleBookTitle(), html);
       const author = pickText(this.ruleBookAuthor(), html);
         const category = pickText(this.ruleBookCategory(), html);
-      this.testInfoResult.set(`✓ 标题=${title || '(空)'}  作者=${author || '(空)'}  分类=${category || '(空)'}`);
+      const coverRaw = pickAttr(this.ruleBookCover() || 'css:img', html, 'src');
+      const cover = coverRaw ? absUrl(coverRaw, url) : '';
+      this.testInfoResult.set(
+        `✓ 标题=${title || '(空)'}  作者=${author || '(空)'}  分类=${category || '(空)'}  封面=${cover || '(空)'}`,
+      );
     } catch (e) {
       this.testInfoError.set(`✗ ${(e as Error).message}`);
     } finally {

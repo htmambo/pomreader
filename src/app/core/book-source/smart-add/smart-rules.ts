@@ -78,6 +78,8 @@ export interface SourceRules {
   contentPattern: string;
   /** 书籍分类规则（CSS 选择器，或正则：捕获组 1=分类名 —— 单本书的题材分类,如"玄幻"/"都市"） */
   bookCategoryPattern?: string;
+  /** 封面规则（CSS 选择器（命中 img 元素，提取 src）或正则：捕获组 1=封面 URL） */
+  coverUrlPattern?: string;
 }
 
 /** 默认规则模板（探测失败时的兜底值） */
@@ -88,6 +90,8 @@ export const DEFAULT_PATTERNS = {
   chapterItemPattern: '<a[^>]+href="([^"]+)"[^>]*>([^<]*第[^<]{1,60}章[^<]*)<\\/a>',
   contentPattern: '<div[^>]+id="content"[^>]*>([\\s\\S]*?)<\\/div>',
   bookCategoryPattern: '分类[：:]\\s*(?:<[^>]+>)*([^<]{1,20})',
+  // 封面：默认 CSS 模式兜底选首张 img 的 src（用户在智能添加/编辑器可改）
+  coverUrlPattern: 'css:img',
 } as const;
 
 /** 去标签 + 常见实体反转义（与生成代码里的 stripTags 保持同语义） */
@@ -140,6 +144,21 @@ export function pickHtml(pattern: string, html: string): string {
     return queryFirst(pattern, html)?.innerHTML ?? '';
   }
   return pickText(pattern, html);
+}
+
+/** 属性提取（封面 src / 任意 attr 用）：
+ *  - CSS 模式：取首个命中元素的 `attr` 属性（用于 img@src、a@href 等）
+ *  - 正则模式：捕获组 group（默认 1）即为属性值
+ *  返回绝对化后的 URL；CSS attr 不存在 / 正则未命中 → '' */
+export function pickAttr(pattern: string, html: string, attr: string, group = 1): string {
+  if (cssRulesEnabled() && isCssRule(pattern)) {
+    const el = queryFirst(pattern, html);
+    if (!el) return '';
+    return el.getAttribute(attr) ?? '';
+  }
+  const re = compile(pattern, 'i');
+  const m = re.exec(html);
+  return m ? (m[group] ?? '') : '';
 }
 
 /** CSS 单元素查询；选择器语法非法时抛「选择器无效」错误（UI 行内展示） */
@@ -314,6 +333,8 @@ export function generateSourceCode(
     searchMethod === 'POST_RAW' ? 'application/json' : 'application/x-www-form-urlencoded'
   );
   const searchRawBody = rules.searchRawBody ?? '';
+  // 封面规则：缺省走 DEFAULT_PATTERNS.coverUrlPattern('css:img')
+  const coverRule = rules.coverUrlPattern ?? DEFAULT_PATTERNS.coverUrlPattern;
   // searchBodyParams → JSON 数组 [["k","v"],...]
   const bodyParamsJson = j(searchBodyParams.map((p) => [p.key, p.value]));
   return `// @name        ${rules.siteName}
@@ -339,6 +360,7 @@ const BOOK_AUTHOR_RULE = ${j(rules.bookAuthorPattern)}
 const CHAPTER_ITEM_RULE = ${j(rules.chapterItemPattern)}
 const CONTENT_RULE = ${j(rules.contentPattern)}
 const BOOK_CATEGORY_RULE = ${j(rules.bookCategoryPattern ?? DEFAULT_PATTERNS.bookCategoryPattern)}
+const COVER_RULE = ${j(coverRule)}
 
 // ── 规则模式判定(css: 前缀 → CSS;含正则特征字符 → 正则;兜底 CSS) ──
 const REGEX_HINT_CHARS = '\\\\(){}?|^$*+'
@@ -433,6 +455,18 @@ async function extractHtml(rule, html, baseUrl) {
   return (m && m[1]) || ''
 }
 
+/** 属性提取(封面 src 用):CSS 取首个命中元素的 attr;正则捕获组 1 */
+async function extractAttr(rule, html, baseUrl, attr) {
+  if (isCssRule(rule)) {
+    const r = await legado.query(html, ruleSelector(rule), baseUrl)
+    const first = r && r[0]
+    if (!first || !first.attrs) return ''
+    return (first.attrs[attr] != null ? first.attrs[attr] : '') || ''
+  }
+  const m = new RegExp(rule, 'i').exec(html)
+  return (m && m[1]) || ''
+}
+
 /** 把搜索参数键值对序列化为 form-urlencoded 字符串。
  *  - value 支持 {keyword} / {page} 占位符:运行时由 search() 替换后 encodeURIComponent
  *  - 空 key 跳过(避免生成 "&value" 这类无效段) */
@@ -480,13 +514,15 @@ async function search(key, page) {
     .filter((it) => it.name && it.bookUrl)
 }
 
-/** 书籍详情 —— 返回书籍信息对象 {title, author, category, chapters} */
+/** 书籍详情 —— 返回书籍信息对象 {title, author, category, cover, chapters} */
 async function bookInfo(bookUrl) {
   const resp = await legado.http.get(bookUrl, HEADERS)
+  const cover = await extractAttr(COVER_RULE, resp, bookUrl, 'src')
   return {
     title: await extractText(BOOK_TITLE_RULE, resp, bookUrl),
     author: await extractText(BOOK_AUTHOR_RULE, resp, bookUrl),
     category: await extractText(BOOK_CATEGORY_RULE, resp, bookUrl),
+    cover: absUrl(cover, bookUrl),
     chapters: await chapterList(bookUrl),
   }
 }

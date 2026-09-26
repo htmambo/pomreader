@@ -169,9 +169,8 @@ export class BookService {
       title: resolved.title || oldBook.title,
       author: resolved.author || oldBook.author,
       kind: resolved.kind ?? oldBook.kind,
-      // ResolvedBook 当前不返回 coverImageUrl —— 换源时保留旧封面（避免立即丢失）
-      // 后续可由用户手动 "刷新封面" 拉取新源封面
-      coverImageUrl: oldBook.coverImageUrl,
+      // 新源带 coverImageUrl → 立刻采用;否则保留旧封面(避免立即丢失)
+      coverImageUrl: resolved.coverImageUrl || oldBook.coverImageUrl,
       sourceUrl: newUrl,
       bookSourceUuid,
       chapterCount: newChapters.length,

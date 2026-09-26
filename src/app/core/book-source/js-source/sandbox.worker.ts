@@ -279,6 +279,8 @@ interface QueryItem {
   html: string;
   href: string;
   links: QueryLink[];
+  /** 元素属性集合（key 已 lowercase）。img@src/a@href 也包含在内 —— 封面/链接属性提取用 */
+  attrs?: Record<string, string>;
 }
 
 type WorkerInbound =

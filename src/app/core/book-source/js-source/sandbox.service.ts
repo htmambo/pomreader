@@ -22,6 +22,8 @@ interface HttpProxyResponse { status: number; headers: Record<string, string>; b
 export interface QueryLink { href: string; text: string; }
 export interface QueryItem {
   tag: string; text: string; html: string; href: string; links: QueryLink[];
+  /** 元素属性集合（key 已 lowercase）。img@src/a@href 也包含在内 —— 封面/链接属性提取用 */
+  attrs?: Record<string, string>;
 }
 
 interface PendingCall {
@@ -459,6 +461,11 @@ export class SandboxService {
     };
     const isAnchor = el.tagName === 'A';
     const anchors = isAnchor ? [el] : Array.from(el.querySelectorAll('a[href]'));
+    // 元素全部属性（key 已 lowercase）—— 供 extractAttr(rule, html, attr) 提取 img@src 等
+    const attrs: Record<string, string> = {};
+    for (const a of Array.from(el.attributes)) {
+      attrs[a.name.toLowerCase()] = a.value;
+    }
     return {
       tag: el.tagName.toLowerCase(),
       text: (el.textContent ?? '').trim(),
@@ -467,6 +474,7 @@ export class SandboxService {
       links: anchors
         .map((a) => ({ href: abs(a.getAttribute('href')), text: (a.textContent ?? '').trim() }))
         .filter((l) => l.href),
+      attrs,
     };
   }
 }

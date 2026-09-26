@@ -44,6 +44,10 @@ interface BookInfoResult {
   category?: string;
   class?: string;
   type?: string;
+  // 封面 URL（智能添加生成的 bookInfo() 输出 cover;legado 标准 coverUrl / image 兜底）
+  cover?: string;
+  coverUrl?: string;
+  image?: string;
   // 章节
   chapters?: CatalogEntry[];
 }
@@ -77,6 +81,7 @@ export class JsSourceAdapter implements BookSourceAdapter {
       title: pickString(result, 'name', 'title', 'bookName') || this.name,
       author: pickString(result, 'author', 'writer') || '未知',
       kind: pickString(result, 'kind', 'genre', 'category', 'class', 'type'),
+      coverImageUrl: pickString(result, 'cover', 'coverUrl', 'image') || undefined,
       chapters: result.chapters.map((ch) => ({
         title: pickString(ch, 'name', 'title', 'bookName') || '未知章节',
         url: pickString(ch, 'url', 'bookUrl', 'link') || '',

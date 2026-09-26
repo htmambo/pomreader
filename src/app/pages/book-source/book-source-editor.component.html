@@ -116,6 +116,10 @@
         <input nz-input [ngModel]="ruleBookTitle()" (ngModelChange)="ruleBookTitle.set($event)" class="mono grow" />
       </div>
       <div class="field-row">
+        <span class="field-label">封面规则</span>
+        <input nz-input [ngModel]="ruleBookCover()" (ngModelChange)="ruleBookCover.set($event)" class="mono grow" placeholder="css:.book-img img  或正则 <img[^>]+src=&quot;([^&quot;]+)&quot;" />
+      </div>
+      <div class="field-row">
         <span class="field-label">作者规则</span>
         <input nz-input [ngModel]="ruleBookAuthor()" (ngModelChange)="ruleBookAuthor.set($event)" class="mono grow" />
       </div>

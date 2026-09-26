@@ -23,6 +23,7 @@ import {
   matchLinkItems,
   pickHtml,
   pickText,
+  pickAttr,
   stripTags,
   absUrl,
   randomTestKeyword,
@@ -199,6 +200,10 @@ function emptyStage(): StageState {
         <div class="field-row">
           <span class="field-label">标题规则</span>
           <input nz-input [(ngModel)]="rules.bookTitlePattern" class="mono grow" />
+        </div>
+        <div class="field-row">
+          <span class="field-label">封面规则</span>
+          <input nz-input [(ngModel)]="rules.coverUrlPattern" class="mono grow" placeholder="css:.book-img img  或正则如 <img[^>]+src=&quot;([^&quot;]+)&quot;" />
         </div>
         <div class="field-row">
           <span class="field-label">作者规则</span>
@@ -518,11 +523,14 @@ export class SourceSmartAddComponent {
       const title = stripTags(pickText(this.rules.bookTitlePattern, html));
       const author = stripTags(pickText(this.rules.bookAuthorPattern, html));
       const category = stripTags(pickText(this.rules.bookCategoryPattern ?? '', html));
+      const coverRaw = pickAttr(this.rules.coverUrlPattern ?? 'css:img', html, 'src');
+      const cover = coverRaw ? absUrl(coverRaw, url) : '';
       st.summary = title ? '✓ 详情提取成功' : '标题未命中 —— 请调整标题规则';
       st.samples = [
         { label: '标题', value: title || '（未命中）', clickable: false },
         { label: '作者', value: author || '（未命中）', clickable: false },
         { label: '分类', value: category || '（未命中）', clickable: false },
+        { label: '封面', value: cover || '（未命中）', clickable: false },
       ];
     } catch (e) {
       st.error = `✗ ${(e as Error).message}`;

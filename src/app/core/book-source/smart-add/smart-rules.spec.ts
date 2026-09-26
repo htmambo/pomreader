@@ -4,6 +4,7 @@ import {
   absUrl,
   pickText,
   pickHtml,
+  pickAttr,
   matchLinkItems,
   isCssRule,
   ruleSelector,
@@ -154,6 +155,19 @@ describe('CSS 选择器模式', () => {
     // CSS 命中 0 元素不抛异常,返回 ''
     expect(() => pickText('css:span.not-exist', SEARCH_HTML)).not.toThrow();
     expect(pickText('css:span.not-exist', SEARCH_HTML)).toBe('');
+  });
+  it('pickAttr: CSS 命中元素取指定属性（不绝对化 URL，由调用方按 base 解析）', () => {
+    expect(pickAttr('css:.list img', SEARCH_HTML, 'src'))
+      .toBe('/book/cover.pic/cover_5.jpg');
+    expect(pickAttr('css:.list img', SEARCH_HTML, 'alt')).toBe('');
+  });
+  it('pickAttr: 正则模式按捕获组 1', () => {
+    expect(pickAttr('<img[^>]+src="([^"]+)"', SEARCH_HTML, 'src'))
+      .toBe('/book/cover.pic/cover_5.jpg');
+  });
+  it('pickAttr: 未命中返回空串(不抛)', () => {
+    expect(pickAttr('css:span.not-exist', SEARCH_HTML, 'src')).toBe('');
+    expect(pickAttr('xxx.*', SEARCH_HTML, 'src')).toBe('');  // 正则未命中
   });
   it('选择器语法非法抛「选择器无效」', () => {
     expect(() => matchLinkItems('css:###', SEARCH_HTML, BASE)).toThrow('选择器无效');
@@ -436,5 +450,80 @@ describe('generateSourceCode — POST 搜索分支', () => {
     const { mod, calls } = compile(code);
     await mod.search('庆余年', '1');
     expect(calls[0].url).toBe(`https://www.example.com/api/${encodeURIComponent('庆余年')}/search`);
+  });
+});
+
+// ========== 封面规则（COVER_RULE / extractAttr） ==========
+
+describe('generateSourceCode — 封面规则分支', () => {
+  const BOOK_HTML =
+    '<html><body>' +
+    '<h1>测试书名</h1>' +
+    '<div class="pic"><img src="/uploads/cover.jpg" alt="cover"></div>' +
+    '<div>作者：测试作者</div>' +
+    '<div id="content">正文</div>' +
+    '<ul><li><a href="/c/1">第1章</a></li></ul>' +
+    '</body></html>';
+
+  const compile = (code: string) => {
+    const legado = {
+      http: { get: async () => BOOK_HTML },
+      query: async (html: string, selector: string, baseUrl: string) => {
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const abs = (h: string | null) => (h ? new URL(h, baseUrl).href : '');
+        return Array.from(doc.querySelectorAll(selector)).map((el) => {
+          const isA = el.tagName === 'A';
+          const anchors = isA ? [el] : Array.from(el.querySelectorAll('a[href]'));
+          const attrs: Record<string, string> = {};
+          for (const a of Array.from(el.attributes)) attrs[a.name.toLowerCase()] = a.value;
+          return {
+            tag: el.tagName.toLowerCase(),
+            text: (el.textContent ?? '').trim(),
+            html: el.innerHTML,
+            href: isA ? abs(el.getAttribute('href')) : '',
+            links: anchors.map((a) => ({ href: abs(a.getAttribute('href')), text: (a.textContent ?? '').trim() })).filter((l) => l.href),
+            attrs,
+          };
+        });
+      },
+    };
+    const factory = new Function('legado', `${code}\n;return { bookInfo };`);
+    return factory(legado) as {
+      bookInfo: (u: string) => Promise<{ title: string; author: string; cover: string; chapters: unknown[] }>;
+    };
+  };
+
+  const baseRules = {
+    siteName: 'cover-test',
+    searchPath: '/search?q={keyword}',
+    searchItemPattern: 'a',
+    bookTitlePattern: 'h1',
+    bookAuthorPattern: '作者',
+    chapterItemPattern: 'ul li a',
+    contentPattern: '#content',
+  };
+
+  it('缺省 COVER_RULE = "css:img"：bookInfo().cover 取首张 img 的 src（绝对化）', async () => {
+    const code = generateSourceCode('https://www.example.com/book/1', baseRules);
+    const mod = compile(code);
+    const r = await mod.bookInfo('https://www.example.com/book/1');
+    expect(r.title).toBe('测试书名');
+    expect(r.cover).toBe('https://www.example.com/uploads/cover.jpg');
+  });
+
+  it('用户自定义 COVER_RULE：CSS .pic img 也走 extractAttr 链路', async () => {
+    const rules = { ...baseRules, coverUrlPattern: 'css:.pic img' };
+    const code = generateSourceCode('https://www.example.com/book/1', rules);
+    const mod = compile(code);
+    const r = await mod.bookInfo('https://www.example.com/book/1');
+    expect(r.cover).toBe('https://www.example.com/uploads/cover.jpg');
+  });
+
+  it('正则模式 COVER_RULE：捕获组 1 即为封面 URL', async () => {
+    const rules = { ...baseRules, coverUrlPattern: '<div class="pic">\\s*<img[^>]+src="([^"]+)"' };
+    const code = generateSourceCode('https://www.example.com/book/1', rules);
+    const mod = compile(code);
+    const r = await mod.bookInfo('https://www.example.com/book/1');
+    expect(r.cover).toBe('https://www.example.com/uploads/cover.jpg');
   });
 });

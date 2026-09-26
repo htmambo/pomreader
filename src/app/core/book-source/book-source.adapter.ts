@@ -11,6 +11,8 @@ export interface ResolvedBook {
   author: string;
   /** 分类/题材（项目 Book.kind 对应；用于封面生成器的 kind 文案） */
   kind?: string;
+  /** 封面图片 URL（智能添加 / legado bookInfo 返回的 cover 字段；book.service 写入 Book.coverImageUrl） */
+  coverImageUrl?: string;
   chapters: CatalogEntry[];
 }
 
