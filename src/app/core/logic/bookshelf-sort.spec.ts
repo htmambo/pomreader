@@ -5,7 +5,6 @@ import { Book } from '../models/book.model';
 function book(partial: Partial<Book> & { id: string; title: string }): Book {
   return {
     author: 'a',
-    coverColor: '#000',
     chapterCount: 1,
     totalChars: 1,
     importedAt: '2026-01-01T00:00:00.000Z',

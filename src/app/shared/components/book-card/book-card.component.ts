@@ -22,7 +22,6 @@ import { CoverService } from '../../../core/cover/cover.service';
     <a
       class="book-card"
       [routerLink]="['/reader', book.id, 0]"
-      [style.--cover-color]="book.coverColor"
       [attr.aria-label]="book.title + ' — ' + book.author"
       (contextmenu)="onContextMenu($event)"
     >
@@ -30,32 +29,8 @@ import { CoverService } from '../../../core/cover/cover.service';
         <!-- 模式 1: 用户提供的封面图片 -->
         <img class="cover cover-img" [src]="book.coverImageUrl" [alt]="book.title" loading="lazy" />
       } @else {
-        <!-- 模式 2: 默认 SVG 装饰封面 -->
-        <svg class="cover" viewBox="0 0 100 140" preserveAspectRatio="none">
-          <rect width="100" height="140" fill="var(--cover-color)" />
-          <rect width="100" height="8" fill="rgba(255,255,255,.18)" />
-          <g stroke="rgba(255,255,255,.08)" stroke-width="0.6">
-            <line x1="-10" y1="135" x2="20" y2="105" />
-            <line x1="10" y1="135" x2="40" y2="105" />
-            <line x1="30" y1="135" x2="60" y2="105" />
-            <line x1="50" y1="135" x2="80" y2="105" />
-            <line x1="70" y1="135" x2="100" y2="105" />
-            <line x1="90" y1="135" x2="120" y2="105" />
-          </g>
-          <text x="50" y="60" text-anchor="middle" fill="rgba(255,255,255,.92)" font-size="10" font-weight="600">
-            {{ book.title }}
-          </text>
-          <text x="50" y="78" text-anchor="middle" fill="rgba(255,255,255,.72)" font-size="7">
-            {{ book.author }}
-          </text>
-          <text x="50" y="125" text-anchor="middle" fill="rgba(255,255,255,.55)" font-size="6">
-            @if (book.progress && book.progress.chapterIndex != null) {
-              {{ book.progress.chapterIndex + 1 }}/{{ book.chapterCount }}
-            } @else {
-              {{ book.chapterCount }} 章
-            }
-          </text>
-        </svg>
+        <!-- 模式 2: CSS-only 占位（主题自适应：背景 var(--pom-card)、边框 var(--pom-border)、文字 var(--pom-text-muted)） -->
+        <div class="cover cover-placeholder">暂无封面</div>
       }
       <div class="meta">
         <div class="title">{{ book.title }}</div>
@@ -111,7 +86,16 @@ import { CoverService } from '../../../core/cover/cover.service';
       }
       .cover-img {
         object-fit: cover;
-        background: var(--cover-color);
+      }
+      .cover-placeholder {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--pom-card);
+        color: var(--pom-text-muted);
+        border: 1px solid var(--pom-border);
+        font-size: var(--pom-font-size-sm, 13px);
+        letter-spacing: 0.5px;
       }
       .meta {
         margin-top: 8px;

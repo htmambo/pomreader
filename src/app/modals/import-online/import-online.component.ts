@@ -381,7 +381,6 @@ export class ImportOnlineComponent {
         title: bookTitle,
         author: bookAuthor,
         ...(r.kind ? { kind: r.kind } : {}),
-        coverColor: '#177ddc',
         // 解析器目前不返回源站封面 URL —— 随机选一款内置 SVG 模板作为兜底
         coverImageUrl: randomCoverFor({ title: bookTitle, author: bookAuthor, kind: r.kind }),
         chapterCount: r.chapters.length,

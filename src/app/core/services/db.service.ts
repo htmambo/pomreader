@@ -13,8 +13,7 @@ export interface BookDoc {
   author: string;
   /** 题材/类型（可选；用于封面生成器的 kind 文案） */
   kind?: string;
-  coverColor: string;
-  /** 封面图片 URL（可选）；为空时 book-card 用 SVG + 底色 fallback */
+  /** 封面图片 URL（可选）；为空时 book-card 显示「暂无封面」占位 */
   coverImageUrl?: string;
   chapterCount: number;
   totalChars: number;
@@ -109,7 +108,8 @@ export class DbService {
 
   async bookPut(book: Book): Promise<void> {
     // rest-sibling + spread 在前（N4 防御 + Round 5 顺序建议）
-    const { id, ...rest } = book;
+    // 主动 strip coverColor：老 PouchDB 数据若残留此字段，...rest 会带进新文档
+    const { id, coverColor: _cc, ...rest } = book as Book & { coverColor?: string };
     const _id = BOOK_PREFIX + id;
     const baseDoc: BookDoc = { ...rest, _id, type: 'book', id };
     await this.bookPutWithRetry(baseDoc, book.progress);
@@ -430,7 +430,8 @@ export class DbService {
 
   private bookDocToBook(doc: StoredBookDoc): Book {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { _id, _rev, type, ...rest } = doc;
+    // 主动 strip coverColor：老 PouchDB 数据若残留此字段，...rest 会带进返回的 Book
+    const { _id, _rev, type, coverColor: _cc, ...rest } = doc as StoredBookDoc & { coverColor?: string };
     return rest as Book;
   }
 

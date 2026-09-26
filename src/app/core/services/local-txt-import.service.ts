@@ -44,7 +44,6 @@ export class LocalTxtImportService {
       id,
       title: baseTitle,
       author: source === 'auto-import' ? '自动导入' : '本地导入',
-      coverColor: '#8b4513',
       // 本地 TXT 无源站封面 —— 随机选一款内置 SVG 模板生成
       coverImageUrl: randomCoverFor({ title: baseTitle, author: '本地导入' }),
       chapterCount: chs.length,
