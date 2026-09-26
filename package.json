@@ -18,9 +18,9 @@
     "e2e": "playwright test",
     "build:electron": "tsc -p electron/tsconfig.electron.json",
     "watch:electron": "tsc -p electron/tsconfig.electron.json --watch",
-    "electron": "npm run build:electron && electron .",
+    "electron": "npm run build && npm run build:electron && electron .",
     "dev": "concurrently -k -n web,ele \"ng build --watch --configuration development\" \"npm run watch:electron\" \"wait-on electron/www/browser/index.html && electron .\"",
-    "dev:file": "concurrently -k -n web,ele \"ng build --watch --configuration development\" \"npm run watch:electron\" \"wait-on electron/www/browser/index.html && electron .\"",
+    "dev:hmr": "concurrently -k -n web,ele \"ng serve --port 4200\" \"npm run watch:electron\" \"wait-on http://localhost:4200 && cross-env POM_DEV_URL=http://localhost:4200 electron .\"",
     "dist": "npm run build && npm run build:electron && electron-builder",
     "dist:linux": "npm run build && npm run build:electron && electron-builder --linux"
   },
