@@ -141,6 +141,16 @@ export class BookSourceListComponent {
     void this.router.navigateByUrl(`/book-sources/edit/${encodeURIComponent(src.fileName)}`);
   }
 
+  /** 跳转智能添加页（输入 URL → 启发式探测 → 规则面板 → 生成书源） */
+  openSmartAdd(): void {
+    void this.router.navigateByUrl('/book-sources/smart-add');
+  }
+
+  /** 跳转调试书源页（?source=fileName 预选 —— 调试页 load 时读 queryParam 预填选中项） */
+  openDebug(src: BookSourceMeta): void {
+    void this.router.navigate(['/book-sources/debug'], { queryParams: { source: src.fileName } });
+  }
+
   /** 打开 Legado 订阅源导入弹窗；导入完成后刷新列表 */
   openLegadoImport(): void {
     this.modal.create({

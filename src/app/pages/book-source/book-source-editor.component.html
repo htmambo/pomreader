@@ -1,194 +1,19 @@
 <app-page-header title="编辑书源" [subtitle]="fileName"></app-page-header>
 
+<!-- 规则编辑 + 测试面板 —— 与智能添加页共用 RulesPanelComponent -->
+<app-rules-panel #panel [baseUrl]="ruleBaseUrl()" [showTestBehaviorHint]="true" />
+
+<div class="actions full-row" style="margin-top: 8px;">
+  <button nz-button (click)="applyRulesToSource()">
+    <span nz-icon nzType="import"></span> 应用规则到源码
+  </button>
+  <button nz-button nzType="primary" (click)="generateCodeFromRules()">
+    <span nz-icon nzType="thunderbolt"></span> 从规则生成代码
+  </button>
+  <span class="muted">—— "应用"仅替换 12 个 const 值(保留 explore 等);"生成"用 generateSourceCode 覆盖整个源码(谨慎)</span>
+</div>
+
 <div class="editor">
-  <!-- 规则编辑面板(可折叠) —— 与智能添加页同 UI/label -->
-  @if (showRules()) {
-
-    <!-- 测试按钮行为说明：避免误以为「测试正文」能验证书源 JS 的 chapterContent -->
-    <nz-alert
-      class="full-row"
-      nzType="info"
-      nzShowIcon
-      nzMessage="本页 4 个「测试*」按钮均直接抓 HTML 用 CSS 选择器提取内容，仅验证 6 条规则的正确性"
-      nzDescription="不执行书源 JS 脚本里的 function search / bookInfo / chapterList / chapterContent 等函数。要测试 JS 代码（沙箱执行）→ 进入「调试书源」页；要验证完整链路（沙箱 + 章节缓存 + 入库 + 阅读）→ 在「书源搜索」点导入，进入阅读。"
-      style="margin-bottom: 12px;"
-    ></nz-alert>
-
-    <!-- 搜索规则(同智能添加) -->
-    <div class="stage-card">
-      <div class="stage-header">搜索</div>
-      <div class="field-row">
-        <span class="field-label">搜索路径</span>
-        <input nz-input [ngModel]="ruleSearchPath()" (ngModelChange)="ruleSearchPath.set($event)" class="mono grow" placeholder="/search?keyword={keyword}" />
-      </div>
-      <div class="field-row">
-        <span class="field-label">请求方式</span>
-        <nz-select [ngModel]="ruleSearchMethod()" (ngModelChange)="ruleSearchMethod.set($event)" class="grow">
-          <nz-option nzValue="GET" nzLabel="GET — URL 参数"></nz-option>
-          <nz-option nzValue="POST" nzLabel="POST — 表单 (form-urlencoded)"></nz-option>
-          <nz-option nzValue="POST_RAW" nzLabel="POST — 原始 body (JSON / XML)"></nz-option>
-        </nz-select>
-      </div>
-
-      <!-- POST 表单参数可视化编辑 -->
-      @if (ruleSearchMethod() === 'POST') {
-        <div class="field-row" style="margin-top: 8px;">
-          <span class="field-label">Content-Type</span>
-          <input nz-input [ngModel]="ruleSearchContentType()" (ngModelChange)="ruleSearchContentType.set($event)" class="mono grow" placeholder="application/x-www-form-urlencoded" />
-        </div>
-        <div class="body-params">
-          <div class="body-params-header">
-            <span class="body-params-title">表单参数</span>
-            <span class="body-params-hint">value 支持 &#123;keyword&#125; / &#123;page&#125; 占位符</span>
-            <button nz-button nzSize="small" nzType="dashed" (click)="addEditorBodyParam()">
-              <span nz-icon nzType="plus"></span> 添加参数
-            </button>
-          </div>
-          @for (p of ruleSearchBodyParams(); track $index; let i = $index) {
-            <div class="body-param-row">
-              <input nz-input [ngModel]="p.key" (ngModelChange)="ruleSearchBodyParams()[i].key = $event" placeholder="key" class="mono param-key" />
-              <span class="param-eq">=</span>
-              <input nz-input [ngModel]="p.value" (ngModelChange)="ruleSearchBodyParams()[i].value = $event" placeholder="value (支持 {keyword} / {page})" class="mono param-value" />
-              <button nz-button nzSize="small" nzType="text" nzDanger (click)="removeEditorBodyParam(i)" title="删除">
-                <span nz-icon nzType="delete"></span>
-              </button>
-            </div>
-          }
-          @if (!ruleSearchBodyParams().length) {
-            <div class="body-params-empty">暂无参数 —— 点击「添加参数」开始配置</div>
-          }
-        </div>
-      }
-
-      <!-- POST 原始 body 文本框 -->
-      @if (ruleSearchMethod() === 'POST_RAW') {
-        <div class="field-row" style="margin-top: 8px;">
-          <span class="field-label">Content-Type</span>
-          <input nz-input [ngModel]="ruleSearchContentType()" (ngModelChange)="ruleSearchContentType.set($event)" class="mono grow" placeholder="application/json" />
-        </div>
-        <div class="field-row" style="margin-top: 8px; align-items: flex-start;">
-          <span class="field-label">原始 Body</span>
-          <textarea
-            nz-input
-            [ngModel]="ruleSearchRawBody()"
-            (ngModelChange)="ruleSearchRawBody.set($event)"
-            class="mono grow raw-body"
-            rows="3"
-            placeholder='{"keyword":"{keyword}","page":{page}}'
-          ></textarea>
-        </div>
-      }
-
-      <div class="field-row">
-        <span class="field-label">列表项规则</span>
-        <input nz-input [ngModel]="ruleSearchItem()" (ngModelChange)="ruleSearchItem.set($event)" class="mono grow" />
-      </div>
-      <div class="field-row">
-        <span class="field-label">测试关键词</span>
-        <input nz-input [ngModel]="ruleKeyword()" (ngModelChange)="ruleKeyword.set($event)" class="keyword-input" />
-        <button nz-button nzSize="small" (click)="runTestSearch()" [disabled]="testRunning() !== null">
-          <span nz-icon [nzType]="testRunning() === 'search' ? 'loading' : 'play-circle'"></span> 测试搜索
-        </button>
-      </div>
-      @if (testSearchError()) { <div class="stage-error">{{ testSearchError() }}</div> }
-      @if (testSearchResult()) { <div class="stage-summary">{{ testSearchResult() }}</div> }
-      @if (testSearchSamples().length) {
-        <div class="sample-list">
-          @for (s of testSearchSamples(); track s.value) {
-            <div class="sample" (click)="ruleBookUrl.set(s.value)">
-              <span class="sample-label">{{ s.label }}</span>
-              <span class="sample-value">{{ s.value }}</span>
-            </div>
-          }
-        </div>
-      }
-    </div>
-
-    <!-- 详情规则(同智能添加) -->
-    <div class="stage-card">
-      <div class="stage-header">书籍详情</div>
-      <div class="field-row">
-        <span class="field-label">书籍 URL</span>
-        <input nz-input [ngModel]="ruleBookUrl()" (ngModelChange)="ruleBookUrl.set($event)" class="mono grow" placeholder="搜索测试命中后自动填充" />
-      </div>
-      <div class="field-row">
-        <span class="field-label">标题规则</span>
-        <input nz-input [ngModel]="ruleBookTitle()" (ngModelChange)="ruleBookTitle.set($event)" class="mono grow" />
-      </div>
-      <div class="field-row">
-        <span class="field-label">封面规则</span>
-        <input nz-input [ngModel]="ruleBookCover()" (ngModelChange)="ruleBookCover.set($event)" class="mono grow" placeholder="css:.book-img img  或正则 <img[^>]+src=&quot;([^&quot;]+)&quot;" />
-      </div>
-      <div class="field-row">
-        <span class="field-label">作者规则</span>
-        <input nz-input [ngModel]="ruleBookAuthor()" (ngModelChange)="ruleBookAuthor.set($event)" class="mono grow" />
-      </div>
-      <div class="field-row" style="margin-top: 12px;">
-        <span class="field-label">分类规则</span>
-        <input nz-input [ngModel]="ruleBookCategory()" (ngModelChange)="ruleBookCategory.set($event)" class="mono grow" placeholder="css:div.book-cat a 或 css:.meta-info:contains(&quot;分类&quot;)" />
-        <button nz-button nzSize="small" (click)="runTestInfo()" [disabled]="testRunning() !== null || !ruleBookUrl().trim()">
-          <span nz-icon [nzType]="testRunning() === 'info' ? 'loading' : 'play-circle'"></span> 测试详情
-        </button>
-      </div>
-      @if (testInfoError()) { <div class="stage-error">{{ testInfoError() }}</div> }
-      @if (testInfoResult()) { <div class="stage-summary">{{ testInfoResult() }}</div> }
-    </div>
-
-    <!-- 目录规则(同智能添加) -->
-    <div class="stage-card">
-      <div class="stage-header">目录</div>
-      <div class="field-row">
-        <span class="field-label">章节链接规则</span>
-        <input nz-input [ngModel]="ruleChapterItem()" (ngModelChange)="ruleChapterItem.set($event)" class="mono grow" />
-        <button nz-button nzSize="small" (click)="runTestChapter()" [disabled]="testRunning() !== null || !ruleBookUrl().trim()">
-          <span nz-icon [nzType]="testRunning() === 'chapter' ? 'loading' : 'play-circle'"></span> 测试目录
-        </button>
-      </div>
-      @if (testChapterError()) { <div class="stage-error">{{ testChapterError() }}</div> }
-      @if (testChapterResult()) { <div class="stage-summary">{{ testChapterResult() }}</div> }
-      @if (testChapterSamples().length) {
-        <div class="sample-list">
-          @for (s of testChapterSamples(); track s.value) {
-            <div class="sample" (click)="ruleChapterUrl.set(s.value)">
-              <span class="sample-label">{{ s.label }}</span>
-              <span class="sample-value">{{ s.value }}</span>
-            </div>
-          }
-        </div>
-      }
-    </div>
-
-    <!-- 正文规则(同智能添加) -->
-    <div class="stage-card">
-      <div class="stage-header">正文</div>
-      <div class="field-row">
-        <span class="field-label">章节 URL</span>
-        <input nz-input [ngModel]="ruleChapterUrl()" (ngModelChange)="ruleChapterUrl.set($event)" class="mono grow" placeholder="目录测试命中后自动填充" />
-      </div>
-      <div class="field-row">
-        <span class="field-label">正文规则</span>
-        <input nz-input [ngModel]="ruleContent()" (ngModelChange)="ruleContent.set($event)" class="mono grow" />
-        <button nz-button nzSize="small" (click)="runTestContent()" [disabled]="testRunning() !== null || !ruleChapterUrl().trim()">
-          <span nz-icon [nzType]="testRunning() === 'content' ? 'loading' : 'play-circle'"></span> 测试正文
-        </button>
-      </div>
-      @if (testContentError()) { <div class="stage-error">{{ testContentError() }}</div> }
-      @if (testContentResult()) { <div class="stage-summary">{{ testContentResult() }}</div> }
-      @if (testContentPreview()) { <pre class="content-preview">{{ testContentPreview() }}</pre> }
-    </div>
-
-    <!-- 应用按钮 -->
-    <div class="actions full-row" style="margin-top: 8px;">
-      <button nz-button (click)="applyRulesToSource()">
-        <span nz-icon nzType="import"></span> 应用规则到源码
-      </button>
-      <button nz-button nzType="primary" (click)="generateCodeFromRules()">
-        <span nz-icon nzType="thunderbolt"></span> 从规则生成代码
-      </button>
-      <span class="muted">—— "应用"仅替换 6 个 const 值(保留 explore 等);"生成"用 generateSourceCode 覆盖整个源码(谨慎)</span>
-    </div>
-  }
-
   <textarea
     class="source-text"
     rows="30"
@@ -202,12 +27,12 @@
   <div class="meta-preview">
     <h4>解析预览</h4>
     <pre>{{ metaPreview() }}</pre>
-    <button nz-button (click)="cancel()" [disabled]="saving()">取消</button>
-    <button nz-button nzType="primary" [disabled]="saving()" (click)="save()">
-      {{ saving() ? '保存中...' : '保存' }}
-    </button>
   </div>
+</div>
 
-  <div class="actions">
-  </div>
+<div class="actions">
+  <button nz-button (click)="cancel()" [disabled]="saving()">取消</button>
+  <button nz-button nzType="primary" [disabled]="saving()" (click)="save()">
+    {{ saving() ? '保存中...' : '保存' }}
+  </button>
 </div>

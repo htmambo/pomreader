@@ -2,7 +2,7 @@ import { Routes } from '@angular/router';
 
 /**
  * 书源管理页路由（实施计划 T-005）
- * - ''          → 列表页（已安装书源）
+ * - ''          → 列表页（书源列表）
  * - 'search'    → 书源搜索
  * - 'smart-add' → 智能添加
  * - 'debug'     → 调试书源

@@ -61,9 +61,8 @@ interface TabItem {
 })
 export class BookSourceTabsComponent {
   readonly tabs: TabItem[] = [
-    { path: '/book-sources', label: '已安装书源', exact: true },
+    { path: '/book-sources', label: '书源列表', exact: true },
     { path: '/book-sources/search', label: '书源搜索', exact: true },
-    { path: '/book-sources/smart-add', label: '智能添加', exact: true },
     { path: '/book-sources/debug', label: '调试书源', exact: true },
     { path: '/book-sources/test', label: '书源测试', exact: true },
   ];

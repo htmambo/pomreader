@@ -8,6 +8,9 @@
     [(ngModel)]="filter"
     class="filter-input"
   />
+  <button nz-button (click)="openSmartAdd()">
+    <span nz-icon nzType="thunderbolt"></span> 添加书源
+  </button>
   <button nz-button nzType="primary" (click)="openLegadoImport()">
     <span nz-icon nzType="import"></span> 导入 Legado 源
   </button>
@@ -34,6 +37,7 @@
         <div class="source-actions">
           <nz-switch [ngModel]="src.enabled" (ngModelChange)="toggle(src, $event)"></nz-switch>
           <button nz-button nzSize="small" (click)="openEditor(src)">编辑</button>
+          <button nz-button nzSize="small" (click)="openDebug(src)">调试</button>
           <button nz-button nzSize="small" nzDanger (click)="confirmDelete(src)">删除</button>
         </div>
       </div>
