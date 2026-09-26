@@ -4,7 +4,9 @@
 > 父仓（白虎阅读 macOS DMG Linux 重打包）的任务历史已留在原仓 `docs/Task/`。
 
 ## Active Tasks
-- _(无)_
+- 📋 [消除 Electron 主进程 IPC 模块循环依赖](Active/ELECTRON_IPC_CIRCULAR_DEP_PLAN.md) — 2026-09-27 记录，待实施
+  - `fetch-handler ↔ cf-guard ↔ render-handler` 互 import 成环，靠 CommonJS 惰性求值兜底
+  - 方案：抽 `isPrivateHost` 到叶子模块，梳理为单向 DAG；madge 验证 0 环
 
 ## Completed Tasks (Archive)
 
@@ -57,3 +59,8 @@
   - 用户样例 `dl.list dd a` 在渲染器与沙箱 codegen 两条路径均命中 `{name:'庆余年', url:'.../book/5/index.html'}`
   - Feature Flag: `localStorage['pom.cssRules']==='0'` 全量回退正则（运行时止血开关）；5MB 解析上限；`MAX_EXTRACT_LINKS = 500` 魔数提常量
   - 17 文件 / 175 用例全绿（含 8 条新增），双端 tsc 0；评审 Round 3 APPROVED
+- ✅ [移除 Book.coverColor + SVG fallback + CSS-only 占位](Archive/2026-09/COVER_COLOR_REMOVAL_PLAN.md) — Completed 2026-09-26, Archived 2026-09-27
+  - 删 `coverColor` 字段全链路：model / BookDoc / 2 处导入写入 / 编辑对话框 UI 整块 / seed JSON
+  - book-card SVG fallback → CSS-only 占位（"暂无封面"），主题 token 无硬编码色
+  - 老 PouchDB 数据兼容：`bookPut` / `bookDocToBook` 双路主动 strip coverColor
+  - 8 文件 +20/−148；vitest 219/219 全绿；外审 Round 1 APPROVED（5 条观察全部复核解决）

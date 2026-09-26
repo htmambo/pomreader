@@ -1,6 +1,6 @@
 # 移除 Book.coverColor + SVG fallback + 引入 CSS-only 占位
 
-**Status**: ✅ Implementation complete (2026-09-26) — pending archive
+**Status**: ✅ Archived (2026-09-27) — implementation complete
 **Owner**: Claude (Opus 5)
 
 ## 背景
