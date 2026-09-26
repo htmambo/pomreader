@@ -58,3 +58,11 @@
   align-items: center;
   flex-shrink: 0;
 }
+.state-block {
+  text-align: center;
+  padding: 48px 0;
+  color: var(--pom-text-muted, #888);
+}
+.state-block p {
+  margin-top: 12px;
+}

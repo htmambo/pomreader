@@ -9,7 +9,6 @@ import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzTagModule } from 'ng-zorro-antd/tag';
-import { BookSourceTabsComponent } from '../../shared/components/book-source-tabs/book-source-tabs.component';
 import { ToastService } from '../../core/services/toast.service';
 import { SandboxService, SandboxFn } from '../../core/book-source/js-source/sandbox.service';
 import { BookSourceMeta } from '../../core/book-source/js-source/source-meta.types';
@@ -53,11 +52,8 @@ interface RawItem {
     NzSelectModule,
     NzSpinModule,
     NzTagModule,
-    BookSourceTabsComponent,
   ],
   template: `
-    <app-book-source-tabs />
-
     <!-- 书源选择 -->
     <div class="row">
       <span class="row-label">书源：</span>

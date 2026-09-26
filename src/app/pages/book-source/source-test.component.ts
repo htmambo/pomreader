@@ -8,7 +8,6 @@ import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
-import { BookSourceTabsComponent } from '../../shared/components/book-source-tabs/book-source-tabs.component';
 import { ToastService } from '../../core/services/toast.service';
 import { BookSourceMeta } from '../../core/book-source/js-source/source-meta.types';
 import { SourceTestService, DEFAULT_TEST_KEYWORD, TestStepResult } from '../../core/book-source/source-test/source-test.service';
@@ -50,11 +49,8 @@ const STEP_LABELS: Record<string, string> = {
     NzRadioModule,
     NzSpinModule,
     NzEmptyModule,
-    BookSourceTabsComponent,
   ],
   template: `
-    <app-book-source-tabs />
-
     <div class="toolbar">
       <button nz-button nzType="primary" (click)="runAll()" [disabled]="running() || enabledSources().length === 0">
         <span nz-icon [nzType]="running() ? 'loading' : 'play-circle'"></span>

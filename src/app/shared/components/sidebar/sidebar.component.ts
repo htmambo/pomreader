@@ -6,8 +6,9 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 
 /**
  * Sidebar — 主导航
- * - 原有：书架 / 万能搜索 / 免责声明
- * - legado 迁移新增：书源管理（含搜索/智能添加/调试/测试） / 设置（缓存）
+ * - 书架 / 万能搜索 / 免责声明
+ * - 书源管理（分组子菜单：列表 / 搜索 / 调试 / 测试）
+ * - 设置（缓存）
  */
 @Component({
   selector: 'app-sidebar',
@@ -20,9 +21,26 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
         <span nz-icon nzType="book"></span>
         <span>书架</span>
       </li>
-      <li nz-menu-item [routerLink]="['/book-sources']" routerLinkActive="ant-menu-item-selected">
-        <span nz-icon nzType="book"></span>
-        <span>书源管理</span>
+      <li
+        nz-submenu
+        nzOpen
+        nzTitle="书源管理"
+        nzIcon="book"
+      >
+        <ul>
+          <li nz-menu-item [routerLink]="['/book-sources']" [routerLinkActiveOptions]="{ exact: true }" routerLinkActive="ant-menu-item-selected">
+            <span>书源列表</span>
+          </li>
+          <li nz-menu-item [routerLink]="['/book-sources/search']" [routerLinkActiveOptions]="{ exact: true }" routerLinkActive="ant-menu-item-selected">
+            <span>书源搜索</span>
+          </li>
+          <li nz-menu-item [routerLink]="['/book-sources/debug']" [routerLinkActiveOptions]="{ exact: true }" routerLinkActive="ant-menu-item-selected">
+            <span>调试书源</span>
+          </li>
+          <li nz-menu-item [routerLink]="['/book-sources/test']" [routerLinkActiveOptions]="{ exact: true }" routerLinkActive="ant-menu-item-selected">
+            <span>书源测试</span>
+          </li>
+        </ul>
       </li>
       <li nz-menu-item [routerLink]="['/search']" routerLinkActive="ant-menu-item-selected">
         <span nz-icon nzType="global"></span>

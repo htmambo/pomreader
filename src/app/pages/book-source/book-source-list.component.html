@@ -1,10 +1,9 @@
-<app-book-source-tabs />
-
 <div class="filter-bar">
   <input
     nz-input
     placeholder="搜索书源（名称 / 作者 / 标签）"
-    [(ngModel)]="filter"
+    [ngModel]="state.filter()"
+    (ngModelChange)="state.filter.set($event)"
     class="filter-input"
   />
   <button nz-button (click)="openSmartAdd()">
@@ -15,7 +14,9 @@
   </button>
 </div>
 
-@if (!loading() && sources().length === 0) {
+@if (firstLoading()) {
+  <div class="state-block"><nz-spin nzSimple></nz-spin><p>加载中...</p></div>
+} @else if (state.sources().length === 0) {
   <nz-empty nzNotFoundContent="暂无书源"></nz-empty>
 } @else {
   <div class="source-list">

@@ -6,7 +6,6 @@ import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
-import { BookSourceTabsComponent } from '../../shared/components/book-source-tabs/book-source-tabs.component';
 import { RulesPanelComponent } from '../../shared/components/rules-panel/rules-panel.component';
 import { ToastService } from '../../core/services/toast.service';
 import { PageFetcherService } from '../../core/book-source/page-fetcher.service';
@@ -39,11 +38,15 @@ type PomSave = {
     NzIconModule,
     NzInputModule,
     NzAlertModule,
-    BookSourceTabsComponent,
     RulesPanelComponent,
   ],
   template: `
-    <app-book-source-tabs />
+    <!-- 返回书源列表（移除内嵌 Tab 后替代入口） -->
+    <div class="back-row">
+      <button nz-button nzSize="small" (click)="back()">
+        <span nz-icon nzType="arrow-left"></span> 返回书源列表
+      </button>
+    </div>
 
     <!-- ① URL 输入 -->
     <div class="url-row">
@@ -105,6 +108,7 @@ type PomSave = {
   styles: [
     `
       .url-row { display: flex; gap: 8px; margin-bottom: 12px; }
+.back-row { margin-bottom: 8px; }
       .grow { flex: 1; min-width: 0; }
       .mb { margin-bottom: 12px; }
       .summary { display: flex; gap: 32px; padding: 10px 12px; border: 1px solid var(--pom-border); border-radius: 4px; background: var(--pom-card); margin-bottom: 14px; }
@@ -192,6 +196,11 @@ export class SourceSmartAddComponent {
     this.error.set('');
     this.chapterLinkCount.set(0);
     this.panel()?.reset();
+  }
+
+  /** 返回书源列表（移除内嵌 Tab 后智能添加页需手动返回） */
+  back(): void {
+    void this.router.navigateByUrl('/book-sources');
   }
 
   /** 保存书源;andDebug=true 时跳调试页预选该书源 */
