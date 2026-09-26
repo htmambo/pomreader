@@ -315,3 +315,31 @@ describe('BookSourceRegistry · getByUuid / findJsSourceAdapterByUrl', () => {
     expect(result).toBe(first);
   });
 });
+
+describe('BookSourceRegistry · matchByUrl（换源弹窗"猜当前源"用）', () => {
+  it('专用适配器优先：笔趣阁 URL 命中 XbiqugeAdapter', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    reg.register(new XbiqugeAdapter());
+    reg.register(new HeuristicAdapter());
+    expect(reg.matchByUrl('https://www.xbiquge.cc/book/9231/')?.name).toBe('笔趣阁');
+  });
+
+  it('JS 书源按 hostPattern 命中（老数据无 bookSourceUuid 时的回退路径）', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    const a = makeMockJsAdapter('hetushu', 'uuid-hetushu-001', 'https://www.hetushu.com');
+    reg.registerJsAdapter(a);
+    expect(reg.matchByUrl('https://www.hetushu.com/book/5763/')).toBe(a);
+  });
+
+  it('无专用/JS 命中时兜底 HeuristicAdapter', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    reg.register(new HeuristicAdapter());
+    expect(reg.matchByUrl('https://unknown-site.example/book/1/')?.name).toBe('通用（启发式）');
+  });
+
+  it('空 url / 无任何适配器可匹配时返回 undefined（不抛错）', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    expect(reg.matchByUrl('')).toBeUndefined();
+    expect(reg.matchByUrl('https://unknown-site.example/')).toBeUndefined();
+  });
+});

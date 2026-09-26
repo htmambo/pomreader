@@ -16,7 +16,7 @@ import {
   SourceSearchHit,
 } from '../../../core/book-source/import-via-source.service';
 import { FetchError, FETCH_ERROR_MESSAGES } from '../../../core/book-source/fetch-error';
-import { ResolvedBook } from '../../../core/book-source/book-source.adapter';
+import { BookSourceAdapter, ResolvedBook } from '../../../core/book-source/book-source.adapter';
 import { BookService } from '../../../core/services/book.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { UNIVERSAL_BOOK_SOURCE_UUID } from '../../../core/book-source/book-source.constants';
@@ -26,6 +26,24 @@ interface ChangeBookSourceData {
 }
 
 type ChangeMode = 'url' | 'keyword';
+
+/**
+ * 解析书的当前书源适配器（换源弹窗默认选中 + 当前源标签共用）：
+ * 1. bookSourceUuid 精确锚定（JS 书源导入的书）
+ * 2. uuid 缺失 / UNIVERSAL / 源已删除或停用 → 按 sourceUrl 回退匹配
+ *    （覆盖内置专用源导入、uuid 锚定功能上线前的老数据、启发式兜底导入的书）
+ */
+export function resolveCurrentSourceAdapter(
+  book: Pick<Book, 'bookSourceUuid' | 'sourceUrl'>,
+  registry: Pick<BookSourceRegistry, 'getByUuid' | 'matchByUrl'>,
+): BookSourceAdapter | undefined {
+  const uuid = book.bookSourceUuid;
+  if (uuid && uuid !== UNIVERSAL_BOOK_SOURCE_UUID) {
+    const byUuid = registry.getByUuid(uuid);
+    if (byUuid) return byUuid;
+  }
+  return book.sourceUrl ? registry.matchByUrl(book.sourceUrl) : undefined;
+}
 
 /**
  * 换源弹窗（modal 内容组件）
@@ -318,12 +336,13 @@ export class ChangeBookSourceDialogComponent {
   readonly resolved = signal<ResolvedBook | null>(null);
   readonly errorMsg = signal('');
 
-  /** 当前源显示文案（书源 UUID → 书源 name；universal fallback 显示「万能搜索」） */
+  /** 当前源显示文案：uuid 锚定优先，落空按 sourceUrl 回退匹配；都落空再区分 未知/万能搜索 */
   currentSourceLabel(): string {
+    const adapter = resolveCurrentSourceAdapter(this.data.book, this.registry);
+    if (adapter) return adapter.name;
     const uuid = this.data.book.bookSourceUuid;
-    if (!uuid || uuid === UNIVERSAL_BOOK_SOURCE_UUID) return '万能搜索 / 启发式';
-    const adapter = this.registry.getByUuid(uuid);
-    return adapter?.name ?? `未知（${uuid.slice(0, 8)}…）`;
+    if (uuid && uuid !== UNIVERSAL_BOOK_SOURCE_UUID) return `未知（${uuid.slice(0, 8)}…）`;
+    return '万能搜索 / 启发式';
   }
 
   /** 新旧章节数差（正数 = 新增章数；负数 = 减少章数；0 = 一致） */
@@ -339,14 +358,12 @@ export class ChangeBookSourceDialogComponent {
 
   constructor() {
     this.sources.set(this.importViaSource.supportedSources());
-    // 默认书源：若当前书的 bookSourceUuid 能解析到具体书源，优先选中
-    const uuid = this.data.book.bookSourceUuid;
-    if (uuid && uuid !== UNIVERSAL_BOOK_SOURCE_UUID) {
-      const adapter = this.registry.getByUuid(uuid);
-      if (adapter) {
-        this.selectedSourceModel = adapter.name;
-        this.selectedSource.set(adapter.name);
-      }
+    // 默认书源：bookSourceUuid 锚定优先；落空时按 sourceUrl 回退匹配
+    // （覆盖内置专用源导入、uuid 功能上线前的老数据、原书源已删除/停用等场景）
+    const adapter = resolveCurrentSourceAdapter(this.data.book, this.registry);
+    if (adapter && this.sources().includes(adapter.name)) {
+      this.selectedSourceModel = adapter.name;
+      this.selectedSource.set(adapter.name);
     }
     // 默认关键词：旧书名
     this.keyword = this.data.book.title;

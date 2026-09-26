@@ -116,6 +116,19 @@ export class BookSourceRegistry {
     throw new FetchError('unsupported-source');
   }
 
+  /**
+   * 按 URL 匹配适配器（resolve 的不抛错公开版）：专用 > JS 书源 > 启发式兜底。
+   * 供 UI 层"猜当前源"（如换源弹窗默认选中）；不想命中启发式兜底的调用方需自行过滤。
+   */
+  matchByUrl(url: string): BookSourceAdapter | undefined {
+    if (!url) return undefined;
+    try {
+      return this.resolve(url);
+    } catch {
+      return undefined;
+    }
+  }
+
   async fetchCatalog(url: string): Promise<ResolvedBook> {
     return this.resolve(url).fetchCatalog(url, this.requireFetcher());
   }
