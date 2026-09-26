@@ -4,9 +4,7 @@
 > 父仓（白虎阅读 macOS DMG Linux 重打包）的任务历史已留在原仓 `docs/Task/`。
 
 ## Active Tasks
-- 📋 [消除 Electron 主进程 IPC 模块循环依赖](Active/ELECTRON_IPC_CIRCULAR_DEP_PLAN.md) — 2026-09-27 记录，待实施
-  - `fetch-handler ↔ cf-guard ↔ render-handler` 互 import 成环，靠 CommonJS 惰性求值兜底
-  - 方案：抽 `isPrivateHost` 到叶子模块，梳理为单向 DAG；madge 验证 0 环
+_(无)_
 
 ## Completed Tasks (Archive)
 
@@ -64,3 +62,9 @@
   - book-card SVG fallback → CSS-only 占位（"暂无封面"），主题 token 无硬编码色
   - 老 PouchDB 数据兼容：`bookPut` / `bookDocToBook` 双路主动 strip coverColor
   - 8 文件 +20/−148；vitest 219/219 全绿；外审 Round 1 APPROVED（5 条观察全部复核解决）
+- ✅ [消除 Electron 主进程 IPC 模块循环依赖](Archive/2026-09/ELECTRON_IPC_CIRCULAR_DEP_PLAN.md) — Completed & Archived 2026-09-27
+  - 抽 `isPrivateHost` (SSRF 私网判定) 到叶子模块 `net-guard.ts`，0 ipc 依赖
+  - `fetch-handler.ts` / `render-handler.ts` / `cf-guard.ts` / `safe-net.ts` 改 import net-guard；cf-guard 头部"循环 import"警告改为单向依赖说明
+  - `cfFetchHtmlHidden` 链路（render-handler ↔ fetch-handler）暂保留，仅移除过时注释 — 后续若 ESM 迁移再做
+  - 自写 DFS 循环检测 0 环（15 文件）；`npm run build:electron` tsc 0 错误；`npm test` 325/325 全绿
+  - 手动冒烟（GUI 环境，未在本机跑）：在线导入走 fetch→render 降级链路、CF 站点 Tier 1 过盾、`scripts/e2e-cf-guard.cjs`
