@@ -40,11 +40,32 @@ export function ruleSelector(pattern: string): string {
   return p.toLowerCase().startsWith(CSS_PREFIX) ? p.slice(CSS_PREFIX.length).trim() : p;
 }
 
+/** 搜索请求方式：GET 走 searchPath 模板；POST/POST_RAW 走 searchBodyParams / searchRawBody */
+export type SearchMethod = 'GET' | 'POST' | 'POST_RAW';
+
+/** 单条表单参数（POST form-urlencoded 模式） */
+export interface SearchBodyParam {
+  key: string;
+  /** value 支持 {keyword} / {page} 占位符（运行时由生成的 search() 替换 + encodeURIComponent） */
+  value: string;
+}
+
 /** 可视化规则：每个字段直接参数化生成的书源代码 */
 export interface SourceRules {
   siteName: string;
-  /** 搜索路径模板，含 {keyword}（可选 {page}）占位 */
+  /** 搜索路径模板：
+   *  - GET：含 {keyword}（可选 {page}）占位
+   *  - POST / POST_RAW：作为 POST 请求的 URL（不含 query string）；支持 {keyword} / {page} 占位 */
   searchPath: string;
+  /** 搜索请求方式：缺省 'GET'（向后兼容） */
+  searchMethod?: SearchMethod;
+  /** POST form-urlencoded 模式的参数列表（searchMethod='POST'） */
+  searchBodyParams?: SearchBodyParam[];
+  /** POST Content-Type 头：searchMethod='POST' 时缺省 'application/x-www-form-urlencoded'；
+   *  searchMethod='POST_RAW' 时由用户自填（如 application/json / text/xml） */
+  searchContentType?: string;
+  /** POST 原始 body 文本（searchMethod='POST_RAW'）：支持 {keyword} / {page} 占位符（不做 encode，由用户自管） */
+  searchRawBody?: string;
   /** 搜索结果列表项规则（CSS 选择器，或正则：捕获组 1=书籍 URL，2=书名） */
   searchItemPattern: string;
   /** 详情页标题规则（CSS 选择器，或正则：捕获组 1=标题） */
@@ -224,12 +245,36 @@ export function detectContentPattern(html: string): string {
   return DEFAULT_PATTERNS.contentPattern;
 }
 
+/**
+ * POST form-urlencoded body 构造（智能添加页 testSearch 与生成的 search() 同源实现）
+ * - value 支持 {keyword} / {page} 占位符 → 替换后 encodeURIComponent
+ * - 空 key 跳过（避免生成 "&value" 这类无效段）
+ */
+export function buildFormBody(
+  params: Array<{ key: string; value: string }>,
+  keyword: string,
+  page: number | string,
+): string {
+  const parts: string[] = [];
+  for (const p of params) {
+    if (!p.key) continue;
+    const replaced = String(p.value ?? '')
+      .replace('{keyword}', keyword)
+      .replace('{page}', String(page));
+    parts.push(`${encodeURIComponent(p.key)}=${encodeURIComponent(replaced)}`);
+  }
+  return parts.join('&');
+}
+
 /** 抓取到的首页 HTML → 初始规则集 */
 export function buildRules(url: string, html: string): SourceRules {
   const host = new URL(url).hostname.replace(/^www\./, '');
   return {
     siteName: detectSiteName(html, host),
     searchPath: detectSearchPath(html),
+    searchMethod: 'GET',
+    searchBodyParams: [],
+    searchContentType: 'application/x-www-form-urlencoded',
     searchItemPattern: DEFAULT_PATTERNS.searchItemPattern,
     bookTitlePattern: DEFAULT_PATTERNS.bookTitlePattern,
     bookAuthorPattern: DEFAULT_PATTERNS.bookAuthorPattern,
@@ -247,7 +292,7 @@ export function buildRules(url: string, html: string): SourceRules {
  * 双模式(CSS/正则)判定在生成的代码运行时进行(与 isCssRule 同一套启发式)
  *
  * @param url 主站 origin（用于 absUrl 解析）
- * @param rules 6 条可视化规则 + searchPath
+ * @param rules 6 条可视化规则 + searchPath + 搜索方式(method/body)
  * @param options.headers 注入每个 HTTP 请求的自定义 header（legado JSON 导入用）
  */
 export function generateSourceCode(
@@ -262,6 +307,15 @@ export function generateSourceCode(
   const description = headers && Object.keys(headers).length
     ? `由 legado JSON 订阅源导入（${u.host}），含自定义 HTTP header`
     : `由智能添加从 ${u.host} 生成(CSS 选择器/正则双模式,可在智能添加页继续调规则)`;
+  // 搜索方式 + body 相关常量 —— 向后兼容:缺省 GET
+  const searchMethod: SearchMethod = rules.searchMethod ?? 'GET';
+  const searchBodyParams: SearchBodyParam[] = rules.searchBodyParams ?? [];
+  const searchContentType = rules.searchContentType ?? (
+    searchMethod === 'POST_RAW' ? 'application/json' : 'application/x-www-form-urlencoded'
+  );
+  const searchRawBody = rules.searchRawBody ?? '';
+  // searchBodyParams → JSON 数组 [["k","v"],...]
+  const bodyParamsJson = j(searchBodyParams.map((p) => [p.key, p.value]));
   return `// @name        ${rules.siteName}
 // @version     1.1.0
 // @author      智能添加
@@ -275,6 +329,10 @@ const HEADERS = ${headersJson}
 
 // ── 规则(可视化编辑的值,直接改这里也生效;CSS 选择器或正则均可,含特殊符号的选择器加 css: 前缀) ──
 const SEARCH_PATH = ${j(rules.searchPath)}
+const SEARCH_METHOD = ${j(searchMethod)}
+const SEARCH_BODY_PARAMS = ${bodyParamsJson}
+const SEARCH_CONTENT_TYPE = ${j(searchContentType)}
+const SEARCH_RAW_BODY = ${j(searchRawBody)}
 const SEARCH_ITEM_RULE = ${j(rules.searchItemPattern)}
 const BOOK_TITLE_RULE = ${j(rules.bookTitlePattern)}
 const BOOK_AUTHOR_RULE = ${j(rules.bookAuthorPattern)}
@@ -375,13 +433,44 @@ async function extractHtml(rule, html, baseUrl) {
   return (m && m[1]) || ''
 }
 
-/** 搜索 —— 返回搜索结果列表 [{name, author, bookUrl}] */
+/** 把搜索参数键值对序列化为 form-urlencoded 字符串。
+ *  - value 支持 {keyword} / {page} 占位符:运行时由 search() 替换后 encodeURIComponent
+ *  - 空 key 跳过(避免生成 "&value" 这类无效段) */
+function buildFormBody(params, key, page) {
+  const parts = []
+  for (const [k, v] of params) {
+    if (!k) continue
+    const replaced = String(v || '')
+      .replace('{keyword}', key)
+      .replace('{page}', String(page))
+    parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(replaced))
+  }
+  return parts.join('&')
+}
+
+/** 搜索 —— 返回搜索结果列表 [{name, author, bookUrl}]
+ *  - GET(SEARCH_METHOD='GET'):searchPath 作为 URL 模板,走 legado.http.get
+ *  - POST(SEARCH_METHOD='POST'):searchPath 作为 POST URL,body 由 SEARCH_BODY_PARAMS 拼 form-urlencoded
+ *  - POST_RAW(SEARCH_METHOD='POST_RAW'):body 由 SEARCH_RAW_BODY 模板替换 {keyword}/{page} 后原文 POST */
 async function search(key, page) {
-  const path = SEARCH_PATH
-    .replace('{keyword}', encodeURIComponent(key))
-    .replace('{page}', page)
-  const pageUrl = absUrl(path, BASE_URL)
-  const resp = await legado.http.get(pageUrl, HEADERS)
+  let resp, pageUrl
+  if (SEARCH_METHOD === 'POST') {
+    pageUrl = absUrl(SEARCH_PATH.replace('{keyword}', encodeURIComponent(key)).replace('{page}', String(page)), BASE_URL)
+    const body = buildFormBody(SEARCH_BODY_PARAMS, key, page)
+    resp = await legado.http.post(pageUrl, body, Object.assign({}, HEADERS, { 'Content-Type': SEARCH_CONTENT_TYPE }))
+  } else if (SEARCH_METHOD === 'POST_RAW') {
+    pageUrl = absUrl(SEARCH_PATH.replace('{keyword}', encodeURIComponent(key)).replace('{page}', String(page)), BASE_URL)
+    const body = SEARCH_RAW_BODY
+      .replace('{keyword}', key)
+      .replace('{page}', String(page))
+    resp = await legado.http.post(pageUrl, body, Object.assign({}, HEADERS, { 'Content-Type': SEARCH_CONTENT_TYPE }))
+  } else {
+    const path = SEARCH_PATH
+      .replace('{keyword}', encodeURIComponent(key))
+      .replace('{page}', page)
+    pageUrl = absUrl(path, BASE_URL)
+    resp = await legado.http.get(pageUrl, HEADERS)
+  }
   return (await extractLinks(SEARCH_ITEM_RULE, resp, pageUrl))
     .map((it) => ({
       name: it.name,

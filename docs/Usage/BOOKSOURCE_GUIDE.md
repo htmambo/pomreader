@@ -80,7 +80,25 @@ const resp = legado.http.request({                   // 完整请求
 - `Object.freeze(Object.prototype); Object.freeze(Array.prototype); Object.freeze(Function.prototype); Object.freeze(globalThis);`
 - classic worker（非 module），阻止书源 `import('https://evil.com/...')` 绕网络出口
 
-## 5. 示例
+## 5. 搜索请求方式（智能添加 / 编辑源可视化）
+
+智能添加页与编辑源页的「搜索」面板支持三种请求方式，生成的代码自带对应分支：
+
+| 方式 | `SEARCH_METHOD` | 说明 |
+|---|---|---|
+| **GET**（默认） | `'GET'` | `searchPath` 作为 URL 模板（`{keyword}` 自动 `encodeURIComponent`），走 `legado.http.get` |
+| **POST — 表单** | `'POST'` | `searchPath` 为 POST URL；body 由 `SEARCH_BODY_PARAMS`（`[["k","v"],...]`）按 form-urlencoded 拼接，value 支持 `{keyword}` / `{page}` 占位符 |
+| **POST — 原始 body** | `'POST_RAW'` | `searchPath` 为 POST URL；body 用 `SEARCH_RAW_BODY` 模板原文替换 `{keyword}` / `{page}`（不自动 encode，由用户自管） |
+
+POST 模式可视化编辑示例（智能添加 / 编辑源页 UI 同步）：
+
+- **请求方式**：GET / POST / POST_RAW 单选
+- **POST 表单模式**：Content-Type 输入框 + 键值对列表（key / value 两列）+ 「添加参数 / 删除」按钮
+- **POST 原始 body 模式**：Content-Type 输入框 + Body 文本框
+
+生成的 `search()` 函数会根据 `SEARCH_METHOD` 分支走对应逻辑（GET / POST / POST_RAW 互不影响）。
+
+## 6. 示例
 
 ```javascript
 // @name          示例书源
@@ -113,7 +131,7 @@ function chapterContent(chapterUrl) {
 }
 ```
 
-## 6. 安装与调试
+## 7. 安装与调试
 
 1. 把书源 `.js` 文件保存到 `<userData>/booksources/`
 2. 启动应用 → 打开「书源管理」页（`/book-sources`）
@@ -121,7 +139,7 @@ function chapterContent(chapterUrl) {
 4. 点击「编辑」修改源码，「保存」即时生效（IPC 触发 `invalidate`）
 5. 「删除」前有二次确认
 
-## 7. 故障排查
+## 8. 故障排查
 
 | 现象 | 可能原因 | 排查方式 |
 |---|---|---|

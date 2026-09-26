@@ -6,6 +6,7 @@ import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
+import { NzSelectModule } from 'ng-zorro-antd/select';
 import { PageHeaderComponent } from '../../shared/components/page-header/page-header.component';
 import { BookSourceTabsComponent } from '../../shared/components/book-source-tabs/book-source-tabs.component';
 import { ToastService } from '../../core/services/toast.service';
@@ -13,7 +14,10 @@ import { PageFetcherService } from '../../core/book-source/page-fetcher.service'
 import {
   SourceRules,
   MatchedItem,
+  SearchMethod,
+  SearchBodyParam,
   buildRules,
+  buildFormBody,
   countChapterLinks,
   generateSourceCode,
   matchLinkItems,
@@ -58,6 +62,7 @@ function emptyStage(): StageState {
     NzIconModule,
     NzInputModule,
     NzAlertModule,
+    NzSelectModule,
     PageHeaderComponent,
     BookSourceTabsComponent,
   ],
@@ -100,8 +105,65 @@ function emptyStage(): StageState {
         <div class="stage-header">搜索</div>
         <div class="field-row">
           <span class="field-label">搜索路径</span>
-          <input nz-input [(ngModel)]="rules.searchPath" class="mono grow" placeholder="/search?keyword={keyword}" />
+          <input nz-input [(ngModel)]="rules.searchPath" class="mono grow" [placeholder]="searchPathPlaceholder()" />
         </div>
+        <div class="field-row">
+          <span class="field-label">请求方式</span>
+          <nz-select [(ngModel)]="rules.searchMethod" class="grow">
+            <nz-option nzValue="GET" nzLabel="GET — URL 参数"></nz-option>
+            <nz-option nzValue="POST" nzLabel="POST — 表单 (form-urlencoded)"></nz-option>
+            <nz-option nzValue="POST_RAW" nzLabel="POST — 原始 body (JSON / XML)"></nz-option>
+          </nz-select>
+        </div>
+
+        <!-- POST 表单参数可视化编辑（仅 POST 模式） -->
+        @if (rules.searchMethod === 'POST') {
+          <div class="field-row" style="margin-top: 8px;">
+            <span class="field-label">Content-Type</span>
+            <input nz-input [(ngModel)]="rules.searchContentType" class="mono grow" placeholder="application/x-www-form-urlencoded" />
+          </div>
+          <div class="body-params">
+            <div class="body-params-header">
+              <span class="body-params-title">表单参数</span>
+              <span class="body-params-hint">value 支持 &#123;keyword&#125; / &#123;page&#125; 占位符,运行时自动 encode</span>
+              <button nz-button nzSize="small" nzType="dashed" (click)="addBodyParam()">
+                <span nz-icon nzType="plus"></span> 添加参数
+              </button>
+            </div>
+            @for (p of rules.searchBodyParams; track $index; let i = $index) {
+              <div class="body-param-row">
+                <input nz-input [ngModel]="p.key" (ngModelChange)="updateBodyParam(i, 'key', $event)" placeholder="key" class="mono param-key" />
+                <span class="param-eq">=</span>
+                <input nz-input [ngModel]="p.value" (ngModelChange)="updateBodyParam(i, 'value', $event)" placeholder="value (支持 {keyword} / {page})" class="mono param-value" />
+                <button nz-button nzSize="small" nzType="text" nzDanger (click)="removeBodyParam(i)" title="删除">
+                  <span nz-icon nzType="delete"></span>
+                </button>
+              </div>
+            }
+            @if (!(rules.searchBodyParams && rules.searchBodyParams.length)) {
+              <div class="body-params-empty">暂无参数 —— 点击「添加参数」开始配置</div>
+            }
+          </div>
+        }
+
+        <!-- POST 原始 body 文本框（仅 POST_RAW 模式） -->
+        @if (rules.searchMethod === 'POST_RAW') {
+          <div class="field-row" style="margin-top: 8px;">
+            <span class="field-label">Content-Type</span>
+            <input nz-input [(ngModel)]="rules.searchContentType" class="mono grow" placeholder="application/json" />
+          </div>
+          <div class="field-row" style="margin-top: 8px; align-items: flex-start;">
+            <span class="field-label">原始 Body</span>
+            <textarea
+              nz-input
+              [(ngModel)]="rules.searchRawBody"
+              class="mono grow raw-body"
+              rows="3"
+              placeholder='{"keyword":"{keyword}","page":{page}}'
+            ></textarea>
+          </div>
+        }
+
         <div class="field-row">
           <span class="field-label">列表项规则</span>
           <input nz-input [(ngModel)]="rules.searchItemPattern" class="mono grow" />
@@ -251,6 +313,7 @@ function emptyStage(): StageState {
         border: 1px solid var(--pom-border); border-radius: 4px; padding: 12px;
       }
       .actions { display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end; }
+      /* POST 表单参数编辑区样式见 src/styles/rules-panel.scss(全局共享) */
     `,
   ],
 })
@@ -262,7 +325,28 @@ export class SourceSmartAddComponent {
   targetUrl = '';
   fileName = '';
   code = '';
-  rules: SourceRules | null = null;
+  /**
+   * 规则对象 —— 读写都走 getter/setter，setter 用 Proxy 包裹以自动同步代码：
+   * 用户在 UI 改任意字段（如切换 method / 加 body 参数）→ Proxy set trap → regenerate()
+   * 否则会出现"配置变了但代码还是老的"，保存出去实际跑的不是用户配置的逻辑
+   * （典型 bug：智能添加测 POST 正常但保存后调试书源仍按 GET 跑 → 404）
+   *
+   * 例外：数组的 push/splice/index-set 不会触发 Proxy 的 rules set trap（mutate 内部不冒泡），
+   * 所以 addBodyParam / removeBodyParam / updateBodyParam 显式调 regenerate()。
+   */
+  private _rules: SourceRules | null = null;
+  get rules(): SourceRules | null { return this._rules; }
+  set rules(v: SourceRules | null) {
+    if (!v) { this._rules = null; return; }
+    const self = this;
+    this._rules = new Proxy(v, {
+      set(target, prop, value) {
+        (target as unknown as Record<string | symbol, unknown>)[prop] = value;
+        self.regenerate();
+        return true;
+      },
+    });
+  }
   chapterLinkCount = 0;
 
   /** 规则测试状态（各阶段独立） */
@@ -346,6 +430,41 @@ export class SourceSmartAddComponent {
     }
   }
 
+  // ── POST 表单参数编辑 ────────────────────────────────────────
+
+  /** 添加一条表单参数（POST 模式） */
+  addBodyParam(): void {
+    if (!this.rules) return;
+    if (!this.rules.searchBodyParams) this.rules.searchBodyParams = [];
+    this.rules.searchBodyParams.push({ key: '', value: '' });
+    // 数组 push 不触发 Proxy rules set trap → 显式重生成
+    this.regenerate();
+  }
+
+  /** 删除指定下标的表单参数 */
+  removeBodyParam(index: number): void {
+    if (!this.rules?.searchBodyParams) return;
+    this.rules.searchBodyParams.splice(index, 1);
+    // 数组 splice 不触发 Proxy rules set trap → 显式重生成
+    this.regenerate();
+  }
+
+  /** 修改单条表单参数的 key 或 value（模板 ngModelChange 调用） */
+  updateBodyParam(index: number, field: 'key' | 'value', value: string): void {
+    if (!this.rules?.searchBodyParams?.[index]) return;
+    this.rules.searchBodyParams[index][field] = value;
+    // 数组元素属性写入不触发 Proxy rules set trap（是 params 自身的修改）→ 显式重生成
+    this.regenerate();
+  }
+
+  /** 搜索路径 placeholder 随请求方式变化(GET 强调 ?keyword=,POST 强调 /api/...) */
+  searchPathPlaceholder(): string {
+    const m = this.rules?.searchMethod ?? 'GET';
+    if (m === 'GET') return '/search?keyword={keyword}';
+    if (m === 'POST') return '/api/search';
+    return '/api/search';
+  }
+
   // ── 逐阶段真实命中测试 ─────────────────────────────────────────
 
   async testSearch(): Promise<void> {
@@ -353,11 +472,28 @@ export class SourceSmartAddComponent {
     const st = (this.stage.search = emptyStage());
     st.running = true;
     try {
-      const path = this.rules.searchPath
-        .replace('{keyword}', encodeURIComponent(this.testKeyword.trim()))
+      const method: SearchMethod = this.rules.searchMethod ?? 'GET';
+      const keyword = this.testKeyword.trim();
+      // URL 模板替换({keyword} 在 GET 走 encode,POST/POST_RAW 也 encode 保持一致)
+      const urlPath = this.rules.searchPath
+        .replace('{keyword}', encodeURIComponent(keyword))
         .replace('{page}', '1');
-      const url = absUrl(path, this.targetUrl.trim());
-      const html = await this.fetcher.fetchHtml(url);
+      const url = absUrl(urlPath, this.targetUrl.trim());
+      let html: string;
+      if (method === 'GET') {
+        html = await this.fetcher.fetchHtml(url);
+      } else if (method === 'POST') {
+        const body = buildFormBody(this.rules.searchBodyParams ?? [], keyword, 1);
+        const ct = this.rules.searchContentType ?? 'application/x-www-form-urlencoded';
+        html = await this.fetcher.fetchPost(url, body, ct);
+      } else {
+        // POST_RAW —— body 原文替换,不做 encode
+        const body = (this.rules.searchRawBody ?? '')
+          .replace('{keyword}', keyword)
+          .replace('{page}', '1');
+        const ct = this.rules.searchContentType ?? 'application/json';
+        html = await this.fetcher.fetchPost(url, body, ct);
+      }
       const items = matchLinkItems(this.rules.searchItemPattern, html, url, 100);
       st.summary = items.length > 0 ? `✓ 命中 ${items.length} 条（点击样本填充书籍 URL，列表可滚动）` : '未命中任何结果 —— 请调整列表项规则';
       st.samples = items.map((it: MatchedItem) => ({ label: it.name || '（无书名）', value: it.url, clickable: true }));

@@ -94,3 +94,16 @@
   grid-column: 1 / -1;   /* 从第一列开始,跨越到最后一列之后 —— 不论父容器几列都生效 */
 }
 
+/* POST 搜索请求方式 / 表单参数 / 原始 body（智能添加页 + 编辑源页共用） */
+.body-params { margin-top: 4px; padding: 8px 10px; border: 1px dashed var(--pom-border); border-radius: 4px; background: var(--pom-bg); }
+:host-context(.dark) .body-params { background: #262626; border-color: #444; }
+.body-params-header { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+.body-params-title { color: var(--pom-text); font-size: 13px; font-weight: 500; }
+.body-params-hint { color: var(--pom-text-muted); font-size: 11px; flex: 1; min-width: 0; }
+.body-params-empty { color: var(--pom-text-muted); font-size: 12px; padding: 8px; text-align: center; }
+.body-param-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+.param-key { width: 140px; font-family: Consolas, monospace; }
+.param-eq { color: var(--pom-text-muted); font-family: Consolas, monospace; }
+.param-value { flex: 1; font-family: Consolas, monospace; }
+.raw-body { font-family: Consolas, monospace; font-size: 12px; min-height: 60px; }
+

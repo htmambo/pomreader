@@ -129,4 +129,37 @@ export class PageFetcherService implements PageFetcher {
     // 浏览器环境无渲染抓取能力
     throw new FetchError('source-unavailable');
   }
+
+  /**
+   * POST 抓取 —— 智能添加页 testSearch 用,主进程走 booksourceHttpProxy（safe-net 已支持任意 method/body）
+   * 失败时同样弹 Tier 2 CF 引导（cf-challenge hook 由 SandboxService 注册,此处复用同一错误码契约）
+   */
+  async fetchPost(
+    url: string,
+    body: string | null,
+    contentType?: string,
+    extraHeaders?: Record<string, string>,
+  ): Promise<string> {
+    const proxy = window.pomAPI?.booksourceHttpProxy;
+    if (proxy) {
+      const headers: Record<string, string> = {};
+      if (contentType) headers['Content-Type'] = contentType;
+      if (extraHeaders) Object.assign(headers, extraHeaders);
+      const res = await this.inZone(proxy({ url, method: 'POST', headers, body: body ?? null }));
+      if (res.cfChallenge) throw new FetchError('cf-challenge');
+      if (res.status >= 400) throw new FetchError('parse-failed', `HTTP ${res.status}`);
+      return res.body ?? '';
+    }
+    // 浏览器 dev 降级：用 fetch 直发 POST（受 CORS 限制,失败提示书源可达性）
+    try {
+      const headers: Record<string, string> = { ...(extraHeaders ?? {}) };
+      if (contentType) headers['Content-Type'] = contentType;
+      const r = await fetch(url, { method: 'POST', headers, body: body ?? undefined });
+      if (!r.ok) throw new FetchError('parse-failed', `HTTP ${r.status}`);
+      return await r.text();
+    } catch (e) {
+      if (e instanceof FetchError) throw e;
+      throw new FetchError('source-unavailable', (e as Error).message);
+    }
+  }
 }

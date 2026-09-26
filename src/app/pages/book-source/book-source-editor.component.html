@@ -22,6 +22,64 @@
         <input nz-input [ngModel]="ruleSearchPath()" (ngModelChange)="ruleSearchPath.set($event)" class="mono grow" placeholder="/search?keyword={keyword}" />
       </div>
       <div class="field-row">
+        <span class="field-label">请求方式</span>
+        <nz-select [ngModel]="ruleSearchMethod()" (ngModelChange)="ruleSearchMethod.set($event)" class="grow">
+          <nz-option nzValue="GET" nzLabel="GET — URL 参数"></nz-option>
+          <nz-option nzValue="POST" nzLabel="POST — 表单 (form-urlencoded)"></nz-option>
+          <nz-option nzValue="POST_RAW" nzLabel="POST — 原始 body (JSON / XML)"></nz-option>
+        </nz-select>
+      </div>
+
+      <!-- POST 表单参数可视化编辑 -->
+      @if (ruleSearchMethod() === 'POST') {
+        <div class="field-row" style="margin-top: 8px;">
+          <span class="field-label">Content-Type</span>
+          <input nz-input [ngModel]="ruleSearchContentType()" (ngModelChange)="ruleSearchContentType.set($event)" class="mono grow" placeholder="application/x-www-form-urlencoded" />
+        </div>
+        <div class="body-params">
+          <div class="body-params-header">
+            <span class="body-params-title">表单参数</span>
+            <span class="body-params-hint">value 支持 &#123;keyword&#125; / &#123;page&#125; 占位符</span>
+            <button nz-button nzSize="small" nzType="dashed" (click)="addEditorBodyParam()">
+              <span nz-icon nzType="plus"></span> 添加参数
+            </button>
+          </div>
+          @for (p of ruleSearchBodyParams(); track $index; let i = $index) {
+            <div class="body-param-row">
+              <input nz-input [ngModel]="p.key" (ngModelChange)="ruleSearchBodyParams()[i].key = $event" placeholder="key" class="mono param-key" />
+              <span class="param-eq">=</span>
+              <input nz-input [ngModel]="p.value" (ngModelChange)="ruleSearchBodyParams()[i].value = $event" placeholder="value (支持 {keyword} / {page})" class="mono param-value" />
+              <button nz-button nzSize="small" nzType="text" nzDanger (click)="removeEditorBodyParam(i)" title="删除">
+                <span nz-icon nzType="delete"></span>
+              </button>
+            </div>
+          }
+          @if (!ruleSearchBodyParams().length) {
+            <div class="body-params-empty">暂无参数 —— 点击「添加参数」开始配置</div>
+          }
+        </div>
+      }
+
+      <!-- POST 原始 body 文本框 -->
+      @if (ruleSearchMethod() === 'POST_RAW') {
+        <div class="field-row" style="margin-top: 8px;">
+          <span class="field-label">Content-Type</span>
+          <input nz-input [ngModel]="ruleSearchContentType()" (ngModelChange)="ruleSearchContentType.set($event)" class="mono grow" placeholder="application/json" />
+        </div>
+        <div class="field-row" style="margin-top: 8px; align-items: flex-start;">
+          <span class="field-label">原始 Body</span>
+          <textarea
+            nz-input
+            [ngModel]="ruleSearchRawBody()"
+            (ngModelChange)="ruleSearchRawBody.set($event)"
+            class="mono grow raw-body"
+            rows="3"
+            placeholder='{"keyword":"{keyword}","page":{page}}'
+          ></textarea>
+        </div>
+      }
+
+      <div class="field-row">
         <span class="field-label">列表项规则</span>
         <input nz-input [ngModel]="ruleSearchItem()" (ngModelChange)="ruleSearchItem.set($event)" class="mono grow" />
       </div>

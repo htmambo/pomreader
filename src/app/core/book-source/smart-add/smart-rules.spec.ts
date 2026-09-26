@@ -12,6 +12,7 @@ import {
   detectContentPattern,
   buildRules,
   generateSourceCode,
+  buildFormBody,
   DEFAULT_PATTERNS,
 } from './smart-rules';
 
@@ -288,5 +289,152 @@ describe('generateSourceCode — CSS 规则运行时（mock legado 模拟沙箱�
     expect(res).toEqual([
       { name: '庆余年', author: '', bookUrl: 'https://www.example.com/book/5/index.html' },
     ]);
+  });
+});
+
+// ========== POST 搜索支持 ==========
+
+describe('buildFormBody', () => {
+  it('空参数返回空字符串', () => {
+    expect(buildFormBody([], 'k', 1)).toBe('');
+  });
+  it('空 key 跳过（避免生成 "&value" 这类无效段）', () => {
+    expect(buildFormBody([{ key: '', value: 'x' }], 'k', 1)).toBe('');
+    expect(buildFormBody([{ key: 'q', value: 'k' }, { key: '', value: 'y' }], 'k', 1)).toBe('q=k');
+  });
+  it('{keyword}/{page} 占位符替换 + encodeURIComponent', () => {
+    const out = buildFormBody(
+      [{ key: 'q', value: '{keyword}' }, { key: 'p', value: '{page}' }],
+      '庆余年',
+      2,
+    );
+    expect(out).toBe(`q=${encodeURIComponent('庆余年')}&p=2`);
+  });
+  it('value 含 & = 空格等特殊字符也正确 encode', () => {
+    const out = buildFormBody([{ key: 'k', value: 'a&b=c d' }], 'x', 1);
+    expect(out).toBe('k=a%26b%3Dc%20d');
+  });
+});
+
+describe('generateSourceCode — POST 搜索分支', () => {
+  const SEARCH_HTML =
+    '<dl class="list"><dd><a href="/book/5/index.html"><img src="c.jpg"></a>' +
+    '<h4><a href="/book/5/index.html">庆余年</a></h4></dd></dl>';
+
+  /** 与 GET 用例同款：mock legado 注入 http.post + query */
+  const compile = (code: string) => {
+    const calls: { method: string; url: string; body: unknown; headers: unknown }[] = [];
+    const legado = {
+      http: {
+        get: async (url: string, headers?: Record<string, string>) => {
+          calls.push({ method: 'GET', url, body: undefined, headers });
+          return SEARCH_HTML;
+        },
+        post: async (url: string, body: string | null, headers?: Record<string, string>) => {
+          calls.push({ method: 'POST', url, body, headers });
+          return SEARCH_HTML;
+        },
+      },
+      query: async (html: string, selector: string, baseUrl: string) => {
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const abs = (h: string | null) => (h ? new URL(h, baseUrl).href : '');
+        return Array.from(doc.querySelectorAll(selector)).map((el) => {
+          const isA = el.tagName === 'A';
+          const anchors = isA ? [el] : Array.from(el.querySelectorAll('a[href]'));
+          return {
+            tag: el.tagName.toLowerCase(),
+            text: (el.textContent ?? '').trim(),
+            html: el.innerHTML,
+            href: isA ? abs(el.getAttribute('href')) : '',
+            links: anchors
+              .map((a) => ({ href: abs(a.getAttribute('href')), text: (a.textContent ?? '').trim() }))
+              .filter((l) => l.href),
+          };
+        });
+      },
+    };
+    const factory = new Function(
+      'legado',
+      `${code}\n;return { search, bookInfo, chapterContent };`,
+    );
+    return {
+      mod: factory(legado) as {
+        search: (k: string, p: string) => Promise<Array<{ name: string; bookUrl: string }>>;
+      },
+      calls,
+    };
+  };
+
+  const baseRules = {
+    siteName: 'POST 站',
+    searchPath: '/api/search',
+    searchItemPattern: 'dl.list dd a',
+    bookTitlePattern: 'h1',
+    bookAuthorPattern: '作者',
+    chapterItemPattern: 'ul li a',
+    contentPattern: '#content',
+  };
+
+  it('POST form 模式：调用 legado.http.post，body 是 urlencoded，Content-Type 头正确', async () => {
+    const rules = {
+      ...baseRules,
+      searchMethod: 'POST' as const,
+      searchBodyParams: [
+        { key: 'q', value: '{keyword}' },
+        { key: 'page', value: '{page}' },
+      ],
+      searchContentType: 'application/x-www-form-urlencoded',
+    };
+    const code = generateSourceCode('https://www.example.com/', rules);
+    const { mod, calls } = compile(code);
+    const res = await mod.search('庆余年', '1');
+    expect(res).toEqual([
+      { name: '庆余年', author: '', bookUrl: 'https://www.example.com/book/5/index.html' },
+    ]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe('POST');
+    expect(calls[0].url).toBe('https://www.example.com/api/search');
+    expect(calls[0].body).toBe(`q=${encodeURIComponent('庆余年')}&page=1`);
+    const headers = calls[0].headers as Record<string, string>;
+    expect(headers['Content-Type']).toBe('application/x-www-form-urlencoded');
+  });
+
+  it('POST_RAW 模式：body 不做 encode，原文模板替换', async () => {
+    const rules = {
+      ...baseRules,
+      searchMethod: 'POST_RAW' as const,
+      searchRawBody: '{"kw":"{keyword}","page":{page}}',
+      searchContentType: 'application/json',
+    };
+    const code = generateSourceCode('https://www.example.com/', rules);
+    const { mod, calls } = compile(code);
+    await mod.search('hi', '2');
+    expect(calls[0].method).toBe('POST');
+    // POST_RAW 不 encode —— 原文模板替换
+    expect(calls[0].body).toBe('{"kw":"hi","page":2}');
+    const headers = calls[0].headers as Record<string, string>;
+    expect(headers['Content-Type']).toBe('application/json');
+  });
+
+  it('GET 模式（向后兼容）：searchMethod 缺省时走 legado.http.get', async () => {
+    const rules = { ...baseRules, searchPath: '/api/search?q={keyword}&page={page}' };
+    const code = generateSourceCode('https://www.example.com/', rules);
+    const { mod, calls } = compile(code);
+    await mod.search('x', '1');
+    expect(calls[0].method).toBe('GET');
+    expect(calls[0].url).toBe('https://www.example.com/api/search?q=x&page=1');
+  });
+
+  it('POST 模式：searchPath 含 {keyword} 占位符也被替换进 URL', async () => {
+    const rules = {
+      ...baseRules,
+      searchPath: '/api/{keyword}/search',
+      searchMethod: 'POST' as const,
+      searchBodyParams: [],
+    };
+    const code = generateSourceCode('https://www.example.com/', rules);
+    const { mod, calls } = compile(code);
+    await mod.search('庆余年', '1');
+    expect(calls[0].url).toBe(`https://www.example.com/api/${encodeURIComponent('庆余年')}/search`);
   });
 });
