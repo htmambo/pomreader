@@ -42,7 +42,8 @@
               }
             ],
             "styles": [
-              "src/styles.scss"
+              "src/styles.scss",
+              "src/styles/rules-panel.scss"
             ],
             "scripts": [],
             "allowedCommonJsDependencies": [

@@ -1,6 +1,122 @@
 <app-page-header title="编辑书源" [subtitle]="isNew() ? '新建' : fileName"></app-page-header>
 
 <div class="editor">
+  <!-- 规则编辑面板(可折叠) —— 与智能添加页同 UI/label -->
+  @if (showRules()) {
+
+    <!-- 搜索规则(同智能添加) -->
+    <div class="stage-card">
+      <div class="stage-header">搜索</div>
+      <div class="field-row">
+        <span class="field-label">搜索路径</span>
+        <input nz-input [ngModel]="ruleSearchPath()" (ngModelChange)="ruleSearchPath.set($event)" class="mono grow" placeholder="/search?keyword={keyword}" />
+      </div>
+      <div class="field-row">
+        <span class="field-label">列表项规则</span>
+        <input nz-input [ngModel]="ruleSearchItem()" (ngModelChange)="ruleSearchItem.set($event)" class="mono grow" />
+      </div>
+      <div class="field-row">
+        <span class="field-label">测试关键词</span>
+        <input nz-input [ngModel]="ruleKeyword()" (ngModelChange)="ruleKeyword.set($event)" class="keyword-input" />
+        <button nz-button nzSize="small" (click)="runTestSearch()" [disabled]="testRunning() !== null">
+          <span nz-icon [nzType]="testRunning() === 'search' ? 'loading' : 'play-circle'"></span> 测试搜索
+        </button>
+      </div>
+      @if (testSearchError()) { <div class="stage-error">{{ testSearchError() }}</div> }
+      @if (testSearchResult()) { <div class="stage-summary">{{ testSearchResult() }}</div> }
+      @if (testSearchSamples().length) {
+        <div class="sample-list">
+          @for (s of testSearchSamples(); track s.value) {
+            <div class="sample" (click)="ruleBookUrl.set(s.value)">
+              <span class="sample-label">{{ s.label }}</span>
+              <span class="sample-value">{{ s.value }}</span>
+            </div>
+          }
+        </div>
+      }
+    </div>
+
+    <!-- 详情规则(同智能添加) -->
+    <div class="stage-card">
+      <div class="stage-header">书籍详情</div>
+      <div class="field-row">
+        <span class="field-label">书籍 URL</span>
+        <input nz-input [ngModel]="ruleBookUrl()" (ngModelChange)="ruleBookUrl.set($event)" class="mono grow" placeholder="搜索测试命中后自动填充" />
+      </div>
+      <div class="field-row">
+        <span class="field-label">标题规则</span>
+        <input nz-input [ngModel]="ruleBookTitle()" (ngModelChange)="ruleBookTitle.set($event)" class="mono grow" />
+      </div>
+      <div class="field-row">
+        <span class="field-label">作者规则</span>
+        <input nz-input [ngModel]="ruleBookAuthor()" (ngModelChange)="ruleBookAuthor.set($event)" class="mono grow" />
+      </div>
+      <div class="field-row" style="margin-top: 12px;">
+        <span class="field-label">分类规则</span>
+        <input nz-input [ngModel]="ruleBookCategory()" (ngModelChange)="ruleBookCategory.set($event)" class="mono grow" placeholder="css:div.book-cat a 或 css:.meta-info:contains(&quot;分类&quot;)" />
+        <button nz-button nzSize="small" (click)="runTestInfo()" [disabled]="testRunning() !== null || !ruleBookUrl().trim()">
+          <span nz-icon [nzType]="testRunning() === 'info' ? 'loading' : 'play-circle'"></span> 测试详情
+        </button>
+      </div>
+      @if (testInfoError()) { <div class="stage-error">{{ testInfoError() }}</div> }
+      @if (testInfoResult()) { <div class="stage-summary">{{ testInfoResult() }}</div> }
+    </div>
+
+    <!-- 目录规则(同智能添加) -->
+    <div class="stage-card">
+      <div class="stage-header">目录</div>
+      <div class="field-row">
+        <span class="field-label">章节链接规则</span>
+        <input nz-input [ngModel]="ruleChapterItem()" (ngModelChange)="ruleChapterItem.set($event)" class="mono grow" />
+        <button nz-button nzSize="small" (click)="runTestChapter()" [disabled]="testRunning() !== null || !ruleBookUrl().trim()">
+          <span nz-icon [nzType]="testRunning() === 'chapter' ? 'loading' : 'play-circle'"></span> 测试目录
+        </button>
+      </div>
+      @if (testChapterError()) { <div class="stage-error">{{ testChapterError() }}</div> }
+      @if (testChapterResult()) { <div class="stage-summary">{{ testChapterResult() }}</div> }
+      @if (testChapterSamples().length) {
+        <div class="sample-list">
+          @for (s of testChapterSamples(); track s.value) {
+            <div class="sample" (click)="ruleChapterUrl.set(s.value)">
+              <span class="sample-label">{{ s.label }}</span>
+              <span class="sample-value">{{ s.value }}</span>
+            </div>
+          }
+        </div>
+      }
+    </div>
+
+    <!-- 正文规则(同智能添加) -->
+    <div class="stage-card">
+      <div class="stage-header">正文</div>
+      <div class="field-row">
+        <span class="field-label">章节 URL</span>
+        <input nz-input [ngModel]="ruleChapterUrl()" (ngModelChange)="ruleChapterUrl.set($event)" class="mono grow" placeholder="目录测试命中后自动填充" />
+      </div>
+      <div class="field-row">
+        <span class="field-label">正文规则</span>
+        <input nz-input [ngModel]="ruleContent()" (ngModelChange)="ruleContent.set($event)" class="mono grow" />
+        <button nz-button nzSize="small" (click)="runTestContent()" [disabled]="testRunning() !== null || !ruleChapterUrl().trim()">
+          <span nz-icon [nzType]="testRunning() === 'content' ? 'loading' : 'play-circle'"></span> 测试正文
+        </button>
+      </div>
+      @if (testContentError()) { <div class="stage-error">{{ testContentError() }}</div> }
+      @if (testContentResult()) { <div class="stage-summary">{{ testContentResult() }}</div> }
+      @if (testContentPreview()) { <pre class="content-preview">{{ testContentPreview() }}</pre> }
+    </div>
+
+    <!-- 应用按钮 -->
+    <div class="actions full-row" style="margin-top: 8px;">
+      <button nz-button (click)="applyRulesToSource()">
+        <span nz-icon nzType="import"></span> 应用规则到源码
+      </button>
+      <button nz-button nzType="primary" (click)="generateCodeFromRules()">
+        <span nz-icon nzType="thunderbolt"></span> 从规则生成代码
+      </button>
+      <span class="muted">—— "应用"仅替换 6 个 const 值(保留 explore 等);"生成"用 generateSourceCode 覆盖整个源码(谨慎)</span>
+    </div>
+  }
+
   <textarea
     class="source-text"
     rows="30"
@@ -14,9 +130,6 @@
   <div class="meta-preview">
     <h4>解析预览</h4>
     <pre>{{ metaPreview() }}</pre>
-  </div>
-
-  <div class="actions">
     <button nz-button (click)="cancel()" [disabled]="saving()">取消</button>
     @if (isNew()) {
       <button nz-button (click)="showAiDialog.set(true)" [disabled]="saving()">
@@ -26,6 +139,9 @@
     <button nz-button nzType="primary" [disabled]="saving()" (click)="save()">
       {{ saving() ? '保存中...' : '保存' }}
     </button>
+  </div>
+
+  <div class="actions">
   </div>
 </div>
 

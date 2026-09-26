@@ -35,3 +35,9 @@
   - DOM 移动：panel-wrap 移出 `.left-bar-list` 消除 painting layer 调度延迟
   - `ngOnInit` 优先 `getChaptersSync` 同步读缓存 + 浅拷贝 + 销毁守卫
   - 目录打开时 `effect` 监听 + `setTimeout(0)` 等 DOM 渲染 + `chapters()/chapterIndex()` 直接算 scrollTop
+- ✅ [智能添加支持 CSS 选择器规则](Archive/2026-09/SMART_ADD_CSS_SELECTOR_PLAN.md) — Completed 2026-09-26
+  - 6 个规则字段全链路 CSS/正则双模式：`smart-rules.ts` 启发式判定（`css:` 前缀 + REGEX_HINT 兜底）→ UI hint → codegen 注入 `isCssRule`/`ruleSelector` → 沙箱 `legado.query` 主线程代理（detached DOMParser）
+  - CSS 模式按 URL 去重（非空 name 优先），同一书籍的 img/书名/按钮三同 href 收敛为 1 条
+  - 用户样例 `dl.list dd a` 在渲染器与沙箱 codegen 两条路径均命中 `{name:'庆余年', url:'.../book/5/index.html'}`
+  - Feature Flag: `localStorage['pom.cssRules']==='0'` 全量回退正则（运行时止血开关）；5MB 解析上限；`MAX_EXTRACT_LINKS = 500` 魔数提常量
+  - 17 文件 / 175 用例全绿（含 8 条新增），双端 tsc 0；评审 Round 3 APPROVED

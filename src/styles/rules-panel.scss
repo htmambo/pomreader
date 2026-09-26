@@ -1,0 +1,96 @@
+/* 规则面板共享样式 —— 智能添加页 + 编辑源页共用
+ * 任何修改只需改这里,两处 UI 自动同步
+ * 暗色适配用 :host-context(.dark) —— 触发由应用根节点的 .dark 类切换
+ */
+
+/* 规则块标题行 + 提示文字 */
+.rules-title { font-size: 14px; font-weight: 600; color: var(--pom-text); margin: 4px 0 10px; display: flex; align-items: baseline; gap: 10px; }
+.rules-hint { font-size: 12px; font-weight: 400; color: var(--pom-text-muted); }
+:host-context(.dark) .rules-hint { color: #aaa; }
+
+/* 阶段卡片(搜索/详情/目录/正文) */
+.stage-card {
+  border: 1px solid var(--pom-border);
+  border-radius: 4px;
+  background: var(--pom-card);
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+:host-context(.dark) .stage-card { background: #1f1f1f; border-color: #444; }
+.stage-header { font-size: 13px; font-weight: 600; color: var(--pom-accent); margin-bottom: 8px; }
+
+/* 输入行:label 84px 右对齐 + 控件 */
+.field-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.field-row:last-child { margin-bottom: 0; }
+.field-label { width: 84px; flex-shrink: 0; color: var(--pom-text-muted); font-size: 12px; text-align: right; }
+.keyword-input { width: 140px; }
+
+/* 单色等宽字体(规则串) */
+.mono { font-family: 'Cascadia Code', Consolas, monospace; font-size: 12px; }
+
+/* 测试输出样式 */
+.stage-error { color: #ff4d4f; font-size: 12px; margin: 6px 0 2px 92px; white-space: pre-wrap; }
+.stage-summary { color: #52c41a; font-size: 12px; margin: 6px 0 2px 92px; }
+
+/* 样本列表(240px = 10 行,带滚动) */
+.sample-list {
+  max-height: 180px;
+  width: calc( 50vw - 140px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin: 4px 0;
+  border: 1px solid var(--pom-border);
+  border-radius: 3px;
+}
+:host-context(.dark) .sample-list { border-color: #444; }
+.sample-list .sample { margin-left: 0; line-height: 18px; padding: 3px 8px; }
+
+.sample {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 3px 8px;
+  margin-left: 92px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.sample:hover { background: var(--pom-bg); }
+:host-context(.dark) .sample:hover { background: #2a2a2a; }
+.sample--static { cursor: default; }
+.sample-label {
+  font-size: 12px;
+  color: var(--pom-text);
+  white-space: nowrap;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sample-value {
+  font-size: 11px;
+  color: var(--pom-text-muted);
+  font-family: Consolas, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 正文预览 */
+.content-preview {
+  margin: 6px 0;
+  max-height: 140px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid var(--pom-border);
+  border-radius: 3px;
+  background: var(--pom-bg);
+  color: var(--pom-text);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.full-row {
+  grid-column: 1 / -1;   /* 从第一列开始,跨越到最后一列之后 —— 不论父容器几列都生效 */
+}
+

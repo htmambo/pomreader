@@ -1,53 +1,47 @@
+/* 编辑器布局 —— textarea + 解析预览并排; 规则面板样式见 src/styles/rules-panel.scss */
 .editor {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-top: 16px;
+  gap: 12px;
+  margin: 8px 0;
 }
 .source-text {
-  width: 100%;
-  min-height: 480px;
-  font-family: 'Menlo', 'Consolas', monospace;
-  font-size: 13px;
-  line-height: 1.5;
-  padding: 12px;
-  border: 1px solid var(--pom-border);
-  border-radius: 4px;
+  min-height: 360px;
+  padding: 10px 12px;
   background: var(--pom-card);
   color: var(--pom-text);
+  border: 1px solid var(--pom-border);
+  border-radius: 4px;
+  font-family: 'Cascadia Code', Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
   resize: vertical;
 }
+:host-context(.dark) .source-text { background: #1f1f1f; border-color: #444; }
 .meta-preview {
-  display: flex;
-  flex-direction: column;
-  min-height: 480px;
-}
-.meta-preview h4 {
-  margin: 0 0 8px;
-  color: var(--pom-text-muted);
-}
-.meta-preview pre {
-  flex: 1;
-  margin: 0;
-  padding: 12px;
   border: 1px solid var(--pom-border);
   border-radius: 4px;
   background: var(--pom-card);
-  color: var(--pom-text);
-  font-size: 12px;
+  padding: 10px 12px;
   overflow: auto;
+}
+:host-context(.dark) .meta-preview { background: #1f1f1f; border-color: #444; }
+.meta-preview h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--pom-text);
+}
+.meta-preview pre {
+  margin: 0;
+  font-family: 'Cascadia Code', Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--pom-text);
   white-space: pre-wrap;
-  word-break: break-word;
+  word-break: break-all;
 }
-.actions {
-  grid-column: 1 / -1;
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 8px;
-}
-@media (max-width: 900px) {
-  .editor {
-    grid-template-columns: 1fr;
-  }
-}
+
+/* 底部按钮行 */
+.actions { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.muted { color: var(--pom-text-muted); font-size: 12px; }

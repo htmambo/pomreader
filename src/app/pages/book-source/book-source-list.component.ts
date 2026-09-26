@@ -10,6 +10,7 @@ import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzModalModule, NzModalService } from 'ng-zorro-antd/modal';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { PageHeaderComponent } from '../../shared/components/page-header/page-header.component';
+import { BookSourceTabsComponent } from '../../shared/components/book-source-tabs/book-source-tabs.component';
 import { ToastService } from '../../core/services/toast.service';
 import { BookSourceMeta } from '../../core/book-source/js-source/source-meta.types';
 
@@ -45,6 +46,7 @@ function pomApi(): PomBooksourceAdmin | null {
     NzModalModule,
     NzEmptyModule,
     PageHeaderComponent,
+    BookSourceTabsComponent,
   ],
   templateUrl: './book-source-list.component.html',
   styleUrl: './book-source-list.component.scss',
