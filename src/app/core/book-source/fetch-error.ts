@@ -3,7 +3,8 @@ export type FetchErrorCode =
   | 'source-unavailable'
   | 'timeout'
   | 'parse-failed'
-  | 'unsupported-source';
+  | 'unsupported-source'
+  | 'cf-challenge';
 
 export class FetchError extends Error {
   constructor(public readonly code: FetchErrorCode, message?: string) {
@@ -19,4 +20,5 @@ export const FETCH_ERROR_MESSAGES: Record<FetchErrorCode, string> = {
   timeout: '请求超时，请稍后重试。',
   'parse-failed': '页面解析失败，该书源可能已改版。',
   'unsupported-source': 'URL 无效，请输入完整的 http/https 书页地址。',
+  'cf-challenge': '该站点启用了 Cloudflare 人机验证，请先完成验证后重试。',
 };

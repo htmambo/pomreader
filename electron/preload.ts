@@ -16,6 +16,10 @@ contextBridge.exposeInMainWorld('pomAPI', {
   fetchRendered: (url: string): Promise<{ text?: string; error?: string }> =>
     ipcRenderer.invoke('pom:fetch-rendered', url),
 
+  /** Cloudflare Tier 2 人工过盾：弹可见窗口由用户完成验证；返回是否拿到 cf_clearance */
+  cfPassManual: (url: string): Promise<boolean> =>
+    ipcRenderer.invoke('pom:cf-pass-manual', url),
+
   /** 外链走系统浏览器 */
   openExternal: (url: string): Promise<void> =>
     ipcRenderer.invoke('pom:open-external', url),
@@ -41,7 +45,7 @@ contextBridge.exposeInMainWorld('pomAPI', {
     method?: string;
     headers?: Record<string, string>;
     body?: string | null;
-  }): Promise<{ status: number; headers: Record<string, string>; body: string }> =>
+  }): Promise<{ status: number; headers: Record<string, string>; body: string; cfChallenge?: boolean }> =>
     ipcRenderer.invoke('pom:booksource-http-proxy', req),
 
   /** 书源 eval（健康检测 / 调试）；主进程仅返回文件路径，函数名解析由 Renderer Worker 负责 */

@@ -16,6 +16,7 @@ import { net, session as electronSession } from 'electron';
 import { URL } from 'url';
 import { decodeBuffer, EncodingMode } from './encoding';
 import { isPrivateHost, UA } from './fetch-handler';
+import { getFetchSession } from './fetch-session';
 
 /** HTTP 代理配置（DM-13 schema，v1 落地） */
 export interface ProxyConfig {
@@ -152,8 +153,8 @@ async function followRedirect(
       else reject(new Error(r.error));
     };
 
-    // 代理 session 在顶层 await（executor 标 async 后可 await）
-    let requestSession: ReturnType<typeof electronSession.fromPartition> | undefined;
+    // 直连走抓取共享 session（persist:fetch，CF cookie 互通）；代理 session 在顶层 await（executor 标 async 后可 await）
+    let requestSession: ReturnType<typeof electronSession.fromPartition> | undefined = getFetchSession();
     if (options.proxy?.enabled && options.proxy.url && !shouldBypassProxy(rawUrl, options.proxy.bypass)) {
       try {
         requestSession = await getProxySession(options.proxy.url);

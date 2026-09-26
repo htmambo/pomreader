@@ -16,6 +16,7 @@ PORT=4203 node scripts/e2e-import-local-txt.cjs
 |---|---|
 | `e2e-import-online.cjs` | 点页头"导入 → 导入在线书页" → 填 URL → 解析 → 确认导入 → 书架 +1 |
 | `e2e-import-local-txt.cjs` | 点页头"导入 → 导入本地 TXT" → 上传 `/tmp/test-classic.txt` → 确认导入 → 书架 +1 |
+| `e2e-cf-guard.cjs` | （需 DISPLAY，真实 Electron）普通站点 sanity + CF 站点 Tier 1 自动过盾（fetchHtml / booksourceHttpProxy 双链路） |
 
 ## 退出码 / 输出
 

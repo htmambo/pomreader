@@ -5,6 +5,7 @@ import { registerRenderHandler } from './ipc/render-handler';
 import { registerExternalHandler } from './ipc/external-handler';
 import { registerBookSourceHandler } from './ipc/booksource-handler';
 import { registerCoverHandler } from './ipc/cover-handler';
+import { registerCfGuardHandler } from './ipc/cf-guard';
 import { registerAutoImport } from './auto-import';
 import { loadWindowState, trackWindowState } from './window-state';
 
@@ -87,6 +88,7 @@ app.whenReady().then(() => {
   registerExternalHandler(ipcMain);
   registerBookSourceHandler(ipcMain, userData);
   registerCoverHandler(ipcMain, userData);
+  registerCfGuardHandler(ipcMain, () => mainWindow);
   registerAutoImport(ipcMain, userData, () => mainWindow);
   createWindow(userData);
 

@@ -16,7 +16,7 @@ interface HttpProxyRequest {
   url: string; method?: string;
   headers?: Record<string, string>; body?: string | null;
 }
-interface HttpProxyResponse { status: number; headers: Record<string, string>; body: string; }
+interface HttpProxyResponse { status: number; headers: Record<string, string>; body: string; cfChallenge?: boolean; }
 
 /** legado.query 契约（与 sandbox.worker.ts 同源声明保持一致 —— Worker 无 import 策略） */
 export interface QueryLink { href: string; text: string; }
@@ -60,6 +60,13 @@ const QUERY_HTML_LIMIT = 5 * 1024 * 1024;
  */
 @Injectable({ providedIn: 'root' })
 export class SandboxService {
+  /**
+   * CF 挑战钩子：主进程代理报告 Tier 1 自动过盾失败（cfChallenge）时调用。
+   * 本类可被 forTest() 手动实例化（无 DI 上下文），UI 引导逻辑由
+   * cf-prompt.service.ts（root injectable，启动时注册此钩子）承担。
+   */
+  static cfChallengeHook: ((url: string) => void) | null = null;
+
   /** 进度信号:UI 订阅显示当前执行到哪一步(load/call 步骤化日志)
    *  使用 readonly signal + 内部 push —— 避免外部直接 mutate
    */
@@ -372,10 +379,24 @@ export class SandboxService {
   }
 
   private async proxyHttp(reqId: string, request: HttpProxyRequest): Promise<void> {
-    // Round 14: 完全绕开 IPC 代理 —— main 进程的 net.request 在 redirect: 'manual' 模式下
-    //   主动 abort 触发 'Redirect was cancelled' 异步 error,误报为代理失败。
-    //   直接用 renderer 内 fetch:浏览器自动处理重定向(无 manual 模式复杂性),
-    //   不依赖 main 进程,问题诊断也更直接。
+    // 主进程代理优先：走 safeNetRequest（共享 persist:fetch session，CF cookie 互通、免 CORS）。
+    // Round 14 曾改走 renderer fetch 绕开 net.request redirect: 'manual' 主动 abort 的
+    // 'Redirect was cancelled' 误报 —— 该问题已在 safe-net 修复（aborted 标记），主链路回到主进程。
+    const proxy = window.pomAPI?.booksourceHttpProxy;
+    if (proxy) {
+      try {
+        const res = await proxy(request);
+        // Tier 1 自动过盾失败（交互式 Turnstile）→ 通知 UI 层引导人工过盾（Tier 2）
+        if (res.cfChallenge) SandboxService.cfChallengeHook?.(request.url);
+        this.worker!.postMessage({ type: 'http-result', reqId, status: res.status, headers: res.headers, body: res.body });
+      } catch (e) {
+        const msg = (e as Error)?.message ?? String(e);
+        this.log(`✗ legado.http 主进程代理失败: ${msg} (URL=${request.url.slice(0, 80)})`, 'error');
+        this.sendHttpError(reqId);
+      }
+      return;
+    }
+    // 浏览器 dev 降级（无 pomAPI）：renderer fetch，受 CORS 限制
     try {
       const resp = await fetch(request.url, {
         method: request.method ?? 'GET',

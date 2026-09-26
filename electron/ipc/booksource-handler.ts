@@ -10,6 +10,7 @@ import { app, IpcMain } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import { atomicWrite, safeFileName, scanDir } from './booksource-meta';
+import { ensureCfClearance, isCfChallenge } from './cf-guard';
 import { safeNetRequest } from './safe-net';
 
 const PRIMARY_DIR = 'booksources';
@@ -165,14 +166,31 @@ export function registerBookSourceHandler(ipcMain: IpcMain, userData: string): v
         body?: string | null;
       }
     ) => {
-      const result = await safeNetRequest(request.url, {
-        method: request.method,
-        headers: request.headers,
-        body: request.body ?? null,
-        timeoutMs: HTTP_TIMEOUT_MS,
-        accept: 'text/html,application/xhtml+xml,*/*;q=0.8',
-      });
-      return { status: result.status, headers: result.headers, body: result.body };
+      const doRequest = () =>
+        safeNetRequest(request.url, {
+          method: request.method,
+          headers: request.headers,
+          body: request.body ?? null,
+          timeoutMs: HTTP_TIMEOUT_MS,
+          accept: 'text/html,application/xhtml+xml,*/*;q=0.8',
+        });
+      let result = await doRequest();
+      // Tier 1：CF 挑战页 → 隐藏窗口自动过盾后重试一次
+      let challenged = isCfChallenge(result.status, result.headers, result.body.slice(0, 4096));
+      if (challenged) {
+        const passed = await ensureCfClearance(request.url);
+        if (passed) {
+          result = await doRequest();
+          challenged = isCfChallenge(result.status, result.headers, result.body.slice(0, 4096));
+        }
+      }
+      // 仍是挑战（交互式 Turnstile）：标记 cfChallenge，由渲染端引导用户人工过盾（Tier 2）
+      return {
+        status: result.status,
+        headers: result.headers,
+        body: result.body,
+        ...(challenged ? { cfChallenge: true } : {}),
+      };
     }
   );
 

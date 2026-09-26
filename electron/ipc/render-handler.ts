@@ -1,11 +1,14 @@
 import { BrowserWindow, IpcMain } from 'electron';
 import { URL } from 'url';
-import { isPrivateHost, UA } from './fetch-handler';
+import { isPrivateHost } from './fetch-handler';
+import { FETCH_PARTITION, getFetchSession, UA } from './fetch-session';
 
 const LOAD_TIMEOUT_MS = 20000;
 const POLL_INTERVAL_MS = 400;
 const STABLE_POLLS_NEEDED = 2; // 文本连续 2 次稳定即认为页面 JS 已完成重排/注水
 const MAX_POLLS = 15; // 最长 ~6s 稳定等待
+const CF_PASS_TIMEOUT_MS = 20000; // Tier 1 自动过盾总上限
+const CF_PASS_POLL_MS = 500;
 
 /**
  * 渲染后 DOM 上的正文提取脚本。
@@ -56,7 +59,7 @@ let chain: Promise<unknown> = Promise.resolve();
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-/** 共享隐藏窗口：session 持久化（保留书站/CF cookie），复用降低开销 */
+/** 共享隐藏窗口：session 持久化（与 net.request 抓取链路共享 persist:fetch，CF cookie 互通） */
 function getRenderWindow(): BrowserWindow {
   if (renderWin && !renderWin.isDestroyed()) return renderWin;
   renderWin = new BrowserWindow({
@@ -67,7 +70,7 @@ function getRenderWindow(): BrowserWindow {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      partition: 'persist:render-fetch',
+      partition: FETCH_PARTITION,
     },
   });
   renderWin.on('closed', () => {
@@ -138,4 +141,68 @@ export function registerRenderHandler(ipcMain: IpcMain): void {
     chain = p.catch(() => undefined);
     return p;
   });
+}
+
+/** Tier 1 自动过盾：隐藏窗口加载挑战页，等 cf_clearance 出现或挑战标记消失（与抓取共用串行 chain） */
+export function cfPass(rawUrl: string): Promise<boolean> {
+  const p = chain.then(() => cfPassOnce(rawUrl));
+  chain = p.catch(() => undefined);
+  return p;
+}
+
+async function cfPassOnce(rawUrl: string): Promise<boolean> {
+  let u: URL;
+  try {
+    u = new URL(rawUrl);
+  } catch {
+    return false;
+  }
+  if ((u.protocol !== 'http:' && u.protocol !== 'https:') || isPrivateHost(u.hostname)) {
+    return false;
+  }
+
+  const win = getRenderWindow();
+  try {
+    await Promise.race([
+      win.loadURL(rawUrl, { userAgent: UA }),
+      sleep(LOAD_TIMEOUT_MS).then(() => Promise.reject(new Error('timeout'))),
+    ]);
+  } catch {
+    return false;
+  }
+
+  try {
+    const deadline = Date.now() + CF_PASS_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      await sleep(CF_PASS_POLL_MS);
+      if (win.isDestroyed()) return false;
+      // cf_clearance 落入共享 session → 过盾成功
+      try {
+        const cookies = await getFetchSession().cookies.get({ url: rawUrl, name: 'cf_clearance' });
+        if (cookies.length > 0) return true;
+      } catch {
+        /* session 暂不可用，继续轮询 */
+      }
+      // 挑战标记消失（title 不含挑战文案且 body 无 cf-chl）→ 视为已过盾
+      try {
+        const marker = (await win.webContents.executeJavaScript(
+          `(document.title || '') + '|' + (document.body ? document.body.innerHTML.slice(0, 4096) : '')`
+        )) as string;
+        const title = marker.split('|')[0];
+        const stillChallenge =
+          /Just a moment|请稍候|Attention Required/.test(title) || marker.includes('cf-chl');
+        if (!stillChallenge) return true;
+      } catch {
+        continue; // 页面正在跳转，下轮重试
+      }
+    }
+    return false;
+  } finally {
+    // 释放页面（停掉定时器/媒体），失败无碍下一次抓取
+    try {
+      await win.loadURL('about:blank');
+    } catch {
+      /* noop */
+    }
+  }
 }

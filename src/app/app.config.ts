@@ -14,6 +14,7 @@ import { GlobalErrorHandler } from './core/services/global-error-handler';
 import { BookService } from './core/services/book.service';
 import { BookSourceRegistry } from './core/book-source/book-source.registry';
 import { SandboxService } from './core/book-source/js-source/sandbox.service';
+import { CfPromptService } from './core/book-source/js-source/cf-prompt.service';
 import { XbiqugeAdapter } from './core/book-source/adapters/xbiquge.adapter';
 import { HeuristicAdapter } from './core/book-source/adapters/heuristic.adapter';
 
@@ -23,7 +24,8 @@ function initBooks(books: BookService) {
   return () => books.load();
 }
 
-function initBookSources(registry: BookSourceRegistry, sandbox: SandboxService) {
+function initBookSources(registry: BookSourceRegistry, sandbox: SandboxService, _cfPrompt: CfPromptService) {
+  // _cfPrompt 仅用于启动时实例化（构造函数向 SandboxService 注册 cfChallengeHook）
   return async () => {
     registry.register(new XbiqugeAdapter());
     registry.register(new HeuristicAdapter()); // 通用兜底（任意 URL 可试）
@@ -55,7 +57,7 @@ export const appConfig: ApplicationConfig = {
     {
       provide: APP_INITIALIZER,
       useFactory: initBookSources,
-      deps: [BookSourceRegistry, SandboxService],
+      deps: [BookSourceRegistry, SandboxService, CfPromptService],
       multi: true,
     },
   ],
