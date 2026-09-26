@@ -1,7 +1,9 @@
 const puppeteer = require('puppeteer-core');
+const PORT = process.env.PORT || 4200;
+const CHROME_PATH = process.env.CHROME_PATH || '/usr/bin/google-chrome';
 (async () => {
   const browser = await puppeteer.launch({
-    executablePath: '/usr/bin/google-chrome',
+    executablePath: CHROME_PATH,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
     headless: 'new',
   });
@@ -11,7 +13,7 @@ const puppeteer = require('puppeteer-core');
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`[console] ${m.text()}`); });
   try {
-    await page.goto('http://127.0.0.1:4204/bookshelf', { waitUntil: 'networkidle2' });
+    await page.goto(`http://127.0.0.1:${PORT}/bookshelf`, { waitUntil: 'networkidle2' });
     await new Promise((r) => setTimeout(r, 4000));
     // Open import local TXT
     const importBtn = await page.evaluateHandle(() => [...document.querySelectorAll('button')].find((b) => b.textContent.trim().includes('导入')));

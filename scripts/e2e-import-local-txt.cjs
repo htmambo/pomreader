@@ -1,8 +1,10 @@
 const puppeteer = require('puppeteer-core');
 const path = require('path');
+const PORT = process.env.PORT || 4200;
+const CHROME_PATH = process.env.CHROME_PATH || '/usr/bin/google-chrome';
 (async () => {
   const browser = await puppeteer.launch({
-    executablePath: '/usr/bin/google-chrome',
+    executablePath: CHROME_PATH,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
     headless: 'new',
   });
@@ -12,7 +14,7 @@ const path = require('path');
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`[console] ${m.text()}`); });
   try {
-    await page.goto('http://127.0.0.1:4202/bookshelf', { waitUntil: 'networkidle2' });
+    await page.goto(`http://127.0.0.1:${PORT}/bookshelf`, { waitUntil: 'networkidle2' });
     await new Promise((r) => setTimeout(r, 5000));
     const before = await page.$$eval('.book-card', (els) => els.length);
     console.log(`before books: ${before}`);
