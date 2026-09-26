@@ -14,10 +14,12 @@ const path = require('path');
 const puppeteer = require('puppeteer-core');
 
 const DEBUG_PORT = 9333;
-const CF_TARGETS = [
-  'https://www.scrapingcourse.com/cloudflare-challenge',
-  'https://nowsecure.nl/',
-];
+const CF_TARGETS = process.env.CF_TARGETS
+  ? process.env.CF_TARGETS.split(',')
+  : [
+      'https://www.scrapingcourse.com/cloudflare-challenge',
+      'https://nowsecure.nl/',
+    ];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

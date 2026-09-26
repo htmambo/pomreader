@@ -10,8 +10,10 @@ import { app, IpcMain } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import { atomicWrite, safeFileName, scanDir } from './booksource-meta';
-import { ensureCfClearance, isCfChallenge } from './cf-guard';
+import { isCfChallenge } from './cf-guard';
 import { safeNetRequest } from './safe-net';
+// 循环 import（render-handler ↔ booksource-handler）：cfFetchHtmlHidden 仅在函数调用期解析
+import { cfFetchHtmlHidden } from './render-handler';
 
 const PRIMARY_DIR = 'booksources';
 const DRAFTS_DIR = 'booksources_drafts';
@@ -175,13 +177,23 @@ export function registerBookSourceHandler(ipcMain: IpcMain, userData: string): v
           accept: 'text/html,application/xhtml+xml,*/*;q=0.8',
         });
       let result = await doRequest();
-      // Tier 1：CF 挑战页 → 隐藏窗口自动过盾后重试一次
       let challenged = isCfChallenge(result.status, result.headers, result.body.slice(0, 4096));
-      if (challenged) {
-        const passed = await ensureCfClearance(request.url);
-        if (passed) {
-          result = await doRequest();
-          challenged = isCfChallenge(result.status, result.headers, result.body.slice(0, 4096));
+      // Tier 1：CF 挑战 → 隐藏窗口真实加载 + 提取 HTML（仅对 GET 类页面有意义；
+      // POST 表单/带 body 的接口跳过，自动让 Tier 2 弹窗引导）
+      if (
+        challenged &&
+        (!request.method || request.method === 'GET') &&
+        !request.body
+      ) {
+        const html = await cfFetchHtmlHidden(request.url);
+        if (html) {
+          result = {
+            status: 200,
+            headers: { 'content-type': 'text/html; charset=utf-8' },
+            body: html,
+            bytes: Buffer.from(html, 'utf8'),
+          };
+          challenged = false;
         }
       }
       // 仍是挑战（交互式 Turnstile）：标记 cfChallenge，由渲染端引导用户人工过盾（Tier 2）

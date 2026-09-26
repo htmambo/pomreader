@@ -1,19 +1,34 @@
 /**
  * Cloudflare 盾检测与分层过盾编排
  * - isCfChallenge：响应判定（cf-mitigated 头 / 403|503 + cloudflare + 挑战页标记）
- * - ensureCfClearance（Tier 1）：复用 render-handler 隐藏窗口自动过盾
- * - cfPassManual（Tier 2）：可见窗口由用户手动完成交互验证（Turnstile 等）
- * 注意：与 fetch-handler 存在循环 import（fetch-handler ↔ cf-guard），
+ * - cfPassManual（Tier 2 可见窗口）：用户手动完成交互验证后直接提取渲染 HTML
+ *
+ * Tier 1（自动过盾）由 render-handler 的 cfFetchHtmlHidden 完成：
+ * 隐藏窗口真实加载 URL，等挑战消失后取 documentElement.outerHTML 返回。
+ * 浏览器能打开页面即视为过盾成功（99csw 这类无感 managed challenge 因此能"自动"通过）。
+ *
+ * 注意：与 render-handler / fetch-handler 存在循环 import，
  * 所有跨模块引用均在函数调用期解析（CommonJS 属性访问惰性求值），无模块初始化期使用。
  */
 import { BrowserWindow, IpcMain } from 'electron';
 import { URL } from 'url';
 import { isPrivateHost } from './fetch-handler';
-import { FETCH_PARTITION, getFetchSession, UA } from './fetch-session';
-import { cfPass } from './render-handler';
+import { FETCH_PARTITION, getUA } from './fetch-session';
+import { extractRenderedHtml, waitForPageCleared } from './render-handler';
 
-const CF_POLL_INTERVAL_MS = 500;
 const MANUAL_PASS_TIMEOUT_MS = 120000;
+const LOAD_TIMEOUT_MS = 20000;
+
+function isValidFetchUrl(rawUrl: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(rawUrl);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+  return !isPrivateHost(u.hostname);
+}
 
 /** 响应是否为 Cloudflare 挑战页（JS challenge / Turnstile 拦截页） */
 export function isCfChallenge(
@@ -35,30 +50,18 @@ export function isCfChallenge(
   );
 }
 
-function isValidFetchUrl(rawUrl: string): boolean {
-  let u: URL;
-  try {
-    u = new URL(rawUrl);
-  } catch {
-    return false;
-  }
-  if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
-  return !isPrivateHost(u.hostname);
-}
-
-/** Tier 1：隐藏窗口自动过盾；返回是否拿到 cf_clearance / 挑战页已消失 */
-export async function ensureCfClearance(rawUrl: string): Promise<boolean> {
-  if (!isValidFetchUrl(rawUrl)) return false;
-  try {
-    return await cfPass(rawUrl);
-  } catch {
-    return false;
-  }
-}
-
-/** Tier 2：可见窗口人工过盾；cf_clearance 出现 → true；用户关窗/超时 → false */
-export async function cfPassManual(rawUrl: string, parent: BrowserWindow): Promise<boolean> {
-  if (!isValidFetchUrl(rawUrl)) return false;
+/**
+ * Tier 2：可见窗口人工过盾
+ * - 加载到真实页面（managed challenge 无感通过）→ 提取 outerHTML 返回；
+ * - 用户关窗 / 超时 → null。
+ *
+ * 返回值是渲染后的 HTML 字符串（浏览器侧已完成 charset 解码 + JS 注水），
+ * 调用方（fetch-handler / booksource-handler）直接把 html 当抓取结果使用，
+ * 免去再次 net.request 验证 cookie 是否生效 —— cookie 失效的话新窗口同样过不了，
+ * 已经实测了"用户能看见真实页面 = 当前 BrowserWindow 已过盾"。
+ */
+export async function cfPassManual(rawUrl: string, parent: BrowserWindow): Promise<string | null> {
+  if (!isValidFetchUrl(rawUrl)) return null;
 
   const win = new BrowserWindow({
     width: 1000,
@@ -74,30 +77,38 @@ export async function cfPassManual(rawUrl: string, parent: BrowserWindow): Promi
     },
   });
 
-  return new Promise<boolean>((resolve) => {
+  return new Promise<string | null>((resolve) => {
     let settled = false;
-    const done = (ok: boolean): void => {
+    const done = (html: string | null): void => {
       if (settled) return;
       settled = true;
-      clearInterval(poll);
       clearTimeout(timeout);
       if (!win.isDestroyed()) win.close();
-      resolve(ok);
+      resolve(html);
     };
 
-    win.on('closed', () => done(false));
-    win.loadURL(rawUrl, { userAgent: UA }).catch(() => done(false));
+    win.on('closed', () => done(null));
 
-    const poll = setInterval(() => {
-      getFetchSession()
-        .cookies.get({ url: rawUrl, name: 'cf_clearance' })
-        .then((cookies) => {
-          if (cookies.length > 0) done(true);
-        })
-        .catch(() => undefined);
-    }, CF_POLL_INTERVAL_MS);
+    (async () => {
+      try {
+        await Promise.race([
+          win.loadURL(rawUrl, { userAgent: getUA() }),
+          new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), LOAD_TIMEOUT_MS)),
+        ]);
+      } catch {
+        done(null);
+        return;
+      }
+      try {
+        const cleared = await waitForPageCleared(win, MANUAL_PASS_TIMEOUT_MS);
+        if (!cleared) { done(null); return; }
+        done(await extractRenderedHtml(win));
+      } catch {
+        done(null);
+      }
+    })();
 
-    const timeout = setTimeout(() => done(false), MANUAL_PASS_TIMEOUT_MS);
+    const timeout = setTimeout(() => done(null), MANUAL_PASS_TIMEOUT_MS);
   });
 }
 
@@ -107,7 +118,7 @@ export function registerCfGuardHandler(
 ): void {
   ipcMain.handle('pom:cf-pass-manual', async (_e, rawUrl: string) => {
     const parent = getMainWindow();
-    if (!parent) return false;
+    if (!parent) return null;
     return cfPassManual(rawUrl, parent);
   });
 }

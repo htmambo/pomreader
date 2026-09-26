@@ -1,7 +1,7 @@
 import { BrowserWindow, IpcMain } from 'electron';
 import { URL } from 'url';
 import { isPrivateHost } from './fetch-handler';
-import { FETCH_PARTITION, getFetchSession, UA } from './fetch-session';
+import { FETCH_PARTITION, getFetchSession, getUA } from './fetch-session';
 
 const LOAD_TIMEOUT_MS = 20000;
 const POLL_INTERVAL_MS = 400;
@@ -93,7 +93,7 @@ async function renderOnce(rawUrl: string): Promise<{ text?: string; error?: stri
   const win = getRenderWindow();
   try {
     await Promise.race([
-      win.loadURL(rawUrl, { userAgent: UA }),
+      win.loadURL(rawUrl, { userAgent: getUA() }),
       sleep(LOAD_TIMEOUT_MS).then(() => Promise.reject(new Error('timeout'))),
     ]);
   } catch (e) {
@@ -143,60 +143,92 @@ export function registerRenderHandler(ipcMain: IpcMain): void {
   });
 }
 
-/** Tier 1 自动过盾：隐藏窗口加载挑战页，等 cf_clearance 出现或挑战标记消失（与抓取共用串行 chain） */
-export function cfPass(rawUrl: string): Promise<boolean> {
-  const p = chain.then(() => cfPassOnce(rawUrl));
+/** 挑战页判定（title / body 标记），cf-guard 的可见窗口流程复用 */
+export function looksLikeChallenge(marker: string): boolean {
+  const title = marker.split('|')[0];
+  return (
+    /Just a moment|请稍候|Attention Required/.test(title) ||
+    marker.includes('cf-chl') ||
+    marker.includes('challenge-platform')
+  );
+}
+
+async function pageMarker(win: BrowserWindow): Promise<string> {
+  return (await win.webContents.executeJavaScript(
+    `(document.title || '') + '|' + (document.body ? document.body.innerHTML.slice(0, 4096) : '')`
+  )) as string;
+}
+
+/**
+ * 等窗口里的页面不再是挑战页（轮询 title/body 标记）。
+ * 真实浏览器导航通常无感通过 managed challenge；交互式 Turnstile 则一直保持挑战页。
+ */
+export async function waitForPageCleared(
+  win: BrowserWindow,
+  timeoutMs: number
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    await sleep(CF_PASS_POLL_MS);
+    if (win.isDestroyed()) return false;
+    // about:blank / 加载中的空页面不算"挑战已消失"
+    if (!win.webContents.getURL().startsWith('http')) continue;
+    try {
+      if (!looksLikeChallenge(await pageMarker(win))) return true;
+    } catch {
+      continue; // 页面跳转中，下轮重试
+    }
+  }
+  return false;
+}
+
+/** 提取渲染后的完整 HTML（浏览器侧已完成 charset 解码） */
+export async function extractRenderedHtml(win: BrowserWindow): Promise<string | null> {
+  try {
+    const html = (await win.webContents.executeJavaScript(
+      'document.documentElement.outerHTML'
+    )) as string;
+    return html && html.length > 0 ? html : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * CF 挑战回退抓取（Tier 1 核心）：隐藏窗口真实加载 URL，等挑战消失后直接提取渲染 HTML。
+ * 不再追求 net.request 与浏览器的指纹对等——浏览器能打开页面即视为成功。
+ * 返回 null = 加载失败 / 挑战未解除（交互式 Turnstile 需人工，走 Tier 2）。
+ */
+export function cfFetchHtmlHidden(rawUrl: string): Promise<string | null> {
+  const p = chain.then(() => cfFetchHtmlOnce(rawUrl));
   chain = p.catch(() => undefined);
   return p;
 }
 
-async function cfPassOnce(rawUrl: string): Promise<boolean> {
+async function cfFetchHtmlOnce(rawUrl: string): Promise<string | null> {
   let u: URL;
   try {
     u = new URL(rawUrl);
   } catch {
-    return false;
+    return null;
   }
   if ((u.protocol !== 'http:' && u.protocol !== 'https:') || isPrivateHost(u.hostname)) {
-    return false;
+    return null;
   }
 
   const win = getRenderWindow();
   try {
     await Promise.race([
-      win.loadURL(rawUrl, { userAgent: UA }),
+      win.loadURL(rawUrl, { userAgent: getUA() }),
       sleep(LOAD_TIMEOUT_MS).then(() => Promise.reject(new Error('timeout'))),
     ]);
   } catch {
-    return false;
+    return null;
   }
 
   try {
-    const deadline = Date.now() + CF_PASS_TIMEOUT_MS;
-    while (Date.now() < deadline) {
-      await sleep(CF_PASS_POLL_MS);
-      if (win.isDestroyed()) return false;
-      // cf_clearance 落入共享 session → 过盾成功
-      try {
-        const cookies = await getFetchSession().cookies.get({ url: rawUrl, name: 'cf_clearance' });
-        if (cookies.length > 0) return true;
-      } catch {
-        /* session 暂不可用，继续轮询 */
-      }
-      // 挑战标记消失（title 不含挑战文案且 body 无 cf-chl）→ 视为已过盾
-      try {
-        const marker = (await win.webContents.executeJavaScript(
-          `(document.title || '') + '|' + (document.body ? document.body.innerHTML.slice(0, 4096) : '')`
-        )) as string;
-        const title = marker.split('|')[0];
-        const stillChallenge =
-          /Just a moment|请稍候|Attention Required/.test(title) || marker.includes('cf-chl');
-        if (!stillChallenge) return true;
-      } catch {
-        continue; // 页面正在跳转，下轮重试
-      }
-    }
-    return false;
+    if (!(await waitForPageCleared(win, CF_PASS_TIMEOUT_MS))) return null;
+    return await extractRenderedHtml(win);
   } finally {
     // 释放页面（停掉定时器/媒体），失败无碍下一次抓取
     try {

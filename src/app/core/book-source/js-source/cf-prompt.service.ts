@@ -46,8 +46,9 @@ export class CfPromptService {
       nzCancelText: '暂不',
       nzOnOk: async () => {
         try {
-          const passed = await cfManual(origin);
-          if (passed) {
+          // 验证窗口提取的 HTML 用于本次请求；cf_clearance 已落 session，后续自动恢复
+          const html = await cfManual(origin);
+          if (html) {
             this.promptedHosts.delete(host);
             this.toast.success(`${host} 验证完成`);
           } else {

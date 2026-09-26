@@ -11,8 +11,11 @@ declare global {
         encoding?: 'auto' | 'utf-8' | 'gbk'
       ) => Promise<{ html?: string; error?: string }>;
       fetchRendered: (url: string) => Promise<{ text?: string; error?: string }>;
-      /** Cloudflare Tier 2 人工过盾（弹可见窗口；返回是否拿到 cf_clearance） */
-      cfPassManual?: (url: string) => Promise<boolean>;
+      /** Cloudflare Tier 2 人工过盾（弹可见窗口；返回渲染后的 HTML，null = 用户关窗/超时） */
+      cfPassManual?: (url: string) => Promise<string | null>;
+      /** 抓取 UA 设置（设置页用） */
+      getFetchUA?: () => Promise<{ ua: string; defaultUa: string }>;
+      setFetchUA?: (ua: string | null) => Promise<{ ua: string }>;
       openExternal: (url: string) => Promise<void>;
       /**
        * 书源 HTTP 代理（T-002 sandbox.service.ts 用）
@@ -87,13 +90,14 @@ export class PageFetcherService implements PageFetcher {
     return await r.text();
   }
 
-  /** CF 挑战：弹确认框 → 打开人工验证窗口 → 成功则重试原请求；取消/失败抛 cf-challenge */
+  /** CF 挑战：弹确认框 → 打开人工验证窗口 → 提取的渲染 HTML 直接返回；
+   * 取消/用户关窗/超时 → 抛 cf-challenge */
   private cfChallengeFlow(
     url: string,
     encoding: 'auto' | 'utf-8' | 'gbk'
   ): Promise<string> {
     return new Promise<string>((resolve, reject) => {
-      const fail = () => reject(new FetchError('cf-challenge'));
+      const fail = (): void => reject(new FetchError('cf-challenge'));
       this.modal.confirm({
         nzTitle: 'Cloudflare 人机验证',
         nzContent: '该站点启用了 Cloudflare 人机验证，是否打开验证窗口？完成后将自动重试。',
@@ -103,11 +107,9 @@ export class PageFetcherService implements PageFetcher {
           // nzOnOk 内不向外抛错（reject 会让 modal 悬停不关），统一 try-catch 后 fail()
           try {
             const api = window.pomAPI!;
-            const passed = await this.inZone(api.cfPassManual!(url));
-            if (!passed) { fail(); return; }
-            const res = await this.inZone(api.fetchHtml(url, encoding));
-            if (res.error || !res.html) { fail(); return; }
-            resolve(res.html);
+            const html = await this.inZone(api.cfPassManual!(url));
+            if (!html) { fail(); return; }
+            resolve(html);
           } catch {
             fail();
           }

@@ -1,11 +1,10 @@
 import { IpcMain, net } from 'electron';
 import { URL } from 'url';
 import { decodeBuffer, EncodingMode } from './encoding';
-import { ensureCfClearance, isCfChallenge } from './cf-guard';
-import { getFetchSession, UA } from './fetch-session';
-
-// UA 唯一定义在 fetch-session（cf_clearance 绑定 UA，全链路一致），re-export 兼容既有 import
-export { UA } from './fetch-session';
+import { isCfChallenge } from './cf-guard';
+import { getFetchSession, getUA, defaultUA, setFetchUA, browserHeaders } from './fetch-session';
+// 循环 import（render-handler ↔ fetch-handler）：cfFetchHtmlHidden 仅在函数调用期解析
+import { cfFetchHtmlHidden } from './render-handler';
 
 const FETCH_TIMEOUT_MS = 15000;
 const MAX_BYTES = 8 * 1024 * 1024; // 8MB 响应上限，防内存爆炸
@@ -46,11 +45,12 @@ function doFetch(rawUrl: string, mode: EncodingMode): Promise<FetchResult> {
       }
     };
 
-    // 共享持久 session：真 Chrome TLS 指纹 + cf_clearance cookie 与渲染/过盾链路共享
+    // 共享持久 session：真 Chrome TLS 指纹 + cf_clearance cookie 与渲染/过盾链路共享；
+    // 类浏览器请求头 + Referer 留痕（模拟站内导航，非凭空深链请求）
     const req = net.request({ url: rawUrl, redirect: 'follow', session: getFetchSession() });
-    req.setHeader('User-Agent', UA);
-    req.setHeader('Accept', 'text/html,application/xhtml+xml,*/*;q=0.8');
-    req.setHeader('Accept-Language', 'zh-CN,zh;q=0.9,en;q=0.8');
+    for (const [k, v] of Object.entries(browserHeaders(rawUrl, { navigation: true }))) {
+      try { req.setHeader(k, v); } catch { /* 个别受限 header 跳过 */ }
+    }
 
     const chunks: Buffer[] = [];
 
@@ -113,16 +113,31 @@ export function registerFetchHandler(ipcMain: IpcMain): void {
       }
 
       let res = await doFetch(rawUrl, mode);
-      // Tier 1：CF 挑战页 → 隐藏窗口自动过盾（cf_clearance 落入共享 session）→ 重试一次
+      // CF 挑战页 → 隐藏窗口真实加载 + 等待挑战消失 + 提取渲染 HTML
+      // （浏览器能打开即视为过盾成功；99csw 这类 managed challenge 自动通过，
+      //  交互式 Turnstile 则 20s 超时返回 null → 仍报错引导用户人工验证）
       if (res.error === 'cf-challenge') {
-        const passed = await ensureCfClearance(rawUrl);
-        if (passed) {
-          res = await doFetch(rawUrl, mode);
-        }
+        const html = await cfFetchHtmlHidden(rawUrl);
+        if (html) return { html };
       }
       return res;
     }
   );
+
+  // 抓取 UA 设置（设置页）：读取当前生效值 + 默认值；设置自定义 UA（null/空 = 恢复默认）
+  ipcMain.handle('pom:get-fetch-ua', () => ({ ua: getUA(), defaultUa: defaultUA() }));
+  ipcMain.handle('pom:set-fetch-ua', (_e, ua: string | null) => {
+    const v = (ua ?? '').trim();
+    if (v.length > 0) {
+      if (v.length > 300 || !v.startsWith('Mozilla/5.0')) {
+        throw new Error('UA 格式无效（应以 Mozilla/5.0 开头，长度 ≤ 300）');
+      }
+      setFetchUA(v);
+    } else {
+      setFetchUA(null);
+    }
+    return { ua: getUA() };
+  });
 
   // webview 编码切换：给指定 session 重写 Content-Type charset
   ipcMain.handle(
