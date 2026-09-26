@@ -160,11 +160,16 @@ export class SourceSmartAddComponent {
     }
     this.analyzing.set(true);
     this.error.set('');
+    // 先把 analyzed 置 true 让 RulesPanelComponent 渲染,viewChild 才能就绪;
+    // 若 fetch 失败再回滚到 false 隐藏面板。这样 await 期间 zone.js 至少跑一次 CD,
+    // panel() 才不会是 undefined(commit 33c21e7 引入的 viewChild 时序坑)。
+    this.analyzed.set(true);
     try {
       const html = await this.fetcher.fetchHtml(url);
       const p = this.panel();
       if (!p) {
         this.error.set('规则面板未就绪,请稍后重试');
+        this.analyzed.set(false);
         return;
       }
       // 先清空面板状态(测试输出 + bookUrl/chapterUrl + keyword),再注入探测得到的规则
@@ -173,7 +178,6 @@ export class SourceSmartAddComponent {
       this.chapterLinkCount.set(countChapterLinks(html));
       const host = new URL(url).hostname.replace(/^www\./, '');
       this.fileName = `${host.replace(/\./g, '_')}.js`;
-      this.analyzed.set(true);
     } catch (e) {
       this.error.set(`抓取或分析失败:${(e as Error).message}`);
       this.analyzed.set(false);
