@@ -28,6 +28,13 @@
   - JsSourceAdapter.ensureLoaded() 去掉实例级缓存：书源脚本修改后无需重启 dev server 立即生效
   - 编辑书源页顶部加「测试按钮行为说明」alert（避免误以为「测试正文」能验证书源 JS chapterContent）
   - 18 条新增单测（203/203 全绿）；tsc 0 错误；外审 Round 1 NEEDS_CHANGES → Round 2 APPROVED
+- ✅ [Book.bookSourceUuid 锚定具体书源 + 万能搜索域名匹配](Archive/2026-09/BOOK_SOURCE_UUID_ANCHOR_PLAN.md) — Completed 2026-09-26
+  - Book / BookDoc 加 bookSourceUuid?: string（legado meta.uuid 锚定具体书源，方便后续重抓章节用书源特定方法）
+  - importByUrl 返回值结构统一：JsSourceAdapter 来源 → meta.uuid；万能搜索 fallback → UNIVERSAL_BOOK_SOURCE_UUID；sourceName 显式但 match 失败 / 源不存在 → 抛 FetchError（不静默降级）
+  - Registry 加 getByName（独立 API）/ findJsSourceAdapterByUrl（域名匹配）/ getByUuid 移除 name 兜底（保护 UNIVERSAL 黑名单 invariant）
+  - universal-search.openImport 前域名匹配：URL 命中已启用书源 → 注入 source 到 ImportOnline → 自动锚定 meta.uuid
+  - 抽 UNIVERSAL_BOOK_SOURCE_UUID 常量 + extractMetaUuid / hasMetaUuid 类型守卫（消除 4 处鸭子类型断言）
+  - 12 条新增单测（219/219 全绿）；tsc 0 错误；外审 Round 1 NEEDS_CHANGES → Round 2 APPROVED（采纳 2 条高优先级建议：统一结构 + 改用 getByName）
 - ✅ [legado → pomreader 能力迁移（书源 JS / 市场 / 封面 / 扩展 / 代理）](Archive/2026-09/LEGADO_MIGRATION_PLAN.md) — Completed 2026-09-26
   - 4 大模块 20 个任务全部完成；140/140 单测 + 0 TS 错误 + ng build 成功
   - Phase 0 spec + Phase 1 plan（Critic Round 2 OKAY + 外部 APPROVED）
