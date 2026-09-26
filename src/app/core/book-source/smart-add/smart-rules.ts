@@ -6,6 +6,13 @@
 /** 显式 CSS 前缀（含特殊字符 ? ^ 等的选择器用它强制 CSS 模式） */
 export const CSS_PREFIX = 'css:';
 
+/** 规则测试默认关键词池：随机取一本热门书名，避免固定词被站点缓存/限流 */
+export const TEST_KEYWORDS = ['庆余年', '雪中悍刀行', '赘婿', '斗破苍穹', '盗墓笔记', '鬼吹灯'];
+
+export function randomTestKeyword(): string {
+  return TEST_KEYWORDS[Math.floor(Math.random() * TEST_KEYWORDS.length)];
+}
+
 /**
  * 正则特征字符（与 generateSourceCode 生成代码内的 isCssRule 保持同一套启发式）：
  * \ ( ) { } ? | ^ $ * + —— 命中即判正则，否则兜底 CSS（[^ 已被 ^ 覆盖，无需单列）

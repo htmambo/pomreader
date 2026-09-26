@@ -21,6 +21,7 @@ import {
   pickText,
   stripTags,
   absUrl,
+  randomTestKeyword,
 } from '../../core/book-source/smart-add/smart-rules';
 
 type PomSave = {
@@ -99,7 +100,7 @@ function emptyStage(): StageState {
         <div class="stage-header">搜索</div>
         <div class="field-row">
           <span class="field-label">搜索路径</span>
-          <input nz-input [(ngModel)]="rules.searchPath" class="mono grow" placeholder="/search?keyword={keyword}" value="{{ testKeyword }}" />
+          <input nz-input [(ngModel)]="rules.searchPath" class="mono grow" placeholder="/search?keyword={keyword}" />
         </div>
         <div class="field-row">
           <span class="field-label">列表项规则</span>
@@ -272,9 +273,7 @@ export class SourceSmartAddComponent {
     content: emptyStage(),
     category: emptyStage(),
   };
-  testKeyword = ['庆余年', '雪中悍刀行', '赘婿', '斗破苍穹', '盗墓笔记', '鬼吹灯'][
-    Math.floor(Math.random() * 6)
-  ];
+  testKeyword = randomTestKeyword();
   bookUrl = '';
   chapterUrl = '';
   contentPreview = '';

@@ -15,6 +15,7 @@ import {
   AppstoreOutline, CloudDownloadOutline, CopyOutline, DeleteOutline,
   DragOutline, EditOutline, GlobalOutline,
   InfoOutline, InfoCircleOutline, RobotOutline, SwapOutline,
+  PlayCircleOutline, ThunderboltOutline, SaveOutline, SyncOutline, ImportOutline,
 } from '@ant-design/icons-angular/icons';
 import { PageHeaderComponent } from './shared/components/page-header/page-header.component';
 import { SidebarComponent } from './shared/components/sidebar/sidebar.component';
@@ -42,6 +43,7 @@ import { SettingsService } from './core/services/settings.service';
       AppstoreOutline, CloudDownloadOutline, CopyOutline, DeleteOutline,
       DragOutline, EditOutline, GlobalOutline,
       InfoOutline, InfoCircleOutline, RobotOutline, SwapOutline,
+      PlayCircleOutline, ThunderboltOutline, SaveOutline, SyncOutline, ImportOutline,
     ]),
   ],
   template: `

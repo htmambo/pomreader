@@ -12,7 +12,7 @@ import { parseHeaderMeta } from '../../core/book-source/js-source/header-parser'
 import { AiDraftService } from '../../core/book-source/ai-draft/ai-draft.service';
 import {
   matchLinkItems, pickText, pickHtml, absUrl,
-  generateSourceCode,
+  generateSourceCode, randomTestKeyword,
 } from '../../core/book-source/smart-add/smart-rules';
 import { PageFetcherService } from '../../core/book-source/page-fetcher.service';
 
@@ -63,7 +63,7 @@ export class BookSourceEditorComponent {
   readonly ruleChapterItem = signal('');
   readonly ruleContent = signal('');
   readonly ruleBookCategory = signal('');
-  readonly ruleKeyword = signal('');
+  readonly ruleKeyword = signal(randomTestKeyword());
   readonly ruleBookUrl = signal('');
   readonly ruleChapterUrl = signal('');
   readonly ruleBaseUrl = signal('');

@@ -15,6 +15,7 @@ import { ToastService } from '../../core/services/toast.service';
 import { SandboxService, SandboxFn } from '../../core/book-source/js-source/sandbox.service';
 import { BookSourceMeta } from '../../core/book-source/js-source/source-meta.types';
 import { pickBookUrl, pickChapterUrl } from '../../core/book-source/source-test/source-test.service';
+import { randomTestKeyword } from '../../core/book-source/smart-add/smart-rules';
 
 type PomAdmin = {
   booksourceList?: () => Promise<BookSourceMeta[]>;
@@ -234,9 +235,7 @@ export class SourceDebugComponent {
   readonly activeCategory = signal('');
 
   selectedFileName = '';
-  testKeyword = ['庆余年', '雪中悍刀行', '赘婿', '斗破苍穹', '盗墓笔记', '鬼吹灯'][
-    Math.floor(Math.random() * 6)
-  ];
+  testKeyword = randomTestKeyword();
   bookUrl = '';
   chapterUrl = '';
   viewMode: 'preview' | 'raw' = 'preview';
