@@ -120,6 +120,41 @@
  * ============================================================ */
 [data-pom-theme='6'] {
   /* ============================================================
+   * 左侧菜单暗色适配：submenu 内嵌 <ul> 默认白底在暗色主题下反差强烈
+   * 主菜单已通过 .ant-menu-light { background: transparent } 透明化,
+   * 但子层 .ant-menu-sub 不带 .ant-menu-light 类,沿用 ng-zorro 白底;这里覆盖
+   * ============================================================ */
+  .ant-menu-light .ant-menu-sub,
+  .ant-menu-sub {
+    background: transparent !important;
+  }
+  .ant-menu-sub .ant-menu-item {
+    color: var(--pom-text);
+  }
+  .ant-menu-sub .ant-menu-item:hover,
+  .ant-menu-sub .ant-menu-item-active {
+    color: var(--pom-accent-hover);
+    background: rgba(191, 44, 36, 0.08);
+  }
+  .ant-menu-sub .ant-menu-item-selected {
+    background: rgba(191, 44, 36, 0.08);
+    color: var(--pom-accent);
+  }
+  /* ant-layout-sider 默认 1px 右浅色边框在暗色主题下是刺眼白线,与主题边框对齐 */
+  .ant-layout-sider {
+    border-right-color: var(--pom-border) !important;
+  }
+  /* ng-zorro 三种方向菜单的内嵌变体默认带 1px 右浅色边框,暗色下同样刺眼 */
+  .ant-menu-inline,
+  .ant-menu-vertical,
+  .ant-menu-vertical-left {
+    border-right-color: var(--pom-border) !important;
+  }
+  .ant-menu-sub.ant-menu-inline {
+    background: var(--pom-card) !important;
+  }
+
+  /* ============================================================
    * 全局页面级控件（不限 modal）：暗色背景下避免白底按钮 / 白底 input 反差
    * 覆盖万能搜索页的地址栏 + 「自动」按钮 + 4 个快捷方式按钮
    * ============================================================ */
