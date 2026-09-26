@@ -39,58 +39,62 @@ export interface EditBookInfoResult {
         <span>最后阅读：{{ data.book.lastReadAt ? formatTime(data.book.lastReadAt) : '尚未阅读' }}</span>
       </div>
 
-      <label class="field-label">书名</label>
-      <input
-        nz-input
-        [(ngModel)]="title"
-        placeholder="请输入书名"
-        [nzStatus]="titleError() ? 'error' : ''"
-        maxlength="120"
-      />
+      <div class="field-row">
+        <label class="field-label">书名</label>
+        <input
+          nz-input
+          [(ngModel)]="title"
+          placeholder="请输入书名"
+          [nzStatus]="titleError() ? 'error' : ''"
+          maxlength="120"
+        />
+      </div>
 
-      <label class="field-label">作者</label>
-      <input
-        nz-input
-        [(ngModel)]="author"
-        placeholder="请输入作者"
-        [nzStatus]="authorError() ? 'error' : ''"
-        maxlength="60"
-      />
+      <div class="field-row">
+        <label class="field-label">作者</label>
+        <input
+          nz-input
+          [(ngModel)]="author"
+          placeholder="请输入作者"
+          [nzStatus]="authorError() ? 'error' : ''"
+          maxlength="60"
+        />
+      </div>
 
-      <label class="field-label">源地址 <span style="color: var(--pom-text-muted); font-weight: normal;">(可选)</span></label>
-      <input
-        nz-input
-        [(ngModel)]="sourceUrl"
-        placeholder="https:// ... （在线书填源 URL，本地导入留空）"
-      />
+      <div class="field-row">
+        <label class="field-label">源地址</label>
+        <input
+          nz-input
+          [(ngModel)]="sourceUrl"
+          placeholder="https:// ... （在线书填源 URL，本地导入留空）"
+        />
+      </div>
+      <p class="field-hint">(可选)</p>
 
-      <label class="field-label">
-        题材/类型
-        <span style="color: var(--pom-text-muted); font-weight: normal;">
-          (可选；用于「生成封面」选择模板风格，如：玄幻 / 言情 / 科幻 / 武侠 / 悬疑)
-        </span>
-      </label>
-      <input
-        nz-input
-        [(ngModel)]="kind"
-        placeholder="留空则各封面模板用自身默认风格"
-        maxlength="20"
-      />
+      <div class="field-row">
+        <label class="field-label">题材/类型</label>
+        <input
+          nz-input
+          [(ngModel)]="kind"
+          placeholder="留空则各封面模板用自身默认风格"
+          maxlength="20"
+        />
+      </div>
+      <p class="field-hint">(可选；用于「生成封面」选择模板风格，如：玄幻 / 言情 / 科幻 / 武侠 / 悬疑)</p>
 
-      <label class="field-label">
-        封面图片 URL
-        <span style="color: var(--pom-text-muted); font-weight: normal;">
-          (可选；留空则用下方"封面颜色"渲染 SVG)
-        </span>
-      </label>
-      <input
-        nz-input
-        [(ngModel)]="coverImageUrl"
-        placeholder="https:// ... （在线书可填源站封面图）"
-      />
+      <div class="field-row">
+        <label class="field-label">封面图片 URL</label>
+        <input
+          nz-input
+          [(ngModel)]="coverImageUrl"
+          placeholder="https:// ... （在线书可填源站封面图）"
+        />
+      </div>
+      <p class="field-hint">(可选；留空则用下方"封面颜色"渲染 SVG)</p>
 
-      <label class="field-label">封面颜色</label>
-      <div class="cover-color-row">
+      <div class="field-row">
+        <label class="field-label">封面颜色</label>
+        <div class="cover-color-row">
         <input
           type="color"
           class="cover-color-input"
@@ -117,6 +121,7 @@ export interface EditBookInfoResult {
           placeholder="#177ddc"
           maxlength="7"
         />
+        </div>
       </div>
     </div>
   `,
@@ -133,15 +138,26 @@ export interface EditBookInfoResult {
         font-size: 12px;
         color: var(--pom-text-muted);
       }
+      .edit-book-form .field-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 12px 0 0;
+      }
+      /* 显式声明 width/margin/text-align，覆盖 rules-panel.scss 中泄漏的全局 .field-label 规则 */
       .edit-book-form .field-label {
-        display: block;
-        margin: 12px 0 4px;
+        flex: 0 0 92px;
+        width: 92px;
+        margin: 0;
         font-size: 13px;
         color: var(--pom-text);
         font-weight: 600;
+        text-align: right;
       }
-      .edit-book-form .field-label:first-of-type {
-        margin-top: 4px;
+      .edit-book-form .field-hint {
+        margin: 2px 0 0;
+        font-size: 12px;
+        color: var(--pom-text-muted);
       }
       .edit-book-form input[nz-input] {
         width: 100%;
@@ -150,6 +166,8 @@ export interface EditBookInfoResult {
         display: flex;
         align-items: center;
         gap: 8px;
+        flex: 1;
+        min-width: 0;
       }
       .cover-color-input {
         width: 40px;
