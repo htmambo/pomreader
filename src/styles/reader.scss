@@ -347,10 +347,23 @@
 .reader-page .left-bar-list {
   top: 119px;
   left: max(4px, calc(50% - var(--r-page-w) / 2 - 68px));
+  /* 默认隐藏：向左位移 52px, 仅露 8px 右侧边缘作抓手; hover/focus-within 时复位 */
+  transform: translateX(-52px);
+  transition: transform 0.25s ease;
 }
 .reader-page .right-bar-list {
   right: max(4px, calc(50% - var(--r-page-w) / 2 - 68px));
   bottom: 0;
+  /* 默认隐藏：向右位移 52px, 仅露 8px 左侧边缘作抓手; hover/focus-within 时复位 */
+  transform: translateX(52px);
+  transition: transform 0.25s ease;
+}
+/* hover / 键盘 focus 时滑出（左右对称） */
+.reader-page .left-bar-list:hover,
+.reader-page .left-bar-list:focus-within,
+.reader-page .right-bar-list:hover,
+.reader-page .right-bar-list:focus-within {
+  transform: translateX(0);
 }
 .reader-page .left-bar-list dl,
 .reader-page .right-bar-list dl {
