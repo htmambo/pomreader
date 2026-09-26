@@ -425,7 +425,7 @@ export class SandboxService {
 
   /**
    * legado.query 主线程执行体：DOMParser 解析（不挂载、不执行脚本），只回传纯数据。
-   * error 通道：Feature Flag 关闭 / HTML 超 5MB / 选择器非法 → {ok:false,error} → Worker 侧 reject
+   * error 通道：Feature Flag 关闭 / HTML 超 5MB / 选择器为空 / 选择器非法 → {ok:false,error} → Worker 侧 reject
    */
   private proxyQuery(reqId: string, html: string, selector: string, baseUrl: string): void {
     const fail = (error: string) =>
@@ -436,6 +436,13 @@ export class SandboxService {
     }
     if (html.length > QUERY_HTML_LIMIT) {
       fail(`HTML 超过 ${QUERY_HTML_LIMIT / 1024 / 1024}MB 解析上限`);
+      return;
+    }
+    // 空选择器前置检查：DOM 报错信息技术（'The provided selector is empty'），不指引书源常量名;
+    // 书源 BOOK_TITLE_RULE / BOOK_AUTHOR_RULE / CHAPTER_ITEM_RULE / CONTENT_RULE / COVER_RULE / BOOK_CATEGORY_RULE
+    // 任意一个为空字符串都会触发,直接告诉用户去检查书源编辑器
+    if (!selector || !selector.trim()) {
+      fail('选择器为空：书源规则未填写（BOOK_TITLE_RULE / BOOK_AUTHOR_RULE / CHAPTER_ITEM_RULE / CONTENT_RULE / COVER_RULE / BOOK_CATEGORY_RULE 中至少一个为空）— 打开书源编辑器确认');
       return;
     }
     try {
