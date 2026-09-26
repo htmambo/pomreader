@@ -1,4 +1,4 @@
-import { Component, inject, effect } from '@angular/core';
+import { Component, inject, effect, signal } from '@angular/core';
 import { RouterOutlet, Router, NavigationEnd, ActivatedRouteSnapshot, Data } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map, startWith } from 'rxjs/operators';
@@ -21,6 +21,7 @@ import { PageHeaderComponent } from './shared/components/page-header/page-header
 import { PageHeaderService } from './shared/components/page-header/page-header.service';
 import { SidebarComponent } from './shared/components/sidebar/sidebar.component';
 import { SettingsService } from './core/services/settings.service';
+import { UniversalSearchComponent } from './pages/universal-search/universal-search.component';
 
 @Component({
   selector: 'app-root',
@@ -33,6 +34,7 @@ import { SettingsService } from './core/services/settings.service';
     NzIconModule,
     PageHeaderComponent,
     SidebarComponent,
+    UniversalSearchComponent,
   ],
   providers: [
     provideNzIconsPatch([
@@ -62,6 +64,14 @@ import { SettingsService } from './core/services/settings.service';
         }
         <nz-content [class.no-padding]="isReader()">
           <router-outlet></router-outlet>
+          <!-- 万能搜索常驻保活：webview 离开 DOM 即销毁 guest，故访问过 /search 后永久挂载，
+               离开时仅 display:none 隐藏（CSS 隐藏不销毁 guest，保留 URL/历史/滚动） -->
+          @if (searchVisited()) {
+            <app-universal-search
+              [active]="isSearch()"
+              [style.display]="isSearch() ? null : 'none'"
+            ></app-universal-search>
+          }
         </nz-content>
       </nz-layout>
     </nz-layout>
@@ -111,11 +121,29 @@ export class AppComponent {
     { initialValue: this.router.url.startsWith('/reader/') }
   );
 
+  /** 当前路由是否在万能搜索页（控制常驻组件显示/隐藏与激活态） */
+  readonly isSearch = toSignal(
+    this.router.events.pipe(
+      filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+      map((e) => e.urlAfterRedirects.startsWith('/search')),
+      startWith(this.router.url.startsWith('/search'))
+    ),
+    { initialValue: this.router.url.startsWith('/search') }
+  );
+
+  /** 是否访问过 /search：见过一次即永久 true（触发常驻挂载），初始值覆盖 hash 深链接直接进 /search 的场景 */
+  readonly searchVisited = signal(this.router.url.startsWith('/search'));
+
   constructor() {
     // 主题切换：把 settings.theme 同步到 <html data-pom-theme>，全站 modal 配色据此切换
     effect(() => {
       const theme = this.settings.settings().theme;
       document.documentElement.dataset['pomTheme'] = String(theme);
+    });
+
+    // 进入 /search 即标记已访问（一旦置 true 不再变回），外壳据此挂载常驻万能搜索组件
+    effect(() => {
+      if (this.isSearch()) this.searchVisited.set(true);
     });
 
     // 路由变化 → 从最深层 activated route 的 data 中读取 title/subtitle，写入全局 header

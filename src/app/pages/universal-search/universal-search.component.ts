@@ -5,6 +5,7 @@ import {
   signal,
   viewChild,
   effect,
+  input,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -33,6 +34,10 @@ type EncodingMode = 'auto' | 'utf-8' | 'gbk';
  *   （attachment 形式的下载由主进程 will-download 拦截，不经此处）
  *
  * 浏览器环境（ng serve）webview 不识别 → 降级提示
+ *
+ * 保活说明：本组件由 AppComponent 外壳在访问过 /search 后常驻挂载（/search 路由本身
+ * 只渲染占位组件），离开时外壳以 display:none 隐藏（webview 离开 DOM 即销毁 guest，
+ * CSS 隐藏可保留会话）；active=false 期间对 webview 静音，避免后台页面继续发声
  */
 @Component({
   selector: 'app-universal-search',
@@ -193,6 +198,9 @@ export class UniversalSearchComponent {
 
   private readonly webviewRef = viewChild<ElementRef<HTMLWebViewElement>>('webviewRef');
 
+  /** 是否处于激活页（/search 可见）：常驻保活时由外壳传入，false 期间静音 webview */
+  readonly active = input(true);
+
   constructor() {
     this.isElectron.set(typeof window !== 'undefined' && !!(window as any).pomAPI);
 
@@ -200,6 +208,20 @@ export class UniversalSearchComponent {
     effect(() => {
       const wv = this.webviewRef()?.nativeElement;
       if (wv) this.attachWebview(wv);
+    });
+
+    // 隐藏期间静音（display:none 不会停 guest 的音频播放）；依赖 wvReady/webviewRef，
+    // dom-ready 或重建后 effect 会重跑并重新套用当前激活态
+    effect(() => {
+      const active = this.active();
+      const ready = this.wvReady();
+      const wv = this.webviewRef()?.nativeElement;
+      if (!wv || !ready) return;
+      try {
+        (wv as any).setAudioMuted?.(!active);
+      } catch {
+        // 容错：webview 未 attach / guest 异常时原生方法不可用
+      }
     });
   }
 

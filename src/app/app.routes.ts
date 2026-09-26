@@ -10,13 +10,13 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./pages/bookshelf/bookshelf.component').then((m) => m.BookshelfComponent),
   },
-  // 全网搜索（legacy webview 浏览器路由；书源搜索已并入 /book-sources/search）
+  // 全网搜索（webview 浏览器；组件改由 AppComponent 外壳常驻保活，此处仅占位提供标题）
   {
     path: 'search',
     data: { title: '万能搜索' },
     loadComponent: () =>
-      import('./pages/universal-search/universal-search.component').then(
-        (m) => m.UniversalSearchComponent
+      import('./pages/universal-search/search-placeholder.component').then(
+        (m) => m.SearchPlaceholderComponent
       ),
   },
   // 书源管理（T-005，lazy 子路由：列表/搜索/智能添加/调试/测试/编辑）
