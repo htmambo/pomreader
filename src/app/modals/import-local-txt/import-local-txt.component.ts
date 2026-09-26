@@ -5,13 +5,10 @@ import { ScrollingModule } from '@angular/cdk/scrolling';
 import { NzUploadModule, NzUploadFile } from 'ng-zorro-antd/upload';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
-import { splitChapters, toChapters, ImportedChapter } from '../../core/logic/chapter-split';
+import { splitChapters, ImportedChapter } from '../../core/logic/chapter-split';
 import { finalizeChapterContent } from '../../core/logic/text-format';
 import { ToastService } from '../../core/services/toast.service';
-import { BookService } from '../../core/services/book.service';
-import { Book } from '../../core/models/book.model';
-import { Chapter } from '../../core/models/chapter.model';
-import { randomCoverFor } from '../../core/cover/generators/random';
+import { LocalTxtImportService } from '../../core/services/local-txt-import.service';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB（security-reviewer L4 缓解）
 const DEFAULT_DISPLAY_COUNT = 50;
@@ -207,7 +204,7 @@ export class ImportLocalTxtComponent {
 
   private fullText = '';
   private readonly toast = inject(ToastService);
-  private readonly books = inject(BookService);
+  private readonly importer = inject(LocalTxtImportService);
 
   beforeUpload = (file: NzUploadFile): boolean => {
     const realFile = file as unknown as File;
@@ -238,22 +235,7 @@ export class ImportLocalTxtComponent {
       return false;
     }
     try {
-      const id = `txt-${Date.now()}`;
-      const baseTitle = this.filename().replace(/\.[^.]+$/, '');
-      const book: Book = {
-        id,
-        title: baseTitle,
-        author: '本地导入',
-        coverColor: '#8b4513',
-        // 本地 TXT 无源站封面 —— 随机选一款内置 SVG 模板生成
-        coverImageUrl: randomCoverFor({ title: baseTitle, author: '本地导入' }),
-        chapterCount: this.chapters().length,
-        totalChars: this.fullText.length,
-        importedAt: new Date().toISOString(),
-        source: 'local-txt',
-      };
-      const chapters: Chapter[] = toChapters(id, this.chapters(), this.fullText);
-      await this.books.addBook(book, chapters);
+      const { book, chapters } = await this.importer.importText(this.filename(), this.fullText);
       this.toast.success(`已导入：${book.title}（${chapters.length} 章）`);
       return true;
     } catch (e) {

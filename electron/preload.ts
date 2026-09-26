@@ -85,30 +85,6 @@ contextBridge.exposeInMainWorld('pomAPI', {
   booksourceSaveDraft: (fileName: string, content: string): Promise<void> =>
     ipcRenderer.invoke('pom:booksource-save-draft', fileName, content),
 
-  // ── 扩展 CRUD + eval stub ─────────────────────────────────────────────
-  extensionList: (): Promise<unknown[]> =>
-    ipcRenderer.invoke('pom:extension-list'),
-
-  extensionRead: (fileName: string): Promise<string> =>
-    ipcRenderer.invoke('pom:extension-read', fileName),
-
-  extensionSave: (fileName: string, content: string): Promise<void> =>
-    ipcRenderer.invoke('pom:extension-save', fileName, content),
-
-  extensionDelete: (fileName: string): Promise<void> =>
-    ipcRenderer.invoke('pom:extension-delete', fileName),
-
-  /** v1 仅返回元数据 + 文件路径（实际沙箱执行由 Renderer Worker 承担） */
-  extensionEval: (fileName: string, args: unknown[]): Promise<unknown> =>
-    ipcRenderer.invoke('pom:extension-eval', fileName, args),
-
-  // ── 书源市场 ──────────────────────────────────────────────────────────
-  booksourceFetchRepo: (repoUrl: string): Promise<unknown> =>
-    ipcRenderer.invoke('pom:booksource-fetch-repo', repoUrl),
-
-  booksourceInstall: (downloadUrl: string, fileName: string): Promise<void> =>
-    ipcRenderer.invoke('pom:booksource-install', downloadUrl, fileName),
-
   // ── 健康检测（主进程 stub：返回文件路径 + 元数据，详细检测由 Renderer 沙箱执行） ──
   sourceHealthCheck: async (fileName: string): Promise<{
     fileName: string;
@@ -133,4 +109,21 @@ contextBridge.exposeInMainWorld('pomAPI', {
       };
     }
   },
+
+  // ── 自动导入监控（万能搜索 webview .txt/压缩包 → 自动入书架） ────────
+  /** 主进程检测到可导入文件并完成解码/解压后推送；返回取消订阅函数 */
+  onAutoImport: (cb: (payload: { fileName: string; txtName?: string; error?: string }) => void): (() => void) => {
+    const listener = (_e: unknown, payload: { fileName: string; txtName?: string; error?: string }): void =>
+      cb(payload);
+    ipcRenderer.on('pom:auto-import-detected', listener);
+    return () => ipcRenderer.removeListener('pom:auto-import-detected', listener);
+  },
+
+  /** webview 导航到 .txt/.zip 页面时由渲染端主动触发抓取 + 自动导入 */
+  autoImportFromUrl: (url: string): Promise<{ fileName: string; txtName: string }> =>
+    ipcRenderer.invoke('pom:auto-import-from-url', url),
+
+  /** 读取自动导入产出的 utf-8 文本（txtName 限 auto-import/txt 目录内） */
+  autoImportReadText: (txtName: string): Promise<string> =>
+    ipcRenderer.invoke('pom:auto-import-read-text', txtName),
 });

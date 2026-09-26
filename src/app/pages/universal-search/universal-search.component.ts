@@ -1,10 +1,10 @@
 import {
   Component,
   ElementRef,
-  ViewChild,
   inject,
   signal,
-  afterNextRender,
+  viewChild,
+  effect,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -18,6 +18,7 @@ import { NzModalService } from 'ng-zorro-antd/modal';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { GOOD_SITES } from '../../core/data/good-sites';
 import { ImportOnlineComponent } from '../../modals/import-online/import-online.component';
+import { AutoImportService, isImportableUrl } from '../../core/services/auto-import.service';
 
 type EncodingMode = 'auto' | 'utf-8' | 'gbk';
 
@@ -27,6 +28,8 @@ type EncodingMode = 'auto' | 'utf-8' | 'gbk';
  * - 地址栏同步、前进/后退/刷新/跳转
  * - 编码手动切换（auto/UTF-8/GBK）兜底
  * - 「导入在线书页」按钮预填当前 URL 打开导入 modal
+ * - 自动导入监控：导航命中 .txt/.zip/.rar/.7z 时阻止跳转并自动入书架
+ *   （attachment 形式的下载由主进程 will-download 拦截，不经此处）
  *
  * 浏览器环境（ng serve）webview 不识别 → 降级提示
  */
@@ -90,13 +93,16 @@ type EncodingMode = 'auto' | 'utf-8' | 'gbk';
           @if (loading()) {
             <div class="loading-mask"><span nz-icon nzType="loading"></span></div>
           }
-          <webview
-            #webviewRef
-            src="https://www.baidu.com/"
-            allowpopups
-            partition="persist:universal-search"
-            style="width: 100%; height: 100%;"
-          ></webview>
+          <!-- wvGen 变化即销毁重建 webview：首次加载卡死（dom-ready 未触发）时强制立即跳转 -->
+          @for (gen of [wvGen()]; track gen) {
+            <webview
+              #webviewRef
+              [attr.src]="wvSrc"
+              allowpopups
+              partition="persist:universal-search"
+              style="width: 100%; height: 100%;"
+            ></webview>
+          }
         </div>
       } @else {
         <div class="not-electron">
@@ -162,32 +168,40 @@ type EncodingMode = 'auto' | 'utf-8' | 'gbk';
 export class UniversalSearchComponent {
   private readonly modal = inject(NzModalService);
   private readonly msg = inject(NzMessageService);
+  // 注入即激活全局自动导入订阅（root 单例，离开页面后下载完成事件仍能导入）
+  private readonly autoImport = inject(AutoImportService);
 
   readonly sites = GOOD_SITES;
   url = 'https://www.baidu.com/';
+  /** webview 初始/重建时的 src（go 重建路径会更新它） */
+  wvSrc = 'https://www.baidu.com/';
+  /** webview 重建计数：@for track 它，变化即销毁旧 guest 新建 */
+  readonly wvGen = signal(0);
   readonly loading = signal(false);
   readonly isElectron = signal(false);
-  /** webview 是否已 dom-ready（未就绪时调 canGoBack 等会抛错） */
+  /** webview 是否已 dom-ready（未就绪时 canGoBack 等原生方法不可用） */
   readonly wvReady = signal(false);
   /** 后退/前进可用状态（did-stop-loading 时更新，模板绑 signal 而非每次变更检测调原生 API） */
   readonly canBack = signal(false);
   readonly canFwd = signal(false);
   encoding: EncodingMode = 'auto';
+  /** go() 主动发起的目标 URL：did-stop-loading 同步地址栏时优先于 wv.getURL()，
+   *  避免 stop() 中止旧加载时地址栏闪回旧 URL */
+  private navTarget: string | null = null;
 
-  @ViewChild('webviewRef') webviewRef?: ElementRef<HTMLWebViewElement>;
+  private readonly webviewRef = viewChild<ElementRef<HTMLWebViewElement>>('webviewRef');
 
   constructor() {
     this.isElectron.set(typeof window !== 'undefined' && !!(window as any).pomAPI);
 
-    afterNextRender(() => {
-      this.attachWebview();
+    // webview 元素出现/重建时（重新）挂事件；旧元素随 @for 销毁，监听器随之回收
+    effect(() => {
+      const wv = this.webviewRef()?.nativeElement;
+      if (wv) this.attachWebview(wv);
     });
   }
 
-  private attachWebview(): void {
-    const wv = this.webviewRef?.nativeElement;
-    if (!wv) return;
-
+  private attachWebview(wv: HTMLWebViewElement): void {
     wv.addEventListener('dom-ready', () => {
       this.wvReady.set(true);
       this.refreshNavState();
@@ -197,13 +211,20 @@ export class UniversalSearchComponent {
         e.preventDefault?.();
         return;
       }
+      // 自动导入监控：.txt/压缩包 URL 不再跳转，转交自动导入链（抓取/解压/入书架）
+      if (isImportableUrl(e.url)) {
+        e.preventDefault?.();
+        void this.autoImport.importFromUrl(e.url);
+        return;
+      }
       this.url = e.url;
     });
     wv.addEventListener('did-start-loading', () => this.loading.set(true));
     wv.addEventListener('did-stop-loading', () => {
       this.loading.set(false);
       if (this.wvReady()) {
-        this.url = wv.getURL();
+        this.url = this.navTarget ?? wv.getURL();
+        this.navTarget = null;
         this.refreshNavState();
       }
     });
@@ -216,7 +237,7 @@ export class UniversalSearchComponent {
 
   /** 刷新后退/前进可用状态（仅 webview 就绪后调） */
   private refreshNavState(): void {
-    const wv = this.webviewRef?.nativeElement;
+    const wv = this.webviewRef()?.nativeElement;
     if (!wv || !this.wvReady()) return;
     try {
       this.canBack.set(wv.canGoBack());
@@ -232,17 +253,26 @@ export class UniversalSearchComponent {
 
   back(): void {
     if (!this.wvReady()) return;
-    this.webviewRef?.nativeElement?.goBack?.();
+    this.webviewRef()?.nativeElement?.goBack?.();
   }
   forward(): void {
     if (!this.wvReady()) return;
-    this.webviewRef?.nativeElement?.goForward?.();
+    this.webviewRef()?.nativeElement?.goForward?.();
   }
   reload(): void {
-    if (!this.wvReady()) return;
-    this.webviewRef?.nativeElement?.reload?.();
+    if (this.wvReady()) {
+      this.webviewRef()?.nativeElement?.reload?.();
+    } else {
+      // 首次加载卡死：重建 webview 重新拉当前地址
+      this.recreateWebview(this.url);
+    }
   }
 
+  /**
+   * 跳转到目标地址（引擎切换/地址栏回车/跳转按钮）
+   * 要求：立即生效 —— 已就绪时 stop() 终止当前加载再 loadURL；
+   * 首次加载卡死（dom-ready 未触发，原生方法不可用）时重建 webview 强制跳转
+   */
   go(target?: string): void {
     let u = (target ?? this.url).trim();
     if (!u) return;
@@ -252,14 +282,45 @@ export class UniversalSearchComponent {
     } else if (!/^https?:\/\//.test(u)) {
       u = 'http://' + u;
     }
+    // 地址栏直接输入 .txt/压缩包 URL：will-navigate 不覆盖编程式 loadURL，此处主动拦截
+    if (isImportableUrl(u)) {
+      this.url = u;
+      void this.autoImport.importFromUrl(u);
+      return;
+    }
     this.url = u;
-    if (this.wvReady()) this.webviewRef?.nativeElement?.loadURL?.(u);
+    const wv = this.webviewRef()?.nativeElement;
+    if (!wv) return;
+    if (this.wvReady()) {
+      this.navTarget = u;
+      try {
+        // 先终止进行中的加载（触发 did-stop-loading → 立即停转圈），再开始新导航
+        // stop 不在 HTMLWebViewElement 类型声明中（与 loadURL 同为运行时方法）
+        if (this.loading()) (wv as any).stop?.();
+      } catch {
+        // 容错：原生方法偶发不可用
+      }
+      // loadURL 实际返回 Promise（类型声明为 void）；ERR_ABORTED（被下一次导航中止）属正常竞争，静默
+      void (wv.loadURL(u) as unknown as Promise<void>)?.catch(() => {});
+    } else {
+      this.recreateWebview(u);
+    }
+  }
+
+  /** 销毁当前 webview 并以新 URL 重建（卡死场景的强制立即生效手段，代价是丢失 guest 内历史） */
+  private recreateWebview(u: string): void {
+    this.wvReady.set(false);
+    this.loading.set(false);
+    this.canBack.set(false);
+    this.canFwd.set(false);
+    this.wvSrc = u;
+    this.wvGen.update((n) => n + 1);
   }
 
   setEncoding(mode: EncodingMode): void {
     this.encoding = mode;
     if (!this.wvReady()) return;
-    const wv = this.webviewRef?.nativeElement as any;
+    const wv = this.webviewRef()?.nativeElement as any;
     if (wv?.getWebContentsId) {
       const id = String(wv.getWebContentsId());
       (window as any).pomAPI?.setWebviewEncoding?.(id, mode);

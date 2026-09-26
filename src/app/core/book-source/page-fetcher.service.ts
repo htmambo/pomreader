@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, NgZone, inject } from '@angular/core';
 import { PageFetcher } from './book-source.adapter';
 import { FetchError } from './fetch-error';
 
@@ -32,12 +32,6 @@ declare global {
         sourceDir?: string;
         [key: string]: unknown;
       }>>;
-      /** 扩展系统 IPC（T-010 ExtensionService 用） */
-      extensionList?: () => Promise<unknown[]>;
-      extensionRead?: (fileName: string) => Promise<string>;
-      extensionSave?: (fileName: string, content: string) => Promise<void>;
-      extensionDelete?: (fileName: string) => Promise<void>;
-      extensionEval?: (fileName: string, args: unknown[]) => Promise<unknown>;
       /** 封面缓存 IPC（T-008 CoverService 用） */
       coverResolveCache?: (req: { url: string; referer?: string; headers?: Record<string, string> }) => Promise<{
         localPath: string;
@@ -55,12 +49,27 @@ declare global {
  */
 @Injectable({ providedIn: 'root' })
 export class PageFetcherService implements PageFetcher {
+  private readonly zone = inject(NgZone);
+
+  /**
+   * Electron contextBridge 的 IPC Promise 在 NgZone 外 resolve（Zone.js 捕获不到），
+   * 调用方 await 之后的代码不触发变更检测（loading 卡死）——统一在本服务内重新进入 zone。
+   */
+  private inZone<T>(p: Promise<T>): Promise<T> {
+    return new Promise<T>((resolve, reject) =>
+      p.then(
+        (v) => this.zone.run(() => resolve(v)),
+        (e: unknown) => this.zone.run(() => reject(e))
+      )
+    );
+  }
+
   async fetchHtml(
     url: string,
     encoding: 'auto' | 'utf-8' | 'gbk' = 'auto'
   ): Promise<string> {
     if (window.pomAPI?.fetchHtml) {
-      const res = await window.pomAPI.fetchHtml(url, encoding);
+      const res = await this.inZone(window.pomAPI.fetchHtml(url, encoding));
       if (res.error) throw new FetchError(res.error as FetchError['code']);
       if (!res.html) throw new FetchError('parse-failed');
       return res.html;
@@ -72,7 +81,7 @@ export class PageFetcherService implements PageFetcher {
 
   async fetchRendered(url: string): Promise<string> {
     if (window.pomAPI?.fetchRendered) {
-      const res = await window.pomAPI.fetchRendered(url);
+      const res = await this.inZone(window.pomAPI.fetchRendered(url));
       if (res.error) throw new FetchError(res.error as FetchError['code']);
       if (!res.text) throw new FetchError('parse-failed');
       return res.text;

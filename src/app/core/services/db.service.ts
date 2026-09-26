@@ -21,7 +21,7 @@ export interface BookDoc {
   importedAt: string;
   /** 最后阅读时间（ISO 字符串）；随进度更新一同刷新 */
   lastReadAt?: string;
-  source: 'local-txt' | 'online' | 'mock';
+  source: 'local-txt' | 'online' | 'mock' | 'auto-import';
   sourceUrl?: string;
   /** 阅读进度（嵌入，与 bookId 强耦合） */
   progress?: {

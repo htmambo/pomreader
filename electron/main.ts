@@ -5,7 +5,7 @@ import { registerRenderHandler } from './ipc/render-handler';
 import { registerExternalHandler } from './ipc/external-handler';
 import { registerBookSourceHandler } from './ipc/booksource-handler';
 import { registerCoverHandler } from './ipc/cover-handler';
-import { registerExtensionHandler } from './ipc/extension-handler';
+import { registerAutoImport } from './auto-import';
 import { loadWindowState, trackWindowState } from './window-state';
 
 // 沿用原 vendor 兼容补丁 ⑤：防双实例 IndexedDB 锁争用
@@ -87,7 +87,7 @@ app.whenReady().then(() => {
   registerExternalHandler(ipcMain);
   registerBookSourceHandler(ipcMain, userData);
   registerCoverHandler(ipcMain, userData);
-  registerExtensionHandler(ipcMain, userData);
+  registerAutoImport(ipcMain, userData, () => mainWindow);
   createWindow(userData);
 
   // 拦截所有 webContents（含 webview）的 window.open / target=_blank：

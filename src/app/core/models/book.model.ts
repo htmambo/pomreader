@@ -1,4 +1,4 @@
-export type BookSource = 'local-txt' | 'online' | 'mock';
+export type BookSource = 'local-txt' | 'online' | 'mock' | 'auto-import';
 
 /** 阅读进度（持久化到 PouchDB Book 文档的 progress 字段） */
 export interface BookProgress {

@@ -181,6 +181,7 @@ async function followRedirect(
       const status = resp.statusCode;
       // 处理 3xx 重定向：手动跟踪，递归前 isPrivateHost 校验
       if (status >= 300 && status < 400) {
+        aborted = true; // 标记主动 abort,避免 error 事件误报
         try { req.abort(); } catch { /* noop */ }
         if (depth >= MAX_REDIRECTS) {
           done({ ok: false, error: 'redirect-loop' });
@@ -230,7 +231,14 @@ async function followRedirect(
       });
     });
 
-    req.on('error', () => done({ ok: false, error: 'source-unavailable' }));
+    let aborted = false; // 标记是否主动 abort(redirect manual 模式),防止 abort 后 error 事件被当真错误上报
+    req.on('error', (err) => {
+      if (aborted) return; // 主动 abort 是预期行为,不报错
+      // Round 12: 透传原始 error 信息(原统一归类为 'source-unavailable' 掩盖了 DNS/连接/超时等真实错误)
+      // err.message 通常是 'net::ERR_NAME_NOT_RESOLVED' / 'net::ERR_CONNECTION_REFUSED' / 'net::ERR_INTERNET_DISCONNECTED' 等
+      const msg = (err as { message?: string })?.message ?? 'source-unavailable';
+      done({ ok: false, error: msg });
+    });
 
     const timer = setTimeout(() => {
       try { req.abort(); } catch { /* noop */ }
