@@ -15,7 +15,7 @@
 import { net, session as electronSession } from 'electron';
 import { URL } from 'url';
 import { decodeBuffer, EncodingMode } from './encoding';
-import { isPrivateHost } from './fetch-handler';
+import { isPrivateHost } from './net-guard';
 import { getFetchSession, browserHeaders } from './fetch-session';
 
 /** HTTP 代理配置（DM-13 schema，v1 落地） */

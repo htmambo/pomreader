@@ -12,7 +12,6 @@ import * as path from 'path';
 import { atomicWrite, safeFileName, scanDir } from './booksource-meta';
 import { isCfChallenge } from './cf-guard';
 import { safeNetRequest } from './safe-net';
-// 循环 import（render-handler ↔ booksource-handler）：cfFetchHtmlHidden 仅在函数调用期解析
 import { cfFetchHtmlHidden } from './render-handler';
 
 const PRIMARY_DIR = 'booksources';

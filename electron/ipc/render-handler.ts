@@ -1,6 +1,6 @@
 import { BrowserWindow, IpcMain } from 'electron';
 import { URL } from 'url';
-import { isPrivateHost } from './fetch-handler';
+import { isPrivateHost } from './net-guard';
 import { FETCH_PARTITION, getFetchSession, getUA } from './fetch-session';
 
 const LOAD_TIMEOUT_MS = 20000;

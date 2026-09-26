@@ -7,12 +7,11 @@
  * 隐藏窗口真实加载 URL，等挑战消失后取 documentElement.outerHTML 返回。
  * 浏览器能打开页面即视为过盾成功（99csw 这类无感 managed challenge 因此能"自动"通过）。
  *
- * 注意：与 render-handler / fetch-handler 存在循环 import，
- * 所有跨模块引用均在函数调用期解析（CommonJS 属性访问惰性求值），无模块初始化期使用。
+ * 依赖方向（单向，无环）：cf-guard → render-handler / net-guard / fetch-session
  */
 import { BrowserWindow, IpcMain } from 'electron';
 import { URL } from 'url';
-import { isPrivateHost } from './fetch-handler';
+import { isPrivateHost } from './net-guard';
 import { FETCH_PARTITION, getUA } from './fetch-session';
 import { extractRenderedHtml, waitForPageCleared } from './render-handler';
 
