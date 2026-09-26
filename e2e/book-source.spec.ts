@@ -1,5 +1,5 @@
 // 书源系统 E2E 测试（T-016）
-// 覆盖范围：核心路由可达性 + 书源编辑器 / 列表 / 万能搜索 / 扩展 / 缓存设置 / 导入 modal
+// 覆盖范围：核心路由可达性 + 书源列表 / 缓存设置 / 导入 modal
 // 验收标准（spec §10 模块级 FR-1 ~ FR-4）：路由可达、关键组件可挂载、无 pageerror
 import { test, expect } from '@playwright/test';
 
@@ -19,21 +19,9 @@ test.describe('书源系统 E2E', () => {
     await expect(page.locator('app-book-source-list')).toBeVisible({ timeout: 5000 });
   });
 
-  test('应能打开书源编辑器（新建页）', async ({ page }) => {
-    await page.goto('/book-sources/edit');
-    await expect(page.locator('app-book-source-editor')).toBeVisible({ timeout: 5000 });
-    // 编辑器左侧存在 textarea（用于粘贴/编辑书源 JS 源码）
-    await expect(page.locator('textarea').first()).toBeVisible();
-  });
-
-  test('应能访问万能搜索页', async ({ page }) => {
-    await page.goto('/source-search');
+  test('应能访问书源搜索页', async ({ page }) => {
+    await page.goto('/book-sources/search');
     await expect(page.locator('app-source-search')).toBeVisible({ timeout: 5000 });
-  });
-
-  test('应能访问扩展管理页', async ({ page }) => {
-    await page.goto('/extensions');
-    await expect(page.locator('app-extension-list')).toBeVisible({ timeout: 5000 });
   });
 
   test('应能访问缓存设置页', async ({ page }) => {
@@ -63,8 +51,7 @@ test.describe('路由可达性（无控制台错误）', () => {
   const routes = [
     '/bookshelf',
     '/book-sources',
-    '/source-search',
-    '/extensions',
+    '/book-sources/search',
     '/settings/cache',
     '/disclaimer',
   ];

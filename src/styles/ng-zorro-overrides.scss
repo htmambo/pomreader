@@ -473,4 +473,56 @@
     background: rgba(191, 44, 36, 0.16);
     color: #ed4259;
   }
+
+  /* ============================================================
+   * nz-alert 全局暗色覆盖（user 反馈：暗色下默认浅蓝/浅黄背景反差强烈）
+   * 沿用已有 #1f1f1f/#444/#c9c9c9 基调 + 左侧 3px 色带区分四种类型
+   * ============================================================ */
+  .ant-alert {
+    background: #1f1f1f;
+    border-color: #444;
+    color: #c9c9c9;
+  }
+  .ant-alert-info    { box-shadow: inset 3px 0 0 #2c5282; }   /* 暗蓝（inset 不影响布局） */
+  .ant-alert-success { box-shadow: inset 3px 0 0 #2d5a3d; }   /* 暗绿 */
+  .ant-alert-warning { box-shadow: inset 3px 0 0 #8a6d3b; }   /* 暗琥珀 */
+  .ant-alert-error   { box-shadow: inset 3px 0 0 #b53d3d; }   /* 暗红 */
+  .ant-alert .ant-alert-icon { color: #888; }
+  .ant-alert .ant-alert-message { color: #e0e0e0; }
+  .ant-alert .ant-alert-description { color: #aaa; }
+  .ant-alert .ant-alert-close-icon { color: #888; }
+  .ant-alert .ant-alert-close-icon:hover { color: #ed4259; }
+  .ant-alert.ant-alert-with-description { padding: 12px 16px; }
+  .ant-alert-banner { border-radius: 0; }
+
+  /* ============================================================
+   * nz-tag 全局暗色覆盖（user 反馈：暗色下默认浅蓝/浅灰 tag 刺眼）
+   * 统一为低饱和深色背景 + 浅色文字 + 主题强调色边框
+   * ============================================================ */
+  .ant-tag {
+    background: #2a2a2a;
+    border-color: #444;
+    color: #c9c9c9;
+  }
+  .ant-tag-blue    { background: #1e3a5f; border-color: #2c5282; color: #90cdf4; }
+  .ant-tag-green   { background: #1e3a2c; border-color: #2d5a3d; color: #9ae6b4; }
+  .ant-tag-orange  { background: #3a2e1e; border-color: #8a6d3b; color: #fbd38d; }
+  .ant-tag-red     { background: #3a1e1e; border-color: #b53d3d; color: #feb2b2; }
+  .ant-tag-purple  { background: #2e1e3a; border-color: #553c9a; color: #d6bcfa; }
+  .ant-tag-cyan    { background: #1e3a3a; border-color: #2c7a7b; color: #81e6d9; }
+  .ant-tag-gold    { background: #3a361e; border-color: #b7791f; color: #f6e05e; }
+
+  /* ============================================================
+   * nz-list 暗色覆盖（书源搜索结果列表）
+   * ============================================================ */
+  .ant-list-bordered {
+    border-color: #333;
+  }
+  .ant-list-item {
+    border-bottom-color: #333;
+    color: #e0e0e0;
+  }
+  .ant-list-item:hover {
+    background: #232323;
+  }
 }

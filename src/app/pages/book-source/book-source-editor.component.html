@@ -1,8 +1,18 @@
-<app-page-header title="编辑书源" [subtitle]="isNew() ? '新建' : fileName"></app-page-header>
+<app-page-header title="编辑书源" [subtitle]="fileName"></app-page-header>
 
 <div class="editor">
   <!-- 规则编辑面板(可折叠) —— 与智能添加页同 UI/label -->
   @if (showRules()) {
+
+    <!-- 测试按钮行为说明：避免误以为「测试正文」能验证书源 JS 的 chapterContent -->
+    <nz-alert
+      class="full-row"
+      nzType="info"
+      nzShowIcon
+      nzMessage="本页 4 个「测试*」按钮均直接抓 HTML 用 CSS 选择器提取内容，仅验证 6 条规则的正确性"
+      nzDescription="不执行书源 JS 脚本里的 function search / bookInfo / chapterList / chapterContent 等函数。要测试 JS 代码（沙箱执行）→ 进入「调试书源」页；要验证完整链路（沙箱 + 章节缓存 + 入库 + 阅读）→ 在「书源搜索」点导入，进入阅读。"
+      style="margin-bottom: 12px;"
+    ></nz-alert>
 
     <!-- 搜索规则(同智能添加) -->
     <div class="stage-card">
@@ -131,11 +141,6 @@
     <h4>解析预览</h4>
     <pre>{{ metaPreview() }}</pre>
     <button nz-button (click)="cancel()" [disabled]="saving()">取消</button>
-    @if (isNew()) {
-      <button nz-button (click)="showAiDialog.set(true)" [disabled]="saving()">
-        <span nz-icon nzType="robot"></span> AI 生成
-      </button>
-    }
     <button nz-button nzType="primary" [disabled]="saving()" (click)="save()">
       {{ saving() ? '保存中...' : '保存' }}
     </button>
@@ -144,37 +149,3 @@
   <div class="actions">
   </div>
 </div>
-
-@if (showAiDialog()) {
-  <nz-modal
-    [nzVisible]="showAiDialog()"
-    nzTitle="AI 生成书源（v1 mock 模板）"
-    (nzOnCancel)="showAiDialog.set(false)"
-  >
-    <ng-container *nzModalContent>
-      <p class="hint">输入书源名称和 URL，生成基础模板（v1 仅 mock，v2 接真实 LLM）</p>
-      <input
-        nz-input
-        placeholder="书源名称"
-        [ngModel]="draftName()"
-        (ngModelChange)="draftName.set($event)"
-      />
-      <input
-        nz-input
-        placeholder="书源 URL"
-        [ngModel]="draftUrl()"
-        (ngModelChange)="draftUrl.set($event)"
-        style="margin-top: 12px;"
-      />
-    </ng-container>
-    <div *nzModalFooter>
-      <button nz-button (click)="showAiDialog.set(false)">取消</button>
-      <button
-        nz-button
-        nzType="primary"
-        [disabled]="!draftName().trim() || !draftUrl().trim()"
-        (click)="aiGenerate()"
-      >生成</button>
-    </div>
-  </nz-modal>
-}

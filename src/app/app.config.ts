@@ -13,6 +13,7 @@ import { routes } from './app.routes';
 import { GlobalErrorHandler } from './core/services/global-error-handler';
 import { BookService } from './core/services/book.service';
 import { BookSourceRegistry } from './core/book-source/book-source.registry';
+import { SandboxService } from './core/book-source/js-source/sandbox.service';
 import { XbiqugeAdapter } from './core/book-source/adapters/xbiquge.adapter';
 import { HeuristicAdapter } from './core/book-source/adapters/heuristic.adapter';
 
@@ -22,10 +23,14 @@ function initBooks(books: BookService) {
   return () => books.load();
 }
 
-function initBookSources(registry: BookSourceRegistry) {
-  return () => {
+function initBookSources(registry: BookSourceRegistry, sandbox: SandboxService) {
+  return async () => {
     registry.register(new XbiqugeAdapter());
     registry.register(new HeuristicAdapter()); // 通用兜底（任意 URL 可试）
+    // 加载用户安装的 JS 书源（legado 风格）—— 否则跨书源聚合搜索永远找不到 JS 书源。
+    // 显式传入 sandbox（不能由 loadAllJsAdapters 内 inject —— APP_INITIALIZER 的 async
+    // 函数 await 后脱离 Angular 注入上下文，会抛 NG0203）
+    await registry.loadAllJsAdapters(sandbox);
     return registry.supportedSources();
   };
 }
@@ -50,7 +55,7 @@ export const appConfig: ApplicationConfig = {
     {
       provide: APP_INITIALIZER,
       useFactory: initBookSources,
-      deps: [BookSourceRegistry],
+      deps: [BookSourceRegistry, SandboxService],
       multi: true,
     },
   ],

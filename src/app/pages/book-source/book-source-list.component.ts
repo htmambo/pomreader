@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { NzButtonModule } from 'ng-zorro-antd/button';
-import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzSwitchModule } from 'ng-zorro-antd/switch';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzInputModule } from 'ng-zorro-antd/input';
@@ -39,7 +38,6 @@ function pomApi(): PomBooksourceAdmin | null {
     CommonModule,
     FormsModule,
     NzButtonModule,
-    NzIconModule,
     NzSwitchModule,
     NzTagModule,
     NzInputModule,
@@ -137,12 +135,9 @@ export class BookSourceListComponent {
     });
   }
 
-  /** 跳转编辑器：新建（无参）或编辑（带 fileName） */
-  openEditor(src?: BookSourceMeta): void {
-    const path = src
-      ? `/book-sources/edit/${encodeURIComponent(src.fileName)}`
-      : '/book-sources/edit';
-    void this.router.navigateByUrl(path);
+  /** 跳转编辑器（编辑现有书源） */
+  openEditor(src: BookSourceMeta): void {
+    void this.router.navigateByUrl(`/book-sources/edit/${encodeURIComponent(src.fileName)}`);
   }
 
   /** 不可变更新单个条目 */

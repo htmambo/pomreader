@@ -7,7 +7,6 @@ import { Routes } from '@angular/router';
  * - 'smart-add' → 智能添加
  * - 'debug'     → 调试书源
  * - 'test'      → 书源测试
- * - 'edit'      → 新建编辑器
  * - 'edit/:fileName' → 编辑现有书源
  */
 export const BOOK_SOURCE_ROUTES: Routes = [
@@ -36,11 +35,6 @@ export const BOOK_SOURCE_ROUTES: Routes = [
     path: 'test',
     loadComponent: () =>
       import('./source-test.component').then((m) => m.SourceTestComponent),
-  },
-  {
-    path: 'edit',
-    loadComponent: () =>
-      import('./book-source-editor.component').then((m) => m.BookSourceEditorComponent),
   },
   {
     path: 'edit/:fileName',

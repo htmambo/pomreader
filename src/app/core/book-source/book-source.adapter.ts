@@ -9,6 +9,8 @@ export interface CatalogEntry {
 export interface ResolvedBook {
   title: string;
   author: string;
+  /** 分类/题材（项目 Book.kind 对应；用于封面生成器的 kind 文案） */
+  kind?: string;
   chapters: CatalogEntry[];
 }
 
@@ -48,4 +50,25 @@ export interface BookSourceAdapter {
   fetchCatalog(url: string, fetcher: PageFetcher): Promise<ResolvedBook>;
   /** 抓取单章正文（HTML→纯文本） */
   fetchChapter(entry: CatalogEntry, fetcher: PageFetcher): Promise<string>;
+}
+
+/**
+ * 书源搜索原始返回项（兼容 legado 风格：name/title, url/bookUrl, author, intro/description）。
+ * 适配器层公共类型：聚合搜索与各适配器统一使用，避免循环依赖
+ * （multi-source.search → registry → js-source 形成回路）。
+ *
+ * 字段命名约定：legado 标准在前（name / url / intro），兼容字段在后（title / bookUrl / description）。
+ * kind 用项目 Book.kind 命名（对应「分类」/「题材」）；fallback 链：kind / genre / category / class / type。
+ */
+export interface RawSearchItem {
+  name?: string;
+  title?: string;
+  author?: string;
+  kind?: string;
+  genre?: string;
+  category?: string;
+  url?: string;
+  bookUrl?: string;
+  intro?: string;
+  description?: string;
 }

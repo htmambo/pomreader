@@ -8,9 +8,6 @@
     [(ngModel)]="filter"
     class="filter-input"
   />
-  <button nz-button nzType="primary" (click)="openEditor()">
-    <span nz-icon nzType="plus"></span>新建书源
-  </button>
 </div>
 
 @if (!loading() && sources().length === 0) {

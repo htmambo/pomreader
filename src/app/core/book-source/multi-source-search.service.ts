@@ -1,5 +1,25 @@
-import { Injectable } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import { BookSourceRegistry } from './book-source.registry';
+import { RawSearchItem } from './book-source.adapter';
+
+/**
+ * 重新导出 RawSearchItem 以保留既有调用方 import 路径（多源聚合搜索服务对外契约），
+ * 实际类型定义在 book-source.adapter.ts（适配器层公共类型，便于 JsSourceAdapter 等
+ * 子模块复用，避免 multi-source → registry → js-source 循环依赖）。
+ */
+export type { RawSearchItem };
+
+/** 跨源搜索进度（暴露给 UI 实时显示「正在搜索 a (x/y)」） */
+export interface SearchProgress {
+  /** 阶段：UI 据此切换文案 */
+  phase: 'idle' | 'preparing' | 'searching' | 'finalizing' | 'done';
+  /** 已完成的源数（searching 阶段递增） */
+  done: number;
+  /** 待搜索的总源数 */
+  total: number;
+  /** 当前正在处理的源名（batch 内最近开始；并发场景下展示「hetushu, 笔趣阁...」） */
+  current: string;
+}
 
 /**
  * 多源聚合搜索（实施计划 T-006 + spec FR-2）
@@ -12,17 +32,6 @@ import { BookSourceRegistry } from './book-source.registry';
  *   仅当适配器实现该方法才参与搜索（未来扩展无侵入）
  */
 
-/** 书源搜索原始返回项（兼容 legado 风格：name/title, url/bookUrl, author, intro/description） */
-export interface RawSearchItem {
-  name?: string;
-  title?: string;
-  author?: string;
-  url?: string;
-  bookUrl?: string;
-  intro?: string;
-  description?: string;
-}
-
 /** 聚合后展示项 */
 export interface SearchResultItem {
   /** 书源 fileName 或显示名 */
@@ -30,6 +39,8 @@ export interface SearchResultItem {
   sourceName: string;
   name: string;
   author?: string;
+  /** 分类/题材（项目 Book.kind 对应） */
+  kind?: string;
   /** 书页 URL（用于 toc） */
   url: string;
   intro?: string;
@@ -59,6 +70,15 @@ interface BookSourceWithSearch {
 
 @Injectable({ providedIn: 'root' })
 export class MultiSourceSearchService {
+  /** 跨源搜索实时进度（UI 订阅显示「正在搜索 X (x/y)」） */
+  readonly progress = signal<SearchProgress>({ phase: 'idle', done: 0, total: 0, current: '' });
+
+  /**
+   * 最近一次 searchAll 的源失败原因（"源名: 错误信息"格式），
+   * 用于 UI 在结果为 0 时展示为什么没搜到。
+   */
+  lastErrors: string[] = [];
+
   constructor(private readonly registry: BookSourceRegistry) {}
 
   /**
@@ -68,6 +88,9 @@ export class MultiSourceSearchService {
    * @returns 聚合去重后的结果列表
    */
   async searchAll(keyword: string, opts: SearchOptions = {}): Promise<SearchResultItem[]> {
+    this.lastErrors = [];
+    this.progress.set({ phase: 'preparing', done: 0, total: 0, current: '' });
+
     const concurrency = opts.concurrency ?? DEFAULT_CONCURRENCY;
     const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
@@ -82,7 +105,20 @@ export class MultiSourceSearchService {
       ? sources.filter((s) => opts.sourceNames!.includes(s.name))
       : sources;
 
-    if (filtered.length === 0) return [];
+    if (filtered.length === 0) {
+      // 诊断日志：让前端能直接看到为什么搜不到（registry 没加载 JS 书源 / 适配器未实现 search）
+      const totalRegistered = supported.length;
+      const withSearch = sources.length;
+      console.warn(
+        `[multi-source-search] 0 个源参与搜索：registry 共注册 ${totalRegistered} 个适配器，` +
+        `${withSearch} 个实现 search()。可能原因：① 启动时未调用 registry.loadAllJsAdapters()；` +
+        `② 用户未装书源；③ 所有书源都未实现 search() 函数。`,
+      );
+      this.progress.set({ phase: 'done', done: 0, total: 0, current: '' });
+      return [];
+    }
+
+    this.progress.update((p) => ({ ...p, total: filtered.length, phase: 'searching' }));
 
     const results: SearchResultItem[] = [];
     const seen = new Set<string>();
@@ -90,6 +126,12 @@ export class MultiSourceSearchService {
     // 分批并发执行（避免 100 书源一次性 Promise.all）
     for (let i = 0; i < filtered.length; i += concurrency) {
       const batch = filtered.slice(i, i + concurrency);
+      // 显示当前正在处理的 batch（并发场景下展示多个源名，逗号分隔）
+      this.progress.update((p) => ({
+        ...p,
+        current: batch.map((s) => s.name).join(', '),
+      }));
+
       const settled = await Promise.allSettled(
         batch.map((src) => this.callSource(src, keyword, timeoutMs)),
       );
@@ -100,6 +142,7 @@ export class MultiSourceSearchService {
         for (const item of r.value) {
           if (item.error) {
             console.warn(`[multi-source-search] 书源 ${src.name} 失败:`, item.error);
+            this.lastErrors.push(`${src.name}: ${item.error}`);
             continue; // 错误项不展示
           }
           // 去重 key：name|author
@@ -108,8 +151,10 @@ export class MultiSourceSearchService {
           seen.add(key);
           results.push(item);
         }
+        this.progress.update((p) => ({ ...p, done: p.done + 1 }));
       }
     }
+    this.progress.set({ phase: 'done', done: filtered.length, total: filtered.length, current: '' });
     return results;
   }
 
@@ -127,6 +172,7 @@ export class MultiSourceSearchService {
         sourceName: src.name,
         name: (it.name || it.title || '').trim(),
         author: it.author,
+        kind: it.kind,
         url: it.url || it.bookUrl || '',
         intro: it.intro || it.description,
         latencyMs: Date.now() - start,

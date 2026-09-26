@@ -1,7 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzListModule } from 'ng-zorro-antd/list';
@@ -9,10 +8,12 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzTagModule } from 'ng-zorro-antd/tag';
-import { MultiSourceSearchService, SearchResultItem } from '../../core/book-source/multi-source-search.service';
+import { NzModalService } from 'ng-zorro-antd/modal';
+import { MultiSourceSearchService, SearchResultItem, SearchProgress } from '../../core/book-source/multi-source-search.service';
 import { ToastService } from '../../core/services/toast.service';
 import { PageHeaderComponent } from '../../shared/components/page-header/page-header.component';
 import { BookSourceTabsComponent } from '../../shared/components/book-source-tabs/book-source-tabs.component';
+import { ImportOnlineComponent } from '../../modals/import-online/import-online.component';
 
 /**
  * 书源搜索页（实施计划 T-006 + spec FR-2；v2 并入书源管理 Tab）
@@ -63,13 +64,20 @@ import { BookSourceTabsComponent } from '../../shared/components/book-source-tab
     @if (loading()) {
       <div class="state-block">
         <nz-spin nzSimple></nz-spin>
-        <p>正在聚合 {{ sourceCount() }} 个书源...</p>
+        @if (progress().phase === 'preparing') {
+          <p>正在准备搜索{{ progress().total > 0 ? '（共 ' + progress().total + ' 个书源）' : '' }}</p>
+        } @else if (progress().phase === 'searching') {
+          <p>正在搜索: {{ progress().current }}</p>
+          <p class="progress-detail">已完成 {{ progress().done }} / 共 {{ progress().total }}</p>
+        } @else if (progress().phase === 'finalizing') {
+          <p>正在合并结果...</p>
+        }
       </div>
     } @else if (searched() && results().length === 0) {
       <nz-alert
         nzType="info"
         nzMessage="未找到匹配结果"
-        nzDescription="可尝试更换关键词，或确认书源列表中至少有一个实现了 search() 接口"
+        nzDescription="请尝试更换关键词，或确认书源支持搜索功能"
         nzShowIcon
       ></nz-alert>
     } @else if (results().length > 0) {
@@ -83,6 +91,9 @@ import { BookSourceTabsComponent } from '../../shared/components/book-source-tab
               <div class="result-line-1">
                 <span class="book-name">{{ r.name || '（无书名）' }}</span>
                 <nz-tag nzColor="blue">{{ r.author || '未知作者' }}</nz-tag>
+                @if (r.kind) {
+                  <nz-tag nzColor="cyan">{{ r.kind }}</nz-tag>
+                }
                 <nz-tag>{{ r.sourceName }}</nz-tag>
                 <span class="latency">{{ r.latencyMs }}ms</span>
               </div>
@@ -127,6 +138,10 @@ import { BookSourceTabsComponent } from '../../shared/components/book-source-tab
       .state-block p {
         margin-top: 12px;
       }
+      .progress-detail {
+        font-size: 12px;
+        color: var(--pom-text-muted, #aaa);
+      }
       .result-meta {
         font-size: 12px;
         color: var(--pom-text-muted, #888);
@@ -147,6 +162,7 @@ import { BookSourceTabsComponent } from '../../shared/components/book-source-tab
       .book-name {
         font-size: 15px;
         font-weight: 600;
+        color: var(--pom-text, #333);
       }
       .latency {
         font-size: 11px;
@@ -181,12 +197,19 @@ import { BookSourceTabsComponent } from '../../shared/components/book-source-tab
       .url:hover {
         text-decoration: underline;
       }
+      /* 暗色主题适配：提升文字对比度、保留 muted 弱化但不刺眼 */
+      :host-context([data-pom-theme='6']) .book-name { color: #f0f0f0; }
+      :host-context([data-pom-theme='6']) .intro { color: #9a9a9a; }
+      :host-context([data-pom-theme='6']) .url { color: #6a8fb5; }
+      :host-context([data-pom-theme='6']) .url:hover { color: #8fb5d9; }
+      :host-context([data-pom-theme='6']) .latency { color: #6a6a6a; }
+      :host-context([data-pom-theme='6']) .result-meta { color: #888; }
     `,
   ],
 })
 export class SourceSearchComponent {
   private readonly searchSvc = inject(MultiSourceSearchService);
-  private readonly router = inject(Router);
+  private readonly modal = inject(NzModalService);
   private readonly toast = inject(ToastService);
 
   keyword = '';
@@ -194,6 +217,7 @@ export class SourceSearchComponent {
   readonly searched = signal(false);
   readonly results = signal<SearchResultItem[]>([]);
   readonly sourceCount = signal(0);
+  readonly progress = signal<SearchProgress>({ phase: 'idle', done: 0, total: 0, current: '' });
 
   async search(): Promise<void> {
     const kw = this.keyword.trim();
@@ -204,9 +228,18 @@ export class SourceSearchComponent {
     try {
       const items = await this.searchSvc.searchAll(kw);
       this.results.set(items);
-      this.sourceCount.set(this.searchSvc['registry']?.supportedSources?.().length ?? 0);
+      // 同步最终进度（done 阶段）；sourceCount 同步为本次参与搜索的实际源数
+      this.progress.set(this.searchSvc.progress());
+      this.sourceCount.set(this.searchSvc.progress().total);
       if (items.length === 0) {
-        this.toast.info('未找到匹配结果');
+        // 暴露源失败原因到 UI —— 排查"为什么搜不到"的关键线索
+        const errors = this.searchSvc.lastErrors;
+        if (errors.length > 0) {
+          const summary = errors.slice(0, 3).join('；');
+          this.toast.warn(`未找到结果，${errors.length} 个书源失败：${summary}${errors.length > 3 ? '…' : ''}`);
+        } else {
+          this.toast.info('未找到匹配结果');
+        }
       }
     } catch (e) {
       // searchAll 内部已隔离单源失败；此处只兜底整体异常
@@ -216,14 +249,24 @@ export class SourceSearchComponent {
     }
   }
 
-  /** 跳导入 modal 并预填 URL + 书源 */
+  /**
+   * 弹导入 modal 并预填 URL + 书源（ImportOnlineComponent 通过 NZ_MODAL_DATA 自动 parse）
+   * 之前用 router.navigate(['/import-online']) 跳到一个不存在的路由，会落到默认路由（书架），
+   * 看上去像「跳到书架」，但其实没打开导入 modal；改成弹 modal 与 page-header / universal-search 一致
+   */
   importBook(r: SearchResultItem): void {
     if (!r.url) {
       this.toast.warn('该条目缺少 URL，无法导入');
       return;
     }
-    this.router.navigate(['/import-online'], {
-      queryParams: { url: r.url, source: r.source },
+    this.modal.create({
+      nzTitle: '导入在线书页',
+      nzContent: ImportOnlineComponent,
+      nzData: { url: r.url, source: r.source },
+      nzOkText: '确认导入',
+      nzCancelText: '取消',
+      nzWidth: 640,
+      nzOnOk: (instance: ImportOnlineComponent) => instance.confirm(),
     });
   }
 }

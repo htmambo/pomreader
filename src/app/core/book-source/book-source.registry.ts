@@ -56,29 +56,47 @@ export class BookSourceRegistry {
    * - Feature Flag 关 → 直接返回（实现计划 §8 回滚）
    * - preload 不可用（浏览器降级） → 直接返回
    * - 单条书源失败 → console.warn 跳过，不阻塞其他
+   *
+   * @param externalSandbox 可选：外部传入的 SandboxService（推荐，APP_INITIALIZER 等异步上下文中
+   *        调 `inject()` 会抛 NG0203）。不传时尝试内部 inject（仅 forTest / 直接调用场景可用）
    */
-  async loadAllJsAdapters(): Promise<void> {
-    if (!BOOK_SOURCE_FEATURE_FLAGS.enableJsSource) return;
+  async loadAllJsAdapters(externalSandbox?: SandboxService): Promise<void> {
+    if (!BOOK_SOURCE_FEATURE_FLAGS.enableJsSource) {
+      console.warn('[registry] loadAllJsAdapters 早返回：BOOK_SOURCE_FEATURE_FLAGS.enableJsSource = false');
+      return;
+    }
     const pom = typeof window !== 'undefined' ? (window as unknown as {
       pomAPI?: { booksourceList?: () => Promise<BookSourceMeta[]> };
     }).pomAPI : undefined;
-    if (!pom?.booksourceList) return;
-    let sandbox: SandboxService;
-    try {
-      sandbox = inject(SandboxService);
-    } catch {
-      return; // 无注入上下文（forTest / 浏览器降级）→ 跳过
+    if (!pom?.booksourceList) {
+      console.warn('[registry] loadAllJsAdapters 早返回：window.pomAPI.booksourceList 不存在（preload 未注册 / 非 Electron 环境）');
+      return;
+    }
+    let sandbox: SandboxService | undefined = externalSandbox;
+    if (!sandbox) {
+      try {
+        sandbox = inject(SandboxService);
+      } catch (e) {
+        console.warn('[registry] loadAllJsAdapters 早返回：inject(SandboxService) 失败（无 Angular 注入上下文）', e);
+        return;
+      }
     }
     try {
       const list = await pom.booksourceList();
+      let registered = 0;
+      const registeredNames: string[] = [];
       for (const meta of list) {
         if (!meta.enabled) continue;
         try {
-          this.registerJsAdapter(new JsSourceAdapter(meta, sandbox));
+          const adapter = new JsSourceAdapter(meta, sandbox);
+          this.registerJsAdapter(adapter);
+          registered++;
+          registeredNames.push(adapter.name);
         } catch (err) {
           console.warn(`[registry] 加载书源 ${meta.fileName} 失败:`, err);
         }
       }
+      console.info(`[registry] ✓ loadAllJsAdapters 完成：注册 ${registered} 个 JS 书源`, registeredNames);
     } catch (err) {
       console.warn('[registry] 拉取书源列表失败:', err);
     }

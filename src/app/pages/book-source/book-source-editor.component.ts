@@ -5,11 +5,10 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputModule } from 'ng-zorro-antd/input';
-import { NzModalModule } from 'ng-zorro-antd/modal';
+import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { PageHeaderComponent } from '../../shared/components/page-header/page-header.component';
 import { ToastService } from '../../core/services/toast.service';
 import { parseHeaderMeta } from '../../core/book-source/js-source/header-parser';
-import { AiDraftService } from '../../core/book-source/ai-draft/ai-draft.service';
 import {
   matchLinkItems, pickText, pickHtml, absUrl,
   generateSourceCode, randomTestKeyword,
@@ -29,29 +28,22 @@ function pomApi(): PomBooksourceEditor | null {
 
 /**
  * 书源编辑器（实施计划 T-005）
- * - 路由 /edit 为新建；/edit/:fileName 为编辑
+ * - 路由 /edit/:fileName 编辑现有书源
  * - 左侧 textarea 编辑；右侧实时解析预览
  * - 保存调 booksourceSave，失败 toast
- * - 文件名缺省时从 @name 推导，回退时间戳
  */
 @Component({
   selector: 'app-book-source-editor',
   standalone: true,
-  imports: [CommonModule, FormsModule, NzButtonModule, NzIconModule, NzInputModule, NzModalModule, PageHeaderComponent],
+  imports: [CommonModule, FormsModule, NzButtonModule, NzIconModule, NzInputModule, NzAlertModule, PageHeaderComponent],
   templateUrl: './book-source-editor.component.html',
   styleUrl: './book-source-editor.component.scss',
 })
 export class BookSourceEditorComponent {
   fileName = '';
-  readonly isNew = signal(true);
   readonly source = signal('');
   readonly saving = signal(false);
 
-  // AI 草稿（仅新建模式可见；v1 mock 模板）
-  readonly showAiDialog = signal(false);
-  readonly draftName = signal('');
-  readonly draftUrl = signal('');
-  private readonly aiDraft = inject(AiDraftService);
   private readonly fetcher = inject(PageFetcherService);
 
   // ── 规则编辑面板(智能添加的可视化模式 + 测试 + 应用按钮) ──
@@ -124,7 +116,6 @@ export class BookSourceEditorComponent {
     this.route.params.subscribe((params) => {
       const raw = params['fileName'];
       this.fileName = raw ? decodeURIComponent(String(raw)) : '';
-      this.isNew.set(!this.fileName);
       void this.loadExisting();
     });
   }
@@ -292,11 +283,22 @@ export class BookSourceEditorComponent {
     try {
       const url = this.ruleChapterUrl().trim();
       const html = await this.fetcher.fetchHtml(url);
-      const inner = pickHtml(this.ruleContent(), html);
+      var inner = pickHtml(this.ruleContent(), html);
       if (inner) {
         this.testContentResult.set(`✓ 命中 ${inner.length} 字节`);
+        // 展示内容用的是<pre>，所以这里需要把一些html tag替换为换行符
+        var search = ["<br[^>]*>", "<p[^>]*>", "<div[^>]*>"];
+        for (const pattern of search) {
+          inner = inner.replace(new RegExp(pattern, 'gi'), '\n');
+        }
         // 截断预览到 2000 字符避免长文刷屏,strip 标签后展示纯文本
-        const plain = inner.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        const plain = inner
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/\r\n?/g, '\n')
+          .replace(/[^\S\n]+/g, ' ')
+          .replace(/ *\n */g, '\n')
+          .replace(/\n{2,}/g, '\n')
+          .trim();
         this.testContentPreview.set(plain.slice(0, 2000) + (plain.length > 2000 ? '…' : ''));
       } else {
         this.testContentResult.set('未命中 —— 请调整正文规则');
@@ -308,7 +310,7 @@ export class BookSourceEditorComponent {
     }
   }
 
-  /** 保存：新建走文件名推导；编辑保留原 fileName */
+  /** 保存（保留原 fileName） */
   async save(): Promise<void> {
     const content = this.source();
     if (!content.trim()) {
@@ -322,9 +324,8 @@ export class BookSourceEditorComponent {
     }
     this.saving.set(true);
     try {
-      const target = this.fileName || this.suggestFileName();
-      await api.booksourceSave(target, content);
-      this.toast.success(`保存成功：${target}`);
+      await api.booksourceSave(this.fileName, content);
+      this.toast.success(`保存成功：${this.fileName}`);
       void this.router.navigateByUrl('/book-sources');
     } catch (e) {
       this.toast.error(`保存失败：${(e as Error).message}`);
@@ -335,37 +336,5 @@ export class BookSourceEditorComponent {
 
   cancel(): void {
     void this.router.navigateByUrl('/book-sources');
-  }
-
-  /** 从 @name 推导文件名；非法字符替换为下划线；缺失时回退时间戳 */
-  private suggestFileName(): string {
-    const m = /@name\s+(.+)/.exec(this.source());
-    const raw = m ? m[1].trim() : '';
-    const slug = raw
-      ? raw.replace(/[^\w一-龥-]+/g, '_').replace(/^_+|_+$/g, '')
-      : `source-${Date.now()}`;
-    return `${slug || `source-${Date.now()}`}.js`;
-  }
-
-  /** AI 草稿生成（v1 mock 模板）：填入 source + 推导 fileName */
-  async aiGenerate(): Promise<void> {
-    if (!this.draftName().trim() || !this.draftUrl().trim()) {
-      this.toast.warn('请先输入书源名称和 URL');
-      return;
-    }
-    try {
-      const code = await this.aiDraft.generate({
-        name: this.draftName(),
-        url: this.draftUrl(),
-      });
-      this.source.set(code);
-      if (this.isNew() && !this.fileName) {
-        this.fileName = this.aiDraft.suggestFileName(this.draftName());
-      }
-      this.toast.success('已生成模板（v1 mock，需手动调整）');
-      this.showAiDialog.set(false);
-    } catch (e) {
-      this.toast.error(`生成失败：${(e as Error).message}`);
-    }
   }
 }
