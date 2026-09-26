@@ -21,15 +21,22 @@ npm run build
 
 # 4. 单元测试（Vitest）
 npm test
+
+# 5. E2E（Playwright，自动起 dev server）
+npm run e2e
+
+# 6. Electron 桌面开发（web + 主进程 watch + 启动）
+npm run dev
 ```
 
 ## 技术栈
 
 - Angular 18+（standalone + signals）
 - ng-zorro-antd 18（与原 vendor 同源）
-- SCSS + CSS variables（驱动 light/dark）
-- localStorage（仅元数据 + 阅读进度）
-- Vitest（logic 单测 ≥ 90%）
+- Electron 44（桌面壳：抓取 / CF 过盾 / 封面缓存 / 自动导入）
+- SCSS + CSS variables（`data-pom-theme` 驱动多主题）
+- PouchDB（Book/Chapter 持久化）+ localStorage（设置）
+- Vitest（core/logic + core/book-source 单测 ≥ 90%）+ Playwright（E2E）
 
 ## 书源与扩展
 
@@ -43,20 +50,26 @@ npm test
 src/
 ├── app/
 │   ├── core/
-│   │   ├── logic/        # 行为级重写（chapter-split / online-source-resolver / theme-resolver）
-│   │   ├── models/       # Book / Chapter / Settings / ColorMode
-│   │   └── services/     # ThemeService / SettingsService / BookService / ReaderService / ToastService / GlobalErrorHandler
-│   ├── shared/components/# PageHeader / Sidebar / BookCard
-│   ├── pages/            # Bookshelf / UniversalSearch / Disclaimer / Reader
-│   ├── modals/           # ImportOnline / ImportLocalTxt
-│   ├── app.config.ts     # bootstrapApplication providers
-│   ├── app.routes.ts     # 4 路由 lazy load
-│   └── app.component.ts  # 根壳（nz-layout）
+│   │   ├── logic/        # 纯函数：chapter-split / text-format / bookshelf-sort / auto-import-url
+│   │   ├── models/       # Book / Chapter / Settings
+│   │   ├── services/     # BookService / DbService(PouchDB) / ReaderService / SettingsService 等
+│   │   ├── book-source/  # 书源体系：适配器注册表 + JS 书源沙箱 + legado 订阅源导入
+│   │   │   ├── adapters/ # 专用站（笔趣阁）/ 启发式密度算法兜底
+│   │   │   ├── js-source/# sandbox.worker（网络出口屏蔽 + 原型冻结）+ 健康检查/多镜像
+│   │   │   ├── legado/   # Legado 订阅源 JSON 解析/翻译/导入
+│   │   │   └── source-test/ # 书源五步测试
+│   │   └── cover/        # 封面缓存 / 程序生成封面
+│   ├── shared/components/# PageHeader / Sidebar / BookCard / RulesPanel 等
+│   ├── pages/            # Bookshelf / UniversalSearch / Reader / Disclaimer
+│   │   ├── book-source/  # 书源管理 6 子页：列表/搜索/智能添加/调试/测试/编辑
+│   │   └── settings/     # 缓存管理
+│   ├── modals/           # ImportOnline / ImportLocalTxt / ImportLegado
+│   ├── app.config.ts     # bootstrapApplication providers（含书源适配器注册）
+│   └── app.routes.ts     # lazy load 路由
 ├── assets/
-│   ├── data/             # books.json + chapters/*.json（mock）
-│   ├── covers/           # （SVG 程序生成，留空）
-│   └── themes/           # （背景纹理，留空）
-└── styles/               # tokens.scss / ng-zorro-overrides.scss
+│   ├── data/             # books.json + chapters/*.json（首次启动 seed）
+│   └── sandbox.worker.js # build:worker 产物（esbuild 打包）
+└── styles/               # tokens.scss / ng-zorro-overrides.scss / rules-panel.scss
 ```
 
 ## 路由
@@ -64,15 +77,20 @@ src/
 | 路径 | 组件 | 说明 |
 |---|---|---|
 | `/` | redirect | → `/bookshelf` |
-| `/bookshelf` | BookshelfComponent | 15 本 mock 书 |
-| `/search` | UniversalSearchComponent | 万能搜索（mock） |
+| `/bookshelf` | BookshelfComponent | 书架首页 |
+| `/search` | UniversalSearchComponent | 万能搜索（webview 浏览器式） |
+| `/book-sources/*` | 子路由 | 书源列表/搜索/智能添加/调试/测试/编辑 |
+| `/settings/*` | 子路由 | 缓存管理 |
 | `/disclaimer` | DisclaimerComponent | 免责声明 |
 | `/reader/:bookId/:chapterId` | ReaderComponent | 阅读器 + 抽屉 + 设置弹窗 |
+| `**` | redirect | → `/bookshelf` |
 
 ## 关键文件
 
 - `src/app/core/logic/chapter-split.ts` — TXT 章节切分（核心算法，单测 ≥ 90%）
-- `src/app/core/services/theme.service.ts` — `applyToHtml()` 把 data-color-mode 打在 `<html>`（避免弹窗背景闪烁）
+- `src/app/core/services/book.service.ts` — 书架/章节中枢：导入、PouchDB 读写、章节内存缓存
+- `src/app/core/book-source/js-source/sandbox.worker.ts` — JS 书源沙箱（屏蔽网络出口 + 冻结原型链）
+- `src/app/core/services/settings.service.ts` — 阅读设置持久化与校验；主题经 `app.component.ts` 打在 `<html data-pom-theme>`
 - `src/app/core/services/global-error-handler.ts` — 全局异常兜底 → ToastService
 - `src/styles/ng-zorro-overrides.scss` — ng-zorro 暗色主题覆盖（与原 vendor 一致）
 
@@ -81,16 +99,14 @@ src/
 | 项 | 原 vendor | 本项目 |
 |---|---|---|
 | 源码 | 仅打包产物 | Angular 18 TypeScript |
-| 持久化 | PouchDB / IndexedDB | localStorage |
-| 外部源 | 真实接入 | mock（5-10 章 + 5% 失败） |
-| 主题切换 | `<body>` 上打标 | `<html>` 上打标（v1.1 §9.3 修订） |
+| 外部源 | 硬编码接入 | 书源适配器体系（专用 / 启发式 / JS 沙箱 / Legado 导入） |
+| 主题切换 | `<body>` 上打标 | `<html>` 上打 `data-pom-theme`（避免弹窗背景闪烁） |
 | 路由参数 | `/:bookId` | `/:bookId/:chapterId`（v1.1 §15.2 修订） |
 
 ## 下一步
 
 - 补全 15+ 本书的章节内容（当前 2 本有完整内容、13 本只有 stub 首章）
 - 加 CDP 截图对比原 app（视觉保真验证）
-- 加 Playwright E2E 测试
 
 ## 排错（Linux 打包 / 运行）
 
