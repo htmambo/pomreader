@@ -8,7 +8,7 @@ import { NzTypographyModule } from 'ng-zorro-antd/typography';
   imports: [CommonModule, NzTypographyModule],
   template: `
     <div class="disclaimer">
-      <h2 nz-typography>免责声明</h2>
+      <h3 nz-typography>免责声明</h3>
       <p nz-typography>
         本应用（pomreader）是一个仿写练习项目，
         仅用于学习和研究 Angular 18 standalone + signals + ng-zorro-antd 技术栈。
@@ -36,7 +36,7 @@ import { NzTypographyModule } from 'ng-zorro-antd/typography';
     `
       .disclaimer {
         max-width: 720px;
-        margin: 24px auto;
+        margin: 0 auto;
         padding: 24px;
         background: var(--pom-card);
         border: 1px solid var(--pom-border);

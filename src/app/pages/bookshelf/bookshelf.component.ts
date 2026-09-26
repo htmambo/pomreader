@@ -22,7 +22,6 @@ import { ChangeBookSourceDialogComponent } from '../../shared/components/change-
   standalone: true,
   imports: [CommonModule, NzGridModule, NzEmptyModule, BookCardComponent],
   template: `
-    <h2>书架</h2>
     @if (sortedBooks().length > 0) {
       <div nz-row [nzGutter]="[16, 16]">
         @for (book of sortedBooks(); track book.id) {

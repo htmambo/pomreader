@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -8,8 +8,8 @@ import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzModalModule, NzModalService } from 'ng-zorro-antd/modal';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
-import { PageHeaderComponent } from '../../shared/components/page-header/page-header.component';
 import { BookSourceTabsComponent } from '../../shared/components/book-source-tabs/book-source-tabs.component';
+import { PageHeaderService } from '../../shared/components/page-header/page-header.service';
 import { ToastService } from '../../core/services/toast.service';
 import { BookSourceMeta } from '../../core/book-source/js-source/source-meta.types';
 import { ImportLegadoComponent } from '../../modals/import-legado/import-legado.component';
@@ -44,7 +44,6 @@ function pomApi(): PomBooksourceAdmin | null {
     NzInputModule,
     NzModalModule,
     NzEmptyModule,
-    PageHeaderComponent,
     BookSourceTabsComponent,
   ],
   templateUrl: './book-source-list.component.html',
@@ -70,9 +69,15 @@ export class BookSourceListComponent {
   private readonly toast = inject(ToastService);
   private readonly modal = inject(NzModalService);
   private readonly router = inject(Router);
+  private readonly pageHeader = inject(PageHeaderService);
 
   constructor() {
     void this.load();
+    // 副标题随 sources 数量变化 —— 「共 N 个书源」由本组件单独维护
+    // allowSignalWrites:这是 effect 写 signal 的明确逃生口 —— 两个 signal 不同源,不会形成循环
+    effect(() => {
+      this.pageHeader.subtitle.set(`共 ${this.sources().length} 个书源`);
+    }, { allowSignalWrites: true });
   }
 
   /** 拉取全量书源元数据 */

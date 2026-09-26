@@ -8,7 +8,6 @@ import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
-import { PageHeaderComponent } from '../../shared/components/page-header/page-header.component';
 import { BookSourceTabsComponent } from '../../shared/components/book-source-tabs/book-source-tabs.component';
 import { ToastService } from '../../core/services/toast.service';
 import { BookSourceMeta } from '../../core/book-source/js-source/source-meta.types';
@@ -51,11 +50,9 @@ const STEP_LABELS: Record<string, string> = {
     NzRadioModule,
     NzSpinModule,
     NzEmptyModule,
-    PageHeaderComponent,
     BookSourceTabsComponent,
   ],
   template: `
-    <app-page-header title="书源测试" subtitle="批量检测书源可用性（搜索 → 详情 → 目录 → 正文）"></app-page-header>
     <app-book-source-tabs />
 
     <div class="toolbar">

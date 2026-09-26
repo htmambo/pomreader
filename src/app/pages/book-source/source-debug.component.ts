@@ -9,7 +9,6 @@ import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzTagModule } from 'ng-zorro-antd/tag';
-import { PageHeaderComponent } from '../../shared/components/page-header/page-header.component';
 import { BookSourceTabsComponent } from '../../shared/components/book-source-tabs/book-source-tabs.component';
 import { ToastService } from '../../core/services/toast.service';
 import { SandboxService, SandboxFn } from '../../core/book-source/js-source/sandbox.service';
@@ -54,11 +53,9 @@ interface RawItem {
     NzSelectModule,
     NzSpinModule,
     NzTagModule,
-    PageHeaderComponent,
     BookSourceTabsComponent,
   ],
   template: `
-    <app-page-header title="调试书源" subtitle="逐函数调用书源，预览结果与原始 JSON"></app-page-header>
     <app-book-source-tabs />
 
     <!-- 书源选择 -->

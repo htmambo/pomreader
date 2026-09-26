@@ -11,7 +11,6 @@ import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { MultiSourceSearchService, SearchResultItem, SearchProgress } from '../../core/book-source/multi-source-search.service';
 import { ToastService } from '../../core/services/toast.service';
-import { PageHeaderComponent } from '../../shared/components/page-header/page-header.component';
 import { BookSourceTabsComponent } from '../../shared/components/book-source-tabs/book-source-tabs.component';
 import { ImportOnlineComponent } from '../../modals/import-online/import-online.component';
 
@@ -35,11 +34,9 @@ import { ImportOnlineComponent } from '../../modals/import-online/import-online.
     NzSpinModule,
     NzAlertModule,
     NzTagModule,
-    PageHeaderComponent,
     BookSourceTabsComponent,
   ],
   template: `
-    <app-page-header title="书源搜索" subtitle="跨书源聚合搜索（v1：启用 duck-typed search() 的书源）"></app-page-header>
     <app-book-source-tabs />
 
     <div class="search-bar">

@@ -11,7 +11,6 @@ import { CoverService } from '../../core/cover/cover.service';
 import { SettingsService } from '../../core/services/settings.service';
 import { BookshelfSort } from '../../core/models/settings.model';
 import { ToastService } from '../../core/services/toast.service';
-import { PageHeaderComponent } from '../../shared/components/page-header/page-header.component';
 
 /**
  * CacheSettingsComponent — 设置页（书架排序 + 封面缓存管理）
@@ -20,7 +19,7 @@ import { PageHeaderComponent } from '../../shared/components/page-header/page-he
 @Component({
   selector: 'app-cache-settings',
   standalone: true,
-  imports: [CommonModule, FormsModule, NzButtonModule, NzIconModule, NzInputModule, NzModalModule, NzRadioModule, NzSpinModule, PageHeaderComponent],
+  imports: [CommonModule, FormsModule, NzButtonModule, NzIconModule, NzInputModule, NzModalModule, NzRadioModule, NzSpinModule],
   templateUrl: './cache-settings.component.html',
   styleUrls: ['./cache-settings.component.scss'],
 })

@@ -1,4 +1,4 @@
-import { Component, Input, inject } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, NavigationEnd } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -10,11 +10,14 @@ import { NzDropDownModule } from 'ng-zorro-antd/dropdown';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { ImportOnlineComponent } from '../../../modals/import-online/import-online.component';
 import { ImportLocalTxtComponent } from '../../../modals/import-local-txt/import-local-txt.component';
+import { PageHeaderService } from './page-header.service';
 
 /**
- * PageHeader — 顶部标题 + 操作区
- * - 「导入」按钮仅书架页可见（其它页面该按钮与页面语义无关）
- * - 子页面可通过 title/subtitle 渲染左侧标题
+ * PageHeader — 顶部标题 + 操作区(全局唯一,放在 AppComponent 的 <nz-header> 里)
+ * - 标题/副标题来自 PageHeaderService:
+ *   - 静态部分由路由 data.title / data.subtitle 写入(AppComponent 监听 NavigationEnd);
+ *   - 动态副标题(例如书源列表的「共 N 个书源」)由具体页面在 effect / 回调里覆写。
+ * - 「导入」按钮仅书架页可见 —— 其它页面该按钮与页面语义无关
  */
 @Component({
   selector: 'app-page-header',
@@ -22,11 +25,13 @@ import { ImportLocalTxtComponent } from '../../../modals/import-local-txt/import
   imports: [CommonModule, NzTagModule, NzButtonModule, NzIconModule, NzDropDownModule],
   template: `
     <div class="page-header">
-      @if (title) {
+      @if (header.title() || header.subtitle()) {
         <div class="title-block">
-          <h2 class="title">{{ title }}</h2>
-          @if (subtitle) {
-            <span class="subtitle">{{ subtitle }}</span>
+          @if (header.title()) {
+            <h2 class="title">{{ header.title() }}</h2>
+          }
+          @if (header.subtitle()) {
+            <span class="subtitle">{{ header.subtitle() }}</span>
           }
         </div>
       } @else {
@@ -68,7 +73,7 @@ import { ImportLocalTxtComponent } from '../../../modals/import-local-txt/import
         display: flex;
         align-items: baseline;
         gap: 12px;
-        line-height: 1.2;
+        line-height: 32px;
       }
       .title {
         margin: 0;
@@ -82,7 +87,7 @@ import { ImportLocalTxtComponent } from '../../../modals/import-local-txt/import
       }
       .tags {
         display: flex;
-        gap: 8px;
+        gap: 4px;
         flex-wrap: wrap;
       }
       .actions {
@@ -93,8 +98,7 @@ import { ImportLocalTxtComponent } from '../../../modals/import-local-txt/import
   ],
 })
 export class PageHeaderComponent {
-  @Input() title = '';
-  @Input() subtitle = '';
+  protected readonly header = inject(PageHeaderService);
 
   private readonly modal = inject(NzModalService);
   private readonly router = inject(Router);

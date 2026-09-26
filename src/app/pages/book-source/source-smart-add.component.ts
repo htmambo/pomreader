@@ -6,7 +6,6 @@ import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
-import { PageHeaderComponent } from '../../shared/components/page-header/page-header.component';
 import { BookSourceTabsComponent } from '../../shared/components/book-source-tabs/book-source-tabs.component';
 import { RulesPanelComponent } from '../../shared/components/rules-panel/rules-panel.component';
 import { ToastService } from '../../core/services/toast.service';
@@ -40,12 +39,10 @@ type PomSave = {
     NzIconModule,
     NzInputModule,
     NzAlertModule,
-    PageHeaderComponent,
     BookSourceTabsComponent,
     RulesPanelComponent,
   ],
   template: `
-    <app-page-header title="智能添加" subtitle="输入网址 → 调整规则 → 生成书源"></app-page-header>
     <app-book-source-tabs />
 
     <!-- ① URL 输入 -->

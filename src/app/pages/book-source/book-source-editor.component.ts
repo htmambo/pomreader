@@ -5,8 +5,8 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputModule } from 'ng-zorro-antd/input';
-import { PageHeaderComponent } from '../../shared/components/page-header/page-header.component';
 import { RulesPanelComponent } from '../../shared/components/rules-panel/rules-panel.component';
+import { PageHeaderService } from '../../shared/components/page-header/page-header.service';
 import { ToastService } from '../../core/services/toast.service';
 import { parseHeaderMeta } from '../../core/book-source/js-source/header-parser';
 import {
@@ -43,7 +43,6 @@ function pomApi(): PomBooksourceEditor | null {
     NzButtonModule,
     NzIconModule,
     NzInputModule,
-    PageHeaderComponent,
     RulesPanelComponent,
   ],
   templateUrl: './book-source-editor.component.html',
@@ -92,11 +91,14 @@ export class BookSourceEditorComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
+  private readonly pageHeader = inject(PageHeaderService);
 
   constructor() {
     this.route.params.subscribe((params) => {
       const raw = params['fileName'];
       this.fileName = raw ? decodeURIComponent(String(raw)) : '';
+      // 副标题显示当前编辑的文件名
+      this.pageHeader.subtitle.set(this.fileName);
       void this.loadExisting();
     });
   }

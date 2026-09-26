@@ -1,5 +1,5 @@
 import { Component, inject, effect } from '@angular/core';
-import { RouterOutlet, Router, NavigationEnd } from '@angular/router';
+import { RouterOutlet, Router, NavigationEnd, ActivatedRouteSnapshot, Data } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map, startWith } from 'rxjs/operators';
 import { NzLayoutModule } from 'ng-zorro-antd/layout';
@@ -18,6 +18,7 @@ import {
   PlayCircleOutline, ThunderboltOutline, SaveOutline, SyncOutline, ImportOutline,
 } from '@ant-design/icons-angular/icons';
 import { PageHeaderComponent } from './shared/components/page-header/page-header.component';
+import { PageHeaderService } from './shared/components/page-header/page-header.service';
 import { SidebarComponent } from './shared/components/sidebar/sidebar.component';
 import { SettingsService } from './core/services/settings.service';
 
@@ -78,11 +79,12 @@ import { SettingsService } from './core/services/settings.service';
         background: var(--pom-fg);
       }
       nz-header {
-        padding: 0 16px;
-        line-height: 64px;
+        padding: 16px;
+        padding-bottom: 0px;
       }
       nz-content {
         padding: 16px;
+        padding-top: 0px;
         overflow: auto;
       }
       nz-content.no-padding {
@@ -97,6 +99,7 @@ import { SettingsService } from './core/services/settings.service';
 export class AppComponent {
   private readonly router = inject(Router);
   private readonly settings = inject(SettingsService);
+  private readonly pageHeader = inject(PageHeaderService);
 
   /** 当前路由是否在 reader 页面（用于全屏） */
   readonly isReader = toSignal(
@@ -114,5 +117,28 @@ export class AppComponent {
       const theme = this.settings.settings().theme;
       document.documentElement.dataset['pomTheme'] = String(theme);
     });
+
+    // 路由变化 → 从最深层 activated route 的 data 中读取 title/subtitle，写入全局 header
+    // 子路由会覆盖父路由(parent first → child 后写,Angular 标准合并顺序)
+    this.router.events.pipe(
+      filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+      startWith(null),
+    ).subscribe(() => {
+      const data = this.collectRouteData();
+      this.pageHeader.title.set(data['title'] ?? '');
+      // subtitle 没在路由里显式声明 → 留空(具体页面如果有动态副标题,会在 effect 里覆写)
+      this.pageHeader.subtitle.set(data['subtitle'] ?? '');
+    });
+  }
+
+  /** 从 routerState.root 沿 firstChild 链走到叶子,合并所有层级的 data(子覆盖父) */
+  private collectRouteData(): Data {
+    const merged: Data = {};
+    let r: ActivatedRouteSnapshot | null = this.router.routerState.snapshot.root;
+    while (r) {
+      if (r.data) Object.assign(merged, r.data);
+      r = r.firstChild;
+    }
+    return merged;
   }
 }
