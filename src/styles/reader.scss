@@ -452,7 +452,7 @@
   width: min(798px, calc(100vw - 130px));
 }
 .reader-page .panel-wrap.setting {
-  width: min(480px, calc(100vw - 130px));
+  width: min(360px, calc(100vw - 130px));
 }
 .reader-page .panel-wrap .close-panel {
   position: absolute;
@@ -467,11 +467,13 @@
   color: var(--r-accent);
 }
 .reader-page .panel-wrap .panel-box {
-  padding: 40px 24px;
+  overflow-y: auto;
+  max-height: calc(100vh - 130px);
+  padding: 12px;
   border: 1px solid var(--r-border-soft);
 }
 .reader-page .panel-wrap .panel-box h4 {
-  margin: 0 0 28px;
+  margin: 0 0 12px;
   font-size: 18px;
   font-weight: 400;
   line-height: 22px;
@@ -553,7 +555,7 @@
 .reader-page .panel-wrap.setting li {
   display: flex;
   align-items: center;
-  margin-top: 28px;
+  margin-top: 12px;
 }
 .reader-page .panel-wrap.setting li:first-child {
   margin-top: 0;
@@ -575,7 +577,7 @@
   justify-content: center;
   width: 34px;
   height: 34px;
-  margin-right: 16px;
+  margin-right: 4px;
   cursor: pointer;
   border: 1px solid var(--r-border-soft);
   border-radius: 100%;
@@ -707,8 +709,7 @@
 
 /* 段落排版分组与上方"字号/字体"分隔 */
 .reader-page .panel-wrap.setting li.divider-row {
-  margin: 28px 0 0;
-  padding-top: 28px;
+  margin: 12px;
   border-top: 1px solid var(--r-divider);
 }
 .reader-page .panel-wrap.setting li.divider-row span {
@@ -718,7 +719,7 @@
 
 /* 保存 / 取消 */
 .reader-page .panel-wrap.setting .btn-wrap {
-  padding-top: 48px;
+  padding-top: 12px;
   text-align: center;
 }
 .reader-page .panel-wrap.setting .btn-wrap a {
