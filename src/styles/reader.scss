@@ -116,12 +116,12 @@
 .reader-page .read-header {
   position: relative;
   z-index: 20;
-  height: 60px;
-  margin-bottom: 16px;
+  height: 40px;
+  margin-bottom: 8px;
   background: var(--r-header-bg);
 }
 .reader-page.theme-6 .read-header {
-  height: 59px;
+  height: 39px;
   border-bottom: 1px solid var(--r-border);
 }
 .reader-page .read-header .wrap-center {
@@ -129,7 +129,7 @@
   align-items: center;
   gap: 16px;
   max-width: 1200px;
-  height: 60px;
+  height: 40px;
   margin: 0 auto;
   padding: 0 16px;
 }
@@ -215,7 +215,7 @@
 }
 .reader-page .text-wrap {
   min-height: 600px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   border: 1px solid var(--r-border);
   background: var(--r-content-bg) var(--r-content-img) repeat;
 }
@@ -269,7 +269,7 @@
 .reader-page.paged .text-wrap {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 140px);
+  height: calc(100vh - 100px);
   min-height: 420px;
 }
 .reader-page.paged .main-text-wrap {
