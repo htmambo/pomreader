@@ -544,6 +544,53 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
+  /**
+   * 同步对齐：把 totalPages / pageIndex 拉到与 DOM 实际布局一致。
+   *
+   * 视口/设置变更后 measureEffect 通过 RAF 走 measure()，但用户点击可能
+   * 在 effect 完成前到达——典型场景：窗口 resize → CSS column-width 随
+   * signal 变化立即重排（用户立刻看到列数变）→ 用户立刻按方向键翻页。
+   * 此期间 totalPages 仍是旧值，若按 pageIndex >= totalPages-1 走 next()
+   * 会在还有内容时提前切章；反之在新版式更窄时连点会落到实际不存在的列。
+   *
+   * flipNext / flipPrev 在决策前调用本方法：从 DOM 直读 scrollWidth /
+   * clientWidth，无需等 RAF；写入 signal 后 measure() 仍是幂等 no-op，
+   * 不会重复触发翻页过渡。同步 pageIndex 时复用与 measure() 相同的
+   * 比例保持阅读位置算法。
+   */
+  private syncLayoutFromDOM(): void {
+    const vp = this.viewportRef()?.nativeElement;
+    const content = this.contentRef()?.nativeElement;
+    if (!vp || !content || vp.clientWidth <= 0) return;
+    const w = vp.clientWidth;
+    if (w !== this.pageW()) {
+      // column-width 绑定尚未随 pageW 更新生效（极端早期点击），让 effect
+      // 链下一轮 measure() 接管；本轮不强行猜，避免更糟
+      this.pageW.set(w);
+      return;
+    }
+    const actualTotal = Math.max(1, Math.round(content.scrollWidth / w));
+    if (actualTotal === this.totalPages()) {
+      // 总数一致时仍夹一下 pageIndex：极端场景（如外部直接 setPageOffset）
+      // 可能把它推到越界
+      if (this.pageIndex() > actualTotal - 1) this.pageIndex.set(actualTotal - 1);
+      return;
+    }
+    const oldIdx = this.pageIndex();
+    const storedTotal = this.totalPages();
+    const newIdx =
+      storedTotal > 1
+        ? Math.min(
+            Math.round((oldIdx / (storedTotal - 1)) * (actualTotal - 1)),
+            actualTotal - 1,
+          )
+        : 0;
+    this.totalPages.set(actualTotal);
+    this.pageIndex.set(newIdx);
+    this.lastMeasuredChapter = this.chapterIndex();
+    this.reader.setPageOffset(newIdx);
+  }
+
   /** 当前章未加载时抓取正文，并预加载下一章（失败静默） */
   private ensureChapterLoaded(idx: number, chs: Chapter[]): void {
     const ch = chs[idx];
@@ -688,6 +735,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   /** 翻页模式：向后翻一页；已到本章末页则切下一章（首页） */
   flipNext(): void {
     if (!this.pageReady()) return;
+    this.syncLayoutFromDOM();
     if (this.pageIndex() < this.totalPages() - 1) {
       const p = this.pageIndex() + 1;
       this.pageIndex.set(p);
@@ -700,6 +748,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   /** 翻页模式：向前翻一页；已在本章首页则切上一章（末页，-1 哨兵由测量解析） */
   flipPrev(): void {
     if (!this.pageReady()) return;
+    this.syncLayoutFromDOM();
     if (this.pageIndex() > 0) {
       const p = this.pageIndex() - 1;
       this.pageIndex.set(p);
