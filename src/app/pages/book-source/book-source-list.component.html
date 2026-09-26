@@ -8,6 +8,9 @@
     [(ngModel)]="filter"
     class="filter-input"
   />
+  <button nz-button nzType="primary" (click)="openLegadoImport()">
+    <span nz-icon nzType="import"></span> 导入 Legado 源
+  </button>
 </div>
 
 @if (!loading() && sources().length === 0) {

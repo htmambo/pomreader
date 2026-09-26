@@ -12,6 +12,7 @@ import { PageHeaderComponent } from '../../shared/components/page-header/page-he
 import { BookSourceTabsComponent } from '../../shared/components/book-source-tabs/book-source-tabs.component';
 import { ToastService } from '../../core/services/toast.service';
 import { BookSourceMeta } from '../../core/book-source/js-source/source-meta.types';
+import { ImportLegadoComponent } from '../../modals/import-legado/import-legado.component';
 
 /** PomAPI 子集（全局 Window.pomAPI 在 page-fetcher.service.ts 声明）。 */
 type PomBooksourceAdmin = {
@@ -138,6 +139,18 @@ export class BookSourceListComponent {
   /** 跳转编辑器（编辑现有书源） */
   openEditor(src: BookSourceMeta): void {
     void this.router.navigateByUrl(`/book-sources/edit/${encodeURIComponent(src.fileName)}`);
+  }
+
+  /** 打开 Legado 订阅源导入弹窗；导入完成后刷新列表 */
+  openLegadoImport(): void {
+    this.modal.create({
+      nzTitle: '导入 Legado 订阅源',
+      nzContent: ImportLegadoComponent,
+      nzData: { onImported: () => void this.load() },
+      nzFooter: null,
+      nzWidth: 640,
+      nzMaskClosable: false,
+    });
   }
 
   /** 不可变更新单个条目 */

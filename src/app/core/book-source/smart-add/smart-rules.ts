@@ -245,19 +245,33 @@ export function buildRules(url: string, html: string): SourceRules {
  * 由规则生成 pomreader 沙箱兼容的书源 JS
  * 规则串以 JSON 转义注入 —— 用户可改出含 / " \ 的任意模式都不会破坏代码结构;
  * 双模式(CSS/正则)判定在生成的代码运行时进行(与 isCssRule 同一套启发式)
+ *
+ * @param url 主站 origin（用于 absUrl 解析）
+ * @param rules 6 条可视化规则 + searchPath
+ * @param options.headers 注入每个 HTTP 请求的自定义 header（legado JSON 导入用）
  */
-export function generateSourceCode(url: string, rules: SourceRules): string {
+export function generateSourceCode(
+  url: string,
+  rules: SourceRules,
+  options?: { headers?: Record<string, string> },
+): string {
   const u = new URL(url);
-  const j = (s: string) => JSON.stringify(s);
+  const j = (s: unknown): string => JSON.stringify(s);
+  const headers = options?.headers ?? {};
+  const headersJson = j(headers);
+  const description = headers && Object.keys(headers).length
+    ? `由 legado JSON 订阅源导入（${u.host}），含自定义 HTTP header`
+    : `由智能添加从 ${u.host} 生成(CSS 选择器/正则双模式,可在智能添加页继续调规则)`;
   return `// @name        ${rules.siteName}
 // @version     1.1.0
 // @author      智能添加
 // @url         ${u.origin}
 // @enabled     true
 // @tags        智能识别
-// @description 由智能添加从 ${u.host} 生成(CSS 选择器/正则双模式,可在智能添加页继续调规则)
+// @description ${description}
 
 const BASE_URL = ${j(u.origin)}
+const HEADERS = ${headersJson}
 
 // ── 规则(可视化编辑的值,直接改这里也生效;CSS 选择器或正则均可,含特殊符号的选择器加 css: 前缀) ──
 const SEARCH_PATH = ${j(rules.searchPath)}
@@ -291,6 +305,7 @@ function stripTags(html) {
     .replace(/<script[\\s\\S]*?<\\/script>/gi, '')
     .replace(/<style[\\s\\S]*?<\\/style>/gi, '')
     .replace(/<br\\s*\\/?>/gi, '\\n')
+    .replace(/<div[^>]*>/gi, '\\n')
     .replace(/<\\/p>/gi, '\\n')
     .replace(/<[^>]+>/g, '')
     .replace(/&nbsp;/g, ' ')
@@ -366,7 +381,7 @@ async function search(key, page) {
     .replace('{keyword}', encodeURIComponent(key))
     .replace('{page}', page)
   const pageUrl = absUrl(path, BASE_URL)
-  const resp = await legado.http.get(pageUrl)
+  const resp = await legado.http.get(pageUrl, HEADERS)
   return (await extractLinks(SEARCH_ITEM_RULE, resp, pageUrl))
     .map((it) => ({
       name: it.name,
@@ -378,7 +393,7 @@ async function search(key, page) {
 
 /** 书籍详情 —— 返回书籍信息对象 {title, author, category, chapters} */
 async function bookInfo(bookUrl) {
-  const resp = await legado.http.get(bookUrl)
+  const resp = await legado.http.get(bookUrl, HEADERS)
   return {
     title: await extractText(BOOK_TITLE_RULE, resp, bookUrl),
     author: await extractText(BOOK_AUTHOR_RULE, resp, bookUrl),
@@ -389,13 +404,13 @@ async function bookInfo(bookUrl) {
 
 /** 目录 —— 返回章节列表 [{name, url}] */
 async function chapterList(bookUrl) {
-  const resp = await legado.http.get(bookUrl)
+  const resp = await legado.http.get(bookUrl, HEADERS)
   return await extractLinks(CHAPTER_ITEM_RULE, resp, bookUrl)
 }
 
 /** 正文 —— 返回章节正文文本 */
 async function chapterContent(chapterUrl) {
-  const resp = await legado.http.get(chapterUrl)
+  const resp = await legado.http.get(chapterUrl, HEADERS)
   return stripTags(await extractHtml(CONTENT_RULE, resp, chapterUrl))
 }
 `;
