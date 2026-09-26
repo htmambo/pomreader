@@ -7,7 +7,7 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 /**
  * Sidebar — 主导航
  * - 原有：书架 / 万能搜索 / 免责声明
- * - legado 迁移新增：书源管理 / 书源市场 / 书源搜索 / 扩展管理 / 设置（缓存）
+ * - legado 迁移新增：书源管理（含搜索/智能添加/调试/测试） / 设置（缓存）
  */
 @Component({
   selector: 'app-sidebar',
@@ -20,21 +20,9 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
         <span nz-icon nzType="book"></span>
         <span>书架</span>
       </li>
-      <li nz-menu-item [routerLink]="['/source-search']" routerLinkActive="ant-menu-item-selected">
-        <span nz-icon nzType="search"></span>
-        <span>书源搜索</span>
-      </li>
       <li nz-menu-item [routerLink]="['/book-sources']" routerLinkActive="ant-menu-item-selected">
         <span nz-icon nzType="book"></span>
         <span>书源管理</span>
-      </li>
-      <li nz-menu-item [routerLink]="['/book-sources/market']" routerLinkActive="ant-menu-item-selected">
-        <span nz-icon nzType="cloud-download"></span>
-        <span>书源市场</span>
-      </li>
-      <li nz-menu-item [routerLink]="['/extensions']" routerLinkActive="ant-menu-item-selected">
-        <span nz-icon nzType="appstore"></span>
-        <span>扩展管理</span>
       </li>
       <li nz-menu-item [routerLink]="['/search']" routerLinkActive="ant-menu-item-selected">
         <span nz-icon nzType="global"></span>

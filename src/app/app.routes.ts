@@ -9,7 +9,7 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./pages/bookshelf/bookshelf.component').then((m) => m.BookshelfComponent),
   },
-  // 全网搜索（legacy webview 浏览器路由，与 /source-search 书源搜索并存）
+  // 全网搜索（legacy webview 浏览器路由；书源搜索已并入 /book-sources/search）
   {
     path: 'search',
     loadComponent: () =>
@@ -17,28 +17,12 @@ export const routes: Routes = [
         (m) => m.UniversalSearchComponent
       ),
   },
-  // 书源搜索（T-006 / spec FR-2，lazy 子路由）
-  {
-    path: 'source-search',
-    loadChildren: () =>
-      import('./pages/source-search/source-search.routes').then(
-        (m) => m.SOURCE_SEARCH_ROUTES
-      ),
-  },
-  // 书源管理（T-005，lazy 子路由，含列表/新建/编辑）
+  // 书源管理（T-005，lazy 子路由：列表/搜索/智能添加/调试/测试/编辑）
   {
     path: 'book-sources',
     loadChildren: () =>
       import('./pages/book-source/book-source.routes').then(
         (m) => m.BOOK_SOURCE_ROUTES,
-      ),
-  },
-  // 扩展管理列表页（T-010 / spec FR-4）
-  {
-    path: 'extensions',
-    loadComponent: () =>
-      import('./pages/extension/extension-list.component').then(
-        (m) => m.ExtensionListComponent,
       ),
   },
   // 设置页（T-019 / spec FR-3.5 缓存管理 UI 承载；当前含 cache 子路由）

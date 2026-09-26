@@ -75,7 +75,7 @@ import { CoverService } from '../../../core/cover/cover.service';
         <li nz-menu-item (click)="editInfo.emit(book); closeMenu()">
           <span nz-icon nzType="edit"></span> 编辑书籍信息
         </li>
-        <li nz-menu-item [routerLink]="['/source-search']" [queryParams]="{ keyword: book.title }" (click)="closeMenu()">
+        <li nz-menu-item [routerLink]="['/book-sources/search']" [queryParams]="{ keyword: book.title }" (click)="closeMenu()">
           <span nz-icon nzType="search"></span> 用此书名重新搜索
         </li>
         @if (book.coverImageUrl) {

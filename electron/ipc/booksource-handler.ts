@@ -4,7 +4,7 @@
  * - 主目录 `<userData>/booksources/`；草稿 `<userData>/booksources_drafts/`
  * - 流式列表：setImmediate 后台扫描 + `app.emit('pom:booksource-batch')` 分批推送
  * - 写文件走 `atomicWrite`（FR-1.5：写入失败时原文件不被截断）
- * - HTTP 代理 / 市场下载走 `safeNetRequest`（含 isPrivateHost SSRF 防护）
+ * - HTTP 代理走 `safeNetRequest`（含 isPrivateHost SSRF 防护）
  */
 import { app, IpcMain } from 'electron';
 import * as fs from 'fs';
@@ -16,7 +16,6 @@ const PRIMARY_DIR = 'booksources';
 const DRAFTS_DIR = 'booksources_drafts';
 const BATCH_SIZE = 50;
 const HTTP_TIMEOUT_MS = 15000;
-const MARKET_TIMEOUT_MS = 35000;
 
 function primaryDir(userData: string): string {
   return path.join(userData, PRIMARY_DIR);
@@ -184,38 +183,4 @@ export function registerBookSourceHandler(ipcMain: IpcMain, userData: string): v
     if (!fs.existsSync(p)) throw new Error(`书源文件不存在: ${fileName}`);
     return p;
   });
-
-  // 书源市场：拉 GitHub raw JSON（35s 超时）
-  ipcMain.handle('pom:booksource-fetch-repo', async (_e, repoUrl: string) => {
-    const result = await safeNetRequest(repoUrl, {
-      timeoutMs: MARKET_TIMEOUT_MS,
-      accept: 'application/json,text/plain,*/*;q=0.8',
-    });
-    if (result.status < 200 || result.status >= 300) {
-      throw new Error(`仓库拉取失败 HTTP ${result.status}`);
-    }
-    try {
-      return JSON.parse(result.body);
-    } catch {
-      throw new Error('仓库响应非合法 JSON');
-    }
-  });
-
-  // 单书源一键安装
-  ipcMain.handle(
-    'pom:booksource-install',
-    async (_e, downloadUrl: string, fileName: string) => {
-      const safe = safeFileName(fileName);
-      if (!safe) throw new Error('非法 fileName');
-      const result = await safeNetRequest(downloadUrl, {
-        timeoutMs: MARKET_TIMEOUT_MS,
-      });
-      if (result.status < 200 || result.status >= 300) {
-        throw new Error(`下载失败 HTTP ${result.status}`);
-      }
-      const dir = primaryDir(userData);
-      fs.mkdirSync(dir, { recursive: true });
-      atomicWrite(path.join(dir, safe), result.body);
-    }
-  );
 }

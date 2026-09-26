@@ -11,9 +11,11 @@ import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { MultiSourceSearchService, SearchResultItem } from '../../core/book-source/multi-source-search.service';
 import { ToastService } from '../../core/services/toast.service';
+import { PageHeaderComponent } from '../../shared/components/page-header/page-header.component';
+import { BookSourceTabsComponent } from '../../shared/components/book-source-tabs/book-source-tabs.component';
 
 /**
- * 书源搜索页（实施计划 T-006 + spec FR-2）
+ * 书源搜索页（实施计划 T-006 + spec FR-2；v2 并入书源管理 Tab）
  *
  * - 跨书源聚合搜索（MultiSourceSearchService）
  * - 加载态 / 空态 / 部分失败容错
@@ -32,104 +34,87 @@ import { ToastService } from '../../core/services/toast.service';
     NzSpinModule,
     NzAlertModule,
     NzTagModule,
+    PageHeaderComponent,
+    BookSourceTabsComponent,
   ],
   template: `
-    <div class="source-search-page">
-      <header class="page-header">
-        <div>
-          <h2>书源搜索</h2>
-          <p class="subtitle">跨书源聚合搜索（v1：启用 duck-typed search() 的书源）</p>
-        </div>
-      </header>
+    <app-page-header title="书源搜索" subtitle="跨书源聚合搜索（v1：启用 duck-typed search() 的书源）"></app-page-header>
+    <app-book-source-tabs />
 
-      <div class="search-bar">
-        <input
-          nz-input
-          [(ngModel)]="keyword"
-          (keyup.enter)="search()"
-          placeholder="输入书名或作者"
-          [disabled]="loading()"
-        />
-        <button
-          nz-button
-          nzType="primary"
-          [disabled]="loading() || !keyword.trim()"
-          (click)="search()"
-        >
-          <span nz-icon [nzType]="loading() ? 'loading' : 'search'"></span>
-          {{ loading() ? '搜索中' : '搜索' }}
-        </button>
-      </div>
-
-      @if (loading()) {
-        <div class="state-block">
-          <nz-spin nzSimple></nz-spin>
-          <p>正在聚合 {{ sourceCount() }} 个书源...</p>
-        </div>
-      } @else if (searched() && results().length === 0) {
-        <nz-alert
-          nzType="info"
-          nzMessage="未找到匹配结果"
-          nzDescription="可尝试更换关键词，或确认书源列表中至少有一个实现了 search() 接口"
-          nzShowIcon
-        ></nz-alert>
-      } @else if (results().length > 0) {
-        <div class="result-meta">
-          命中 {{ results().length }} 条，去重后展示
-        </div>
-        <ul nz-list nzBordered>
-          @for (r of results(); track r.url + r.source) {
-            <li nz-list-item class="result-item">
-              <div class="result-main">
-                <div class="result-line-1">
-                  <span class="book-name">{{ r.name || '（无书名）' }}</span>
-                  <nz-tag nzColor="blue">{{ r.author || '未知作者' }}</nz-tag>
-                  <nz-tag>{{ r.sourceName }}</nz-tag>
-                  <span class="latency">{{ r.latencyMs }}ms</span>
-                </div>
-                @if (r.intro) {
-                  <p class="intro">{{ r.intro }}</p>
-                }
-                <div class="result-line-2">
-                  <a [href]="r.url" target="_blank" rel="noopener" class="url">{{ r.url }}</a>
-                  <button nz-button nzSize="small" nzType="primary" (click)="importBook(r)">
-                    <span nz-icon nzType="download"></span>
-                    导入书架
-                  </button>
-                </div>
-              </div>
-            </li>
-          }
-        </ul>
-      } @else {
-        <nz-alert
-          nzType="info"
-          nzMessage="提示"
-          nzDescription="请输入关键词并点击搜索"
-          nzShowIcon
-        ></nz-alert>
-      }
+    <div class="search-bar">
+      <input
+        nz-input
+        [(ngModel)]="keyword"
+        (keyup.enter)="search()"
+        placeholder="输入书名或作者"
+        [disabled]="loading()"
+      />
+      <button
+        nz-button
+        nzType="primary"
+        [disabled]="loading() || !keyword.trim()"
+        (click)="search()"
+      >
+        <span nz-icon [nzType]="loading() ? 'loading' : 'search'"></span>
+        {{ loading() ? '搜索中' : '搜索' }}
+      </button>
     </div>
+
+    @if (loading()) {
+      <div class="state-block">
+        <nz-spin nzSimple></nz-spin>
+        <p>正在聚合 {{ sourceCount() }} 个书源...</p>
+      </div>
+    } @else if (searched() && results().length === 0) {
+      <nz-alert
+        nzType="info"
+        nzMessage="未找到匹配结果"
+        nzDescription="可尝试更换关键词，或确认书源列表中至少有一个实现了 search() 接口"
+        nzShowIcon
+      ></nz-alert>
+    } @else if (results().length > 0) {
+      <div class="result-meta">
+        命中 {{ results().length }} 条，去重后展示
+      </div>
+      <ul nz-list nzBordered>
+        @for (r of results(); track r.url + r.source) {
+          <li nz-list-item class="result-item">
+            <div class="result-main">
+              <div class="result-line-1">
+                <span class="book-name">{{ r.name || '（无书名）' }}</span>
+                <nz-tag nzColor="blue">{{ r.author || '未知作者' }}</nz-tag>
+                <nz-tag>{{ r.sourceName }}</nz-tag>
+                <span class="latency">{{ r.latencyMs }}ms</span>
+              </div>
+              @if (r.intro) {
+                <p class="intro">{{ r.intro }}</p>
+              }
+              <div class="result-line-2">
+                <a [href]="r.url" target="_blank" rel="noopener" class="url">{{ r.url }}</a>
+                <button nz-button nzSize="small" nzType="primary" (click)="importBook(r)">
+                  <span nz-icon nzType="download"></span>
+                  导入书架
+                </button>
+              </div>
+            </div>
+          </li>
+        }
+      </ul>
+    } @else {
+      <nz-alert
+        nzType="info"
+        nzMessage="提示"
+        nzDescription="请输入关键词并点击搜索"
+        nzShowIcon
+      ></nz-alert>
+    }
   `,
   styles: [
     `
-      .source-search-page {
-        padding: 16px 24px;
-        max-width: 960px;
-        margin: 0 auto;
-      }
-      .page-header h2 {
-        margin: 0 0 4px;
-      }
-      .subtitle {
-        margin: 0;
-        color: var(--pom-text-muted, #888);
-        font-size: 12px;
-      }
       .search-bar {
         display: flex;
         gap: 8px;
-        margin: 16px 0;
+        margin: 0 0 16px;
       }
       .search-bar input[nz-input] {
         flex: 1;
