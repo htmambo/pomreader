@@ -221,7 +221,7 @@ export class DbService {
     // 等迁移完成，避免与 migrateLegacyChapterIds 写入新 _id 撞 409（N1）
     await this.ensureMigrated();
     // 一次性 bulk 写 + rest-sibling + spread 在前（N4 一致性）
-    const docs: ChapterDoc[] = chapters.map((c) => {
+    const newDocs: ChapterDoc[] = chapters.map((c) => {
       const { bookId, index, ...rest } = c;
       return {
         ...rest,
@@ -231,18 +231,54 @@ export class DbService {
         index,
       };
     });
-    const res = await this.db.bulkDocs(docs);
-    // 创建操作：409 = 文档已存在 = 幂等成功
-    // 注意：若已存在 chapter 内容不同，409 仍被忽略——适用于首次导入场景，
-    // 不适用于「编辑后再导入」等覆写场景（业务上不会出现，章节内容在 reader 内编辑）
-    const failures = res.filter(
-      (r): r is PouchDB.Core.Error => 'error' in r && r.status !== 409,
+    const newIds = new Set(newDocs.map((d) => d._id));
+
+    // 换源场景：新章节集合 < 旧集合时，剩余的旧章节文档需标记 _deleted
+    // （否则 PouchDB 里残留孤儿 chapter 文档，长期占用空间）。
+    // 单次 bulkDocs 同时打 newDocs + orphans，原子性按文档级保证
+    const bookIds = Array.from(new Set(chapters.map((c) => c.bookId)));
+    type RemoveDoc = { _id: string; _rev: string; _deleted: true };
+    const orphans: RemoveDoc[] = [];
+    for (const bid of bookIds) {
+      const oldDocs = await this.chapterAllRaw(bid);
+      for (const od of oldDocs) {
+        if (!newIds.has(od._id)) {
+          orphans.push({ _id: od._id, _rev: od._rev, _deleted: true });
+        }
+      }
+    }
+    // 显式联合类型：替代双重 as unknown as 断言（与 migrateLegacyChapterIds 同模式）
+    type BatchItem = ChapterDoc | RemoveDoc;
+    const batch: BatchItem[] = [...newDocs, ...orphans];
+    const res = await this.db.bulkDocs(
+      batch as unknown as PouchDB.Core.PutDocument<ChapterDoc>[],
     );
+    // 错误语义：
+    // - 创建 409 = 文档已存在 = 幂等成功（首次导入场景适用）
+    // - 删除 409 = _rev 过期 = 实际未删除；仅记录警告，下次 chapterPutMany 会自然清理
+    //   （不在此重试：换源调用方已拿到成功语义，不阻塞主流程）
+    // - 其它错误 = 真失败
+    const failures: PouchDB.Core.Error[] = [];
+    res.forEach((r, i) => {
+      if (!('error' in r)) return;
+      if (r.status === 409) return;
+      failures.push(r);
+    });
     if (failures.length > 0) {
       const detail = failures
         .map((f) => `${f.id ?? '?'}[${f.name ?? f.status ?? '?'}]`)
         .join(', ');
-      throw new Error(`chapter bulk write failed (${failures.length}/${docs.length}): ${detail}`);
+      throw new Error(`chapter bulk write failed (${failures.length}/${batch.length}): ${detail}`);
+    }
+    if (orphans.length > 0) {
+      const deleteConflicts = res.slice(newDocs.length).filter(
+        (r): r is PouchDB.Core.Error => 'error' in r && r.status === 409,
+      );
+      if (deleteConflicts.length > 0) {
+        console.warn(
+          `[chapterPutMany] ${deleteConflicts.length}/${orphans.length} orphan deletes lost _rev race; will retry on next put`,
+        );
+      }
     }
   }
 

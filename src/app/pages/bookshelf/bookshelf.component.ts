@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { NzGridModule } from 'ng-zorro-antd/grid';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzModalModule, NzModalService } from 'ng-zorro-antd/modal';
+import { NzMessageService } from 'ng-zorro-antd/message';
 import { BookService } from '../../core/services/book.service';
 import { SettingsService } from '../../core/services/settings.service';
 import { ToastService } from '../../core/services/toast.service';
@@ -14,6 +15,7 @@ import {
   EditBookInfoDialogComponent,
   EditBookInfoResult,
 } from '../../shared/components/edit-book-info-dialog/edit-book-info-dialog.component';
+import { ChangeBookSourceDialogComponent } from '../../shared/components/change-book-source-dialog/change-book-source-dialog.component';
 
 @Component({
   selector: 'app-bookshelf',
@@ -30,6 +32,8 @@ import {
               (remove)="onRemove(book)"
               (generateCover)="onGenerateCover(book)"
               (editInfo)="onEditInfo(book)"
+              (changeSource)="onChangeSource(book)"
+              (refreshChapters)="onRefreshChapters(book)"
             ></app-book-card>
           </div>
         }
@@ -44,6 +48,8 @@ export class BookshelfComponent implements OnInit {
   private readonly settings = inject(SettingsService);
   private readonly modal = inject(NzModalService);
   private readonly toast = inject(ToastService);
+  /** 直接使用 NzMessageService 的 loading toast（可关闭）；ToastService 仅封装了 void 方法 */
+  private readonly nzMessage = inject(NzMessageService);
   readonly books = this.bookService.books;
 
   /** 按设置页的 bookshelfSort 规则排序后的展示列表（纯函数，响应设置/书籍双 signal） */
@@ -112,5 +118,50 @@ export class BookshelfComponent implements OnInit {
       nzWidth: 420,
       nzKeyboard: false,
     });
+  }
+
+  /**
+   * BookCard 右键菜单「换源」→ 弹 ChangeBookSourceDialog
+   * 子组件内部完成解析 + 换源；nzOnOk 校验失败返回 false（dialog 保持打开）
+   */
+  onChangeSource(book: Book): void {
+    this.modal.create({
+      nzTitle: `换源：${book.title}`,
+      nzContent: ChangeBookSourceDialogComponent,
+      nzData: { book },
+      nzOnOk: async (instance: ChangeBookSourceDialogComponent) => {
+        return await instance.confirm();
+      },
+      nzOkText: '确认换源',
+      nzCancelText: '取消',
+      nzWidth: 560,
+      nzKeyboard: false,
+    });
+  }
+
+  /**
+   * BookCard 右键菜单「更新最新章节」→ 直接调 service，无 modal
+   * 结果通过 toast 汇报（新增 N 章 / 跳过 M 章 / 失败原因）
+   */
+  async onRefreshChapters(book: Book): Promise<void> {
+    const inflight = this.nzMessage.loading(`正在拉取 ${book.title} 最新章节...`, {
+      nzDuration: 0, // 长任务完成前不自动消失
+    });
+    try {
+      const result = await this.bookService.refreshChapters(book.id);
+      if (result.added === 0) {
+        this.toast.info(`已是最新：${book.title}（共 ${result.total} 章，无变化）`);
+      } else {
+        this.toast.success(
+          `${book.title}：新增 ${result.added} 章（已有 ${result.skipped} 章跳过，共 ${result.total} 章）`,
+        );
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.toast.error(`更新失败：${msg}`);
+    } finally {
+      // NzMessageRef 没有 close()，需用 messageId + NzMessageService.remove 显式清除 loading
+      this.nzMessage.remove(inflight.messageId);
+    }
   }
 }

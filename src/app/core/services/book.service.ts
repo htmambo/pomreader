@@ -3,6 +3,8 @@ import { Book } from '../models/book.model';
 import { Chapter } from '../models/chapter.model';
 import { BookSourceRegistry } from '../book-source/book-source.registry';
 import { CatalogEntry } from '../book-source/book-source.adapter';
+import { ImportViaSourceService } from '../book-source/import-via-source.service';
+import { FetchError } from '../book-source/fetch-error';
 import { DbService } from './db.service';
 
 /** 在线导入预加载章节数 */
@@ -26,6 +28,7 @@ export type DbLoadState = 'idle' | 'loading' | 'ready' | 'error';
 export class BookService {
   private readonly db = inject(DbService);
   private readonly sources = inject(BookSourceRegistry);
+  private readonly importViaSource = inject(ImportViaSourceService);
 
   private readonly _books = signal<Book[]>([]);
   private readonly _loadState = signal<DbLoadState>('idle');
@@ -120,6 +123,174 @@ export class BookService {
     await Promise.allSettled(
       chapters.slice(0, PRELOAD_COUNT).map((c) => this.loadChapterContent(book.id, c.index))
     );
+  }
+
+  /**
+   * 换源：把已 online 入库的书重新解析到一个新的书源/URL，替换其 metadata 与 chapters 表。
+   * user-bound 字段保留：bookId / progress / importedAt / lastReadAt。
+   *
+   * 阅读进度处理：progress.chapterIndex clamp 到新章节表范围；
+   * scrollOffset / updatedAt 保留；progress 整体透传 addBook（bookPutWithRetry 内部
+   * 已处理"newProgress 存在时不覆盖"，与新增 progress 同语义）。
+   *
+   * 异常：仅 'online' 来源支持换源；其它 source 抛 FetchError('unsupported-source')。
+   */
+  async changeBookSource(bookId: string, newUrl: string, sourceName?: string): Promise<void> {
+    const oldBook = this.getById(bookId);
+    if (!oldBook) throw new FetchError('source-unavailable', `书不存在: ${bookId}`);
+    if (oldBook.source !== 'online') {
+      throw new FetchError(
+        'unsupported-source',
+        `仅 online 来源支持换源，当前 source: ${oldBook.source}`,
+      );
+    }
+
+    const { book: resolved, bookSourceUuid } = await this.importViaSource.importByUrl(
+      newUrl,
+      sourceName,
+    );
+    if (resolved.chapters.length === 0) {
+      throw new FetchError('parse-failed', '新源解析的章节列表为空');
+    }
+
+    const newChapters: Chapter[] = resolved.chapters.map((e, i) => ({
+      bookId: oldBook.id,
+      index: i,
+      title: e.title,
+      content: '',
+      sourceUrl: e.url,
+      loaded: false,
+    }));
+
+    // 合并 Book：保留 id / importedAt / lastReadAt / source('online')
+    // source-bound 字段用新解析结果；kind / coverImageUrl 缺失时保留旧值
+    const merged: Book = {
+      ...oldBook,
+      title: resolved.title || oldBook.title,
+      author: resolved.author || oldBook.author,
+      kind: resolved.kind ?? oldBook.kind,
+      // ResolvedBook 当前不返回 coverImageUrl —— 换源时保留旧封面（避免立即丢失）
+      // 后续可由用户手动 "刷新封面" 拉取新源封面
+      coverImageUrl: oldBook.coverImageUrl,
+      sourceUrl: newUrl,
+      bookSourceUuid,
+      chapterCount: newChapters.length,
+      totalChars: newChapters.length * 2000, // 估算；读完时精算
+      source: 'online',
+    };
+
+    // 阅读进度：clamp chapterIndex 到新表范围；scrollOffset / updatedAt 保留
+    if (oldBook.progress) {
+      const clampedIdx = Math.min(
+        Math.max(oldBook.progress.chapterIndex, 0),
+        newChapters.length - 1,
+      );
+      merged.progress = {
+        ...oldBook.progress,
+        chapterIndex: clampedIdx,
+      };
+    }
+
+    // addBook 内 bookPutWithRetry 保留 progress；chapterPutMany 升级后会清理旧集合孤儿
+    await this.addBook(merged, newChapters);
+
+    // 预加载新源前 N 章（失败静默）；与 importOnlineBook 一致
+    await Promise.allSettled(
+      newChapters.slice(0, PRELOAD_COUNT).map((c) => this.loadChapterContent(bookId, c.index))
+    );
+  }
+
+  /**
+   * 更新最新章节（同源增量追加）
+   *
+   * 与 changeBookSource 的关键区别：
+   * - 书源不变：仍走原 bookSourceUuid / sourceUrl
+   * - 增量追加：旧章节全部保留（不删 / 不改），仅追加 URL 不在旧集合里的新章节
+   * - 阅读进度不动：旧 chapter index 不变 → progress.chapterIndex 无需 clamp
+   *
+   * URL 去重：以 `Chapter.sourceUrl` 为唯一键（章节标题不稳定，源站常改名 / 加 VIP 标签）
+   *
+   * 返回 { added, skipped, total } 供 UI toast 汇报；不预取正文（用户阅读时按需加载）
+   * 失败抛 FetchError（与 changeBookSource 错误语义一致）。
+   */
+  async refreshChapters(
+    bookId: string,
+  ): Promise<{ added: number; skipped: number; total: number }> {
+    const oldBook = this.getById(bookId);
+    if (!oldBook) throw new FetchError('source-unavailable', `书不存在: ${bookId}`);
+    if (oldBook.source !== 'online') {
+      throw new FetchError(
+        'unsupported-source',
+        `仅 online 来源支持更新章节，当前 source: ${oldBook.source}`,
+      );
+    }
+    if (!oldBook.sourceUrl) {
+      throw new FetchError(
+        'parse-failed',
+        '该书缺少 sourceUrl，无法重新拉取目录',
+      );
+    }
+
+    // 解析 sourceName：bookSourceUuid → adapter.name；universal / 缺失 → undefined（自动 resolve）
+    const sourceName = oldBook.bookSourceUuid
+      ? this.sources.getByUuid(oldBook.bookSourceUuid)?.name
+      : undefined;
+
+    const { book: resolved } = await this.importViaSource.importByUrl(
+      oldBook.sourceUrl,
+      sourceName,
+    );
+    if (resolved.chapters.length === 0) {
+      throw new FetchError('parse-failed', '源站解析的章节列表为空');
+    }
+
+    // URL 去重：取内存缓存（异步拉到 PouchDB 仅在缓存 miss 时）
+    const cached = this._chaptersCache().get(bookId) ?? (await this.db.chapterAll(bookId));
+    if (cached.length > 0) {
+      this._chaptersCache.update((m) => {
+        const next = new Map(m);
+        next.set(bookId, cached);
+        return next;
+      });
+    }
+    const existingUrls = new Set(
+      cached.map((c) => c.sourceUrl).filter((u): u is string => !!u),
+    );
+
+    // 追加：新 URL 才入索引 = 现有最大 + offset
+    const startIndex = cached.length;
+    const newChapters: Chapter[] = [];
+    let offset = 0;
+    for (const e of resolved.chapters) {
+      if (existingUrls.has(e.url)) continue;
+      newChapters.push({
+        bookId,
+        index: startIndex + offset,
+        title: e.title,
+        content: '',
+        sourceUrl: e.url,
+        loaded: false,
+      });
+      offset++;
+    }
+    const added = newChapters.length;
+    const skipped = resolved.chapters.length - added;
+
+    if (added === 0) {
+      return { added: 0, skipped, total: cached.length };
+    }
+
+    // 合并 Book：chapterCount / totalChars 更新；其它字段不动（用户已绑定认知）
+    const merged: Book = {
+      ...oldBook,
+      chapterCount: cached.length + added,
+      totalChars: (cached.length + added) * 2000, // 估算；读完时精算
+    };
+    // 一次性写入全部章节（含旧章 + 新章）：chapterPutMany 升级后视 oldDocs ⊆ newIds 为无孤儿，
+    // 不会触发意外删除；旧章批量写一次代价可接受（手动触发场景，频率低）
+    await this.addBook(merged, [...cached, ...newChapters]);
+
+    return { added, skipped, total: cached.length + added };
   }
 
   /** 按需加载某章正文（fetch + 写 PouchDB + 刷新缓存） */
@@ -239,5 +410,27 @@ export class BookService {
       next.delete(bookId);
       return next;
     });
+  }
+
+  /**
+   * 测试入口：手动注入依赖（绕开 Angular DI 上下文 NG0203）。
+   * 与 SandboxService.forTest / ImportViaSourceService.forTest 同模式：
+   * 生产用 Angular inject()，测试用静态工厂。
+   * 注意：测试中 _books / _chaptersCache 是空白 signal，调用前需手动
+   * 设置 _books 状态以模拟 in-memory bookshelf。
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static forTest(db: DbService, sources: BookSourceRegistry, importViaSource: ImportViaSourceService): BookService {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const svc: any = Object.create(BookService.prototype);
+    svc.db = db;
+    svc.sources = sources;
+    svc.importViaSource = importViaSource;
+    // 手动初始化 signals（绕开 class field 初始化；signal() 不依赖 DI）
+    svc._books = signal<Book[]>([]);
+    svc._loadState = signal<DbLoadState>('idle');
+    svc._chaptersCache = signal(new Map());
+    svc.chaptersVersion = signal(0);
+    return svc as BookService;
   }
 }

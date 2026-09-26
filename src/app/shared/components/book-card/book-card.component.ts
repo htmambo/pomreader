@@ -50,6 +50,14 @@ import { CoverService } from '../../../core/cover/cover.service';
         <li nz-menu-item (click)="editInfo.emit(book); closeMenu()">
           <span nz-icon nzType="edit"></span> 编辑书籍信息
         </li>
+        @if (book.source === 'online') {
+          <li nz-menu-item (click)="changeSource.emit(book); closeMenu()">
+            <span nz-icon nzType="swap"></span> 换源
+          </li>
+          <li nz-menu-item (click)="refreshChapters.emit(book); closeMenu()">
+            <span nz-icon nzType="cloud-download"></span> 更新最新章节
+          </li>
+        }
         <li nz-menu-item [routerLink]="['/book-sources/search']" [queryParams]="{ keyword: book.title }" (click)="closeMenu()">
           <span nz-icon nzType="search"></span> 用此书名重新搜索
         </li>
@@ -130,6 +138,10 @@ export class BookCardComponent implements OnDestroy {
   readonly generateCover = output<Book>();
   /** 通知父组件打开「编辑书籍信息」对话框 */
   readonly editInfo = output<Book>();
+  /** 通知父组件打开「换源」对话框（仅 online 来源） */
+  readonly changeSource = output<Book>();
+  /** 通知父组件刷新最新章节（仅 online 来源） */
+  readonly refreshChapters = output<Book>();
 
   onContextMenu(event: MouseEvent): void {
     event.preventDefault();
