@@ -10,6 +10,24 @@
   <p class="sort-hint">入库顺序 / 最近阅读均为新→旧（未读过的书在「最近阅读」下排最后）；书名为拼音升序。</p>
 </div>
 
+<div class="sort-panel">
+  <h3>抓取 User-Agent</h3>
+  <input
+    nz-input
+    [(ngModel)]="fetchUa"
+    [placeholder]="defaultUa || 'Mozilla/5.0 ...'"
+    maxlength="300"
+    style="margin-bottom: 8px;"
+  />
+  <button nz-button nzType="primary" (click)="saveFetchUa()">保存</button>
+  <button nz-button (click)="resetFetchUa()" style="margin-left: 8px;">恢复默认</button>
+  <p class="sort-hint">
+    全局生效：书源抓取、在线导入、万能搜索内嵌浏览器、验证窗口共用同一 UA（Cloudflare 凭证与 UA 绑定，必须一致）。
+    留空使用平台默认值。注意：UA 版本号若明显高于内置引擎版本，可能被 Cloudflare 判为伪造而反复要求验证。
+    修改后新请求立即生效；已打开的网页需刷新。
+  </p>
+</div>
+
 <div class="cache-panel">
   @if (loading()) {
     <nz-spin nzSimple></nz-spin>

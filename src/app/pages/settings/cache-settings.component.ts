@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
+import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzModalModule, NzModalService } from 'ng-zorro-antd/modal';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
@@ -19,7 +20,7 @@ import { PageHeaderComponent } from '../../shared/components/page-header/page-he
 @Component({
   selector: 'app-cache-settings',
   standalone: true,
-  imports: [CommonModule, FormsModule, NzButtonModule, NzIconModule, NzModalModule, NzRadioModule, NzSpinModule, PageHeaderComponent],
+  imports: [CommonModule, FormsModule, NzButtonModule, NzIconModule, NzInputModule, NzModalModule, NzRadioModule, NzSpinModule, PageHeaderComponent],
   templateUrl: './cache-settings.component.html',
   styleUrls: ['./cache-settings.component.scss'],
 })
@@ -32,6 +33,37 @@ export class CacheSettingsComponent {
   loading = signal(false);
   size = signal(0);
 
+  /** 抓取 UA 输入框值（'' = 平台默认；placeholder 显示当前生效的默认 UA） */
+  fetchUa = '';
+  defaultUa = '';
+
+  ngOnInit() {
+    void this.refresh();
+    // 从主进程读当前生效 UA 与默认值（渲染端 localStorage 只存自定义值）
+    void window.pomAPI?.getFetchUA?.().then((r) => {
+      this.defaultUa = r.defaultUa;
+      this.fetchUa = this.settingsService.settings().fetchUa;
+    });
+  }
+
+  /** 保存自定义 UA：持久化到设置 + 推送主进程立即全应用生效 */
+  async saveFetchUa(): Promise<void> {
+    const v = this.fetchUa.trim();
+    try {
+      const r = await window.pomAPI?.setFetchUA?.(v || null);
+      this.settingsService.update('fetchUa', v);
+      this.toast.success(`抓取 UA 已更新：${r?.ua ?? v}`);
+    } catch (e) {
+      this.toast.error(`UA 保存失败：${(e as Error).message}`);
+    }
+  }
+
+  /** 恢复平台默认 UA */
+  async resetFetchUa(): Promise<void> {
+    this.fetchUa = '';
+    await this.saveFetchUa();
+  }
+
   /** 书架排序当前值（模板双向绑定用 getter/setter 直通 SettingsService） */
   get bookshelfSort(): BookshelfSort {
     return this.settingsService.settings().bookshelfSort;
@@ -39,10 +71,6 @@ export class CacheSettingsComponent {
   set bookshelfSort(v: BookshelfSort) {
     this.settingsService.update('bookshelfSort', v);
     this.toast.success('书架排序已更新');
-  }
-
-  ngOnInit() {
-    void this.refresh();
   }
 
   /** 重新读取缓存大小 */

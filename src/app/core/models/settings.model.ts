@@ -18,6 +18,7 @@ export interface Settings {
   pageWidth: number;          // 页面宽度 640/800/900/1280/1440/1680/1840
   readMode: ReadMode;         // 阅读模式：滚动 / 翻页
   bookshelfSort: BookshelfSort; // 书架排序规则
+  fetchUa: string;            // 抓取 User-Agent（'' = 平台默认 Chrome UA；主进程经 IPC 应用）
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -27,4 +28,5 @@ export const DEFAULT_SETTINGS: Settings = {
   pageWidth: 800,
   readMode: 'paged',
   bookshelfSort: 'imported',
+  fetchUa: '',
 };

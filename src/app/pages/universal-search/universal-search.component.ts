@@ -100,7 +100,7 @@ type EncodingMode = 'auto' | 'utf-8' | 'gbk';
               #webviewRef
               [attr.src]="wvSrc"
               allowpopups
-              partition="persist:universal-search"
+              partition="persist:fetch"
               style="width: 100%; height: 100%;"
             ></webview>
           }

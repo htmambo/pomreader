@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, webContents } from 'electron';
 import * as path from 'path';
 import { registerFetchHandler } from './ipc/fetch-handler';
+import { applyUaEverywhere, migrateLegacySearchCookies } from './ipc/fetch-session';
 import { registerRenderHandler } from './ipc/render-handler';
 import { registerExternalHandler } from './ipc/external-handler';
 import { registerBookSourceHandler } from './ipc/booksource-handler';
@@ -13,6 +14,14 @@ import { loadWindowState, trackWindowState } from './window-state';
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 }
+
+// 网络环境无法解析 WebRTC STUN 服务器（Google/Cloudflare）时，Chromium 网络服务
+// 会反复刷 "Failed to resolve address for stun.*" DNS 错误日志 —— 映射到本地地址
+// 使其静默快速失败（本应用不使用 WebRTC 出网，CF Turnstile 验证不依赖 STUN）
+app.commandLine.appendSwitch(
+  'host-resolver-rules',
+  'MAP stun*.l.google.com 127.0.0.1, MAP stun.cloudflare.com 127.0.0.1'
+);
 
 app.on('second-instance', () => {
   const wins = BrowserWindow.getAllWindows();
@@ -90,6 +99,12 @@ app.whenReady().then(() => {
   registerCoverHandler(ipcMain, userData);
   registerCfGuardHandler(ipcMain, () => mainWindow);
   registerAutoImport(ipcMain, userData, () => mainWindow);
+  // 旧 webview session（persist:universal-search）的 cookie 迁移进共享抓取 session
+  // （用户此前在其中手动过盾的 cf_clearance 不丢失）；异步执行不阻塞窗口创建
+  void migrateLegacySearchCookies();
+  // UA 全应用注入（defaultSession / userAgentFallback / 共享抓取 session）；
+  // 自定义 UA 由渲染端设置页启动后推送（pom:set-fetch-ua）覆盖默认值
+  applyUaEverywhere();
   createWindow(userData);
 
   // 拦截所有 webContents（含 webview）的 window.open / target=_blank：

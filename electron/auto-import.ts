@@ -19,6 +19,7 @@ import * as path from 'path';
 import AdmZip from 'adm-zip';
 import iconv from 'iconv-lite';
 import { safeNetRequest } from './ipc/safe-net';
+import { FETCH_PARTITION } from './ipc/fetch-session';
 
 /** 触发自动导入的扩展名（rar/7z 能识别但解压不支持 → 明确报错） */
 const IMPORTABLE_EXTS = ['.txt', '.zip', '.rar', '.7z'];
@@ -170,7 +171,7 @@ export function registerAutoImport(ipcMain: IpcMain, userData: string, getWindow
     });
   };
 
-  // webview 可带独立 partition（如 persist:universal-search），其下载不经 defaultSession ——
+  // webview 带独立 partition 时其下载不经 defaultSession ——
   // 必须按 Session 逐个挂载；Session 单例 + WeakSet 防重复挂载
   const hookedSessions = new WeakSet<Session>();
   const hookSession = (s: Session): void => {
@@ -179,8 +180,9 @@ export function registerAutoImport(ipcMain: IpcMain, userData: string, getWindow
     s.on('will-download', onWillDownload);
   };
   hookSession(session.defaultSession);
-  // 已知的 webview partition 提前挂载（web-contents-created 兜底其余动态 session）
-  hookSession(session.fromPartition('persist:universal-search'));
+  // 已知的抓取共享 session 提前挂载（web-contents-created 兜底其余动态 session）；
+  // 万能搜索 webview 与抓取链路共用 persist:fetch（CF cookie 互通）
+  hookSession(session.fromPartition(FETCH_PARTITION));
   // 之后创建的每个 webContents（含 webview guest）按其实际 session 挂载
   app.on('web-contents-created', (_e, wc) => {
     hookSession(wc.session);

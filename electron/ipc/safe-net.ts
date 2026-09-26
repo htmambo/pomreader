@@ -15,8 +15,8 @@
 import { net, session as electronSession } from 'electron';
 import { URL } from 'url';
 import { decodeBuffer, EncodingMode } from './encoding';
-import { isPrivateHost, UA } from './fetch-handler';
-import { getFetchSession } from './fetch-session';
+import { isPrivateHost } from './fetch-handler';
+import { getFetchSession, browserHeaders } from './fetch-session';
 
 /** HTTP 代理配置（DM-13 schema，v1 落地） */
 export interface ProxyConfig {
@@ -166,8 +166,13 @@ async function followRedirect(
 
     // Round 2 hardening: redirect: 'manual' — 拦截 3xx 跳转，每次重新校验 isPrivateHost
     const req = net.request({ url: rawUrl, method, redirect: 'manual', session: requestSession });
-    req.setHeader('User-Agent', UA);
-    req.setHeader('Accept', options.accept ?? '*/*');
+    // 类浏览器默认头（sec-ch-ua / Referer 留痕：缺省站点首页 Referer，模拟站内导航）；
+    // HTML 文档请求带 Sec-Fetch-* 导航语义；调用方 accept / headers 覆盖默认值
+    const defaults = browserHeaders(rawUrl, { navigation: (options.accept ?? '').includes('text/html') });
+    if (options.accept) defaults['Accept'] = options.accept;
+    for (const [k, v] of Object.entries(defaults)) {
+      try { req.setHeader(k, v); } catch { /* 个别受限 header 跳过 */ }
+    }
     if (options.headers) {
       for (const [k, v] of Object.entries(options.headers)) {
         try { req.setHeader(k, v); } catch { /* noop */ }

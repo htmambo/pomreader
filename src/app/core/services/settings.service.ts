@@ -23,6 +23,12 @@ export class SettingsService {
     effect(() => {
       this.persist(this._settings());
     });
+    // 抓取 UA 持久化在渲染端（localStorage），主进程需要它发 net.request / setUserAgent ——
+    // 启动时推送到主进程（IPC 不可用时静默，主进程用平台默认）
+    const ua = this._settings().fetchUa;
+    if (ua) {
+      void window.pomAPI?.setFetchUA?.(ua).catch(() => undefined);
+    }
   }
 
   update<K extends keyof Settings>(key: K, value: Settings[K]): void {
@@ -56,6 +62,10 @@ export class SettingsService {
         bookshelfSort: BOOKSHELF_SORTS.includes(parsed.bookshelfSort!)
           ? parsed.bookshelfSort!
           : DEFAULT_SETTINGS.bookshelfSort,
+        fetchUa:
+          typeof parsed.fetchUa === 'string' && parsed.fetchUa.length <= 300
+            ? parsed.fetchUa
+            : DEFAULT_SETTINGS.fetchUa,
       };
       return merged;
     } catch {

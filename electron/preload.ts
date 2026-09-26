@@ -16,8 +16,9 @@ contextBridge.exposeInMainWorld('pomAPI', {
   fetchRendered: (url: string): Promise<{ text?: string; error?: string }> =>
     ipcRenderer.invoke('pom:fetch-rendered', url),
 
-  /** Cloudflare Tier 2 人工过盾：弹可见窗口由用户完成验证；返回是否拿到 cf_clearance */
-  cfPassManual: (url: string): Promise<boolean> =>
+  /** Cloudflare Tier 2 人工过盾：弹可见窗口由用户完成验证；
+   * 返回渲染后的 HTML（浏览器侧已完成 charset 解码 + JS 注水），null = 用户关窗/超时 */
+  cfPassManual: (url: string): Promise<string | null> =>
     ipcRenderer.invoke('pom:cf-pass-manual', url),
 
   /** 外链走系统浏览器 */
@@ -30,6 +31,12 @@ contextBridge.exposeInMainWorld('pomAPI', {
     mode: 'auto' | 'utf-8' | 'gbk'
   ): Promise<void> =>
     ipcRenderer.invoke('pom:set-webview-encoding', webviewId, mode),
+
+  /** 抓取 UA 设置：读取当前生效值 + 默认值；设置自定义 UA（null/空 = 恢复默认） */
+  getFetchUA: (): Promise<{ ua: string; defaultUa: string }> =>
+    ipcRenderer.invoke('pom:get-fetch-ua'),
+  setFetchUA: (ua: string | null): Promise<{ ua: string }> =>
+    ipcRenderer.invoke('pom:set-fetch-ua', ua),
 
   // ── 流式事件订阅（ASSUMPTION-15：先 on 注册再 invoke，避免漏事件） ──
   /** 订阅主进程推送事件；返回取消订阅函数 */
