@@ -1,7 +1,7 @@
 # 消除 Electron 主进程 IPC 模块循环依赖
 
-**Status**: 📋 待实施（2026-09-27 记录）
-**Owner**: 待定
+**Status**: ✅ Implementation complete (2026-09-27) — pending archive
+**Owner**: Kimi Code
 **优先级**: 中 — 当前靠 CommonJS 惰性求值兜底可运行；若未来迁移 ESM 或更换打包方式会爆雷
 
 ## 背景
@@ -55,6 +55,20 @@ booksource-handler ──▶ { cf-guard, render-handler, safe-net, booksource-me
 - `npm run build:electron` → tsc 0 错误
 - `npm run electron` 手动冒烟：在线导入一本书（走 fetch-handler → render-handler 降级链路）、CF 站点触发 Tier 1 过盾（走 booksource-handler → render-handler）
 - `node scripts/e2e-cf-guard.cjs`（需 DISPLAY）双链路 PASS
+
+## 验证结果（2026-09-27）
+
+- [x] 循环检测：自写 node DFS 脚本扫 `electron/**/*.ts` import 图 → **0 环**（15 文件）
+- [x] `npm run build:electron` → tsc 0 错误，`dist-electron/ipc/net-guard.js` 正常产出
+- [x] `npm test` → 325/325 全绿（渲染端不受影响）
+- [ ] 手动冒烟（需 GUI 环境，未执行）：在线导入走 fetch→render 降级链路、CF 站点 Tier 1 过盾、`scripts/e2e-cf-guard.cjs`
+
+## 实施摘要（6 文件）
+
+- 新建 `electron/ipc/net-guard.ts`：`isPrivateHost` 唯一归属，0 ipc 依赖
+- `fetch-handler.ts`：删函数本体改 import；删过时循环注释
+- `render-handler.ts` / `cf-guard.ts` / `safe-net.ts`：import 指向 net-guard；cf-guard 头部"循环 import"警告改为单向依赖说明
+- `booksource-handler.ts`：删除一条本就不成立的"循环 import"注释（render-handler 从未反向引用它）
 
 ## 备注
 
