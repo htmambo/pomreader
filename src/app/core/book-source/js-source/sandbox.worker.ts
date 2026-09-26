@@ -94,115 +94,6 @@ try {
   replyInitError(err, '阶段 4/4 冻结原型链');
 }
 
-// 以下保留原始 hardenWorker 函数定义(供其他代码引用,但启动段已分阶段执行)
-function hardenWorker(): void {
-  logToMain("info", '[sandbox.worker] (legacy) hardenWorker 已废弃,启动段已分阶段执行');
-
-/** Round 4/5 hardening: 屏蔽所有可能的网络出口
- * - fetch / XMLHttpRequest / WebSocket：标准网络出口
- * - importScripts：Worker 自身 import（classic worker 中可用）
- * - Worker / SharedWorker：创建子 Worker 是 Critical 旁路
- * - EventSource / WebTransport / RTCPeerConnection / RTCDataChannel：SSE/WebRTC 出口
- * - 屏蔽机制：`Object.defineProperty` getter 抛错；setter 也抛错（防止书源覆盖 + 探测）
- * - Round 5: 屏蔽失败必须抛错，不能静默 ignore（暴露沙箱加固问题）
- */
-const NETWORK_API_BLOCKLIST = [
-  'fetch',
-  'XMLHttpRequest',
-  'WebSocket',
-  'importScripts',
-  'Worker',
-  'SharedWorker',
-  'EventSource',
-  'WebTransport',
-  'RTCPeerConnection',
-  'RTCDataChannel',
-];
-for (const name of NETWORK_API_BLOCKLIST) {
-  Object.defineProperty(self, name, {
-    get: () => {
-      throw new Error(`${name} is disabled in sandbox; use legado.http instead`);
-    },
-    set: () => {
-      throw new Error(`${name} is read-only and disabled in sandbox`);
-    },
-    enumerable: false,
-    configurable: false,
-  });
-}
-logToMain("info", `[sandbox.worker] ✓ 屏蔽 ${NETWORK_API_BLOCKLIST.length} 个网络出口`);
-
-/** navigator.sendBeacon 通过 Proxy 防逃逸（Round 5 加固）
- * - `get`: sendBeacon 拦截抛错；其他属性返回 bind 后的方法（防 this 逃逸）
- * - `has`: sendBeacon 返回 true（保持接口完整性）
- * - `getOwnPropertyDescriptor`: sendBeacon 返回非 configurable 描述符
- * - Round 6 hardening: 增加 `set` / `defineProperty` / `deleteProperty` trap 全部抛错
- *   防止书源 `navigator.x = ...` 写穿透到真实 navigator 对象
- */
-const originalNavigator = (self as unknown as { navigator?: object })['navigator'] ?? {};
-Object.defineProperty(self, 'navigator', {
-  value: new Proxy(originalNavigator, {
-    get(target, prop) {
-      if (prop === 'sendBeacon') {
-        return () => { throw new Error('sendBeacon is disabled in sandbox'); };
-      }
-      const v = Reflect.get(target, prop);
-      return typeof v === 'function' ? v.bind(target) : v;
-    },
-    has(target, prop) {
-      if (prop === 'sendBeacon') return true;
-      return Reflect.has(target, prop);
-    },
-    getOwnPropertyDescriptor(target, prop) {
-      if (prop === 'sendBeacon') {
-        return { configurable: false, enumerable: true, value: undefined };
-      }
-      return Reflect.getOwnPropertyDescriptor(target, prop);
-    },
-    set(_, prop) {
-      if (prop === 'sendBeacon') {
-        throw new Error('sendBeacon is disabled in sandbox');
-      }
-      throw new Error(`navigator is read-only in sandbox (attempted set: ${String(prop)})`);
-    },
-    defineProperty(_, prop) {
-      throw new Error(`navigator is frozen in sandbox (attempted defineProperty: ${String(prop)})`);
-    },
-    deleteProperty(_, prop) {
-      throw new Error(`navigator is frozen in sandbox (attempted delete: ${String(prop)})`);
-    },
-  }),
-  writable: false,
-  configurable: false,
-});
-
-/** Round 6/7 hardening: 在 Navigator.prototype 上直接替换 sendBeacon
- * 防止攻击者通过 Object.getPrototypeOf(navigator) 绕过 Proxy get trap
- * —— Proxy.getPrototypeOf trap 缺失时返回真实 Navigator.prototype，
- * 此处直接 patch 原型，所有 navigator 实例（包括绕过路径）的 sendBeacon 都抛错
- * Round 7: 加 try-catch + 读取原描述符保证 enumerable 兼容（某些环境可能不可配置）
- */
-try {
-  const originalDesc = Object.getOwnPropertyDescriptor(Navigator.prototype, 'sendBeacon');
-  if (originalDesc?.configurable !== false) {
-    Object.defineProperty(Navigator.prototype, 'sendBeacon', {
-      value: () => { throw new Error('sendBeacon is disabled in sandbox (Navigator.prototype)'); },
-      writable: false,
-      configurable: false,
-      enumerable: originalDesc?.enumerable ?? true,
-    });
-  }
-} catch {
-  // 失败时已有 Proxy set/defineProperty/deleteProperty trap 兜底（P1-2）
-}
-
-/** 原型链冻结防 prototype pollution；不冻结 globalThis（保留合法书源 var 声明） */
-Object.freeze(Object.prototype);
-Object.freeze(Array.prototype);
-Object.freeze(Function.prototype);
-logToMain("info", '[sandbox.worker] ✓ 冻结 Object/Array/Function 原型链');
-}
-
 /** 启动失败时主动 postMessage 回主线程,避免 LOAD_TIMEOUT_MS 才看到「无回执」 */
 function replyInitError(err: unknown, phase = '未知阶段'): void {
   logToMain("error", `[sandbox.worker] ✗ ${phase}抛错:`, err);
@@ -219,9 +110,6 @@ function replyInitError(err: unknown, phase = '未知阶段'): void {
     logToMain("error", '[sandbox.worker] ✗ init-error postMessage 失败(Worker 已死)');
   }
 }
-
-/** 启动失败时主动 postMessage 回主线程,避免 LOAD_TIMEOUT_MS 才看到「无回执」 */
-// 第二个 replyInitError 已删(原 line 160 重复声明,后者覆盖前者,导致运行时异常)
 
 // ── 协议类型 ──────────────────────────────────────────────────────────────
 
