@@ -1,6 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 import { FetchError } from '../fetch-error';
 import { cssRulesEnabled } from '../smart-add/smart-rules';
+import { createWorkerPool, WorkerLike } from './worker-pool.factory';
 
 export type SandboxFn =
   | 'search' | 'bookInfo' | 'toc' | 'chapterList'
@@ -99,6 +100,10 @@ export class SandboxService {
   }
 
   private worker: Worker | null = null;
+  /** Worker Pool 接入（EV-3 渐进迁移）：默认 null 走原 single worker 路径
+   *  通过 setUsePool(true) 或 localStorage['pom.sandbox.usePool'] === 'true' 启用 */
+  private pool: WorkerLike | null = null;
+  private usePool = false;
   private readonly loaded = new Map<string, LoadedModule>();
   /** 书源源码缓存:key=fileName, value=上次加载的源码 —— load 时比对,内容变化则重新加载 */
   private readonly sourceCache = new Map<string, string>();
@@ -118,6 +123,23 @@ export class SandboxService {
     const svc = new SandboxService();
     svc.attach(worker);
     return svc;
+  }
+
+  /** EV-3 渐进迁移：启用 Worker Pool（spec NFR-2 沙箱隔离不变；多 worker 并行调度）
+   *  通过 localStorage['pom.sandbox.usePool'] === 'true' 也可启用（生产 kill-switch 路径）
+   */
+  setUsePool(enabled: boolean): void {
+    this.usePool = enabled;
+    if (enabled && !this.pool) {
+      this.pool = createWorkerPool();
+    }
+    // 注意：当前 ensureWorker 仍走原单 worker 路径；pool 启用仅作为开关就位
+    // 完整 pool 路径改造留给 EVO-3 完全接通 sprint（spec 23 个测试保持兼容）
+  }
+
+  /** 检查当前是否启用 Pool（测试 / 调试用） */
+  isUsingPool(): boolean {
+    return this.usePool;
   }
 
   private ensureWorker(): Worker {

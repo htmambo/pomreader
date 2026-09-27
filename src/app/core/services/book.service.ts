@@ -375,7 +375,7 @@ export class BookService {
     svc.repo = repo ?? {
       books: svc._books.asReadonly(),
       loadState: svc._loadState.asReadonly(),
-      getById: (id: string) => svc._books().find((b) => b.id === id),
+      getById: (id: string) => svc._books().find((b: Book) => b.id === id),
       load: async () => undefined,
       persistBook: async (book: Book) => {
         svc._books.update((list: Book[]) => {
