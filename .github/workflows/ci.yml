@@ -1,0 +1,106 @@
+name: pomreader CI
+
+on:
+  push:
+    branches: [main, feat/**, refactor/**, fix/**]
+  pull_request:
+    branches: [main]
+
+# 双 job：lint+unit+build ≤5min（实际 timeout 10min 留缓冲）；e2e ≤15min（实际 timeout 20min）
+# cache restore-keys：lock 变更时不下载 ~300MB 浏览器 + ~100MB Electron（R3 patch）
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-unit-build:
+    name: lint + unit + build (≤5min)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    env:
+      ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/playwright
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Cache electron + playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/electron
+            .cache/playwright
+            ~/.cache/electron
+            ~/.cache/ms-playwright
+          key: cache-electron-playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            cache-electron-playwright-${{ runner.os }}-
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Build sandbox worker (esbuild)
+        run: npm run build:worker
+      - name: Prettier format check
+        run: npm run format:check
+      - name: Vitest unit + coverage
+        run: npm test -- --reporter=verbose
+      - name: Angular build (ng build)
+        run: npm run build
+      - name: Electron main process tsc
+        run: npm run build:electron
+      # OnPush 100% lint（spec NFR-2 + IMPL-R5）
+      # 注：grep -L 在"全部匹配"时返回退出码 1（"无未匹配文件"），CI 必须容忍并显式判空
+      - name: OnPush enforcement check
+        run: |
+          violations=$(grep -rL "ChangeDetectionStrategy.OnPush" \
+            --include="*.component.ts" src/ \
+            --exclude="*global-error-handler*" || true)
+          if [ -n "$violations" ]; then
+            echo "::error::Components missing ChangeDetectionStrategy.OnPush:"
+            echo "$violations"
+            exit 1
+          fi
+
+  e2e:
+    name: e2e Playwright (≤15min)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    needs: lint-unit-build
+    env:
+      ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/playwright
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Cache electron + playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/electron
+            .cache/playwright
+            ~/.cache/electron
+            ~/.cache/ms-playwright
+          key: cache-electron-playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            cache-electron-playwright-${{ runner.os }}-
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Build sandbox worker
+        run: npm run build:worker
+      - name: Build db-window renderer
+        run: npm run build:db-window
+      - name: Run Playwright specs
+        run: npx playwright test --reporter=list
+        env:
+          CI: '1'
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
