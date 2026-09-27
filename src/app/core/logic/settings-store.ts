@@ -12,6 +12,7 @@ import {
   MIN_PARAGRAPH_SPACING,
   MAX_PARAGRAPH_SPACING,
   BOOKSHELF_SORTS,
+  CONVERT_MODES,
 } from '../models/settings.model';
 
 const STORAGE_KEY = 'pom.settings';
@@ -110,6 +111,9 @@ export namespace SettingsStore {
       paragraphSpacing:
         validateFloat(parsed.paragraphSpacing, MIN_PARAGRAPH_SPACING, MAX_PARAGRAPH_SPACING) ??
         DEFAULT_SETTINGS.paragraphSpacing,
+      convertMode: CONVERT_MODES.includes(parsed.convertMode!)
+        ? parsed.convertMode!
+        : DEFAULT_SETTINGS.convertMode,
     };
   }
 

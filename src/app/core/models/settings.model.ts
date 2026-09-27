@@ -23,6 +23,11 @@ export type BookshelfSort = 'imported' | 'lastRead' | 'title';
 
 export const BOOKSHELF_SORTS: BookshelfSort[] = ['imported', 'lastRead', 'title'];
 
+/** 简繁转换：off 原文 / s2t 简→繁 / t2s 繁→简（仅渲染层转换，不写回书库原文） */
+export type ConvertMode = 'off' | 's2t' | 't2s';
+
+export const CONVERT_MODES: ConvertMode[] = ['off', 's2t', 't2s'];
+
 export interface Settings {
   theme: number;              // 阅读主题 0-6：默认/牛皮纸/淡绿/淡蓝/淡粉/灰/黑
   fontSize: number;           // 阅读字号 14-28
@@ -35,6 +40,7 @@ export interface Settings {
   fontColor: string;          // 字体颜色：CSS 颜色字符串，'' = 沿用主题 --r-text
   paragraphLineHeight: number; // 段落行高 1.0-3.0（步长 0.1）
   paragraphSpacing: number;   // 段落间距 0-2.0 em（步长 0.1）
+  convertMode: ConvertMode;   // 简繁转换档位
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -49,4 +55,5 @@ export const DEFAULT_SETTINGS: Settings = {
   fontColor: '',
   paragraphLineHeight: 1.8,
   paragraphSpacing: 0.2,
+  convertMode: 'off',
 };

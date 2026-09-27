@@ -621,9 +621,10 @@
 .reader-page .theme-list .swatch.theme-5 { background: #e0e0e0; }
 .reader-page .theme-list .swatch.theme-6 { background: #191b1c; }
 
-/* 正文字体 / 阅读模式按钮 */
+/* 正文字体 / 阅读模式 / 简繁转换按钮 */
 .reader-page .font-family .ff-btn,
-.reader-page .read-mode .ff-btn {
+.reader-page .read-mode .ff-btn,
+.reader-page .convert-mode .ff-btn {
   display: inline-block;
   width: 78px;
   height: 34px;
@@ -648,13 +649,15 @@
   font-family: KaiTi, 'Kaiti SC', 'STKaiti', 'AppKai', 'Noto Serif CJK SC', serif;
 }
 .reader-page .font-family .ff-btn.act,
-.reader-page .read-mode .ff-btn.act {
+.reader-page .read-mode .ff-btn.act,
+.reader-page .convert-mode .ff-btn.act {
   color: var(--r-accent);
   border: 1px solid var(--r-accent);
   background: #fff0f2;
 }
 .reader-page.theme-6 .font-family .ff-btn.act,
-.reader-page.theme-6 .read-mode .ff-btn.act {
+.reader-page.theme-6 .read-mode .ff-btn.act,
+.reader-page.theme-6 .convert-mode .ff-btn.act {
   background: rgba(255, 255, 255, 0.05);
 }
 

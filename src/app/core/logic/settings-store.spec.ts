@@ -94,6 +94,18 @@ describe('SettingsStore', () => {
       const result = SettingsStore.mergeValidated({ fetchUa: longUa });
       expect(result.fetchUa).toBe(DEFAULT_SETTINGS.fetchUa);
     });
+
+    it('convertMode 合法值应被采纳', () => {
+      expect(SettingsStore.mergeValidated({ convertMode: 's2t' }).convertMode).toBe('s2t');
+      expect(SettingsStore.mergeValidated({ convertMode: 't2s' }).convertMode).toBe('t2s');
+    });
+
+    it('convertMode 非法值/缺失应回退默认', () => {
+      expect(
+        SettingsStore.mergeValidated({ convertMode: 's2tw' as 's2t' }).convertMode
+      ).toBe(DEFAULT_SETTINGS.convertMode);
+      expect(SettingsStore.mergeValidated({}).convertMode).toBe(DEFAULT_SETTINGS.convertMode);
+    });
   });
 
   describe('validateInt', () => {

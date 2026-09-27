@@ -38,10 +38,16 @@ import {
   MAX_PARAGRAPH_SPACING,
   PARAGRAPH_SPACING_STEP,
   ReadMode,
+  ConvertMode,
 } from '../../core/models/settings.model';
 import { Chapter } from '../../core/models/chapter.model';
 import { Book } from '../../core/models/book.model';
 import { normalizeParagraphIndent } from '../../core/logic/text-format';
+import {
+  getChineseConverter,
+  loadChineseConverter,
+  ChineseConvertFn,
+} from '../../core/logic/convert-chinese';
 
 interface ReaderViewSettings {
   theme: number;
@@ -53,6 +59,7 @@ interface ReaderViewSettings {
   fontColor: string;
   paragraphLineHeight: number;
   paragraphSpacing: number;
+  convertMode: ConvertMode;
 }
 
 @Component({
@@ -95,6 +102,42 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     { id: 'paged', name: '翻页' },
   ];
 
+  protected readonly convertModes: { id: ConvertMode; name: string }[] = [
+    { id: 'off', name: '原文' },
+    { id: 's2t', name: '简→繁' },
+    { id: 't2s', name: '繁→简' },
+  ];
+
+  /** 当前档位的转换器实例（null = 不转换或词典加载中）；加载完成后 displayContent 自动重算 */
+  private readonly chineseConverter = signal<ChineseConvertFn | null>(null);
+
+  /** 简繁转换档位变化时懒加载 opencc-js 词典（面板草稿预览也走这里，实时生效） */
+  private readonly converterEffect = effect(() => {
+    const mode = this.view().convertMode;
+    // 写 signal 需移出 effect 响应式上下文（Angular 18 NG0600）
+    untracked(() => queueMicrotask(() => this.applyConvertMode(mode)));
+  });
+
+  private applyConvertMode(mode: ConvertMode): void {
+    if (this.destroyed) return;
+    if (mode === 'off') {
+      this.chineseConverter.set(null);
+      return;
+    }
+    const cached = getChineseConverter(mode);
+    if (cached) {
+      this.chineseConverter.set(cached);
+      return;
+    }
+    this.chineseConverter.set(null); // 加载期间先显示原文
+    void loadChineseConverter(mode).then((conv) => {
+      // 加载完成时档位可能已被切走/组件已销毁，仅当档位仍匹配才生效
+      if (!this.destroyed && this.view().convertMode === mode) {
+        this.chineseConverter.set(conv);
+      }
+    });
+  }
+
   private readonly viewportRef = viewChild<ElementRef<HTMLElement>>('pagedViewport');
   private readonly contentRef = viewChild<ElementRef<HTMLElement>>('pagedContent');
   /** 目录 list DOM 引用（用于打开时滚到当前章节位置） */
@@ -123,6 +166,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     fontColor: '',
     paragraphLineHeight: 1.8,
     paragraphSpacing: 0.2,
+    convertMode: 'off',
   });
 
   protected readonly themes = [
@@ -337,13 +381,20 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     () => this.chapters()[this.chapterIndex()]
   );
 
-  /** 渲染用正文：段首缩进规范化兜底（旧库数据中首段缩进被 trim 剥掉的也能正确显示） */
-  readonly displayContent = computed(() =>
-    normalizeParagraphIndent(this.currentChapter()?.content ?? '')
-  );
+  /** 渲染用正文：段首缩进规范化兜底（旧库数据中首段缩进被 trim 剥掉的也能正确显示）+ 简繁转换（仅渲染层，不写回原文） */
+  readonly displayContent = computed(() => {
+    const text = normalizeParagraphIndent(this.currentChapter()?.content ?? '');
+    const conv = this.chineseConverter();
+    return conv ? conv(text) : text;
+  });
 
   /** 按行拆分后的正文：用于 .read-content 内逐行渲染，使段落间距（margin-bottom）能精确加在每行之间 */
   readonly lines = computed(() => this.displayContent().split('\n'));
+
+  /** 界面文案转换（书名/章节标题/作者）：converter 未加载时原样返回 */
+  protected readonly displayText = computed<ChineseConvertFn>(
+    () => this.chineseConverter() ?? ((t: string) => t)
+  );
 
   /** 当前生效的视图设置：面板打开时用草稿（预览），否则用已保存值 */
   readonly view = computed<ReaderViewSettings>(() => {
@@ -475,6 +526,10 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     this.draft.update((d) => ({ ...d, readMode }));
   }
 
+  setConvertMode(convertMode: ConvertMode): void {
+    this.draft.update((d) => ({ ...d, convertMode }));
+  }
+
   /** 重试加载当前失败章节 */
   retryLoad(): void {
     const idx = this.chapterIndex();
@@ -604,6 +659,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     this.settings.update('fontColor', d.fontColor);
     this.settings.update('paragraphLineHeight', d.paragraphLineHeight);
     this.settings.update('paragraphSpacing', d.paragraphSpacing);
+    this.settings.update('convertMode', d.convertMode);
     this.settingsOpen.set(false);
   }
 
@@ -816,6 +872,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
       fontColor: s.fontColor,
       paragraphLineHeight: s.paragraphLineHeight,
       paragraphSpacing: s.paragraphSpacing,
+      convertMode: s.convertMode,
     };
   }
 }

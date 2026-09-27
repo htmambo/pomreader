@@ -10,7 +10,7 @@
             <a class="back-link" (click)="back()">
               <span nz-icon nzType="arrow-left"></span> 返回书架
             </a>
-            <span class="book-title">{{ b.title }}</span>
+            <span class="book-title">{{ displayText()(b.title) }}</span>
           </div>
         </header>
 
@@ -18,10 +18,10 @@
           <div class="text-wrap">
             <div class="main-text-wrap">
               <div class="text-head">
-                <h3>{{ currentChapter()?.title }}</h3>
+                <h3>{{ displayText()(currentChapter()?.title ?? '') }}</h3>
                 <div class="text-info">
-                  <i><span nz-icon nzType="book"></span>{{ b.title }}</i>
-                  <i><span nz-icon nzType="file-text"></span>{{ b.author }}</i>
+                  <i><span nz-icon nzType="book"></span>{{ displayText()(b.title) }}</i>
+                  <i><span nz-icon nzType="file-text"></span>{{ displayText()(b.author) }}</i>
                   <i>{{ wordCount() }}字</i>
                   <i>第 {{ chapterIndex() + 1 }} / {{ chapters().length }} 章</i>
                   @if (paged()) {
@@ -133,7 +133,7 @@
                     [title]="ch.sourceUrl && !ch.loaded ? '未下载' : ''"
                     (click)="goTo(i)"
                   >
-                    <span class="title">{{ ch.title }}</span>
+                    <span class="title">{{ displayText()(ch.title) }}</span>
                   </a>
                 }
               </div>
@@ -262,6 +262,17 @@
                       class="ff-btn"
                       [class.act]="draft().readMode === m.id"
                       (click)="setReadMode(m.id)"
+                      >{{ m.name }}</span
+                    >
+                  }
+                </li>
+                <li class="convert-mode">
+                  <i>简繁转换</i>
+                  @for (m of convertModes; track m.id) {
+                    <span
+                      class="ff-btn"
+                      [class.act]="draft().convertMode === m.id"
+                      (click)="setConvertMode(m.id)"
                       >{{ m.name }}</span
                     >
                   }
