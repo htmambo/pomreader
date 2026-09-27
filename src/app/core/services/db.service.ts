@@ -429,28 +429,20 @@ export class DbService {
     }
   }
 
-  // ============ Seed + 诊断 ============
+  // ============ 启动诊断 ============
 
   /**
-   * 首次启动 seed：books 集合为空时从 books.json 灌入 mock Book metadata
-   * （chapter 内容留空，按需抓取或本地导入时填充）
-   * 判空基于 bookAll() 而非 info.doc_count：后者含 design docs，未来引入 views 会误判。
+   * 启动 hook（兼容保留）：当前实现为 no-op，首次启动书架为空。
+   *
+   * @deprecated 自 2026-09 起不再灌入内置 seed。`book.repository.ts:61`
+   *   仍在调用本方法以保留接口稳定；下一轮重构可移除本方法并合并
+   *   `bookAll()` 调用，避免重复全表扫描（review_round_1/R1）。
+   *
+   * @history 早期版本从 `assets/data/books.json` + `assets/data/chapters/*.json`
+   *   灌入 13 本 mock 书（含 stub 首章）用于演示；2026-09 起移除。
    */
-  async seedIfEmpty(): Promise<{ seeded: boolean; bookCount: number }> {
-    const existing = await this.bookAll();
-    if (existing.length > 0) {
-      return { seeded: false, bookCount: existing.length };
-    }
-    const res = await fetch('assets/data/books.json');
-    if (!res.ok) {
-      // 资源不可用（某些 Electron 模式或 SSR 阶段），跳过 seed
-      return { seeded: false, bookCount: 0 };
-    }
-    const seedBooks = (await res.json()) as Book[];
-    for (const b of seedBooks) {
-      await this.bookPut(b);
-    }
-    return { seeded: true, bookCount: seedBooks.length };
+  async seedIfEmpty(): Promise<{ seeded: false; bookCount: 0 }> {
+    return { seeded: false, bookCount: 0 };
   }
 
   /** 清空整个数据库（仅用于调试 / 重置） */

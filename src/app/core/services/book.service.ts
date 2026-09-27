@@ -19,7 +19,7 @@ export type DbLoadState = 'idle' | 'loading' | 'ready' | 'error';
  * BookService — 书架 + 章节管理（PouchDB 后端）
  *
  * 数据流：
- *   - 启动：`load()` → DbService.seedIfEmpty() → db.bookAll() 加载书架
+ *   - 启动：`load()` → DbService.seedIfEmpty()（无内置 seed，仅返回现状）→ db.bookAll() 加载书架
  *   - 导入：`addBook` / `importOnlineBook` → 写 PouchDB + 同步更新内存 signal
  *   - 阅读：`getChapters` → PouchDB 拉 + 填充内存缓存 → 同步 `getChaptersSync` 给 reader effect
  *   - 进度：`updateProgress` → 嵌入 Book 文档的 `progress` 字段
@@ -47,7 +47,7 @@ export class BookService {
   readonly chaptersVersion = signal(0);
 
   /**
-   * 初始化：从 PouchDB 加载所有书籍；首次启动自动 seed mock books.json
+   * 初始化：从 PouchDB 加载所有书籍；无内置 seed，首次启动书架为空
    * 由 APP_INITIALIZER（app.config.ts）在 app 启动时调用一次
    */
   async load(): Promise<void> {

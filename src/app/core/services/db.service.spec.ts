@@ -20,7 +20,7 @@ import { Book } from '../models/book.model';
  * → safeHandle(... rest) 收集为 [a, b, c] 数组 → v.safeParse(schema, args)
  *
  * 覆盖核心 CRUD：bookAll / bookGet / bookPut / bookDelete / chapterAll /
- * chapterPutMany / seedIfEmpty / bookUpdateProgress
+ * chapterPutMany / seedIfEmpty（no-op）/ bookUpdateProgress
  */
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
