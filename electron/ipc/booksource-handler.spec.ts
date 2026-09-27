@@ -89,14 +89,14 @@ describe('resolveDir', () => {
     expect(fs.existsSync(path.join(tmpUserData, 'booksources'))).toBe(false);
     const d = resolveDir(tmpUserData, null);
     expect(d).toBe(path.join(tmpUserData, 'booksources'));
-    expect(fs.existsSync(d)).toBe(true);
+    expect(fs.existsSync(d!)).toBe(true);
   });
 
   it('重复调用 resolveDir 应幂等（mkdirSync recursive）', () => {
     const d1 = resolveDir(tmpUserData, null);
     const d2 = resolveDir(tmpUserData, null);
     expect(d1).toBe(d2);
-    expect(fs.existsSync(d2)).toBe(true);
+    expect(fs.existsSync(d2!)).toBe(true);
   });
 
   it('绝对路径 sourceDir 应原样返回（不 mkdir）', () => {
