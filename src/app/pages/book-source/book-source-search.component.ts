@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NzInputModule } from 'ng-zorro-antd/input';
@@ -24,6 +24,7 @@ import { ImportOnlineComponent } from '../../modals/import-online/import-online.
  *   路由切换后回来直接恢复，搜索中途切走异步搜索继续跑
  */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-book-source-search',
   standalone: true,
   imports: [

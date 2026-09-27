@@ -1,4 +1,4 @@
-import { Component, Input, signal, computed, inject, OnChanges } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, signal, computed, inject, OnChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { CoverService } from '../../../core/cover/cover.service';
 
@@ -26,6 +26,7 @@ declare global {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-cover-img',
   standalone: true,
   imports: [CommonModule],

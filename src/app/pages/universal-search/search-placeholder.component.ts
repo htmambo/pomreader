@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 
 /**
  * /search 路由占位组件
@@ -7,6 +7,7 @@ import { Component } from '@angular/core';
  * 真正的 <app-universal-search> 由外壳在访问过 /search 后挂载并以 display:none 隐藏
  */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-search-placeholder',
   standalone: true,
   template: '',

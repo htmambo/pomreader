@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { NzMenuModule } from 'ng-zorro-antd/menu';
@@ -11,6 +11,7 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
  * - 设置（缓存）
  */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-sidebar',
   standalone: true,
   imports: [CommonModule, RouterLink, RouterLinkActive, NzMenuModule, NzIconModule],

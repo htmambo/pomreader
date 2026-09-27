@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, NavigationEnd } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -20,6 +20,7 @@ import { PageHeaderService } from '../../../core/services/page-header.service';
  * - 「导入」按钮仅书架页可见 —— 其它页面该按钮与页面语义无关
  */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-page-header',
   standalone: true,
   imports: [CommonModule, NzTagModule, NzButtonModule, NzIconModule, NzDropDownModule],
