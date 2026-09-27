@@ -9,6 +9,7 @@ import { Book } from '../../../core/models/book.model';
 import { ToastService } from '../../../core/services/toast.service';
 import { CoverService } from '../../../core/cover/cover.service';
 import { CoverImgComponent } from '../cover-img/cover-img.component';
+import { LongPressDirective } from '../../directives/long-press.directive';
 
 /**
  * BookCard — 书架单本书
@@ -18,14 +19,26 @@ import { CoverImgComponent } from '../cover-img/cover-img.component';
 @Component({
   selector: 'app-book-card',
   standalone: true,
-  imports: [CommonModule, RouterLink, NzDropdownMenuComponent, NzMenuModule, NzIconModule, CoverImgComponent],
+  imports: [CommonModule, RouterLink, NzDropdownMenuComponent, NzMenuModule, NzIconModule, CoverImgComponent, LongPressDirective],
   template: `
     <a
       class="book-card"
-      [routerLink]="['/reader', book.id, 0]"
+      [routerLink]="selectMode ? null : ['/reader', book.id, 0]"
       [attr.aria-label]="book.title + ' — ' + book.author"
+      [class.select-mode]="selectMode"
+      [class.selected]="selected"
+      appLongPress
+      (appLongPress)="longPress.emit(book)"
+      (click)="onCardClick($event)"
       (contextmenu)="onContextMenu($event)"
     >
+      @if (selectMode) {
+        <span class="check-badge" [class.on]="selected">
+          @if (selected) {
+            <span nz-icon nzType="check"></span>
+          }
+        </span>
+      }
       @if (book.coverImageUrl) {
         <!-- 模式 1: 用户提供的封面图片 —— 用 <app-cover-img> 统一处理 local:// / http(s):// / data: 协议转换 -->
         <app-cover-img
@@ -93,6 +106,40 @@ import { CoverImgComponent } from '../cover-img/cover-img.component';
       .book-card:hover {
         transform: translateY(-2px);
       }
+      .book-card {
+        position: relative;
+      }
+      .book-card.selected .cover {
+        outline: 3px solid #1890ff;
+        outline-offset: 2px;
+      }
+      .book-card.select-mode .cover {
+        filter: brightness(0.9);
+      }
+      .book-card.select-mode.selected .cover {
+        filter: none;
+      }
+      .check-badge {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        z-index: 2;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        border: 2px solid #fff;
+        background: rgba(0, 0, 0, 0.35);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        pointer-events: none;
+      }
+      .check-badge.on {
+        background: #1890ff;
+        border-color: #1890ff;
+      }
       .cover {
         width: 100%;
         aspect-ratio: 5 / 7;
@@ -133,8 +180,13 @@ import { CoverImgComponent } from '../cover-img/cover-img.component';
 })
 export class BookCardComponent implements OnDestroy {
   @Input({ required: true }) book!: Book;
+  /** 多选模式：整卡 click 改为切换选中，屏蔽右键菜单与 routerLink 跳转 */
+  @Input() selectMode = false;
+  /** 当前是否被选中（仅 selectMode 下有视觉效果） */
+  @Input() selected = false;
 
   @ViewChild('cardMenu', { static: true }) cardMenu!: NzDropdownMenuComponent;
+  @ViewChild(LongPressDirective) private longPressDirective?: LongPressDirective;
 
   private toast = inject(ToastService);
   private cover = inject(CoverService);
@@ -150,10 +202,33 @@ export class BookCardComponent implements OnDestroy {
   readonly changeSource = output<Book>();
   /** 通知父组件刷新最新章节（仅 online 来源） */
   readonly refreshChapters = output<Book>();
+  /** 长按封面触发（500ms）：通知父组件进入多选模式 */
+  readonly longPress = output<Book>();
+  /** 多选模式下点击封面：通知父组件切换该书选中态 */
+  readonly selectionToggle = output<Book>();
+
+  /**
+   * 整卡 click 拦截：
+   * - 多选模式下：拦截 routerLink 跳转，改为切换选中
+   * - 长按刚触发后的松开 click：消费标志并拦截，避免误入阅读器
+   */
+  onCardClick(event: MouseEvent): void {
+    if (this.longPressDirective?.consumePressFired()) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    if (this.selectMode) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.selectionToggle.emit(this.book);
+    }
+  }
 
   onContextMenu(event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();
+    if (this.selectMode) return; // 选择模式下屏蔽右键菜单
     this.contextMenu.create(event, this.cardMenu);
   }
 

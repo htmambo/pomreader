@@ -292,6 +292,53 @@ export class BookService {
     return { added, skipped, total: cached.length + added };
   }
 
+  /**
+   * 更新作品信息（同源元数据刷新）
+   *
+   * 按原 bookSourceUuid / sourceUrl 重新解析，仅更新 source-bound 元数据：
+   * title / author / kind / coverImageUrl（解析结果为空时保留旧值）。
+   * 章节、阅读进度、sourceUrl、书源均不动（addBook(merged, []) 不触碰章节缓存）。
+   *
+   * 仅 'online' 来源支持；失败抛 FetchError（与 refreshChapters 错误语义一致）。
+   */
+  async refreshBookInfo(bookId: string): Promise<Book> {
+    const oldBook = this.getById(bookId);
+    if (!oldBook) throw new FetchError('source-unavailable', `书不存在: ${bookId}`);
+    if (oldBook.source !== 'online') {
+      throw new FetchError(
+        'unsupported-source',
+        `仅 online 来源支持更新作品信息，当前 source: ${oldBook.source}`,
+      );
+    }
+    if (!oldBook.sourceUrl) {
+      throw new FetchError(
+        'parse-failed',
+        '该书缺少 sourceUrl，无法重新拉取作品信息',
+      );
+    }
+
+    const sourceName = oldBook.bookSourceUuid
+      ? this.sources.getByUuid(oldBook.bookSourceUuid)?.name
+      : undefined;
+
+    const { book: resolved } = await this.importViaSource.importByUrl(
+      oldBook.sourceUrl,
+      sourceName,
+    );
+
+    const merged: Book = {
+      ...oldBook,
+      title: resolved.title || oldBook.title,
+      author: resolved.author || oldBook.author,
+      kind: resolved.kind ?? oldBook.kind,
+      // 新解析带 coverImageUrl → 采用；否则保留旧封面（避免立即丢失）
+      coverImageUrl: resolved.coverImageUrl || oldBook.coverImageUrl,
+    };
+
+    await this.addBook(merged, []);
+    return merged;
+  }
+
   /** 按需加载某章正文（fetch + 写 PouchDB + 刷新缓存） */
   async loadChapterContent(bookId: string, index: number): Promise<void> {
     // 优先从内存缓存取章节 metadata（包含 sourceUrl）
