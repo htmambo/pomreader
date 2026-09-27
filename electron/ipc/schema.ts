@@ -37,6 +37,12 @@ export class IpcValidationError extends Error {
  * @param channel - IPC channel 名（如 'pom:fetch-html'）
  * @param schema - valibot schema（v.tuple(...) 或 v.object(...)，输入 args 直接 parse）
  * @param handler - 业务 handler；args 是 schema parse 后的对象/数组
+ *
+ * 入参形态：渲染进程 `ipcRenderer.invoke(channel, a, b, c)` → 主进程 handler 收到
+ * `(event, a, b, c)` 三个独立参数（Electron spread）。我们这里通过 rest 收集
+ * 为 array 后整体 parse —— 这样 v.tuple schema 才能正确识别位置参数。
+ * （旧实现直接 `(event, args: unknown)` 只取第一个参数，触发"Expected Array"
+ *  验证失败 —— 见 commit 747d808 后续 e2e 复现。）
  */
 export function safeHandle<TInput, TOutput>(
   ipcMain: IpcMain,
@@ -44,7 +50,8 @@ export function safeHandle<TInput, TOutput>(
   schema: v.GenericSchema<unknown, TInput>,
   handler: (event: IpcMainInvokeEvent, input: TInput) => Promise<TOutput> | TOutput,
 ): void {
-  ipcMain.handle(channel, async (event, args: unknown) => {
+  ipcMain.handle(channel, async (event, ...rest: unknown[]) => {
+    const args = rest;
     const parsed = v.safeParse(schema, args);
     if (!parsed.success) {
       throw new IpcValidationError(channel, parsed.issues);
