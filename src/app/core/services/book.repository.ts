@@ -99,6 +99,10 @@ export class BookRepository {
     repo.db = db;
     repo._books = signal<Book[]>([]);
     repo._loadState = signal<'idle' | 'loading' | 'ready' | 'error'>('idle');
+    // 手动绑定 readonly signal getter（class field initializer 不通过 Object.create 调用）
+    repo.books = repo._books.asReadonly();
+    repo.loadState = repo._loadState.asReadonly();
+    repo.count = signal(0);
     return repo as BookRepository;
   }
 }
