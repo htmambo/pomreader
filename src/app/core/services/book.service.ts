@@ -379,6 +379,10 @@ export class BookService {
    * 生产用 Angular inject()，测试用静态工厂。
    * 注意：测试中 _books / _chaptersCache 是空白 signal，调用前需手动
    * 设置 _books 状态以模拟 in-memory bookshelf。
+   *
+   * @internal — **Prod code MUST NOT call this method**.
+   * Tracked by HARDEN-xxx (Round 8 P1-2 defer: ESLint no-forTest-in-prod rule).
+   * R6-4 grep verification currently in effect; CI does not yet enforce.
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static forTest(
