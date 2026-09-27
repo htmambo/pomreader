@@ -6,6 +6,7 @@ import { CatalogEntry } from '../book-source/book-source.adapter';
 import { ImportViaSourceService } from '../book-source/import-via-source.service';
 import { FetchError } from '../book-source/fetch-error';
 import { DbService } from './db.service';
+import { BookRepository } from './book.repository';
 
 /** 在线导入预加载章节数 */
 const PRELOAD_COUNT = 3;
@@ -27,6 +28,7 @@ export type DbLoadState = 'idle' | 'loading' | 'ready' | 'error';
 @Injectable({ providedIn: 'root' })
 export class BookService {
   private readonly db = inject(DbService);
+  private readonly repo = inject(BookRepository);
   private readonly sources = inject(BookSourceRegistry);
   private readonly importViaSource = inject(ImportViaSourceService);
 
@@ -48,10 +50,10 @@ export class BookService {
     if (this._loadState() === 'loading' || this._loadState() === 'ready') return;
     this._loadState.set('loading');
     try {
-      await this.db.seedIfEmpty();
-      const books = await this.db.bookAll();
-      this._books.set(books);
-      this._loadState.set('ready');
+      await this.repo.load();
+      // 镜像同步：BookService 自身 _books / _loadState 仍保留以兼容现有 spec + 调用方（spec NFR-7 facade 渐进迁移）
+      this._books.set(this.repo.books());
+      this._loadState.set(this.repo.loadState());
     } catch (e) {
       console.error('[BookService.load] failed', e);
       this._loadState.set('error');
@@ -85,11 +87,11 @@ export class BookService {
 
   /** 新增/更新一本书 + 全部章节 */
   async addBook(book: Book, chapters: Chapter[]): Promise<void> {
-    await this.db.bookPut(book);
+    await this.repo.persistBook(book);
     if (chapters.length > 0) {
-      await this.db.chapterPutMany(chapters);
+      await this.repo.persistChapters(chapters);
     }
-    // 同步更新内存 signal（乐观更新）
+    // 镜像同步 + 乐观更新（BookService 自身 _books 仍保留以兼容现有调用方）
     this._books.update((list) => {
       const idx = list.findIndex((b) => b.id === book.id);
       if (idx >= 0) {
@@ -449,7 +451,8 @@ export class BookService {
 
   /** 删除一本书 + 级联删除其所有章节 */
   async deleteBook(bookId: string): Promise<void> {
-    await this.db.bookDelete(bookId);
+    await this.repo.deleteBook(bookId);
+    // 镜像同步
     this._books.update((list) => list.filter((b) => b.id !== bookId));
     this._chaptersCache.update((m) => {
       const next = new Map(m);
@@ -466,12 +469,14 @@ export class BookService {
    * 设置 _books 状态以模拟 in-memory bookshelf。
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  static forTest(db: DbService, sources: BookSourceRegistry, importViaSource: ImportViaSourceService): BookService {
+  static forTest(db: DbService, sources: BookSourceRegistry, importViaSource: ImportViaSourceService, repo?: BookRepository): BookService {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const svc: any = Object.create(BookService.prototype);
     svc.db = db;
     svc.sources = sources;
     svc.importViaSource = importViaSource;
+    // repo 可选：兼容旧 spec（不传时用空 BookRepository 包装 db，避免 this.repo.persistBook 报错）
+    svc.repo = repo ?? BookRepository.forTest(db);
     // 手动初始化 signals（绕开 class field 初始化；signal() 不依赖 DI）
     svc._books = signal<Book[]>([]);
     svc._loadState = signal<DbLoadState>('idle');
