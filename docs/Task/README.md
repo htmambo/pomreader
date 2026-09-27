@@ -5,10 +5,6 @@
 
 ## Active Tasks
 
-- 🔄 [基础设施与文档治理硬化（P1 + P2）](Active/POMREADER_P1_P2_HARDENING_PLAN.md) — Started 2026-09-27
-  - P1：LICENSE / CONTRIBUTING / CHANGELOG / ESLint / dist-electron 文档化
-  - P2：README EVO 锚点 / i18n 实际启用 / coverage 数据 / superpowers 链接 / e2e 验证
-  - 分支：`main`
 - 📋 [依赖大版本升级（Angular 18→22 + 测试工具链）](Active/POMREADER_DEP_MAJOR_UPGRADE_PLAN.md) — Draft 2026-09-27
   - Phase 0：@types/node→24 / jsdom→30 / vitest→3.2 / puppeteer-core→25 / engines 收紧（不依赖 Angular）
   - Phase 1-4：Angular 逐级 18→19→20→21→22 + ng-zorro 跟随（TS pin ~6.0，严禁 7.x）
@@ -17,6 +13,14 @@
 ## Completed Tasks (Archive)
 
 ### 2026-09（独立仓库阶段）
+
+#### 基础设施硬化（P1 + P2）
+
+- ✅ [基础设施与文档治理硬化（P1 + P2）](Archive/2026-09/POMREADER_P1_P2_HARDENING_PLAN.md) — Completed 2026-09-27
+  - P1：LICENSE (MIT) / CONTRIBUTING.md / CHANGELOG.md / ESLint 依赖补全 / dist-electron 文档化
+  - P2：README EVO 锚点 / coverage 数据 / superpowers 链接 / e2e 验证 19/19
+  - ESLint 启用配置 + i18n 实际翻译留待 v0.2.0 PR
+  - 关键 commit：e012be3 / 73ff7b8 / ecb0a9b / 7c0027f
 
 #### 架构演进（16 项）
 
