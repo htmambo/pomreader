@@ -3,6 +3,9 @@ import { FetchError } from '../fetch-error';
 import { cssRulesEnabled } from '../smart-add/smart-rules';
 import { createWorkerPool, WorkerLike } from './worker-pool.factory';
 
+/** EVO-3 conservative kill-switch: operator can force-off pool without redeploy. */
+const EVO3_KILL_SWITCH_KEY = 'evo3.workerPool.forceOff';
+
 export type SandboxFn =
   | 'search' | 'bookInfo' | 'toc' | 'chapterList'
   | 'content' | 'chapterContent' | 'explore';
@@ -104,6 +107,16 @@ export class SandboxService {
    *  通过 setUsePool(true) 或 localStorage['pom.sandbox.usePool'] === 'true' 启用 */
   private pool: WorkerLike | null = null;
   private usePool = false;
+
+  constructor() {
+    // P0-2: 构造期读 kill-switch（force-off 后不可 setUsePool(true) 绕过）
+    if (
+      typeof localStorage !== 'undefined' &&
+      localStorage.getItem(EVO3_KILL_SWITCH_KEY) === '1'
+    ) {
+      this.usePool = false;
+    }
+  }
   private readonly loaded = new Map<string, LoadedModule>();
   /** 书源源码缓存:key=fileName, value=上次加载的源码 —— load 时比对,内容变化则重新加载 */
   private readonly sourceCache = new Map<string, string>();
@@ -129,17 +142,33 @@ export class SandboxService {
    *  通过 localStorage['pom.sandbox.usePool'] === 'true' 也可启用（生产 kill-switch 路径）
    */
   setUsePool(enabled: boolean): void {
+    if (this.usePool === enabled) return;
+    // P0-1: flip 之前 tear down 旧 pool，避免 toggle 留下悬挂 worker
+    if (this.pool) {
+      try {
+        this.pool.terminate();
+      } catch {
+        /* noop */
+      }
+      this.pool = null;
+    }
     this.usePool = enabled;
-    if (enabled && !this.pool) {
+    if (enabled) {
       this.pool = createWorkerPool();
     }
-    // 注意：当前 ensureWorker 仍走原单 worker 路径；pool 启用仅作为开关就位
-    // 完整 pool 路径改造留给 EVO-3 完全接通 sprint（spec 23 个测试保持兼容）
   }
 
   /** 检查当前是否启用 Pool（测试 / 调试用） */
   isUsingPool(): boolean {
-    return this.usePool;
+    return this.usePool && this.pool !== null;
+  }
+
+  /** P0-2: Operator-only runtime kill switch. Idempotent. */
+  forceDisablePool(): void {
+    this.setUsePool(false);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(EVO3_KILL_SWITCH_KEY, '1');
+    }
   }
 
   private ensureWorker(): Worker {

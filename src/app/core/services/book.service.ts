@@ -371,10 +371,13 @@ export class BookService {
     svc.chaptersVersion = signal(0);
     // 构造 BookRepository stub：所有读操作走 svc._books（spec 直接写 svc._books 即可）
     // 写操作（persistBook / persistChapters / deleteBook）镜像回 svc._books
+    // P1-4: `satisfies BookRepository` 编译期绑定接口，避免 silent drift
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    svc.repo = repo ?? {
+    svc.repo = repo ?? (Object.assign(Object.create(BookRepository.prototype), {
+      // public fields/methods —— `satisfies BookRepository` 强制编译期绑定（spec NFR-7 防止 silent drift）
       books: svc._books.asReadonly(),
       loadState: svc._loadState.asReadonly(),
+      count: signal(0),
       getById: (id: string) => svc._books().find((b: Book) => b.id === id),
       load: async () => undefined,
       persistBook: async (book: Book) => {
@@ -392,7 +395,16 @@ export class BookService {
       deleteBook: async (id: string) => {
         svc._books.update((list: Book[]) => list.filter((b) => b.id !== id));
       },
-    };
+    // private 字段转发（spec 通过 svc._books 直接写；tests 复用 BookService.forTest 入口）
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      db,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      _books: svc._books as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      _loadState: svc._loadState as any,
+    // Object.create + Object.assign 绕过 constructor → 不走 field initializer → 需要强制断言
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    }) as unknown as BookRepository);
     svc.loader = loader ?? ChapterLoader.forTest(db, sources);
     svc.updater = updater ?? BookUpdater.forTest(svc.repo, svc.loader, db, sources, importViaSource);
     return svc as BookService;

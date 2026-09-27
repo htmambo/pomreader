@@ -250,4 +250,25 @@ export class BookUpdater {
       console.warn('[BookUpdater.updateProgress] failed', e);
     }
   }
+
+  /**
+   * 测试入口：手动注入依赖（绕开 Angular DI 上下文 NG0203）。
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static forTest(
+    repo: BookRepository,
+    loader: ChapterLoader,
+    db: DbService,
+    sources: BookSourceRegistry,
+    importViaSource: ImportViaSourceService,
+  ): BookUpdater {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const u: any = Object.create(BookUpdater.prototype);
+    u.repo = repo;
+    u.loader = loader;
+    u.db = db;
+    u.sources = sources;
+    u.importViaSource = importViaSource;
+    return u as BookUpdater;
+  }
 }
