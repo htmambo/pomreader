@@ -70,13 +70,11 @@ export class BookSourceListComponent {
       void this.refresh(true);
     }
     // 副标题随 sources 数量变化 —— 「共 N 个书源」由本组件单独维护
-    // allowSignalWrites:这是 effect 写 signal 的明确逃生口 —— 两个 signal 不同源,不会形成循环
-    effect(
-      () => {
-        this.pageHeader.subtitle.set(`共 ${this.state.sources().length} 个书源`);
-      },
-      { allowSignalWrites: true },
-    );
+    // 两个 signal 不同源，不会形成循环；Angular 22 起 effect 写 signal 默认允许
+    // （allowSignalWrites flag 已废弃为空操作，故不再传）
+    effect(() => {
+      this.pageHeader.subtitle.set(`共 ${this.state.sources().length} 个书源`);
+    });
   }
 
   /** 拉取全量书源元数据（showLoading=false 时走后台静默刷新，不阻塞 UI） */

@@ -24,9 +24,13 @@
     - 版本：Angular 21.2.24 / ng-zorro 21.3.3 / icons-angular 21.0.0 / angular-eslint 21.4.0 / TS **5.9.3（被 compiler-cli@21 peer 强制）**
     - `*ngIf`/`*ngFor` → `@if`/`@for` 由 schematic 自动迁移 20 个组件（原计划「刻意推迟」的项被 ng update 顺带完成）
     - 抓出 5 件事：① **`ng update` 静默把 vitest 3→4**（超 Phase 5 范围，用户拍板接受并就地修 2 个 fixture）；② ng-zorro 21 删 `NzInputNumberLegacyModule`，一处误删被编译器 NG8002 抓回；③ TS 5.9 Buffer 泛型变体检查（13 个 electron 错误），单层 `as Uint8Array` 宽化断言解决；④ schematic 删 `tsconfig.lib` 属语义等价（`es2022.full` 含 dom）；⑤ vitest 4 AST 重映射致 branches 覆盖 75%→64.89%（测量修正非回归），阈值校准到 60 并加 `TODO(Phase 5)` 收紧锚点
-  - Phase 4：Angular 21 → 22 + ng-zorro 跟随（TS pin ~6.0，严禁 7.x）
-    - ⚠️ **Phase 4 起步前先手过一遍阅读页**：Phase 1 遗留的 effect() 时序风险至今未做人工目视复核，Phase 2/3 均未解决
+  - Phase 4：Angular 21 → 22 — ✅ **完成**，七门全绿 + e2e **19/19**
+    - 版本：Angular 22.2.0 / ng-zorro 22.1.1 / icons-angular 22.1.1 / angular-eslint 22.5.0 / TS **6.0.3（pin 死，严禁 7.x）**
+    - 接受 schematic 的 `withXhr()`（Angular 22 默认改 FetchBackend，保守保留 XHR）+ `extendedDiagnostics` suppress 块（技术债）；**主动 revert 了 `provideNzDateFnsAdapter()`**（全仓无日期组件，date-fns 是未声明传递依赖）
+    - 抓出 4 件事：⑥ **ng update 把 icons-angular 挪到 devDependencies，外审 P1 抓回**——`app.component.ts` 直接 import 图标传给 `provideNzIconsPatch`，属应用层依赖必须归位 dependencies；⑦ **angular-eslint 22 破坏式变更**——`@angular-eslint/eslint-plugin` 不再导出 `configs`，改从聚合包 `angular-eslint.configs.tsRecommended/templateRecommended` 提取规则；⑧ TS 6.0 拒 electron `moduleResolution:node`（TS5107/TS5110），改 Node16 后产物验证仍 CJS（`require("electron")` 保留）；⑨ Angular 22 新增 `allowSignalWrites` 废弃警告，删掉 `book-source-list` 的空操作 flag（零行为变更）
+    - 外审 2 轮 APPROVED（session `3a9d0182`，Round 2 闭环 icons-angular 归位）
   - Phase 5：vitest 4 稳定后评估 5 / @angular/build:unit-test、branches 覆盖率收紧回 ~70、zoneless 评估（收尾；vitest-4 部分已被 Phase 3 提前消化）
+    - ⚠️ **effect() 时序阅读页人工目视复核自 Phase 1 起未做，Phase 2/3/4 均未解决**（无 GUI，e2e reader 用例是 stub 路由 + 缺数据）
 
 ## Completed Tasks (Archive)
 

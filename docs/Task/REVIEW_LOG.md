@@ -396,3 +396,40 @@
 **4 条非阻断建议的处置**：① 缺收紧承诺的可追踪锚点 —— ✅ **已采纳**，注释补 `TODO(dep-upgrade Phase 5)`；② 缓冲对新增大文件较薄，建议补贡献约定 —— 记录，归入 Phase 5 收尾；③ 阈值分档不对称说明 —— 注释已含根因，不重复；④ PR 描述置顶标注 —— 已纳入 commit message「阈值校准」说明。
 
 **Review Loop 状态：CLOSE（2 轮，两轮均 APPROVED，未触发 5 轮上限）**
+
+# Phase 4：Angular 21 → 22
+
+## Round 1/5 — 2026-09-28（代码完成轮，kind=code）
+
+**Session:** `3a9d0182-75ec-4c6a-9d48-b976ea20d9d8`
+**VERDICT:** ✅ **APPROVED**
+
+逐项认可 8 个判断点，无 P0 阻塞项：
+
+- **版本锁步（判断点 1）**：`@angular/* ^22.2.0` / `ng-zorro ^22.1.1` / `icons-angular ^22.1.1` / `angular-eslint ^22.5.0` 主版本全部对齐 22.x；`typescript ~6.0.3` 落在 compiler-cli@22 / build@22 peer `>=6.0 <6.1` 内，且显式规避 TS 7.0.2 Go 重写版本；zone.js / vitest 未动，`npm ls --depth=0` clean
+- **`withXhr()` 保守取舍（判断点 3）**：判断正确。Angular 22 默认 FetchBackend 会改变 `file://`/Electron 自定义协议语义；本仓真实网络走 legado.http worker sandbox，Angular HttpClient 实际无消费者，但 ng-zorro 可能内部使用，贸然删除风险大于收益。`withXhr()` 是最小行为变更
+- **`extendedDiagnostics` 抑制（判断点 4）**：可接受但属技术债，建议后续独立小任务临时移除 suppress 收集真实命中数后逐个修复
+- **Electron Node16 迁移 + lazy require（判断点 5）**：sound。TS 6.0 TS5107/TS5110 要求 `module:Node16` + `moduleResolution:node16` 配对；`electron/` 无 `type:module` 故 `.ts` 仍输出 CJS；`fetch-handler.ts:170` 的 `require('electron')` 在函数体内是运行时懒求值，CJS 下可用。唯一需留意：未来若在 electron/ 引入 ESM-only npm 包会触发 `ERR_REQUIRE_ESM`（当前无）
+- **`allowSignalWrites` 移除（判断点 7）**：自 Angular 19 起 effect 写 signal 默认允许，flag 已废弃为 no-op 且打印警告；两 signal 不同源无循环风险；零行为变更纯清理
+- **`provideNzDateFnsAdapter()` 移除（判断点 8）**：移除有充分依据。ng-zorro 22 date adapter 非全局必需（仅日期组件实例化时经 DI 查询），`rg` 零命中覆盖模板与 TS 双侧
+
+**2 条非阻塞 P1 跟进项**：
+
+| # | 建议 | 处置 |
+|---|---|---|
+| P1-1 | `@ant-design/icons-angular` 移至 devDependencies 的运行时安全边界 —— 若存在应用层直接 import，语义上应保留在 dependencies | ✅ **闭环（F6）**：实测 `app.component.ts:50` 直接 `import ... from '@ant-design/icons-angular/icons'` 传给 `provideNzIconsPatch`，属应用层静态依赖。已移回 dependencies（见 Round 2） |
+| P1-2 | eslint flat-config 重构的规则漂移风险 —— 若上游 `tsRecommended` 数组未来追加非 `rules` 字段会漏掉 | 记录为可选加固（顶部加 invariant assert），当前 lint=0 无即时影响；归入技术债 |
+
+## Round 2/5 — 2026-09-28（icons-angular 归位增量轮，kind=code）
+
+**Session:** `3a9d0182-75ec-4c6a-9d48-b976ea20d9d8`（同 session 续）
+**VERDICT:** ✅ **APPROVED**
+
+针对 Round 1 P1-1 的修复：`@ant-design/icons-angular` 从 devDependencies 移回 dependencies。审核方认定：
+
+- **修复正确性**：应用代码静态依赖必须显式声明在 dependencies，消除「依赖 ng-zorro 传递引用」的语义脆弱性；即使 ng-zorro 未来改 peer/optional 也不受影响。符合 npm 依赖管理最佳实践
+- **依赖树健康度**：版本 `^22.1.1` 与 ng-zorro 要求 `^22.1.0` 锁步；树顶单份 deduped 22.1.1，无重复模块，不增 bundle 体积；产物安全性 Round 1 已确认（图标 tree-shaken 内联为 SVG）
+- **回归排查**：纯声明位置移动，无其他代码变更；lint/test/build/e2e 全绿复验
+
+**Review Loop 状态：CLOSE（2 轮，两轮均 APPROVED，未触发 5 轮上限）**
+

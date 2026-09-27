@@ -1,6 +1,6 @@
 # POMREADER 依赖大版本升级计划（Dep Major Upgrade Plan）
 
-> Status: 🔄 In progress — 2026-09-27 建档；2026-09-28 复核修订 + **Phase 0 全部收口（P0-0 ~ P0-5）** + **Phase 1（18→19）** + **Phase 2（19→20）** + **Phase 3（20→21）完成**。下一步：Phase 4 Angular 21 → 22（**起步前先手过一遍阅读页**，effect() 时序风险自 Phase 1 起未做人工目视复核；TS pin `~6.0.x`，严禁 7.x）
+> Status: 🔄 In progress — 2026-09-27 建档；2026-09-28 复核修订 + **Phase 0 全部收口（P0-0 ~ P0-5）** + **Phase 1（18→19）** + **Phase 2（19→20）** + **Phase 3（20→21）** + **Phase 4（21→22）完成**。下一步：Phase 5 收尾（vitest 5 评估 / branches 收紧回 ~70 / zoneless 评估；**effect() 时序风险自 Phase 1 起仍未做人工目视复核，建议先手过一遍阅读页**）
 > 分支：`chore/dep-major-upgrade`
 > 触发：`npm outdated` 梳理（2026-09-27），安全项已先行升级并提交（`0bee9ba`）。
 > 目标：Angular 18 → 22 逐级迁移 + 测试工具链升级，每级独立 commit、独立验证。
@@ -440,12 +440,33 @@ Angular 19 引入的 effect() 调度变更**至今没有做人工目视复核**�
 
 ## Phase 4：Angular 21 → 22
 
-- [ ] **先 pin `typescript@~6.0.2`**（严禁 7.x）；Node 20 移除（已满足）
-- [ ] `@ant-design/icons-angular` → `^22.x`、`angular-eslint` → `^22.x`（lockstep）；**回归 `@typescript-eslint` 8.70.1 在 TS 6.0 下的规则集**（见 §0 约束列）
-- [ ] `ng update`：自动迁移 `ChangeDetectionStrategy.Default` → `Eager`、http `withXhr`、tsconfig `strictTemplates`（`strictTemplates` 已开，见 `tsconfig.json`）
-- [ ] **路由 `paramsInheritanceStrategy` 默认 `'emptyOnly'` → `'always'`**：本地路由全平铺（`/reader/:bookId/:chapterId` 顶层，book-source/settings 用 `loadChildren` 无参数继承），**预期无影响**，升级后回归确认；异常则显式设回 `'emptyOnly'`
-- [ ] `ng update ng-zorro-antd@22`：全组件 OnPush（与项目策略一致，CI 有 OnPush 100% 强制检查）；`NzDropDownModule` 别名删除（Phase 3 必须改完）；`nz-input-group` 删除 —— **已扫描确认本项目未用，可直接结案**
-- [ ] **Electron 侧验证**：`electron/tsconfig.electron.json` 共享同一 `typescript` 包（`module: CommonJS` / `moduleResolution: node` / `types: ["node"]`），TS 6.0 下重跑 `npm run build:electron`
+- [x] **先 pin `typescript@~6.0.2`**（严禁 7.x）；Node 20 移除（已满足）—— 实际 pin `~6.0.3`（compiler-cli@22 / build@22 peer `>=6.0 <6.1` 内）
+- [x] `@ant-design/icons-angular` → `^22.x`、`angular-eslint` → `^22.x`（lockstep）；**回归 `@typescript-eslint` 8.70.1 在 TS 6.0 下的规则集**（见 §0 约束列）—— lint=0 通过；icons-angular 升 ^22.1.1，angular-eslint 升 ^22.5.0
+- [x] `ng update`：自动迁移 `ChangeDetectionStrategy.Default` → `Eager`（**项目已全 OnPush，schematic 零改动**）、http `withXhr`（已注入 `app.config.ts`，接受）、tsconfig `strictTemplates`（已开，见 `tsconfig.json`）
+- [x] **路由 `paramsInheritanceStrategy` 默认 `'emptyOnly'` → `'always'`**：本地路由全平铺（`/reader/:bookId/:chapterId` 顶层，book-source/settings 用 `loadChildren` 无参数继承），**预期无影响**；升级后 e2e 19/19（含 hash 路由导航用例）全绿，**回归确认无异常**
+- [x] `ng update ng-zorro-antd@22`：全组件 OnPush（与项目策略一致，CI 有 OnPush 100% 强制检查）；`NzDropDownModule` 别名删除、`nz-input-group` 删除 —— **已扫描确认本项目未用，结案**
+- [x] **Electron 侧验证**：`electron/tsconfig.electron.json` 共享同一 `typescript` 包，TS 6.0 下重跑 `npm run build:electron` —— **TS 6.0 拒 `moduleResolution:node`（TS5107）+ 要求 `module:Node16` 配对（TS5110），改为 Node16/node16；产物经验证仍 CommonJS（`require("electron")` 保留）**，build:electron=0
+
+## Phase 4 实施结果（2026-09-28，分支 `chore/dep-major-upgrade`）
+
+**版本落定**：`@angular/*` ^22.2.0 全家桶 + cli/build/compiler-cli 同版；`ng-zorro-antd` ^22.1.1、`@ant-design/icons-angular` ^22.1.1、`angular-eslint` ^22.5.0 三者 lockstep 同帧；`typescript` ~6.0.3（pin 死，严禁 7.x）；`zone.js` ~0.15.1、`vitest` ^4.1.11 未动。
+
+**七道门全绿**：format=0 / lint=0 / npm test=0（54 文件 700 用例，vitest 4.1.11）/ test:coverage=0（73.14 stmts / 64.89 branch / 70.78 funcs / 74.75 lines，branch 稳在 60 阈值上方）/ build=0（~1.79 MB，2 MB 错误线内）/ build:electron=0 / `npx playwright test` **19/19**（跑前杀掉占用 4200 的旧 Angular 21 dev server，Playwright 自启干净 Angular 22 实例）/ `npm ls --depth=0` 无 missing/invalid/UNMET。
+
+**外审 2 轮 APPROVED**（coding-bridge，session `3a9d0182-75ec-4c6a-9d48-b976ea20d9d8`）：Round 1 全量 APPROVED（含 2 个非阻塞 P1 跟进项），Round 2 增量复核 icons-angular 归位 APPROVED。
+
+**计划偏差 / 抓出事项**（F 编号延续 Phase 3）：
+
+- **F6 — ng update 把 `@ant-design/icons-angular` 挪到 devDependencies，外审 P1 抓回**。ng update 判定「应用不直接依赖、仅构建期需要」将其从 dependencies 搬到 devDependencies。外审 Round 1 P1 提示核查应用层直接 import，实测 `src/app/app.component.ts:50` 直接 `import { ... } from '@ant-design/icons-angular/icons'` 并传给 `provideNzIconsPatch([...])` —— **属应用层静态依赖，语义上必须在 dependencies**。虽已因 ng-zorro 传递依赖能解析（构建/e2e 全绿），但若 ng-zorro 未来改 peer/optional 会静默断链。**已移回 dependencies**（lockfile 同步、树仍单份 deduped 22.1.1），Round 2 确认闭环。产物验证：图标已 tree-shake 内联为 SVG 进 `electron/www/browser/chunk-*.js`，无运行时 `require('@ant-design/icons-angular')` 残留。
+- **F7 — angular-eslint 22 破坏式变更：`@angular-eslint/eslint-plugin` 不再导出 `configs`**。lint 启动即报 `TypeError: Cannot read properties of undefined (reading 'recommended')`。flat config 迁移到 `angular-eslint` 聚合包：`configs.tsRecommended`（数组 `[语言配置, 规则块]`）/ `configs.templateRecommended`。改为从聚合包提取规则对象（`Object.assign({}, ...configs.map(c=>c.rules||{}))`），验证 `angularEslint.tsPlugin === require('@angular-eslint/eslint-plugin')`（同一对象，避免插件实例不一致）。项目 `'@angular-eslint/prefer-inject':'off'` 覆盖在 spread 之后仍生效。lint=0。
+- **F8 — TS 6.0 拒 electron 的 `moduleResolution:node`（TS5107）**。改 `node16` 又触发 TS5110（`module` 必须配对 Node16），最终 `module:Node16` + `moduleResolution:node16`。关键验证：`electron/` 无 `package.json type:module`，Node16 模式下 `.ts` 仍输出 CJS —— 实测 `dist-electron/*.js` 保留 `"use strict"` + `require("electron")`（含 `fetch-handler.ts:170` 函数体内运行时懒 require），无 ESM 残留。build:electron=0。
+- **F9 — Angular 22 新增运行期警告 `allowSignalWrites is deprecated`**。e2e webServer 日志暴露 `book-source-list.component.ts:78` 仍传 `{ allowSignalWrites: true }`。自 Angular 19 起 effect 写 signal 默认允许，该 flag 已废弃为空操作。两 signal 不同源无循环风险，删除 flag（零行为变更 + 消警告），lint/test 复跑 0/700 绿。
+
+**接受的 schematic 注入**（保守最小变更）：`withXhr()`（Angular 22 默认改 FetchBackend，schematic 注入 `withXhr()` 保留 v22 前 XHR 行为；本仓 Angular HttpClient 唯一 import 即 app.config.ts，真实网络走 legado.http worker sandbox，接受保守项）；`tsconfig.app.json` 的 `extendedDiagnostics` suppress 块（`nullishCoalescingNotNullable` / `optionalChainNotNullable`，避免既有代码批量新诊断警告；外审标记为技术债，建议后续独立小任务收紧）。
+
+**主动 revert 的 schematic 注入**：`provideNzDateFnsAdapter()` —— ng-zorro schematic 注入全局 date adapter + 未声明传递依赖 `date-fns@4.4.0`，但全仓 `rg nz-date-picker|NzDatePicker|nz-range-picker|NzTimePicker|nz-calendar` **零命中**（无日期组件消费者），注入属 diff 噪声，删除后 lint/build/test/e2e 全绿。外审确认移除有据（adapter 仅日期组件实例化时经 DI 查询，非全局必需）。
+
+**遗留（沿 Phase 3，未收口）**：effect() 时序阅读页人工目视复核（无 GUI，e2e reader 用例是 stub 路由 + 缺数据，触不到翻页测量/简繁转换）；5 个 `scripts/*.cjs` 冒烟（需 Chrome）；3 处 `<nz-input-number>` UI 冒烟（ng-zorro 21 重写行为差异）。**不随 Phase 4 通过而视为已验证。**
 
 ## Phase 5：收尾（Angular 22 稳定后，可拆独立任务）
 
