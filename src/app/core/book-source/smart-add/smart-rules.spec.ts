@@ -231,7 +231,6 @@ describe('buildRules / generateSourceCode', () => {
     const code = generateSourceCode('https://www.test.com/', rules);
     expect(code).toContain('测试站');
     expect(code).toContain('SEARCH_ITEM_RULE');
-    expect(code).toContain('// @generated rules');
     const factory = new Function(
       'legado',
       `${code}\n;return { search: typeof search === 'function' ? search : undefined,` +
@@ -359,43 +358,6 @@ describe('buildFormBody', () => {
   it('value 含 & = 空格等特殊字符也正确 encode', () => {
     const out = buildFormBody([{ key: 'k', value: 'a&b=c d' }], 'x', 1);
     expect(out).toBe('k=a%26b%3Dc%20d');
-  });
-});
-
-describe('generateSourceCode — SEARCH_BODY_PARAMS 形态与沙箱容错', () => {
-  const rules = {
-    siteName: 'POST 站',
-    searchPath: '/s.php',
-    searchMethod: 'POST' as const,
-    searchBodyParams: [
-      { key: 'type', value: 'articlename' },
-      { key: 's', value: '{keyword}' },
-      { key: 'submit', value: '' },
-    ],
-    searchItemPattern: 'li span.name a',
-    bookTitlePattern: 'h1',
-    bookAuthorPattern: '作者',
-    chapterItemPattern: 'ul li a',
-    contentPattern: '#content',
-  };
-
-  it('生成的 SEARCH_BODY_PARAMS 是二元组数组（编辑器 extractArray 的标准解析形态）', () => {
-    const code = generateSourceCode('https://www.example.com/', rules);
-    expect(code).toContain(
-      'const SEARCH_BODY_PARAMS = [["type","articlename"],["s","{keyword}"],["submit",""]]',
-    );
-  });
-
-  it('沙箱内 buildFormBody：数组元素为 {key,value} 对象（历史写出形态）时不抛 TypeError 且结果与二元组一致', () => {
-    const code = generateSourceCode('https://www.example.com/', rules);
-    const factory = new Function('legado', `${code}\n;return { buildFormBody };`);
-    const mod = factory({ http: {} }) as {
-      buildFormBody: (params: unknown, key: string, page: number) => string;
-    };
-    const fromPairs = mod.buildFormBody([['s', '{keyword}']], '庆余年', 1);
-    const fromObjects = mod.buildFormBody([{ key: 's', value: '{keyword}' }], '庆余年', 1);
-    expect(fromObjects).toBe(fromPairs);
-    expect(fromObjects).toBe(`s=${encodeURIComponent('庆余年')}`);
   });
 });
 

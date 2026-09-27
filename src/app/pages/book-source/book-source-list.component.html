@@ -23,12 +23,7 @@
     @for (src of filtered(); track src.fileName) {
       <div class="source-card">
         <div class="source-info">
-          <h3>
-            {{ src.name }}
-            <nz-tag [nzColor]="src.generated ? 'green' : 'orange'" class="kind-tag">
-              {{ src.generated ? '标准' : '增强' }}
-            </nz-tag>
-          </h3>
+          <h3>{{ src.name }}</h3>
           <p class="meta">{{ src.author || '未知作者' }} · {{ src.url || '无 URL' }}</p>
           @if (src.description) {
             <p class="desc">{{ src.description }}</p>

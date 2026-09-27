@@ -74,7 +74,6 @@ export function parseHeaderMeta(
   let sourceType: SourceType | undefined;
   let headerEnabled: boolean | undefined;
   let minDelayMs = 0;
-  let generated: string | undefined;
   const requireUrls: string[] = [];
 
   const lines = content.split(/\r?\n/);
@@ -109,7 +108,6 @@ export function parseHeaderMeta(
         break;
       }
       case 'require':    if (value) requireUrls.push(value); break;
-      case 'generated':  if (generated === undefined && value) generated = value; break;
       // 忽略未知 @key（向后兼容 legado 扩展字段）
     }
   }
@@ -135,6 +133,5 @@ export function parseHeaderMeta(
     tags,
     minDelayMs,
     requireUrls,
-    generated,
   };
 }

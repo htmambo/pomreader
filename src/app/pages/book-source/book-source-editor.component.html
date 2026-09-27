@@ -9,56 +9,28 @@
     <span nz-icon nzType="thunderbolt"></span> 从规则生成代码
   </button>
   <span class="muted">—— "应用"仅替换 12 个 const 值(保留 explore 等);"生成"用 generateSourceCode 覆盖整个源码(谨慎)</span>
-  <nz-tag [nzColor]="sourceKind() === 'standard' ? 'green' : 'orange'" class="kind-tag">
-    {{ sourceKind() === 'standard' ? '标准书源' : '增强书源' }}
-  </nz-tag>
 </div>
 
-@if (sourceKind() === 'standard' && !codeExpanded()) {
-  <div class="kind-hint">
-    标准书源 —— 代码由模板按上方规则自动生成，只需维护规则；保存时自动规范化。
-    <button nz-button nzType="link" nzSize="small" (click)="codeExpanded.set(true)">
-      查看/编辑生成的代码（修改后将转为增强书源）
-    </button>
-  </div>
-} @else {
-  @if (sourceKind() === 'enhanced') {
-    <div class="kind-hint enhanced">
-      增强书源 —— 代码已被手动修改，保存后将移除「标准」标记；改坏可从同目录 .bak 备份找回上一版。
-    </div>
-  }
-  <div class="editor">
-    <textarea
-      class="source-text"
-      rows="30"
-      spellcheck="false"
-      placeholder="// @name 我的书源&#10;// @url https://example.com&#10;..."
-      [ngModel]="source()"
-      (ngModelChange)="source.set($event)"
-      [disabled]="saving()"
-    ></textarea>
+<div class="editor">
+  <textarea
+    class="source-text"
+    rows="30"
+    spellcheck="false"
+    placeholder="// @name 我的书源&#10;// @url https://example.com&#10;..."
+    [ngModel]="source()"
+    (ngModelChange)="source.set($event)"
+    [disabled]="saving()"
+  ></textarea>
 
-    <div class="meta-preview">
-      <h4>解析预览</h4>
-      @if (syntaxError(); as err) {
-        <pre class="syntax-error">✗ 语法错误(保存将被拦截):{{ err }}</pre>
-      }
-      <pre>{{ metaPreview() }}</pre>
-    </div>
+  <div class="meta-preview">
+    <h4>解析预览</h4>
+    <pre>{{ metaPreview() }}</pre>
   </div>
-}
+</div>
 
 <div class="actions">
   <button nz-button (click)="cancel()" [disabled]="saving()">取消</button>
-  <button
-    nz-button
-    nzType="primary"
-    [disabled]="saving() || !!syntaxError()"
-    (click)="save()"
-  >
+  <button nz-button nzType="primary" [disabled]="saving()" (click)="save()">
     {{ saving() ? '保存中...' : '保存' }}
   </button>
-  @if (syntaxError()) {
-    <span class="muted">请先修复语法错误再保存</span>
-  }
 </div>

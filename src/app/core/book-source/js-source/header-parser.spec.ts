@@ -98,25 +98,6 @@ describe('parseHeaderMeta / 回退与默认', () => {
     expect(meta.sourceKey).toBe('demo.js');
   });
 
-  it('@generated 解析为标准书源 marker；缺省为 undefined', () => {
-    const withMarker = parseHeaderMeta(
-      src(['// @generated rules']),
-      FIX.fileName,
-      FIX.sourceDir,
-      FIX.fileSize,
-      FIX.modifiedAt,
-    );
-    expect(withMarker.generated).toBe('rules');
-    const plain = parseHeaderMeta(
-      src([]),
-      FIX.fileName,
-      FIX.sourceDir,
-      FIX.fileSize,
-      FIX.modifiedAt,
-    );
-    expect(plain.generated).toBeUndefined();
-  });
-
   it('缺 @name → 回退 fileName 去 .js 后缀', () => {
     const meta = parseHeaderMeta(src([]), FIX.fileName, FIX.sourceDir, FIX.fileSize, FIX.modifiedAt);
     expect(meta.name).toBe('demo');
