@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChild } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -9,10 +16,7 @@ import { RulesPanelComponent } from '../../shared/components/rules-panel/rules-p
 import { PageHeaderService } from '../../core/services/page-header.service';
 import { ToastService } from '../../core/services/toast.service';
 import { parseHeaderMeta } from '../../core/book-source/js-source/header-parser';
-import {
-  generateSourceCode,
-  SearchMethod,
-} from '../../core/book-source/smart-add/smart-rules';
+import { generateSourceCode, SearchMethod } from '../../core/book-source/smart-add/smart-rules';
 
 /** PomAPI 子集(全局 Window.pomAPI 在 page-fetcher.service.ts 声明)。 */
 type PomBooksourceEditor = {
@@ -28,9 +32,9 @@ function pomApi(): PomBooksourceEditor | null {
 /**
  * 书源编辑器(实施计划 T-005)
  * - 路由 /edit/:fileName 编辑现有书源
- * - 上方:RulesPanelComponent —— 加载源后从 const 行解析 12 规则回填,提供可视化编辑 + 4 阶段真实命中测试
+ * - 上方:RulesPanelComponent —— 加载源后从 const 行解析 13 规则回填,提供可视化编辑 + 4 阶段真实命中测试
  * - 下方:左侧源码 textarea;右侧实时解析预览
- * - 「应用规则到源码」:仅替换 10 个 const 值(保留 explore 等用户自定义代码)
+ * - 「应用规则到源码」:仅替换规则常量(保留 explore 等用户自定义代码;源里没有的常量行如 CONTENT_REPLACE_RULES 不会新增)
  * - 「从规则生成代码」:用 generateSourceCode 覆盖整个源码(谨慎,自定义代码会丢失)
  * - 保存调 booksourceSave,失败 toast
  */
@@ -63,14 +67,7 @@ export class BookSourceEditorComponent {
     const content = this.source();
     if (!content.trim()) return '// 空内容';
     try {
-      const meta = parseHeaderMeta(
-        content,
-        this.fileName || 'new.js',
-        '',
-        0,
-        0,
-        null,
-      );
+      const meta = parseHeaderMeta(content, this.fileName || 'new.js', '', 0, 0, null);
       return JSON.stringify(
         {
           name: meta.name,
@@ -121,17 +118,23 @@ export class BookSourceEditorComponent {
     }
   }
 
-  /** 从源码中解析 12 个规则常量 + BASE_URL → 回填到 RulesPanel */
+  /** 从源码中解析 13 个规则常量 + BASE_URL → 回填到 RulesPanel */
   private parseRulesFromSource(content: string): void {
     const extract = (name: string): string => {
       const m = new RegExp(`(?:const|let|var)\\s+${name}\\s*=\\s*(.+?)\\s*$`, 'm').exec(content);
       if (!m) return '';
       let raw = m[1].trim();
       raw = raw.replace(/;$/, '').trim();
-      if ((raw.startsWith('"') && raw.endsWith('"')) ||
-          (raw.startsWith("'") && raw.endsWith("'")) ||
-          (raw.startsWith('`') && raw.endsWith('`'))) {
-        try { return JSON.parse(raw); } catch { /* backtick: 取内 */ }
+      if (
+        (raw.startsWith('"') && raw.endsWith('"')) ||
+        (raw.startsWith("'") && raw.endsWith("'")) ||
+        (raw.startsWith('`') && raw.endsWith('`'))
+      ) {
+        try {
+          return JSON.parse(raw);
+        } catch {
+          /* backtick: 取内 */
+        }
         if (raw.startsWith('`')) return raw.slice(1, -1);
       }
       return raw;
@@ -145,8 +148,12 @@ export class BookSourceEditorComponent {
         if (!Array.isArray(arr)) return [];
         const out: Array<{ key: string; value: string }> = [];
         for (const it of arr) {
-          if (Array.isArray(it) && it.length >= 2 &&
-              typeof it[0] === 'string' && typeof it[1] === 'string') {
+          if (
+            Array.isArray(it) &&
+            it.length >= 2 &&
+            typeof it[0] === 'string' &&
+            typeof it[1] === 'string'
+          ) {
             out.push({ key: it[0], value: it[1] });
           }
         }
@@ -156,9 +163,15 @@ export class BookSourceEditorComponent {
       }
     };
     const methodRaw = extract('SEARCH_METHOD').replace(/^["']|["']$/g, '');
-    const method: SearchMethod = (['GET', 'POST', 'POST_RAW'] as SearchMethod[]).includes(methodRaw as SearchMethod)
-      ? (methodRaw as SearchMethod) : 'GET';
+    const method: SearchMethod = (['GET', 'POST', 'POST_RAW'] as SearchMethod[]).includes(
+      methodRaw as SearchMethod,
+    )
+      ? (methodRaw as SearchMethod)
+      : 'GET';
+    // @name 头 → siteName:整包「从规则生成代码」时保留书源名称(无 @name 则留空,运行时回退文件名)
+    const siteName = /^\s*\/\/\s*@name\s+(.+?)\s*$/m.exec(content)?.[1] ?? '';
     this.panel()?.setRules({
+      siteName,
       searchPath: extract('SEARCH_PATH'),
       searchMethod: method,
       searchBodyParams: extractArray('SEARCH_BODY_PARAMS'),
@@ -170,12 +183,16 @@ export class BookSourceEditorComponent {
       bookAuthorPattern: extract('BOOK_AUTHOR_RULE'),
       chapterItemPattern: extract('CHAPTER_ITEM_RULE'),
       contentPattern: extract('CONTENT_RULE'),
+      contentReplaceRules: extractArray('CONTENT_REPLACE_RULES').map((p) => ({
+        rule: p.key,
+        replace: p.value,
+      })),
       bookCategoryPattern: extract('BOOK_CATEGORY_RULE'),
     });
     this.ruleBaseUrl.set(extract('BASE_URL'));
   }
 
-  /** 应用规则到源码 —— 仅替换 12 个规则常量(保留 explore 等用户自定义代码) */
+  /** 应用规则到源码 —— 仅替换 13 个规则常量(保留 explore 等用户自定义代码) */
   applyRulesToSource(): void {
     const p = this.panel();
     if (!p) return;
@@ -202,6 +219,9 @@ export class BookSourceEditorComponent {
       BOOK_AUTHOR_RULE: rules.bookAuthorPattern,
       CHAPTER_ITEM_RULE: rules.chapterItemPattern,
       CONTENT_RULE: rules.contentPattern,
+      CONTENT_REPLACE_RULES: {
+        literal: JSON.stringify((rules.contentReplaceRules ?? []).map((r) => [r.rule, r.replace])),
+      },
       BOOK_CATEGORY_RULE: rules.bookCategoryPattern ?? '',
     };
   }

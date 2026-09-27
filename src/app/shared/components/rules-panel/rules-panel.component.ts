@@ -10,6 +10,7 @@ import { PageFetcherService } from '../../../core/book-source/page-fetcher.servi
 import {
   SearchMethod,
   SourceRules,
+  applyContentReplaceRules,
   buildFormBody,
   absUrl,
   matchLinkItems,
@@ -64,182 +65,372 @@ function emptyStage(): StageState {
       <nz-alert
         nzType="info"
         nzShowIcon
-        nzMessage="本页 4 个「测试*」按钮均直接抓 HTML 用 CSS 选择器提取内容,仅验证 12 条规则的正确性"
+        nzMessage="本页 4 个「测试*」按钮均直接抓 HTML 用 CSS 选择器提取内容,仅验证 13 条规则的正确性"
         nzDescription="不执行书源 JS 脚本里的 function search / bookInfo / chapterList / chapterContent 等函数。要测试 JS 代码(沙箱执行)→ 进入「调试书源」页;要验证完整链路 → 在「书源搜索」点导入,进入阅读。"
         style="margin-bottom: 12px;"
       ></nz-alert>
     }
 
     <div class="panel-grid panel-grid--2">
-    <!-- 搜索规则 -->
-    <div class="stage-card">
-      <div class="stage-header">搜索</div>
-      <div class="field-row">
-        <span class="field-label">搜索路径</span>
-        <input nz-input [ngModel]="searchPath()" (ngModelChange)="searchPath.set($event)" class="mono grow" [placeholder]="searchPathPlaceholder()" />
-      </div>
-      <div class="field-row">
-        <span class="field-label">请求方式</span>
-        <nz-select [ngModel]="searchMethod()" (ngModelChange)="searchMethod.set($event)" class="grow">
-          <nz-option nzValue="GET" nzLabel="GET — URL 参数"></nz-option>
-          <nz-option nzValue="POST" nzLabel="POST — 表单 (form-urlencoded)"></nz-option>
-          <nz-option nzValue="POST_RAW" nzLabel="POST — 原始 body (JSON / XML)"></nz-option>
-        </nz-select>
-      </div>
-
-      <!-- POST 表单参数可视化编辑 -->
-      @if (searchMethod() === 'POST') {
-        <div class="field-row" style="margin-top: 8px;">
-          <span class="field-label">Content-Type</span>
-          <input nz-input [ngModel]="searchContentType()" (ngModelChange)="searchContentType.set($event)" class="mono grow" placeholder="application/x-www-form-urlencoded" />
+      <!-- 搜索规则 -->
+      <div class="stage-card">
+        <div class="stage-header">搜索</div>
+        <div class="field-row">
+          <span class="field-label">搜索路径</span>
+          <input
+            nz-input
+            [ngModel]="searchPath()"
+            (ngModelChange)="searchPath.set($event)"
+            class="mono grow"
+            [placeholder]="searchPathPlaceholder()"
+          />
         </div>
-        <div class="body-params">
-          <div class="body-params-header">
-            <span class="body-params-title">表单参数</span>
-            <span class="body-params-hint">value 支持 &#123;keyword&#125; / &#123;page&#125; 占位符,运行时自动 encode</span>
-            <button nz-button nzSize="small" nzType="dashed" (click)="addBodyParam()">
-              <span nz-icon nzType="plus"></span> 添加参数
-            </button>
+        <div class="field-row">
+          <span class="field-label">请求方式</span>
+          <nz-select
+            [ngModel]="searchMethod()"
+            (ngModelChange)="searchMethod.set($event)"
+            class="grow"
+          >
+            <nz-option nzValue="GET" nzLabel="GET — URL 参数"></nz-option>
+            <nz-option nzValue="POST" nzLabel="POST — 表单 (form-urlencoded)"></nz-option>
+            <nz-option nzValue="POST_RAW" nzLabel="POST — 原始 body (JSON / XML)"></nz-option>
+          </nz-select>
+        </div>
+
+        <!-- POST 表单参数可视化编辑 -->
+        @if (searchMethod() === 'POST') {
+          <div class="field-row" style="margin-top: 8px;">
+            <span class="field-label">Content-Type</span>
+            <input
+              nz-input
+              [ngModel]="searchContentType()"
+              (ngModelChange)="searchContentType.set($event)"
+              class="mono grow"
+              placeholder="application/x-www-form-urlencoded"
+            />
           </div>
-          @for (p of searchBodyParams(); track $index; let i = $index) {
-            <div class="body-param-row">
-              <input nz-input [ngModel]="p.key" (ngModelChange)="updateBodyParam(i, 'key', $event)" placeholder="key" class="mono param-key" />
-              <span class="param-eq">=</span>
-              <input nz-input [ngModel]="p.value" (ngModelChange)="updateBodyParam(i, 'value', $event)" placeholder="value (支持 {keyword} / {page})" class="mono param-value" />
-              <button nz-button nzSize="small" nzType="text" nzDanger (click)="removeBodyParam(i)" title="删除">
-                <span nz-icon nzType="delete"></span>
+          <div class="body-params">
+            <div class="body-params-header">
+              <span class="body-params-title">表单参数</span>
+              <span class="body-params-hint"
+                >value 支持 &#123;keyword&#125; / &#123;page&#125; 占位符,运行时自动 encode</span
+              >
+              <button nz-button nzSize="small" nzType="dashed" (click)="addBodyParam()">
+                <span nz-icon nzType="plus"></span> 添加参数
               </button>
             </div>
-          }
-          @if (!searchBodyParams().length) {
-            <div class="body-params-empty">暂无参数 —— 点击「添加参数」开始配置</div>
-          }
-        </div>
-      }
+            @for (p of searchBodyParams(); track $index; let i = $index) {
+              <div class="body-param-row">
+                <input
+                  nz-input
+                  [ngModel]="p.key"
+                  (ngModelChange)="updateBodyParam(i, 'key', $event)"
+                  placeholder="key"
+                  class="mono param-key"
+                />
+                <span class="param-eq">=</span>
+                <input
+                  nz-input
+                  [ngModel]="p.value"
+                  (ngModelChange)="updateBodyParam(i, 'value', $event)"
+                  placeholder="value (支持 {keyword} / {page})"
+                  class="mono param-value"
+                />
+                <button
+                  nz-button
+                  nzSize="small"
+                  nzType="text"
+                  nzDanger
+                  (click)="removeBodyParam(i)"
+                  title="删除"
+                >
+                  <span nz-icon nzType="delete"></span>
+                </button>
+              </div>
+            }
+            @if (!searchBodyParams().length) {
+              <div class="body-params-empty">暂无参数 —— 点击「添加参数」开始配置</div>
+            }
+          </div>
+        }
 
-      <!-- POST 原始 body 文本框 -->
-      @if (searchMethod() === 'POST_RAW') {
-        <div class="field-row" style="margin-top: 8px;">
-          <span class="field-label">Content-Type</span>
-          <input nz-input [ngModel]="searchContentType()" (ngModelChange)="searchContentType.set($event)" class="mono grow" placeholder="application/json" />
-        </div>
-        <div class="field-row" style="margin-top: 8px; align-items: flex-start;">
-          <span class="field-label">原始 Body</span>
-          <textarea
+        <!-- POST 原始 body 文本框 -->
+        @if (searchMethod() === 'POST_RAW') {
+          <div class="field-row" style="margin-top: 8px;">
+            <span class="field-label">Content-Type</span>
+            <input
+              nz-input
+              [ngModel]="searchContentType()"
+              (ngModelChange)="searchContentType.set($event)"
+              class="mono grow"
+              placeholder="application/json"
+            />
+          </div>
+          <div class="field-row" style="margin-top: 8px; align-items: flex-start;">
+            <span class="field-label">原始 Body</span>
+            <textarea
+              nz-input
+              [ngModel]="searchRawBody()"
+              (ngModelChange)="searchRawBody.set($event)"
+              class="mono grow raw-body"
+              rows="3"
+              placeholder='{"keyword":"{keyword}","page":{page}}'
+            ></textarea>
+          </div>
+        }
+
+        <div class="field-row">
+          <span class="field-label">列表项规则</span>
+          <input
             nz-input
-            [ngModel]="searchRawBody()"
-            (ngModelChange)="searchRawBody.set($event)"
-            class="mono grow raw-body"
-            rows="3"
-            placeholder='{"keyword":"{keyword}","page":{page}}'
-          ></textarea>
+            [ngModel]="searchItem()"
+            (ngModelChange)="searchItem.set($event)"
+            class="mono grow"
+          />
         </div>
-      }
+        <div class="field-row">
+          <span class="field-label">测试关键词</span>
+          <input
+            nz-input
+            [ngModel]="keyword()"
+            (ngModelChange)="keyword.set($event)"
+            class="keyword-input"
+          />
+          <button
+            nz-button
+            nzSize="small"
+            (click)="runTestSearch()"
+            [disabled]="runningTest() !== null"
+          >
+            <span nz-icon [nzType]="runningTest() === 'search' ? 'loading' : 'play-circle'"></span>
+            测试搜索
+          </button>
+        </div>
+        @if (searchStage().error) {
+          <div class="stage-error">{{ searchStage().error }}</div>
+        }
+        @if (searchStage().summary) {
+          <div class="stage-summary">{{ searchStage().summary }}</div>
+        }
+        @if (searchStage().samples.length) {
+          <div class="sample-list">
+            @for (s of searchStage().samples; track s.value) {
+              <div class="sample" (click)="pickSample('search', s)">
+                <span class="sample-label">{{ s.label }}</span>
+                <span class="sample-value">{{ s.value }}</span>
+              </div>
+            }
+          </div>
+        }
+      </div>
 
-      <div class="field-row">
-        <span class="field-label">列表项规则</span>
-        <input nz-input [ngModel]="searchItem()" (ngModelChange)="searchItem.set($event)" class="mono grow" />
+      <!-- 详情规则 -->
+      <div class="stage-card">
+        <div class="stage-header">书籍详情</div>
+        <div class="field-row">
+          <span class="field-label">书籍 URL</span>
+          <input
+            nz-input
+            [ngModel]="bookUrl()"
+            (ngModelChange)="bookUrl.set($event)"
+            class="mono grow"
+            placeholder="搜索测试命中后自动填充,也可手动输入"
+          />
+        </div>
+        <div class="field-row">
+          <span class="field-label">标题规则</span>
+          <input
+            nz-input
+            [ngModel]="bookTitle()"
+            (ngModelChange)="bookTitle.set($event)"
+            class="mono grow"
+          />
+        </div>
+        <div class="field-row">
+          <span class="field-label">封面规则</span>
+          <input
+            nz-input
+            [ngModel]="bookCover()"
+            (ngModelChange)="bookCover.set($event)"
+            class="mono grow"
+            placeholder='css:.book-img img  或正则如 <img[^>]+src="([^"]+)"'
+          />
+        </div>
+        <div class="field-row">
+          <span class="field-label">作者规则</span>
+          <input
+            nz-input
+            [ngModel]="bookAuthor()"
+            (ngModelChange)="bookAuthor.set($event)"
+            class="mono grow"
+          />
+        </div>
+
+        <div class="field-row" style="margin-top: 12px;">
+          <span class="field-label">分类规则</span>
+          <input
+            nz-input
+            [ngModel]="bookCategory()"
+            (ngModelChange)="bookCategory.set($event)"
+            class="mono grow"
+            placeholder="分类[：:]s*&lt;[^&gt;]+&gt;s*([^&lt;]{1,20})"
+          />
+          <button
+            nz-button
+            nzSize="small"
+            (click)="runTestInfo()"
+            [disabled]="runningTest() !== null || !bookUrl().trim()"
+          >
+            <span nz-icon [nzType]="runningTest() === 'info' ? 'loading' : 'play-circle'"></span>
+            测试详情
+          </button>
+        </div>
+        @if (infoStage().error) {
+          <div class="stage-error">{{ infoStage().error }}</div>
+        }
+        @if (infoStage().summary) {
+          <div class="stage-summary">{{ infoStage().summary }}</div>
+        }
+        @for (s of infoStage().samples; track $index) {
+          <div class="sample sample--static">
+            <span class="sample-label">{{ s.label }}</span>
+            <span class="sample-value">{{ s.value }}</span>
+          </div>
+        }
       </div>
-      <div class="field-row">
-        <span class="field-label">测试关键词</span>
-        <input nz-input [ngModel]="keyword()" (ngModelChange)="keyword.set($event)" class="keyword-input" />
-        <button nz-button nzSize="small" (click)="runTestSearch()" [disabled]="runningTest() !== null">
-          <span nz-icon [nzType]="runningTest() === 'search' ? 'loading' : 'play-circle'"></span> 测试搜索
-        </button>
+
+      <!-- 目录规则 -->
+      <div class="stage-card">
+        <div class="stage-header">目录</div>
+        <div class="field-row">
+          <span class="field-label">章节链接规则</span>
+          <input
+            nz-input
+            [ngModel]="chapterItem()"
+            (ngModelChange)="chapterItem.set($event)"
+            class="mono grow"
+          />
+          <button
+            nz-button
+            nzSize="small"
+            (click)="runTestChapter()"
+            [disabled]="runningTest() !== null || !bookUrl().trim()"
+          >
+            <span nz-icon [nzType]="runningTest() === 'chapter' ? 'loading' : 'play-circle'"></span>
+            测试目录
+          </button>
+        </div>
+        @if (chapterStage().error) {
+          <div class="stage-error">{{ chapterStage().error }}</div>
+        }
+        @if (chapterStage().summary) {
+          <div class="stage-summary">{{ chapterStage().summary }}</div>
+        }
+        @if (chapterStage().samples.length) {
+          <div class="sample-list">
+            @for (s of chapterStage().samples; track s.value) {
+              <div class="sample" (click)="pickSample('chapter', s)">
+                <span class="sample-label">{{ s.label }}</span>
+                <span class="sample-value">{{ s.value }}</span>
+              </div>
+            }
+          </div>
+        }
       </div>
-      @if (searchStage().error) { <div class="stage-error">{{ searchStage().error }}</div> }
-      @if (searchStage().summary) { <div class="stage-summary">{{ searchStage().summary }}</div> }
-      @if (searchStage().samples.length) {
-        <div class="sample-list">
-          @for (s of searchStage().samples; track s.value) {
-            <div class="sample" (click)="pickSample('search', s)">
-              <span class="sample-label">{{ s.label }}</span>
-              <span class="sample-value">{{ s.value }}</span>
+
+      <!-- 正文规则 -->
+      <div class="stage-card">
+        <div class="stage-header">正文</div>
+        <div class="field-row">
+          <span class="field-label">章节 URL</span>
+          <input
+            nz-input
+            [ngModel]="chapterUrl()"
+            (ngModelChange)="chapterUrl.set($event)"
+            class="mono grow"
+            placeholder="目录测试命中后自动填充,也可手动输入"
+          />
+        </div>
+        <div class="field-row">
+          <span class="field-label">正文规则</span>
+          <input
+            nz-input
+            [ngModel]="content()"
+            (ngModelChange)="content.set($event)"
+            class="mono grow"
+          />
+          <button
+            nz-button
+            nzSize="small"
+            (click)="runTestContent()"
+            [disabled]="runningTest() !== null || !chapterUrl().trim()"
+          >
+            <span nz-icon [nzType]="runningTest() === 'content' ? 'loading' : 'play-circle'"></span>
+            测试正文
+          </button>
+        </div>
+
+        <!-- 正文净化规则:多条动态行,正文提取后按顺序执行(正则 g 全局替换,替换为留空 = 删除) -->
+        <div class="body-params">
+          <div class="body-params-header">
+            <span class="body-params-title">净化规则</span>
+            <span class="body-params-hint"
+              >正文提取后按顺序执行:匹配规则(正则) → 替换为(留空 = 删除匹配文本)</span
+            >
+          </div>
+          @for (r of contentReplaceRules(); track $index; let i = $index; let last = $last) {
+            <div class="body-param-row">
+              <input
+                nz-input
+                [ngModel]="r.rule"
+                (ngModelChange)="updateContentReplaceRule(i, 'rule', $event)"
+                placeholder="匹配规则(正则,如 [广告])"
+                class="mono param-value"
+              />
+              <input
+                nz-input
+                [ngModel]="r.replace"
+                (ngModelChange)="updateContentReplaceRule(i, 'replace', $event)"
+                placeholder="替换为(留空 = 删除)"
+                class="mono param-value"
+              />
+              @if (contentReplaceRules().length > 1) {
+                <button
+                  nz-button
+                  nzSize="small"
+                  nzType="text"
+                  nzDanger
+                  (click)="removeContentReplaceRule(i)"
+                  title="删除"
+                >
+                  <span nz-icon nzType="delete"></span>
+                </button>
+              }
+              @if (last) {
+                <button
+                  nz-button
+                  nzSize="small"
+                  nzType="dashed"
+                  (click)="addContentReplaceRule()"
+                  title="再添加一条净化规则"
+                >
+                  <span nz-icon nzType="plus"></span>
+                </button>
+              }
             </div>
           }
         </div>
-      }
-    </div>
-
-    <!-- 详情规则 -->
-    <div class="stage-card">
-      <div class="stage-header">书籍详情</div>
-      <div class="field-row">
-        <span class="field-label">书籍 URL</span>
-        <input nz-input [ngModel]="bookUrl()" (ngModelChange)="bookUrl.set($event)" class="mono grow" placeholder="搜索测试命中后自动填充,也可手动输入" />
+        @if (contentStage().error) {
+          <div class="stage-error">{{ contentStage().error }}</div>
+        }
+        @if (contentStage().summary) {
+          <div class="stage-summary">{{ contentStage().summary }}</div>
+        }
+        @if (contentPreview()) {
+          <pre class="content-preview">{{ contentPreview() }}</pre>
+        }
       </div>
-      <div class="field-row">
-        <span class="field-label">标题规则</span>
-        <input nz-input [ngModel]="bookTitle()" (ngModelChange)="bookTitle.set($event)" class="mono grow" />
-      </div>
-      <div class="field-row">
-        <span class="field-label">封面规则</span>
-        <input nz-input [ngModel]="bookCover()" (ngModelChange)="bookCover.set($event)" class="mono grow" placeholder='css:.book-img img  或正则如 <img[^>]+src="([^"]+)"' />
-      </div>
-      <div class="field-row">
-        <span class="field-label">作者规则</span>
-        <input nz-input [ngModel]="bookAuthor()" (ngModelChange)="bookAuthor.set($event)" class="mono grow" />
-      </div>
-
-      <div class="field-row" style="margin-top: 12px;">
-        <span class="field-label">分类规则</span>
-        <input nz-input [ngModel]="bookCategory()" (ngModelChange)="bookCategory.set($event)" class="mono grow" placeholder='分类[：:]\s*&lt;[^&gt;]+&gt;\s*([^&lt;]{1,20})' />
-        <button nz-button nzSize="small" (click)="runTestInfo()" [disabled]="runningTest() !== null || !bookUrl().trim()">
-          <span nz-icon [nzType]="runningTest() === 'info' ? 'loading' : 'play-circle'"></span> 测试详情
-        </button>
-      </div>
-      @if (infoStage().error) { <div class="stage-error">{{ infoStage().error }}</div> }
-      @if (infoStage().summary) { <div class="stage-summary">{{ infoStage().summary }}</div> }
-      @for (s of infoStage().samples; track $index) {
-        <div class="sample sample--static">
-          <span class="sample-label">{{ s.label }}</span>
-          <span class="sample-value">{{ s.value }}</span>
-        </div>
-      }
-    </div>
-
-    <!-- 目录规则 -->
-    <div class="stage-card">
-      <div class="stage-header">目录</div>
-      <div class="field-row">
-        <span class="field-label">章节链接规则</span>
-        <input nz-input [ngModel]="chapterItem()" (ngModelChange)="chapterItem.set($event)" class="mono grow" />
-        <button nz-button nzSize="small" (click)="runTestChapter()" [disabled]="runningTest() !== null || !bookUrl().trim()">
-          <span nz-icon [nzType]="runningTest() === 'chapter' ? 'loading' : 'play-circle'"></span> 测试目录
-        </button>
-      </div>
-      @if (chapterStage().error) { <div class="stage-error">{{ chapterStage().error }}</div> }
-      @if (chapterStage().summary) { <div class="stage-summary">{{ chapterStage().summary }}</div> }
-      @if (chapterStage().samples.length) {
-        <div class="sample-list">
-          @for (s of chapterStage().samples; track s.value) {
-            <div class="sample" (click)="pickSample('chapter', s)">
-              <span class="sample-label">{{ s.label }}</span>
-              <span class="sample-value">{{ s.value }}</span>
-            </div>
-          }
-        </div>
-      }
-    </div>
-
-    <!-- 正文规则 -->
-    <div class="stage-card">
-      <div class="stage-header">正文</div>
-      <div class="field-row">
-        <span class="field-label">章节 URL</span>
-        <input nz-input [ngModel]="chapterUrl()" (ngModelChange)="chapterUrl.set($event)" class="mono grow" placeholder="目录测试命中后自动填充,也可手动输入" />
-      </div>
-      <div class="field-row">
-        <span class="field-label">正文规则</span>
-        <input nz-input [ngModel]="content()" (ngModelChange)="content.set($event)" class="mono grow" />
-        <button nz-button nzSize="small" (click)="runTestContent()" [disabled]="runningTest() !== null || !chapterUrl().trim()">
-          <span nz-icon [nzType]="runningTest() === 'content' ? 'loading' : 'play-circle'"></span> 测试正文
-        </button>
-      </div>
-      @if (contentStage().error) { <div class="stage-error">{{ contentStage().error }}</div> }
-      @if (contentStage().summary) { <div class="stage-summary">{{ contentStage().summary }}</div> }
-      @if (contentPreview()) { <pre class="content-preview">{{ contentPreview() }}</pre> }
-    </div>
     </div>
   `,
   styles: [
@@ -263,7 +454,9 @@ export class RulesPanelComponent {
   /** 是否显示「测试仅验证规则」行为提示(仅书源编辑页需要) */
   readonly showTestBehaviorHint = input<boolean>(false);
 
-  // ── 12 个规则字段(均为 signal) ──
+  // ── 13 个规则字段(均为 signal) ──
+  /** 站点名(对应 @name 头;不在面板显示,仅随 setRules/getRules 传递,保证整包重生成代码时不丢名称) */
+  readonly siteName = signal('');
   readonly searchPath = signal('');
   readonly searchMethod = signal<SearchMethod>('GET');
   readonly searchBodyParams = signal<Array<{ key: string; value: string }>>([]);
@@ -275,6 +468,10 @@ export class RulesPanelComponent {
   readonly bookAuthor = signal('');
   readonly chapterItem = signal('');
   readonly content = signal('');
+  /** 正文净化规则(多条动态行;UI 始终保留至少一行,空 rule 行在打包规则时过滤) */
+  readonly contentReplaceRules = signal<Array<{ rule: string; replace: string }>>([
+    { rule: '', replace: '' },
+  ]);
   readonly bookCategory = signal('');
 
   // ── 关联状态(测试串联用) ──
@@ -293,9 +490,9 @@ export class RulesPanelComponent {
   /** 详情页 HTML 缓存:目录测试复用,避免重复抓取 */
   private bookHtml = '';
 
-  /** 打包 12 个规则字段,父组件可用 effect 监听变化 */
+  /** 打包 13 个规则字段,父组件可用 effect 监听变化 */
   readonly rules = computed<SourceRules>(() => ({
-    siteName: '',
+    siteName: this.siteName(),
     searchPath: this.searchPath(),
     searchMethod: this.searchMethod(),
     searchBodyParams: this.searchBodyParams(),
@@ -307,6 +504,7 @@ export class RulesPanelComponent {
     bookAuthorPattern: this.bookAuthor(),
     chapterItemPattern: this.chapterItem(),
     contentPattern: this.content(),
+    contentReplaceRules: this.contentReplaceRules().filter((r) => r.rule.trim()),
     bookCategoryPattern: this.bookCategory(),
   }));
 
@@ -316,6 +514,7 @@ export class RulesPanelComponent {
 
   /** 父组件从已存在的源/探测结果加载规则;缺失字段保留 panel 当前值 */
   setRules(rules: Partial<SourceRules>): void {
+    if (rules.siteName !== undefined) this.siteName.set(rules.siteName);
     if (rules.searchPath !== undefined) this.searchPath.set(rules.searchPath);
     if (rules.searchMethod !== undefined) this.searchMethod.set(rules.searchMethod);
     if (rules.searchBodyParams !== undefined) this.searchBodyParams.set(rules.searchBodyParams);
@@ -327,6 +526,13 @@ export class RulesPanelComponent {
     if (rules.bookAuthorPattern !== undefined) this.bookAuthor.set(rules.bookAuthorPattern);
     if (rules.chapterItemPattern !== undefined) this.chapterItem.set(rules.chapterItemPattern);
     if (rules.contentPattern !== undefined) this.content.set(rules.contentPattern);
+    if (rules.contentReplaceRules !== undefined) {
+      this.contentReplaceRules.set(
+        rules.contentReplaceRules.length
+          ? rules.contentReplaceRules.map((r) => ({ rule: r.rule, replace: r.replace }))
+          : [{ rule: '', replace: '' }],
+      );
+    }
     if (rules.bookCategoryPattern !== undefined) this.bookCategory.set(rules.bookCategoryPattern);
   }
 
@@ -337,6 +543,7 @@ export class RulesPanelComponent {
 
   /** 清空所有状态 —— analyze 重新开始或父组件 unmount 场景 */
   reset(): void {
+    this.siteName.set('');
     this.searchPath.set('');
     this.searchMethod.set('GET');
     this.searchBodyParams.set([]);
@@ -348,6 +555,7 @@ export class RulesPanelComponent {
     this.bookAuthor.set('');
     this.chapterItem.set('');
     this.content.set('');
+    this.contentReplaceRules.set([{ rule: '', replace: '' }]);
     this.bookCategory.set('');
     this.keyword.set(randomTestKeyword());
     this.bookUrl.set('');
@@ -375,6 +583,26 @@ export class RulesPanelComponent {
   updateBodyParam(index: number, field: 'key' | 'value', value: string): void {
     this.searchBodyParams.update((arr) =>
       arr.map((p, i) => (i === index ? { ...p, [field]: value } : p)),
+    );
+  }
+
+  /** 正文净化规则 —— 末尾追加一行(只有最后一行显示 + 按钮) */
+  addContentReplaceRule(): void {
+    this.contentReplaceRules.update((arr) => [...arr, { rule: '', replace: '' }]);
+  }
+
+  /** 正文净化规则 —— 删除指定行(至少保留一行) */
+  removeContentReplaceRule(index: number): void {
+    this.contentReplaceRules.update((arr) => {
+      const next = arr.filter((_, i) => i !== index);
+      return next.length ? next : [{ rule: '', replace: '' }];
+    });
+  }
+
+  /** 正文净化规则 —— 修改指定行的 rule 或 replace */
+  updateContentReplaceRule(index: number, field: 'rule' | 'replace', value: string): void {
+    this.contentReplaceRules.update((arr) =>
+      arr.map((r, i) => (i === index ? { ...r, [field]: value } : r)),
     );
   }
 
@@ -516,11 +744,16 @@ export class RulesPanelComponent {
           .replace(/ *\n */g, '\n')
           .replace(/\n{2,}/g, '\n')
           .trim();
-        this.contentPreview.set(plain.slice(0, 2000) + (plain.length > 2000 ? '…' : ''));
+        // 与生成的 chapterContent() 同链路:净化规则在正文文本上按顺序执行
+        const replaceRules = this.contentReplaceRules().filter((r) => r.rule.trim());
+        const cleaned = applyContentReplaceRules(plain, replaceRules);
+        this.contentPreview.set(cleaned.slice(0, 2000) + (cleaned.length > 2000 ? '…' : ''));
         this.contentStage.set({
           running: false,
           error: '',
-          summary: `✓ 命中 ${rawHtml.length} 字节`,
+          summary: replaceRules.length
+            ? `✓ 命中 ${rawHtml.length} 字节(已应用 ${replaceRules.length} 条净化规则)`
+            : `✓ 命中 ${rawHtml.length} 字节`,
           samples: [],
         });
       } else {

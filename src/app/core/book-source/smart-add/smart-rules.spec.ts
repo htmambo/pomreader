@@ -14,6 +14,7 @@ import {
   buildRules,
   generateSourceCode,
   buildFormBody,
+  applyContentReplaceRules,
   DEFAULT_PATTERNS,
 } from './smart-rules';
 
@@ -64,7 +65,9 @@ describe('matchLinkItems', () => {
   });
   it('limit 截断', () => {
     const many = '<a href="/b/1">书名一二三</a>'.repeat(10);
-    expect(matchLinkItems(DEFAULT_PATTERNS.searchItemPattern, many, 'https://x.com/', 3)).toHaveLength(3);
+    expect(
+      matchLinkItems(DEFAULT_PATTERNS.searchItemPattern, many, 'https://x.com/', 3),
+    ).toHaveLength(3);
   });
   it('非法正则抛错', () => {
     expect(() => matchLinkItems('([', 'x', 'https://x.com')).toThrow('正则无效');
@@ -99,7 +102,13 @@ describe('isCssRule / ruleSelector — 双模式判定', () => {
     }
   });
   it('普通选择器兜底判 CSS', () => {
-    for (const p of ['dl.list dd a', 'div.content', '#content', 'dl.list dd a[href]', 'h1 > span.t']) {
+    for (const p of [
+      'dl.list dd a',
+      'div.content',
+      '#content',
+      'dl.list dd a[href]',
+      'h1 > span.t',
+    ]) {
       expect(isCssRule(p)).toBe(true);
     }
   });
@@ -116,7 +125,7 @@ describe('CSS 选择器模式', () => {
     '<h4 style=""><a href="/book/5/index.html">庆余年</a><span>/ 猫腻 /</span></h4>' +
     '<div class="intro"><p>一个年轻的病人，因为一次毫不意外的经历……</p><p>一部《庆余年》……</p></div>' +
     '<div><a href="/book/5/index.html" class="button">免费阅读</a>' +
-    "<span class=\"button\" onclick=\"bookfavorite.add('book',5)\">加入书架</span></div></dd></dl>";
+    '<span class="button" onclick="bookfavorite.add(\'book\',5)">加入书架</span></div></dd></dl>';
   const BASE = 'https://www.example.com/search?keyword=x';
   const BOOK_URL = 'https://www.example.com/book/5/index.html';
 
@@ -150,24 +159,26 @@ describe('CSS 选择器模式', () => {
   });
   it('pickHtml CSS 取 innerHTML，正则取捕获组', () => {
     expect(pickHtml('div.intro', SEARCH_HTML)).toContain('<p>一个年轻的病人');
-    expect(pickHtml('<div class="intro">([\\s\\S]*?)</div>', SEARCH_HTML)).toContain('一个年轻的病人');
+    expect(pickHtml('<div class="intro">([\\s\\S]*?)</div>', SEARCH_HTML)).toContain(
+      '一个年轻的病人',
+    );
     expect(pickHtml('div.not-exist', SEARCH_HTML)).toBe('');
     // CSS 命中 0 元素不抛异常,返回 ''
     expect(() => pickText('css:span.not-exist', SEARCH_HTML)).not.toThrow();
     expect(pickText('css:span.not-exist', SEARCH_HTML)).toBe('');
   });
   it('pickAttr: CSS 命中元素取指定属性（不绝对化 URL，由调用方按 base 解析）', () => {
-    expect(pickAttr('css:.list img', SEARCH_HTML, 'src'))
-      .toBe('/book/cover.pic/cover_5.jpg');
+    expect(pickAttr('css:.list img', SEARCH_HTML, 'src')).toBe('/book/cover.pic/cover_5.jpg');
     expect(pickAttr('css:.list img', SEARCH_HTML, 'alt')).toBe('');
   });
   it('pickAttr: 正则模式按捕获组 1', () => {
-    expect(pickAttr('<img[^>]+src="([^"]+)"', SEARCH_HTML, 'src'))
-      .toBe('/book/cover.pic/cover_5.jpg');
+    expect(pickAttr('<img[^>]+src="([^"]+)"', SEARCH_HTML, 'src')).toBe(
+      '/book/cover.pic/cover_5.jpg',
+    );
   });
   it('pickAttr: 未命中返回空串(不抛)', () => {
     expect(pickAttr('css:span.not-exist', SEARCH_HTML, 'src')).toBe('');
-    expect(pickAttr('xxx.*', SEARCH_HTML, 'src')).toBe('');  // 正则未命中
+    expect(pickAttr('xxx.*', SEARCH_HTML, 'src')).toBe(''); // 正则未命中
   });
   it('选择器语法非法抛「选择器无效」', () => {
     expect(() => matchLinkItems('css:###', SEARCH_HTML, BASE)).toThrow('选择器无效');
@@ -209,6 +220,11 @@ describe('buildRules / generateSourceCode', () => {
     expect(rules.siteName).toBe('测试站');
     expect(rules.searchPath).toBe('/search/?q={keyword}');
     expect(rules.contentPattern).toContain('id="content"');
+  });
+  it('buildRules 自动填充封面规则默认值与空净化规则列表', () => {
+    const rules = buildRules('https://www.test.com/index.html', html);
+    expect(rules.coverUrlPattern).toBe(DEFAULT_PATTERNS.coverUrlPattern);
+    expect(rules.contentReplaceRules).toEqual([]);
   });
   it('生成的代码包含规则值且能被 new Function 编译（沙箱同款）', () => {
     const rules = buildRules('https://www.test.com/', html);
@@ -264,7 +280,10 @@ describe('generateSourceCode — CSS 规则运行时（mock legado 模拟沙箱�
             html: el.innerHTML,
             href: isA ? abs(el.getAttribute('href')) : '',
             links: anchors
-              .map((a) => ({ href: abs(a.getAttribute('href')), text: (a.textContent ?? '').trim() }))
+              .map((a) => ({
+                href: abs(a.getAttribute('href')),
+                text: (a.textContent ?? '').trim(),
+              }))
               .filter((l) => l.href),
           };
         });
@@ -314,11 +333,23 @@ describe('buildFormBody', () => {
   });
   it('空 key 跳过（避免生成 "&value" 这类无效段）', () => {
     expect(buildFormBody([{ key: '', value: 'x' }], 'k', 1)).toBe('');
-    expect(buildFormBody([{ key: 'q', value: 'k' }, { key: '', value: 'y' }], 'k', 1)).toBe('q=k');
+    expect(
+      buildFormBody(
+        [
+          { key: 'q', value: 'k' },
+          { key: '', value: 'y' },
+        ],
+        'k',
+        1,
+      ),
+    ).toBe('q=k');
   });
   it('{keyword}/{page} 占位符替换 + encodeURIComponent', () => {
     const out = buildFormBody(
-      [{ key: 'q', value: '{keyword}' }, { key: 'p', value: '{page}' }],
+      [
+        { key: 'q', value: '{keyword}' },
+        { key: 'p', value: '{page}' },
+      ],
       '庆余年',
       2,
     );
@@ -361,7 +392,10 @@ describe('generateSourceCode — POST 搜索分支', () => {
             html: el.innerHTML,
             href: isA ? abs(el.getAttribute('href')) : '',
             links: anchors
-              .map((a) => ({ href: abs(a.getAttribute('href')), text: (a.textContent ?? '').trim() }))
+              .map((a) => ({
+                href: abs(a.getAttribute('href')),
+                text: (a.textContent ?? '').trim(),
+              }))
               .filter((l) => l.href),
           };
         });
@@ -481,7 +515,12 @@ describe('generateSourceCode — 封面规则分支', () => {
             text: (el.textContent ?? '').trim(),
             html: el.innerHTML,
             href: isA ? abs(el.getAttribute('href')) : '',
-            links: anchors.map((a) => ({ href: abs(a.getAttribute('href')), text: (a.textContent ?? '').trim() })).filter((l) => l.href),
+            links: anchors
+              .map((a) => ({
+                href: abs(a.getAttribute('href')),
+                text: (a.textContent ?? '').trim(),
+              }))
+              .filter((l) => l.href),
             attrs,
           };
         });
@@ -489,7 +528,9 @@ describe('generateSourceCode — 封面规则分支', () => {
     };
     const factory = new Function('legado', `${code}\n;return { bookInfo };`);
     return factory(legado) as {
-      bookInfo: (u: string) => Promise<{ title: string; author: string; cover: string; chapters: unknown[] }>;
+      bookInfo: (
+        u: string,
+      ) => Promise<{ title: string; author: string; cover: string; chapters: unknown[] }>;
     };
   };
 
@@ -525,5 +566,57 @@ describe('generateSourceCode — 封面规则分支', () => {
     const mod = compile(code);
     const r = await mod.bookInfo('https://www.example.com/book/1');
     expect(r.cover).toBe('https://www.example.com/uploads/cover.jpg');
+  });
+});
+
+// ========== 正文净化规则（CONTENT_REPLACE_RULES / applyContentReplaceRules） ==========
+
+describe('正文净化规则', () => {
+  it('applyContentReplaceRules:按顺序全局替换,替换为留空 = 删除', () => {
+    expect(applyContentReplaceRules('aa广告bb广告cc', [{ rule: '广告', replace: '' }])).toBe(
+      'aabbcc',
+    );
+    expect(applyContentReplaceRules('第1章', [{ rule: '第(\\d+)章', replace: '第 $1 章' }])).toBe(
+      '第 1 章',
+    );
+  });
+  it('applyContentReplaceRules:空 rule 与非法正则跳过,不中断后续规则', () => {
+    const out = applyContentReplaceRules('a1b2', [
+      { rule: '', replace: 'x' }, // 空 rule 跳过
+      { rule: '([', replace: 'x' }, // 非法正则跳过
+      { rule: '\\d', replace: '#' },
+    ]);
+    expect(out).toBe('a#b#');
+  });
+  it('applyContentReplaceRules:rules 缺省原样返回', () => {
+    expect(applyContentReplaceRules('原文', undefined)).toBe('原文');
+  });
+
+  it('生成代码含 CONTENT_REPLACE_RULES,chapterContent 提取后按顺序净化', async () => {
+    const rules = {
+      ...buildRules('https://www.test.com/', '<title>t</title><div id="content">x</div>'),
+      contentReplaceRules: [
+        { rule: '广告[一二]', replace: '' },
+        { rule: '正文', replace: '正文(净化)' },
+      ],
+    };
+    const code = generateSourceCode('https://www.test.com/', rules);
+    expect(code).toContain('CONTENT_REPLACE_RULES');
+    expect(code).toContain('广告[一二]');
+    const factory = new Function('legado', `${code}\n;return { chapterContent };`);
+    const mod = factory({
+      http: { get: async () => '<div id="content">正文广告一\n正文广告二</div>' },
+    }) as { chapterContent: (u: string) => Promise<string> };
+    expect(await mod.chapterContent('https://www.test.com/c/1')).toBe('正文(净化)\n正文(净化)');
+  });
+
+  it('净化规则缺省时 chapterContent 行为与旧版一致', async () => {
+    const rules = buildRules('https://www.test.com/', '<title>t</title><div id="content">x</div>');
+    const code = generateSourceCode('https://www.test.com/', rules);
+    const factory = new Function('legado', `${code}\n;return { chapterContent };`);
+    const mod = factory({
+      http: { get: async () => '<div id="content">正文保留</div>' },
+    }) as { chapterContent: (u: string) => Promise<string> };
+    expect(await mod.chapterContent('https://www.test.com/c/1')).toBe('正文保留');
   });
 });

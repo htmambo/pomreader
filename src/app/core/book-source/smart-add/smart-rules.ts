@@ -50,6 +50,12 @@ export interface SearchBodyParam {
   value: string;
 }
 
+/** 单条正文净化规则：rule 为正则（g 全局替换），replace 为替换内容（留空 = 删除匹配文本） */
+export interface ContentReplaceRule {
+  rule: string;
+  replace: string;
+}
+
 /** 可视化规则：每个字段直接参数化生成的书源代码 */
 export interface SourceRules {
   siteName: string;
@@ -76,6 +82,8 @@ export interface SourceRules {
   chapterItemPattern: string;
   /** 正文容器规则（CSS 选择器，或正则：捕获组 1=正文 HTML） */
   contentPattern: string;
+  /** 正文净化规则列表：正文提取后按顺序执行，rule 为正则（g 全局替换）→ replace（留空 = 删除） */
+  contentReplaceRules?: ContentReplaceRule[];
   /** 书籍分类规则（CSS 选择器，或正则：捕获组 1=分类名 —— 单本书的题材分类,如"玄幻"/"都市"） */
   bookCategoryPattern?: string;
   /** 封面规则（CSS 选择器（命中 img 元素，提取 src）或正则：捕获组 1=封面 URL） */
@@ -177,7 +185,12 @@ export interface MatchedItem {
 }
 
 /** 链接项提取；CSS 模式见 matchLinkItemsCss，正则模式约定组 1=href，2=文本 */
-export function matchLinkItems(pattern: string, html: string, baseUrl: string, limit = 500): MatchedItem[] {
+export function matchLinkItems(
+  pattern: string,
+  html: string,
+  baseUrl: string,
+  limit = 500,
+): MatchedItem[] {
   if (cssRulesEnabled() && isCssRule(pattern)) {
     return matchLinkItemsCss(ruleSelector(pattern), html, baseUrl, limit);
   }
@@ -195,7 +208,12 @@ export function matchLinkItems(pattern: string, html: string, baseUrl: string, l
  * CSS 模式链接提取：命中元素为 a 则取之，否则取其后代锚点；
  * 按绝对 URL 去重（同 URL 保留首个非空 name —— 同一书籍的 img 链接/书名链接/按钮链接收敛为一条）
  */
-function matchLinkItemsCss(selector: string, html: string, baseUrl: string, limit: number): MatchedItem[] {
+function matchLinkItemsCss(
+  selector: string,
+  html: string,
+  baseUrl: string,
+  limit: number,
+): MatchedItem[] {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   let els: Element[];
   try {
@@ -285,6 +303,27 @@ export function buildFormBody(
   return parts.join('&');
 }
 
+/**
+ * 正文净化（智能添加页「测试正文」预览 与 生成的 chapterContent() 同源实现）
+ * - 按顺序对正文文本执行 rule 的 g 模式全局替换为 replace（留空 = 删除匹配文本）
+ * - 空 rule 跳过；非法正则跳过（不中断后续规则）
+ */
+export function applyContentReplaceRules(
+  text: string,
+  rules: ContentReplaceRule[] | undefined,
+): string {
+  let out = text;
+  for (const r of rules ?? []) {
+    if (!r.rule) continue;
+    try {
+      out = out.replace(new RegExp(r.rule, 'g'), r.replace ?? '');
+    } catch {
+      // 非法正则跳过,不中断后续规则
+    }
+  }
+  return out;
+}
+
 /** 抓取到的首页 HTML → 初始规则集 */
 export function buildRules(url: string, html: string): SourceRules {
   const host = new URL(url).hostname.replace(/^www\./, '');
@@ -299,7 +338,9 @@ export function buildRules(url: string, html: string): SourceRules {
     bookAuthorPattern: DEFAULT_PATTERNS.bookAuthorPattern,
     chapterItemPattern: DEFAULT_PATTERNS.chapterItemPattern,
     contentPattern: detectContentPattern(html),
+    contentReplaceRules: [],
     bookCategoryPattern: DEFAULT_PATTERNS.bookCategoryPattern,
+    coverUrlPattern: DEFAULT_PATTERNS.coverUrlPattern,
   };
 }
 
@@ -311,7 +352,7 @@ export function buildRules(url: string, html: string): SourceRules {
  * 双模式(CSS/正则)判定在生成的代码运行时进行(与 isCssRule 同一套启发式)
  *
  * @param url 主站 origin（用于 absUrl 解析）
- * @param rules 6 条可视化规则 + searchPath + 搜索方式(method/body)
+ * @param rules 可视化规则(列表/标题/作者/章节/正文/分类/封面 + 正文净化规则) + searchPath + 搜索方式(method/body)
  * @param options.headers 注入每个 HTTP 请求的自定义 header（legado JSON 导入用）
  */
 export function generateSourceCode(
@@ -323,20 +364,25 @@ export function generateSourceCode(
   const j = (s: unknown): string => JSON.stringify(s);
   const headers = options?.headers ?? {};
   const headersJson = j(headers);
-  const description = headers && Object.keys(headers).length
-    ? `由 legado JSON 订阅源导入（${u.host}），含自定义 HTTP header`
-    : `由智能添加从 ${u.host} 生成(CSS 选择器/正则双模式,可在智能添加页继续调规则)`;
+  const description =
+    headers && Object.keys(headers).length
+      ? `由 legado JSON 订阅源导入（${u.host}），含自定义 HTTP header`
+      : `由智能添加从 ${u.host} 生成(CSS 选择器/正则双模式,可在智能添加页继续调规则)`;
   // 搜索方式 + body 相关常量 —— 向后兼容:缺省 GET
   const searchMethod: SearchMethod = rules.searchMethod ?? 'GET';
   const searchBodyParams: SearchBodyParam[] = rules.searchBodyParams ?? [];
-  const searchContentType = rules.searchContentType ?? (
-    searchMethod === 'POST_RAW' ? 'application/json' : 'application/x-www-form-urlencoded'
-  );
+  const searchContentType =
+    rules.searchContentType ??
+    (searchMethod === 'POST_RAW' ? 'application/json' : 'application/x-www-form-urlencoded');
   const searchRawBody = rules.searchRawBody ?? '';
   // 封面规则：缺省走 DEFAULT_PATTERNS.coverUrlPattern('css:img')
   const coverRule = rules.coverUrlPattern ?? DEFAULT_PATTERNS.coverUrlPattern;
   // searchBodyParams → JSON 数组 [["k","v"],...]
   const bodyParamsJson = j(searchBodyParams.map((p) => [p.key, p.value]));
+  // 正文净化规则 → JSON 数组 [["正则","替换为"],...]
+  const contentReplaceRulesJson = j(
+    (rules.contentReplaceRules ?? []).map((r) => [r.rule, r.replace ?? '']),
+  );
   return `// @name        ${rules.siteName}
 // @version     1.1.0
 // @author      智能添加
@@ -359,6 +405,7 @@ const BOOK_TITLE_RULE = ${j(rules.bookTitlePattern)}
 const BOOK_AUTHOR_RULE = ${j(rules.bookAuthorPattern)}
 const CHAPTER_ITEM_RULE = ${j(rules.chapterItemPattern)}
 const CONTENT_RULE = ${j(rules.contentPattern)}
+const CONTENT_REPLACE_RULES = ${contentReplaceRulesJson}
 const BOOK_CATEGORY_RULE = ${j(rules.bookCategoryPattern ?? DEFAULT_PATTERNS.bookCategoryPattern)}
 const COVER_RULE = ${j(coverRule)}
 
@@ -533,10 +580,16 @@ async function chapterList(bookUrl) {
   return await extractLinks(CHAPTER_ITEM_RULE, resp, bookUrl)
 }
 
-/** 正文 —— 返回章节正文文本 */
+/** 正文 —— 返回章节正文文本(提取后按 CONTENT_REPLACE_RULES 顺序净化:rule 正则 g 全局替换为 replace) */
 async function chapterContent(chapterUrl) {
   const resp = await legado.http.get(chapterUrl, HEADERS)
-  return stripTags(await extractHtml(CONTENT_RULE, resp, chapterUrl))
+  let text = stripTags(await extractHtml(CONTENT_RULE, resp, chapterUrl))
+  for (const pair of CONTENT_REPLACE_RULES) {
+    const rule = pair[0]
+    if (!rule) continue
+    try { text = text.replace(new RegExp(rule, 'g'), pair[1] || '') } catch (e) { /* 非法正则跳过,不中断后续规则 */ }
+  }
+  return text
 }
 `;
 }
