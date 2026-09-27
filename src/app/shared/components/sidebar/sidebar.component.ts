@@ -22,23 +22,38 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
         <span nz-icon nzType="book"></span>
         <span>书架</span>
       </li>
-      <li
-        nz-submenu
-        nzOpen
-        nzTitle="书源管理"
-        nzIcon="book"
-      >
+      <li nz-submenu nzOpen nzTitle="书源管理" nzIcon="book">
         <ul>
-          <li nz-menu-item [routerLink]="['/book-sources']" [routerLinkActiveOptions]="{ exact: true }" routerLinkActive="ant-menu-item-selected">
+          <li
+            nz-menu-item
+            [routerLink]="['/book-sources']"
+            [routerLinkActiveOptions]="{ exact: true }"
+            routerLinkActive="ant-menu-item-selected"
+          >
             <span>列表</span>
           </li>
-          <li nz-menu-item [routerLink]="['/book-sources/search']" [routerLinkActiveOptions]="{ exact: true }" routerLinkActive="ant-menu-item-selected">
+          <li
+            nz-menu-item
+            [routerLink]="['/book-sources/search']"
+            [routerLinkActiveOptions]="{ exact: true }"
+            routerLinkActive="ant-menu-item-selected"
+          >
             <span>搜索</span>
           </li>
-          <li nz-menu-item [routerLink]="['/book-sources/debug']" [routerLinkActiveOptions]="{ exact: true }" routerLinkActive="ant-menu-item-selected">
+          <li
+            nz-menu-item
+            [routerLink]="['/book-sources/debug']"
+            [routerLinkActiveOptions]="{ exact: true }"
+            routerLinkActive="ant-menu-item-selected"
+          >
             <span>调试</span>
           </li>
-          <li nz-menu-item [routerLink]="['/book-sources/test']" [routerLinkActiveOptions]="{ exact: true }" routerLinkActive="ant-menu-item-selected">
+          <li
+            nz-menu-item
+            [routerLink]="['/book-sources/test']"
+            [routerLinkActiveOptions]="{ exact: true }"
+            routerLinkActive="ant-menu-item-selected"
+          >
             <span>测试</span>
           </li>
         </ul>

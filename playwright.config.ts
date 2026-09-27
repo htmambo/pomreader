@@ -27,9 +27,7 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   // 仅 chromium（与 Electron 行为最接近）
-  projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-  ],
+  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   // 自动启动 ng serve（webServer）
   webServer: {
     command: 'npm run start',

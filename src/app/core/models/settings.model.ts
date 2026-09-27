@@ -29,18 +29,18 @@ export type ConvertMode = 'off' | 's2t' | 't2s';
 export const CONVERT_MODES: ConvertMode[] = ['off', 's2t', 't2s'];
 
 export interface Settings {
-  theme: number;              // 阅读主题 0-6：默认/牛皮纸/淡绿/淡蓝/淡粉/灰/黑
-  fontSize: number;           // 阅读字号 14-28
-  fontFamily: number;         // 正文字体：1 雅黑 / 2 宋体 / 3 楷书
-  pageWidth: number;          // 页面宽度 640/800/900/1280/1440/1680/1840
-  readMode: ReadMode;         // 阅读模式：滚动 / 翻页
+  theme: number; // 阅读主题 0-6：默认/牛皮纸/淡绿/淡蓝/淡粉/灰/黑
+  fontSize: number; // 阅读字号 14-28
+  fontFamily: number; // 正文字体：1 雅黑 / 2 宋体 / 3 楷书
+  pageWidth: number; // 页面宽度 640/800/900/1280/1440/1680/1840
+  readMode: ReadMode; // 阅读模式：滚动 / 翻页
   bookshelfSort: BookshelfSort; // 书架排序规则
-  fetchUa: string;            // 抓取 User-Agent（'' = 平台默认 Chrome UA；主进程经 IPC 应用）
-  fontWeight: number;         // 字体粗细 100-900（步长 100）
-  fontColor: string;          // 字体颜色：CSS 颜色字符串，'' = 沿用主题 --r-text
+  fetchUa: string; // 抓取 User-Agent（'' = 平台默认 Chrome UA；主进程经 IPC 应用）
+  fontWeight: number; // 字体粗细 100-900（步长 100）
+  fontColor: string; // 字体颜色：CSS 颜色字符串，'' = 沿用主题 --r-text
   paragraphLineHeight: number; // 段落行高 1.0-3.0（步长 0.1）
-  paragraphSpacing: number;   // 段落间距 0-2.0 em（步长 0.1）
-  convertMode: ConvertMode;   // 简繁转换档位
+  paragraphSpacing: number; // 段落间距 0-2.0 em（步长 0.1）
+  convertMode: ConvertMode; // 简繁转换档位
 }
 
 export const DEFAULT_SETTINGS: Settings = {

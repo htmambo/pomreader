@@ -1,6 +1,6 @@
-import { Injectable, type Signal, computed, inject, signal } from '@angular/core'
-import { type Book } from '../models/book.model'
-import { type Chapter } from '../models/chapter.model'
+import { Injectable, type Signal, computed, inject, signal } from '@angular/core';
+import { type Book } from '../models/book.model';
+import { type Chapter } from '../models/chapter.model';
 import { DbService } from './db.service';
 
 /**
@@ -107,7 +107,7 @@ export class BookRepository implements BookRepositoryPort {
    * 测试入口：手动注入依赖（绕开 Angular DI 上下文 NG0203）。
    * 复用 BookService.forTest 同模式。
    */
-   
+
   static forTest(db: DbService): BookRepository {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const repo: any = Object.create(BookRepository.prototype);

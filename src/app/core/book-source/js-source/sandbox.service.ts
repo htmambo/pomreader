@@ -1,7 +1,7 @@
-import { Injectable, type OnDestroy, signal } from '@angular/core'
+import { Injectable, type OnDestroy, signal } from '@angular/core';
 import { FetchError } from '../fetch-error';
 import { cssRulesEnabled } from '../smart-add/smart-rules';
-import { createWorkerPool, type WorkerLike } from './worker-pool.factory'
+import { createWorkerPool, type WorkerLike } from './worker-pool.factory';
 
 /** EVO-3 conservative kill-switch: operator can force-off pool without redeploy. */
 const EVO3_KILL_SWITCH_KEY = 'evo3.v1.workerPool.forceOff';

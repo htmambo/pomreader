@@ -1,4 +1,4 @@
-import { signal, computed, type Signal, type WritableSignal } from '@angular/core'
+import { signal, computed, type Signal, type WritableSignal } from '@angular/core';
 
 /**
  * 阅读状态纯逻辑层（EVO-12）

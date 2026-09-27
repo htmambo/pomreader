@@ -1,6 +1,6 @@
-import { Injectable, type Signal, inject } from '@angular/core'
+import { Injectable, type Signal, inject } from '@angular/core';
 import { BookService } from './book.service';
-import { createReaderState, type ReaderState } from '../logic/reader-state'
+import { createReaderState, type ReaderState } from '../logic/reader-state';
 
 /** 旧版 localStorage key（v1 持久化方案）—— 一次性迁移用 */
 const LEGACY_PROGRESS_KEY = 'pom.reader.progress';

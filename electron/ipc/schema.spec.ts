@@ -22,34 +22,28 @@ import {
  *   否则 v.tuple schema 收到第一个字符串参数 → "Expected Array" 失败。
  */
 
- 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type MockIpcMain = any;
 
- 
 function makeIpcMainMock(): any {
-   
   const handlers: any[] = [];
   return {
-     
     handle: vi.fn((channel: string, handler: any) => {
       handlers.push({ channel, handler });
     }),
     // 调用注册到 channel 的 handler，模拟 ipcRenderer.invoke
-     
+
     invoke: (channel: string, ...args: unknown[]) => {
-       
       const entry = handlers.find((h: any) => h.channel === channel);
       if (!entry) throw new Error(`no handler for ${channel}`);
       // Electron 实际行为：handler 收到 (event, ...args) —— 即 spread
-       
+
       return entry.handler({}, ...args);
     },
   };
 }
 
 describe('safeHandle', () => {
-   
   let ipc: any;
 
   beforeEach(() => {
@@ -57,7 +51,6 @@ describe('safeHandle', () => {
   });
 
   it('rest args 收集：v.tuple schema 应接收 spread 调用（url, encoding）', async () => {
-     
     const handler = vi.fn(async (_e: unknown, [url, mode]: [string, string]) => ({
       url,
       mode,
@@ -69,7 +62,6 @@ describe('safeHandle', () => {
   });
 
   it('rest args 收集：仅 url（无 encoding）应使用 schema 默认值', async () => {
-     
     const handler = vi.fn(async (_e: unknown, [url, mode]: [string, string]) => ({
       url,
       mode,
@@ -80,10 +72,9 @@ describe('safeHandle', () => {
   });
 
   it('rest args 收集：空调用（无参数）应使用 schema 全部默认值', async () => {
-     
     const handler = vi.fn(async () => 'ok');
     // 单参数 schema（可选）
-     
+
     const schema = v.tuple([v.optional(v.string())]);
     safeHandle(ipc, 'test:optional', schema, handler);
     const result = await ipc.invoke('test:optional');
@@ -91,7 +82,6 @@ describe('safeHandle', () => {
   });
 
   it('schema 验证失败应抛 IpcValidationError', async () => {
-     
     const handler = vi.fn();
     safeHandle(ipc, 'test:invalid', FetchHtmlArgsSchema, handler);
     // url 为空字符串 → minLength 验证失败
@@ -100,7 +90,6 @@ describe('safeHandle', () => {
   });
 
   it('IpcValidationError 应包含 channel + issues 详情', async () => {
-     
     const handler = vi.fn();
     safeHandle(ipc, 'test:bad-url', FetchHtmlArgsSchema, handler);
     try {
@@ -108,7 +97,7 @@ describe('safeHandle', () => {
       throw new Error('expected throw');
     } catch (e: unknown) {
       expect(e).toBeInstanceOf(IpcValidationError);
-       
+
       const err = e as any;
       expect(err.channel).toBe('test:bad-url');
       expect(err.issues.length).toBeGreaterThan(0);
@@ -117,7 +106,6 @@ describe('safeHandle', () => {
   });
 
   it('handler 返回值应原样转发', async () => {
-     
     safeHandle(ipc, 'test:passthrough', FetchHtmlArgsSchema, async (_e, [url]) => ({
       ok: true,
       url,
@@ -128,7 +116,6 @@ describe('safeHandle', () => {
 });
 
 describe('safeHandleWithMeta', () => {
-   
   let ipc: any;
 
   beforeEach(() => {
@@ -151,7 +138,7 @@ describe('FetchHtmlArgsSchema', () => {
   it('应接受仅 url（encoding 默认 auto）', () => {
     const r = v.safeParse(FetchHtmlArgsSchema, ['https://x.com']);
     expect(r.success).toBe(true);
-     
+
     if (r.success) expect((r.output as any[])[1]).toBe('auto');
   });
 
@@ -176,7 +163,6 @@ describe('SetFetchUaArgsSchema', () => {
   });
 
   it('应接受 undefined（nullish 默认 null）', () => {
-     
     const r = v.safeParse(SetFetchUaArgsSchema, [undefined]) as any;
     expect(r.success).toBe(true);
     expect(r.output[0]).toBe(null);
@@ -185,9 +171,7 @@ describe('SetFetchUaArgsSchema', () => {
 
 describe('SetWebviewEncodingArgsSchema', () => {
   it('应接受合法 webviewId + mode', () => {
-    expect(
-      v.safeParse(SetWebviewEncodingArgsSchema, ['session-1', 'utf-8']).success,
-    ).toBe(true);
+    expect(v.safeParse(SetWebviewEncodingArgsSchema, ['session-1', 'utf-8']).success).toBe(true);
   });
 
   it('空 webviewId 应失败', () => {
@@ -196,17 +180,13 @@ describe('SetWebviewEncodingArgsSchema', () => {
 
   it('非法字符 webviewId 应失败（security regex）', () => {
     // 包含特殊字符 → 应被 ^[a-zA-Z0-9_-]+$ 拒绝
-    expect(
-      v.safeParse(SetWebviewEncodingArgsSchema, ['bad/path', 'utf-8']).success,
-    ).toBe(false);
-    expect(
-      v.safeParse(SetWebviewEncodingArgsSchema, ['bad.path', 'utf-8']).success,
-    ).toBe(false);
+    expect(v.safeParse(SetWebviewEncodingArgsSchema, ['bad/path', 'utf-8']).success).toBe(false);
+    expect(v.safeParse(SetWebviewEncodingArgsSchema, ['bad.path', 'utf-8']).success).toBe(false);
   });
 
   it('合法字符 webviewId（字母数字下划线连字符）应通过', () => {
-    expect(
-      v.safeParse(SetWebviewEncodingArgsSchema, ['session_123-abc', 'auto']).success,
-    ).toBe(true);
+    expect(v.safeParse(SetWebviewEncodingArgsSchema, ['session_123-abc', 'auto']).success).toBe(
+      true,
+    );
   });
 });

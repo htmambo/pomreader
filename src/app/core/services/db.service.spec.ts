@@ -23,13 +23,11 @@ import { Book } from '../models/book.model';
  * chapterPutMany / seedIfEmpty（no-op）/ bookUpdateProgress
  */
 
- 
 type Doc = any;
 
 describe('DbService', () => {
-   
   let store: Map<string, Doc>;
-   
+
   let bridge: any;
   let svc: DbService;
 
@@ -42,20 +40,18 @@ describe('DbService', () => {
     // IPC 协议（IpcPouchBackend 期望）：{ ok, result?, error? }
     // ok=false 时 IpcPouchBackend 抛 res.error；
     // 404 get 等也是 ok=false + error={status:404}（isNotFound 判定依据）
-     
+
     const ok = (result: any) => ({ ok: true, result });
-     
+
     const fail = (status: number, name: string, message: string) => ({
       ok: false,
       error: { status, name, message },
     });
 
     bridge = {
-       
       dbRequest: vi.fn(async (op: string, args: unknown[]) => {
         switch (op) {
           case 'allDocs': {
-             
             const opts = args[0] as { include_docs?: boolean; startkey?: string; endkey?: string };
             const docs = Array.from(store.values()).filter((d) => {
               if (opts.startkey && d._id < opts.startkey) return false;
@@ -67,14 +63,12 @@ describe('DbService', () => {
             });
           }
           case 'get': {
-             
             const id = args[0] as string;
             const doc = store.get(id);
             if (!doc) return fail(404, 'not_found', 'missing');
             return ok(doc);
           }
           case 'put': {
-             
             const doc = args[0] as Doc;
             if (doc._deleted) {
               store.delete(doc._id);
@@ -84,9 +78,8 @@ describe('DbService', () => {
             return ok({ ok: true, id: doc._id, rev: '1-fake' });
           }
           case 'bulkDocs': {
-             
             const docs = args[0] as Doc[];
-             
+
             const results: any[] = docs.map((d) => {
               if (d._deleted) {
                 store.delete(d._id);
@@ -105,7 +98,7 @@ describe('DbService', () => {
         }
       }),
     };
-     
+
     (globalThis as any).window = { pomAPI: bridge };
 
     TestBed.resetTestingModule();
@@ -116,7 +109,6 @@ describe('DbService', () => {
   });
 
   afterEach(() => {
-     
     delete (globalThis as any).window;
   });
 

@@ -12,10 +12,16 @@
  * - 全部用 pickString helper 做 fallback 链，不写 `||` 字面量
  * - pickString 接受任意对象，内部防御 null / 非 plain object
  */
-import { type BookSourceAdapter, type CatalogEntry, type PageFetcher, type RawSearchItem, type ResolvedBook } from '../book-source.adapter'
+import {
+  type BookSourceAdapter,
+  type CatalogEntry,
+  type PageFetcher,
+  type RawSearchItem,
+  type ResolvedBook,
+} from '../book-source.adapter';
 import { FetchError } from '../fetch-error';
 import { SandboxService } from './sandbox.service';
-import { type BookSourceMeta } from './source-meta.types'
+import { type BookSourceMeta } from './source-meta.types';
 
 /**
  * legado bookInfo() 返回结构（兼容多种命名）：
@@ -53,7 +59,10 @@ export class JsSourceAdapter implements BookSourceAdapter {
   /** 已加载标记：load() 缓存命中时跳过 */
   private loaded = false;
 
-  constructor(private readonly meta: BookSourceMeta, private readonly sandbox: SandboxService) {
+  constructor(
+    private readonly meta: BookSourceMeta,
+    private readonly sandbox: SandboxService,
+  ) {
     this.name = meta.name || meta.fileName;
     this.hostPattern = buildHostPattern(meta.url || meta.urls[0]);
   }
@@ -65,9 +74,7 @@ export class JsSourceAdapter implements BookSourceAdapter {
 
   async fetchCatalog(url: string, _fetcher: PageFetcher): Promise<ResolvedBook> {
     await this.ensureLoaded();
-    const result = await this.sandbox.call<BookInfoResult>(
-      this.meta.fileName, 'bookInfo', [url],
-    );
+    const result = await this.sandbox.call<BookInfoResult>(this.meta.fileName, 'bookInfo', [url]);
     if (!result || !Array.isArray(result.chapters)) {
       throw new FetchError('parse-failed', `书源 ${this.name} 返回结果无 chapters`);
     }
@@ -85,9 +92,9 @@ export class JsSourceAdapter implements BookSourceAdapter {
 
   async fetchChapter(entry: CatalogEntry, _fetcher: PageFetcher): Promise<string> {
     await this.ensureLoaded();
-    const result = await this.sandbox.call<string>(
-      this.meta.fileName, 'chapterContent', [entry.url],
-    );
+    const result = await this.sandbox.call<string>(this.meta.fileName, 'chapterContent', [
+      entry.url,
+    ]);
     return typeof result === 'string' ? result : '';
   }
 
@@ -113,9 +120,7 @@ export class JsSourceAdapter implements BookSourceAdapter {
     const safePage = Number.isInteger(page) && (page as number) >= 1 ? (page as number) : 1;
     try {
       await this.ensureLoaded();
-      const raw = await this.sandbox.call<unknown>(
-        this.meta.fileName, 'search', [kw, safePage],
-      );
+      const raw = await this.sandbox.call<unknown>(this.meta.fileName, 'search', [kw, safePage]);
       if (!Array.isArray(raw)) return [];
       return raw
         .map(toRawSearchItem)
@@ -148,9 +153,16 @@ export class JsSourceAdapter implements BookSourceAdapter {
 
   private async readSource(): Promise<string> {
     // 不在 Window.pomAPI 上声明 booksourceRead（与 sandbox/page-fetcher 的 declare global 互不冲突）
-    const pom = (typeof window !== 'undefined' ? (window as unknown as {
-      pomAPI?: { booksourceRead?: (fileName: string, sourceDir?: string | null) => Promise<string> };
-    }).pomAPI : undefined);
+    const pom =
+      typeof window !== 'undefined'
+        ? (
+            window as unknown as {
+              pomAPI?: {
+                booksourceRead?: (fileName: string, sourceDir?: string | null) => Promise<string>;
+              };
+            }
+          ).pomAPI
+        : undefined;
     const read = pom?.booksourceRead;
     if (!read) throw new FetchError('source-unavailable', 'booksourceRead IPC 不可用');
     return await read(this.meta.fileName, this.meta.sourceDir || null);
@@ -181,7 +193,19 @@ function toRawSearchItem(raw: unknown): RawSearchItem | null {
   return {
     name,
     author: pickString(obj, 'author', 'writer', 'creator', 'by', 'bookAuthor', 'authorName'),
-    kind: pickString(obj, 'kind', 'genre', 'category', 'class', 'type', 'sort', 'tag', 'classify', 'bookType', 'novelType'),
+    kind: pickString(
+      obj,
+      'kind',
+      'genre',
+      'category',
+      'class',
+      'type',
+      'sort',
+      'tag',
+      'classify',
+      'bookType',
+      'novelType',
+    ),
     url,
     intro: pickString(obj, 'intro', 'description', 'summary', 'desc', 'brief'),
   };

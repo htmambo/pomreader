@@ -1,5 +1,5 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { MultiSourceSearchService, type SearchResultItem } from './multi-source-search.service'
+import { MultiSourceSearchService, type SearchResultItem } from './multi-source-search.service';
 import { ToastService } from '../services/toast.service';
 
 /**
@@ -44,7 +44,9 @@ export class SourceSearchStateService {
         const errors = this.searchSvc.lastErrors;
         if (errors.length > 0) {
           const summary = errors.slice(0, 3).join('；');
-          this.toast.warn(`未找到结果，${errors.length} 个书源失败：${summary}${errors.length > 3 ? '…' : ''}`);
+          this.toast.warn(
+            `未找到结果，${errors.length} 个书源失败：${summary}${errors.length > 3 ? '…' : ''}`,
+          );
         } else {
           this.toast.info('未找到匹配结果');
         }

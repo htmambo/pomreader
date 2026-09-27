@@ -68,21 +68,24 @@ export function getFetchSession(): ReturnType<typeof session.fromPartition> {
  */
 export function browserHeaders(
   rawUrl: string,
-  opts?: { referer?: string; navigation?: boolean }
+  opts?: { referer?: string; navigation?: boolean },
 ): Record<string, string> {
   const ua = getUA();
   const ver = /Chrome\/(\d+)/.exec(ua)?.[1] ?? '152';
-  const platform = process.platform === 'win32' ? 'Windows' : process.platform === 'darwin' ? 'macOS' : 'Linux';
+  const platform =
+    process.platform === 'win32' ? 'Windows' : process.platform === 'darwin' ? 'macOS' : 'Linux';
   let origin = '';
   try {
     origin = new URL(rawUrl).origin + '/';
-  } catch { /* 非法 URL 由调用方校验 */ }
+  } catch {
+    /* 非法 URL 由调用方校验 */
+  }
   const referer = opts?.referer ?? origin;
   const navigation = opts?.navigation ?? false;
 
   const h: Record<string, string> = {
     'User-Agent': ua,
-    'Accept': navigation
+    Accept: navigation
       ? 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'
       : '*/*',
     'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
@@ -128,11 +131,13 @@ export async function migrateLegacySearchCookies(): Promise<void> {
           ...(c.expirationDate ? { expirationDate: c.expirationDate } : {}),
         });
         migrated++;
-      } catch { /* 单个 cookie 非法/过期，跳过 */ }
+      } catch {
+        /* 单个 cookie 非法/过期，跳过 */
+      }
     }
-    if (migrated > 0) console.log(`[fetch-session] 已从 persist:universal-search 迁移 ${migrated} 个 cookie`);
+    if (migrated > 0)
+      console.log(`[fetch-session] 已从 persist:universal-search 迁移 ${migrated} 个 cookie`);
   } catch (e) {
     console.warn('[fetch-session] cookie 迁移失败（忽略）:', (e as Error).message);
   }
 }
-

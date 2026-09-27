@@ -11,8 +11,8 @@ import { NzTypographyModule } from 'ng-zorro-antd/typography';
     <div class="disclaimer">
       <h3 nz-typography>免责声明</h3>
       <p nz-typography>
-        本应用（pomreader）是一个仿写练习项目，
-        仅用于学习和研究 Angular 18 standalone + signals + ng-zorro-antd 技术栈。
+        本应用（pomreader）是一个仿写练习项目， 仅用于学习和研究 Angular 18 standalone + signals +
+        ng-zorro-antd 技术栈。
       </p>
       <h3 nz-typography>数据来源</h3>
       <p nz-typography>
@@ -21,13 +21,10 @@ import { NzTypographyModule } from 'ng-zorro-antd/typography';
       </p>
       <h3 nz-typography>不存储用户数据</h3>
       <p nz-typography>
-        本应用使用浏览器 localStorage 仅存储主题偏好与阅读进度，
-        不上传任何用户阅读历史或个人信息。
+        本应用使用浏览器 localStorage 仅存储主题偏好与阅读进度， 不上传任何用户阅读历史或个人信息。
       </p>
       <h3 nz-typography>非商业用途</h3>
-      <p nz-typography>
-        本项目不进行任何形式的商业活动。如有版权问题请联系作者删除。
-      </p>
+      <p nz-typography>本项目不进行任何形式的商业活动。如有版权问题请联系作者删除。</p>
       <p nz-typography nzType="secondary" style="margin-top: 32px;">
         — pomreader v1.0.6 · 2026-09-24
       </p>

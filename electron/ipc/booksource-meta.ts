@@ -29,12 +29,20 @@ export function safeFileName(input: string): string | null {
 export function atomicWrite(target: string, content: string): void {
   const tmp = `${target}.${process.pid}.${crypto.randomUUID().slice(0, 8)}.tmp`;
   try {
-    try { fs.unlinkSync(tmp); } catch { /* 不存在 */ }
+    try {
+      fs.unlinkSync(tmp);
+    } catch {
+      /* 不存在 */
+    }
     fs.writeFileSync(tmp, content, 'utf-8');
     fs.renameSync(tmp, target);
   } catch (err) {
     // 失败时清理残留 tmp（成功路径 tmp 已被 rename 移走，无残留）
-    try { fs.unlinkSync(tmp); } catch { /* noop */ }
+    try {
+      fs.unlinkSync(tmp);
+    } catch {
+      /* noop */
+    }
     throw err;
   }
 }
@@ -46,7 +54,7 @@ export function parseHeaderMeta(
   sourceDir: string,
   fileSize: number,
   modifiedAt: number,
-  enabledOverride: boolean | null
+  enabledOverride: boolean | null,
 ): Record<string, unknown> {
   let name: string | null = null;
   let author: string | null = null;
@@ -133,11 +141,7 @@ export function parseHeaderMeta(
 
   const finalUuid = uuid || fileName;
   const enabled =
-    enabledOverride !== null
-      ? enabledOverride
-      : headerEnabled !== null
-      ? headerEnabled
-      : true;
+    enabledOverride !== null ? enabledOverride : headerEnabled !== null ? headerEnabled : true;
 
   return {
     sourceKey: finalUuid,

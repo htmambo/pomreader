@@ -1,14 +1,14 @@
 <!-- 规则编辑 + 测试面板 —— 与智能添加页共用 RulesPanelComponent -->
 <app-rules-panel #panel [baseUrl]="ruleBaseUrl()" [showTestBehaviorHint]="true" />
 
-<div class="actions full-row" style="margin-top: 8px;">
-  <button nz-button (click)="applyRulesToSource()">
-    <span nz-icon nzType="import"></span> 应用规则到源码
-  </button>
+<div class="actions full-row" style="margin-top: 8px">
+  <button nz-button (click)="applyRulesToSource()"><span nz-icon nzType="import"></span> 应用规则到源码</button>
   <button nz-button nzType="primary" (click)="generateCodeFromRules()">
     <span nz-icon nzType="thunderbolt"></span> 从规则生成代码
   </button>
-  <span class="muted">—— "应用"仅替换 12 个 const 值(保留 explore 等);"生成"用 generateSourceCode 覆盖整个源码(谨慎)</span>
+  <span class="muted"
+    >—— "应用"仅替换 12 个 const 值(保留 explore 等);"生成"用 generateSourceCode 覆盖整个源码(谨慎)</span
+  >
 </div>
 
 <div class="editor">

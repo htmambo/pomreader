@@ -2,12 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import {
-  safeFileName,
-  atomicWrite,
-  parseHeaderMeta,
-  scanDir,
-} from './booksource-meta';
+import { safeFileName, atomicWrite, parseHeaderMeta, scanDir } from './booksource-meta';
 
 /**
  * booksource-meta spec — 书源 JS 头部解析 + 目录扫描 + 工具函数
@@ -56,14 +51,7 @@ describe('parseHeaderMeta（书源 JS 头部注释解析）', () => {
       '// @uuid abc-123',
       'function search() {}',
     ].join('\n');
-    const r = parseHeaderMeta(
-      content,
-      'test.js',
-      '/sources',
-      100,
-      Date.now(),
-      null,
-    );
+    const r = parseHeaderMeta(content, 'test.js', '/sources', 100, Date.now(), null);
     expect(r.name).toBe('测试书源');
     expect(r.author).toBe('me');
     expect(r.url).toBe('https://example.com/');
@@ -145,9 +133,8 @@ describe('parseHeaderMeta（书源 JS 头部注释解析）', () => {
 });
 
 describe('atomicWrite（FR-1.5 原子写）', () => {
-   
   let tmpDir: any;
-   
+
   let targetFile: any;
 
   beforeEach(() => {
@@ -179,7 +166,6 @@ describe('atomicWrite（FR-1.5 原子写）', () => {
 });
 
 describe('scanDir（目录扫描）', () => {
-   
   let tmpDir: any;
 
   beforeEach(() => {

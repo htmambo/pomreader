@@ -8,7 +8,7 @@
  * 标量字段首次出现生效；uuid 缺省 → 回退 fileName；name 缺省 → fileName 去 .js；
  * @type 非法 → 降级 'novel'；@enabled 非 false/0/no → true；@minDelayMs 与 @minDelay 等价。
  */
-import { type BookSourceMeta, SOURCE_TYPES, type SourceType } from './source-meta.types'
+import { type BookSourceMeta, SOURCE_TYPES, type SourceType } from './source-meta.types';
 
 const HEADER_SCAN_LINES = 100;
 const DEFAULT_TYPE: SourceType = 'novel';
@@ -30,7 +30,9 @@ function parseKvLine(line: string): { key: string; value: string } | null {
 
 /** @type 枚举校验；非法 → 默认 novel */
 function normalizeSourceType(raw: string): SourceType {
-  return (SOURCE_TYPES as readonly string[]).includes(raw.trim()) ? (raw.trim() as SourceType) : DEFAULT_TYPE;
+  return (SOURCE_TYPES as readonly string[]).includes(raw.trim())
+    ? (raw.trim() as SourceType)
+    : DEFAULT_TYPE;
 }
 
 /** @enabled 解析：false/0/no → false，其他非空 → true，空 → 未声明 */
@@ -85,16 +87,36 @@ export function parseHeaderMeta(
     // 空值不入（enabled 例外，允许无值）
     if (value === '' && key !== 'enabled') continue;
     switch (key) {
-      case 'name':       if (name === undefined && value) name = value; break;
-      case 'author':     if (author === undefined && value) author = value; break;
-      case 'logo':       if (logo === undefined && value) logo = value; break;
-      case 'description': descriptions.push(value); break;
-      case 'url':        if (value) urls.push(value); break;
-      case 'tags':       for (const t of splitTags(value)) if (!tags.includes(t)) tags.push(t); break;
-      case 'version':    if (version === undefined && value) version = value; break;
-      case 'updateUrl':  if (updateUrl === undefined && value) updateUrl = value; break;
-      case 'uuid':       if (uuid === undefined && value) uuid = value; break;
-      case 'type':       if (sourceType === undefined) sourceType = normalizeSourceType(value); break;
+      case 'name':
+        if (name === undefined && value) name = value;
+        break;
+      case 'author':
+        if (author === undefined && value) author = value;
+        break;
+      case 'logo':
+        if (logo === undefined && value) logo = value;
+        break;
+      case 'description':
+        descriptions.push(value);
+        break;
+      case 'url':
+        if (value) urls.push(value);
+        break;
+      case 'tags':
+        for (const t of splitTags(value)) if (!tags.includes(t)) tags.push(t);
+        break;
+      case 'version':
+        if (version === undefined && value) version = value;
+        break;
+      case 'updateUrl':
+        if (updateUrl === undefined && value) updateUrl = value;
+        break;
+      case 'uuid':
+        if (uuid === undefined && value) uuid = value;
+        break;
+      case 'type':
+        if (sourceType === undefined) sourceType = normalizeSourceType(value);
+        break;
       case 'enabled': {
         const parsed = parseEnabled(value);
         if (headerEnabled === undefined && parsed !== null) headerEnabled = parsed;
@@ -107,7 +129,9 @@ export function parseHeaderMeta(
         if (Number.isFinite(n) && n >= 0) minDelayMs = n;
         break;
       }
-      case 'require':    if (value) requireUrls.push(value); break;
+      case 'require':
+        if (value) requireUrls.push(value);
+        break;
       // 忽略未知 @key（向后兼容 legado 扩展字段）
     }
   }

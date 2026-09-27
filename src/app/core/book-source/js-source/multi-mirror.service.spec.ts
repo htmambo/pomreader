@@ -34,15 +34,13 @@ describe('MultiMirrorService', () => {
 
   it('第一镜像重试失败后自动 failover 到下一镜像', async () => {
     // a 重试 2 次失败，b 第一次成功
-    const fn = vi
-      .fn<(url: string) => Promise<string>>()
-      .mockImplementation(async (url) => {
-        const attemptsForUrl = fn.mock.calls.filter((c) => c[0] === url).length;
-        if (url === 'http://a.com' && attemptsForUrl <= 2) {
-          throw new Error(`a-fail-${attemptsForUrl}`);
-        }
-        return `ok:${url}`;
-      });
+    const fn = vi.fn<(url: string) => Promise<string>>().mockImplementation(async (url) => {
+      const attemptsForUrl = fn.mock.calls.filter((c) => c[0] === url).length;
+      if (url === 'http://a.com' && attemptsForUrl <= 2) {
+        throw new Error(`a-fail-${attemptsForUrl}`);
+      }
+      return `ok:${url}`;
+    });
 
     const result = await service.tryMirrors(fn, {
       urls: ['http://a.com', 'http://b.com'],
@@ -52,11 +50,7 @@ describe('MultiMirrorService', () => {
 
     expect(result.ok).toBe(true);
     expect(result.data).toBe('ok:http://b.com');
-    expect(result.triedUrls).toEqual([
-      'http://a.com',
-      'http://a.com',
-      'http://b.com',
-    ]);
+    expect(result.triedUrls).toEqual(['http://a.com', 'http://a.com', 'http://b.com']);
   });
 
   it('所有镜像所有重试均失败时返回 ok:false 并汇总 triedUrls', async () => {

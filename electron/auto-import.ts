@@ -100,7 +100,11 @@ function resolveTxtPath(txtDir: string, txtName: string): string {
   return p;
 }
 
-export function registerAutoImport(ipcMain: IpcMain, userData: string, getWindow: () => BrowserWindow | null): void {
+export function registerAutoImport(
+  ipcMain: IpcMain,
+  userData: string,
+  getWindow: () => BrowserWindow | null,
+): void {
   const downloadDir = path.join(userData, 'auto-import', 'downloads');
   const txtDir = path.join(userData, 'auto-import', 'txt');
 
@@ -113,7 +117,11 @@ export function registerAutoImport(ipcMain: IpcMain, userData: string, getWindow
    * srcPath 与 bytes 二选一（下载链给磁盘路径、URL 链给内存字节）
    * 返回保存路径；用户取消或窗口不可用返回 null
    */
-  const fallbackSaveDialog = async (rawName: string, srcPath: string | null, bytes: Buffer | null): Promise<string | null> => {
+  const fallbackSaveDialog = async (
+    rawName: string,
+    srcPath: string | null,
+    bytes: Buffer | null,
+  ): Promise<string | null> => {
     const win = getWindow();
     if (!win) return null;
     const { canceled, filePath: dest } = await dialog.showSaveDialog(win, {
@@ -127,7 +135,11 @@ export function registerAutoImport(ipcMain: IpcMain, userData: string, getWindow
       } catch {
         // 跨设备 rename 失败退化为 copy+delete
         fs.copyFileSync(srcPath, dest);
-        try { fs.unlinkSync(srcPath); } catch { /* noop */ }
+        try {
+          fs.unlinkSync(srcPath);
+        } catch {
+          /* noop */
+        }
       }
     } else if (bytes) {
       fs.writeFileSync(dest, bytes);
@@ -140,14 +152,25 @@ export function registerAutoImport(ipcMain: IpcMain, userData: string, getWindow
     try {
       const bytes = fs.readFileSync(filePath);
       notify(processBuffer(txtDir, rawName, bytes));
-      try { fs.unlinkSync(filePath); } catch { /* noop */ }
+      try {
+        fs.unlinkSync(filePath);
+      } catch {
+        /* noop */
+      }
     } catch (e) {
       const reason = (e as Error).message;
       const saved = await fallbackSaveDialog(rawName, filePath, null);
       if (saved) {
-        notify({ fileName: path.basename(rawName), error: `自动导入失败（${reason}），原始文件已保存到：${saved}` });
+        notify({
+          fileName: path.basename(rawName),
+          error: `自动导入失败（${reason}），原始文件已保存到：${saved}`,
+        });
       } else {
-        try { fs.unlinkSync(filePath); } catch { /* noop */ }
+        try {
+          fs.unlinkSync(filePath);
+        } catch {
+          /* noop */
+        }
         notify({ fileName: path.basename(rawName), error: reason });
       }
     }
@@ -165,7 +188,11 @@ export function registerAutoImport(ipcMain: IpcMain, userData: string, getWindow
     item.once('done', (_e, state) => {
       if (state === 'completed') void handleFile(savePath, rawName);
       else {
-        try { fs.unlinkSync(savePath); } catch { /* noop */ }
+        try {
+          fs.unlinkSync(savePath);
+        } catch {
+          /* noop */
+        }
         notify({ fileName: rawName, error: `下载未成功（${state}）` });
       }
     });

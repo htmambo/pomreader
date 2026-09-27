@@ -68,10 +68,9 @@ describe('BookService.forTest stub — R6-1 双写契约', () => {
     const importViaSource = Object.create(ImportViaSourceService.prototype);
     importViaSource.importByUrl = async () => ({ book: { chapters: [] } });
     svc = BookService.forTest(
-       
       fakeDb as any,
       registry,
-       
+
       importViaSource as any,
     );
   });
@@ -79,7 +78,7 @@ describe('BookService.forTest stub — R6-1 双写契约', () => {
   it('db 成功时应同时写 db 和镜像 _books', async () => {
     const book = makeBook({ id: 'b1', title: 'first' });
     await svc.addBook(book, []);
-     
+
     expect((svc as any)._books()).toEqual([book]);
   });
 
@@ -90,14 +89,14 @@ describe('BookService.forTest stub — R6-1 双写契约', () => {
     const book = makeBook({ id: 'b1', title: 'first' });
     await expect(svc.addBook(book, [])).rejects.toThrow('db-write-failed');
     // 关键：await db.bookPut 抛错 → _books.update 不执行 → 镜像保持初始 []
-     
+
     expect((svc as any)._books()).toEqual([]);
   });
 
   it('db.bookDelete 抛错时 _books 不变', async () => {
     // 先写入
     await svc.addBook(makeBook({ id: 'b1' }), []);
-     
+
     expect((svc as any)._books()).toHaveLength(1);
     // 配置 delete 抛错
     fakeDb.bookDelete = async () => {
@@ -105,7 +104,7 @@ describe('BookService.forTest stub — R6-1 双写契约', () => {
     };
     await expect(svc.deleteBook('b1')).rejects.toThrow('db-delete-failed');
     // _books 应保持原状（db-first → await 抛错 → 不执行镜像）
-     
+
     expect((svc as any)._books()).toHaveLength(1);
   });
 
@@ -121,9 +120,9 @@ describe('BookService.forTest stub — R6-1 双写契约', () => {
   it('重复 persistBook 同 id 应替换（不重复添加）', async () => {
     await svc.addBook(makeBook({ id: 'b1', title: 'first' }), []);
     await svc.addBook(makeBook({ id: 'b1', title: 'updated' }), []);
-     
+
     expect((svc as any)._books()).toHaveLength(1);
-     
+
     expect((svc as any)._books()[0].title).toBe('updated');
   });
 });

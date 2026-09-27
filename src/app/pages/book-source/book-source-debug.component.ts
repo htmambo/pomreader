@@ -10,9 +10,12 @@ import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { ToastService } from '../../core/services/toast.service';
-import { SandboxService, type SandboxFn } from '../../core/book-source/js-source/sandbox.service'
-import { type BookSourceMeta } from '../../core/book-source/js-source/source-meta.types'
-import { pickBookUrl, pickChapterUrl } from '../../core/book-source/source-test/source-test.service';
+import { SandboxService, type SandboxFn } from '../../core/book-source/js-source/sandbox.service';
+import { type BookSourceMeta } from '../../core/book-source/js-source/source-meta.types';
+import {
+  pickBookUrl,
+  pickChapterUrl,
+} from '../../core/book-source/source-test/source-test.service';
 import { randomTestKeyword } from '../../core/book-source/smart-add/smart-rules';
 
 type PomAdmin = {
@@ -20,7 +23,8 @@ type PomAdmin = {
   booksourceRead?: (fileName: string, sourceDir?: string | null) => Promise<string>;
 };
 
-type DebugMode = 'idle' | 'text' | 'search' | 'bookInfo' | 'chapterList' | 'chapterContent' | 'explore';
+type DebugMode =
+  'idle' | 'text' | 'search' | 'bookInfo' | 'chapterList' | 'chapterContent' | 'explore';
 
 interface RawItem {
   name?: string;
@@ -58,44 +62,144 @@ interface RawItem {
   preserveWhitespaces: true,
   styles: [
     `
-      .row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
-      .row-label { color: var(--pom-text-muted); font-size: 13px; }
-      .grow { flex: 1; min-width: 220px; }
-      .muted { color: var(--pom-text-muted); font-size: 12px; }
-      .status { margin: 8px 0; font-size: 13px; color: var(--pom-text-muted); display: flex; align-items: center; gap: 8px; }
-      .status--ok { color: #52c41a; }
-      .status--err { color: #ff4d4f; white-space: pre-wrap; }
-      .view-toggle { display: flex; align-items: center; gap: 12px; margin: 8px 0 12px; flex-wrap: wrap; }
-      .cat-row { display: flex; gap: 6px; flex-wrap: wrap; }
-      .raw-json, .content-text {
-        max-height: 56vh; overflow: auto; padding: 12px;
-        background: var(--pom-card); border: 1px solid var(--pom-border); border-radius: 4px;
-        font-family: 'Cascadia Code', Consolas, monospace; font-size: 12px; line-height: 1.6;
-        color: var(--pom-text); white-space: pre-wrap; word-break: break-all;
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
+        flex-wrap: wrap;
+      }
+      .row-label {
+        color: var(--pom-text-muted);
+        font-size: 13px;
+      }
+      .grow {
+        flex: 1;
+        min-width: 220px;
+      }
+      .muted {
+        color: var(--pom-text-muted);
+        font-size: 12px;
+      }
+      .status {
+        margin: 8px 0;
+        font-size: 13px;
+        color: var(--pom-text-muted);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .status--ok {
+        color: #52c41a;
+      }
+      .status--err {
+        color: #ff4d4f;
+        white-space: pre-wrap;
+      }
+      .view-toggle {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 8px 0 12px;
+        flex-wrap: wrap;
+      }
+      .cat-row {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .raw-json,
+      .content-text {
+        max-height: 56vh;
+        overflow: auto;
+        padding: 12px;
+        background: var(--pom-card);
+        border: 1px solid var(--pom-border);
+        border-radius: 4px;
+        font-family: 'Cascadia Code', Consolas, monospace;
+        font-size: 12px;
+        line-height: 1.6;
+        color: var(--pom-text);
+        white-space: pre-wrap;
+        word-break: break-all;
       }
       /* 沙箱进度日志面板(暗色适配: 用半透明背景 + 浅色文本 + 行间色标) */
-      .sandbox-progress { margin: 8px 0; font-size: 12px; }
+      .sandbox-progress {
+        margin: 8px 0;
+        font-size: 12px;
+      }
       .sandbox-progress summary {
-        cursor: pointer; color: var(--pom-text-muted); padding: 4px 0;
+        cursor: pointer;
+        color: var(--pom-text-muted);
+        padding: 4px 0;
       }
       .progress-log {
-        max-height: 200px; overflow: auto; padding: 8px 12px; margin: 4px 0 0;
-        background: var(--pom-card); border: 1px solid var(--pom-border); border-radius: 4px;
-        font-family: 'Cascadia Code', Consolas, monospace; font-size: 11px; line-height: 1.5;
-        color: var(--pom-text); white-space: pre-wrap; word-break: break-all;
+        max-height: 200px;
+        overflow: auto;
+        padding: 8px 12px;
+        margin: 4px 0 0;
+        background: var(--pom-card);
+        border: 1px solid var(--pom-border);
+        border-radius: 4px;
+        font-family: 'Cascadia Code', Consolas, monospace;
+        font-size: 11px;
+        line-height: 1.5;
+        color: var(--pom-text);
+        white-space: pre-wrap;
+        word-break: break-all;
       }
       /* 浅色主题 fallback: 防止 CSS 变量缺失时黑字黑背景 */
-      :host ::ng-deep .progress-log { color: var(--pom-text, #333); background: var(--pom-card, #fafafa); }
-      :host-context(.dark) ::ng-deep .progress-log { color: #d6d6d6; background: #1f1f1f; border-color: #444; }
-      :host-context(.dark) ::ng-deep .sandbox-progress summary { color: #aaa; }
-      .preview-list { max-height: 56vh; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
-      .preview-item { padding: 8px 10px; border: 1px solid var(--pom-border); border-radius: 4px; background: var(--pom-card); cursor: pointer; }
-      .preview-item:hover { border-color: var(--pom-accent); }
-      .preview-item__name { font-size: 13px; font-weight: 500; color: var(--pom-text); }
-      .preview-item__meta { font-size: 12px; color: var(--pom-text-muted); }
-      .preview-item__url { font-size: 11px; color: var(--pom-text-muted); word-break: break-all; }
-      .book-info h3 { margin: 0 0 4px; color: var(--pom-text); }
-      .book-info p { color: var(--pom-text); margin: 4px 0; }
+      :host ::ng-deep .progress-log {
+        color: var(--pom-text, #333);
+        background: var(--pom-card, #fafafa);
+      }
+      :host-context(.dark) ::ng-deep .progress-log {
+        color: #d6d6d6;
+        background: #1f1f1f;
+        border-color: #444;
+      }
+      :host-context(.dark) ::ng-deep .sandbox-progress summary {
+        color: #aaa;
+      }
+      .preview-list {
+        max-height: 56vh;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .preview-item {
+        padding: 8px 10px;
+        border: 1px solid var(--pom-border);
+        border-radius: 4px;
+        background: var(--pom-card);
+        cursor: pointer;
+      }
+      .preview-item:hover {
+        border-color: var(--pom-accent);
+      }
+      .preview-item__name {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--pom-text);
+      }
+      .preview-item__meta {
+        font-size: 12px;
+        color: var(--pom-text-muted);
+      }
+      .preview-item__url {
+        font-size: 11px;
+        color: var(--pom-text-muted);
+        word-break: break-all;
+      }
+      .book-info h3 {
+        margin: 0 0 4px;
+        color: var(--pom-text);
+      }
+      .book-info p {
+        color: var(--pom-text);
+        margin: 4px 0;
+      }
     `,
   ],
 })
@@ -185,7 +289,9 @@ export class BookSourceDebugComponent {
     this.loading.set(true);
     this.resetResult();
     this.sandbox.clearProgress();
-    this.sandboxProgress.update(() => [`▶ 开始执行 ${fn}(...)`, ...this.sandboxProgress()].slice(0, 100));
+    this.sandboxProgress.update(() =>
+      [`▶ 开始执行 ${fn}(...)`, ...this.sandboxProgress()].slice(0, 100),
+    );
     try {
       await this.ensureLoaded();
       const raw = await this.sandbox.call<T>(this.selectedFileName, fn, args);
@@ -205,34 +311,54 @@ export class BookSourceDebugComponent {
   }
 
   runSearch(): void {
-    void this.exec<unknown[]>('search', [this.testKeyword.trim(), 1], 'search',
+    void this.exec<unknown[]>(
+      'search',
+      [this.testKeyword.trim(), 1],
+      'search',
       (v) => `✓ 搜索成功，找到 ${Array.isArray(v) ? v.length : 0} 条结果`,
-      (v) => this.items.set(Array.isArray(v) ? (v as RawItem[]) : []));
+      (v) => this.items.set(Array.isArray(v) ? (v as RawItem[]) : []),
+    );
   }
 
   runBookInfo(): void {
-    void this.exec<Record<string, unknown>>('bookInfo', [this.bookUrl.trim()], 'bookInfo',
+    void this.exec<Record<string, unknown>>(
+      'bookInfo',
+      [this.bookUrl.trim()],
+      'bookInfo',
       () => '✓ 书籍详情获取成功',
-      (v) => this.bookInfo.set(v && typeof v === 'object' ? v : {}));
+      (v) => this.bookInfo.set(v && typeof v === 'object' ? v : {}),
+    );
   }
 
   runChapterList(): void {
-    void this.exec<unknown[]>('chapterList', [this.bookUrl.trim()], 'chapterList',
+    void this.exec<unknown[]>(
+      'chapterList',
+      [this.bookUrl.trim()],
+      'chapterList',
       (v) => `✓ 目录获取成功，共 ${Array.isArray(v) ? v.length : 0} 章`,
-      (v) => this.chapters.set(Array.isArray(v) ? (v as RawItem[]) : []));
+      (v) => this.chapters.set(Array.isArray(v) ? (v as RawItem[]) : []),
+    );
   }
 
   runChapterContent(): void {
-    void this.exec<string>('chapterContent', [this.chapterUrl.trim()], 'chapterContent',
+    void this.exec<string>(
+      'chapterContent',
+      [this.chapterUrl.trim()],
+      'chapterContent',
       (v) => `✓ 正文获取成功（${typeof v === 'string' ? v.length : 0} 字符）`,
-      (v) => this.contentText.set(typeof v === 'string' ? v : JSON.stringify(v, null, 2)));
+      (v) => this.contentText.set(typeof v === 'string' ? v : JSON.stringify(v, null, 2)),
+    );
   }
 
   runExploreCategory(category: string): void {
     this.activeCategory.set(category);
-    void this.exec<unknown[]>('explore', [category, 1, true], 'explore',
+    void this.exec<unknown[]>(
+      'explore',
+      [category, 1, true],
+      'explore',
       (v) => `✓ 分类「${category}」加载成功，共 ${Array.isArray(v) ? v.length : 0} 本`,
-      (v) => this.items.set(Array.isArray(v) ? (v as RawItem[]) : []));
+      (v) => this.items.set(Array.isArray(v) ? (v as RawItem[]) : []),
+    );
   }
 
   fillBookUrl(it: RawItem): void {

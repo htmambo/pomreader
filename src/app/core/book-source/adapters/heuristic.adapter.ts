@@ -1,5 +1,10 @@
 // import type { BaseSourceAdapter } from './base-source.adapter';
-import { type BookSourceAdapter, type CatalogEntry, type PageFetcher, type ResolvedBook } from '../book-source.adapter'
+import {
+  type BookSourceAdapter,
+  type CatalogEntry,
+  type PageFetcher,
+  type ResolvedBook,
+} from '../book-source.adapter';
 import { looksObfuscated, parseCatalog, parseChapterContent } from '../heuristic-parser';
 
 /**

@@ -34,7 +34,7 @@ function makeBook(overrides: Partial<Book> = {}): Book {
 
 describe('ReaderService facade（EVO-12）', () => {
   let svc: ReaderService;
-   
+
   let booksMock: any;
   let updateProgressSpy: ReturnType<typeof vi.fn>;
   let getByIdSpy: ReturnType<typeof vi.fn>;
@@ -43,20 +43,19 @@ describe('ReaderService facade（EVO-12）', () => {
     localStorage.removeItem('pom.reader.progress');
     updateProgressSpy = vi.fn(async () => undefined);
     getByIdSpy = vi.fn((id: string) => makeBook({ id }));
-     
+
     booksMock = {
       updateProgress: updateProgressSpy,
       getById: getByIdSpy,
-       
     } as any;
     // Object.create 不跑 class field initializer；手动注入 books 依赖
-     
+
     svc = Object.create(ReaderService.prototype) as any;
-     
+
     (svc as any).books = booksMock;
     // state mock: currentBookId/currentChapterIndex/pageOffset 是 getter 函数（Signal 调用方式）
     // openBook/nextChapter/... 是 stub 方法（mock 行为）
-     
+
     (svc as any).state = {
       openBook: vi.fn(),
       nextChapter: vi.fn(),
@@ -69,24 +68,21 @@ describe('ReaderService facade（EVO-12）', () => {
       currentBookId: () => null as string | null,
       currentChapterIndex: () => 0,
       pageOffset: () => 0,
-       
     } as any;
   });
 
   describe('saveProgress 联动', () => {
     it('currentBookId 为 null 时应静默（不调 books.updateProgress）', () => {
-       
       (svc as any).state.currentBookId = () => null;
       svc.saveProgress();
       expect(updateProgressSpy).not.toHaveBeenCalled();
     });
 
     it('currentBookId 存在时应调 books.updateProgress 带正确参数', () => {
-       
       (svc as any).state.currentBookId = () => 'b1';
-       
+
       (svc as any).state.currentChapterIndex = () => 3;
-       
+
       (svc as any).state.pageOffset = () => 100;
       svc.saveProgress();
       expect(updateProgressSpy).toHaveBeenCalledWith('b1', 3, 100);
@@ -95,11 +91,10 @@ describe('ReaderService facade（EVO-12）', () => {
 
   describe('openBook / nextChapter / prevChapter / goToChapter', () => {
     beforeEach(() => {
-       
       (svc as any).state.currentBookId = () => 'b1';
-       
+
       (svc as any).state.currentChapterIndex = () => 0;
-       
+
       (svc as any).state.pageOffset = () => 0;
     });
 
@@ -137,7 +132,6 @@ describe('ReaderService facade（EVO-12）', () => {
 
   describe('restoreProgress', () => {
     it('book 不存在时应返回 null', async () => {
-       
       (svc as any).state.currentBookId = () => 'missing';
       getByIdSpy.mockReturnValue(undefined);
       const result = await svc.restoreProgress();
@@ -145,7 +139,6 @@ describe('ReaderService facade（EVO-12）', () => {
     });
 
     it('book 存在 + 有 progress 时应返回完整状态', async () => {
-       
       (svc as any).state.currentBookId = () => 'b1';
       getByIdSpy.mockReturnValue(
         makeBook({ id: 'b1', progress: { chapterIndex: 3, scrollOffset: 150, updatedAt: 'x' } }),
@@ -155,7 +148,6 @@ describe('ReaderService facade（EVO-12）', () => {
     });
 
     it('book.progress 缺 scrollOffset 时应 fallback 0', async () => {
-       
       (svc as any).state.currentBookId = () => 'b1';
       getByIdSpy.mockReturnValue(
         makeBook({ id: 'b1', progress: { chapterIndex: 2, updatedAt: 'x' } }),
@@ -172,10 +164,7 @@ describe('ReaderService facade（EVO-12）', () => {
     });
 
     it('localStorage 有合法记录时应迁移并删除', () => {
-      localStorage.setItem(
-        'pom.reader.progress',
-        JSON.stringify({ bookId: 'b1', chapter: 5 }),
-      );
+      localStorage.setItem('pom.reader.progress', JSON.stringify({ bookId: 'b1', chapter: 5 }));
       svc.migrateLegacyProgress();
       expect(updateProgressSpy).toHaveBeenCalledWith('b1', 5);
       expect(localStorage.getItem('pom.reader.progress')).toBeNull();

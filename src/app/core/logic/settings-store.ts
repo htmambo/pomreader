@@ -1,5 +1,19 @@
-import { signal, type Signal, type WritableSignal } from '@angular/core'
-import { type Settings, DEFAULT_SETTINGS, PAGE_WIDTHS, MIN_FONT_SIZE, MAX_FONT_SIZE, MIN_FONT_WEIGHT, MAX_FONT_WEIGHT, MIN_LINE_HEIGHT, MAX_LINE_HEIGHT, MIN_PARAGRAPH_SPACING, MAX_PARAGRAPH_SPACING, BOOKSHELF_SORTS, CONVERT_MODES } from '../models/settings.model'
+import { signal, type Signal, type WritableSignal } from '@angular/core';
+import {
+  type Settings,
+  DEFAULT_SETTINGS,
+  PAGE_WIDTHS,
+  MIN_FONT_SIZE,
+  MAX_FONT_SIZE,
+  MIN_FONT_WEIGHT,
+  MAX_FONT_WEIGHT,
+  MIN_LINE_HEIGHT,
+  MAX_LINE_HEIGHT,
+  MIN_PARAGRAPH_SPACING,
+  MAX_PARAGRAPH_SPACING,
+  BOOKSHELF_SORTS,
+  CONVERT_MODES,
+} from '../models/settings.model';
 
 const STORAGE_KEY = 'pom.settings';
 
@@ -40,8 +54,7 @@ export namespace SettingsStore {
   /** 从 localStorage 解析并白名单校验；任一字段缺失/非法回退到默认。 */
   export function load(): Settings {
     try {
-      const stored =
-        typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
+      const stored = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
       if (!stored) return DEFAULT_SETTINGS;
       const parsed = JSON.parse(stored) as Partial<Settings>;
       return mergeValidated(parsed);
@@ -67,8 +80,7 @@ export namespace SettingsStore {
       theme: validateInt(parsed.theme, 0, 6) ?? DEFAULT_SETTINGS.theme,
       fontSize:
         validateInt(parsed.fontSize, MIN_FONT_SIZE, MAX_FONT_SIZE) ?? DEFAULT_SETTINGS.fontSize,
-      fontFamily:
-        validateInt(parsed.fontFamily, 1, 3) ?? DEFAULT_SETTINGS.fontFamily,
+      fontFamily: validateInt(parsed.fontFamily, 1, 3) ?? DEFAULT_SETTINGS.fontFamily,
       pageWidth:
         typeof parsed.pageWidth === 'number' && PAGE_WIDTHS.includes(parsed.pageWidth)
           ? parsed.pageWidth

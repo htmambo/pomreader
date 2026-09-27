@@ -6,41 +6,42 @@
     (ngModelChange)="state.filter.set($event)"
     class="filter-input"
   />
-  <button nz-button (click)="openSmartAdd()">
-    <span nz-icon nzType="thunderbolt"></span> 添加书源
-  </button>
+  <button nz-button (click)="openSmartAdd()"><span nz-icon nzType="thunderbolt"></span> 添加书源</button>
   <button nz-button nzType="primary" (click)="openLegadoImport()">
     <span nz-icon nzType="import"></span> 导入 Legado 源
   </button>
 </div>
 
 @if (firstLoading()) {
-  <div class="state-block"><nz-spin nzSimple></nz-spin><p>加载中...</p></div>
+<div class="state-block">
+  <nz-spin nzSimple></nz-spin>
+  <p>加载中...</p>
+</div>
 } @else if (state.sources().length === 0) {
-  <nz-empty nzNotFoundContent="暂无书源"></nz-empty>
+<nz-empty nzNotFoundContent="暂无书源"></nz-empty>
 } @else {
-  <div class="source-list">
-    @for (src of filtered(); track src.fileName) {
-      <div class="source-card">
-        <div class="source-info">
-          <h3>{{ src.name }}</h3>
-          <p class="meta">{{ src.author || '未知作者' }} · {{ src.url || '无 URL' }}</p>
-          @if (src.description) {
-            <p class="desc">{{ src.description }}</p>
-          }
-          <div class="tags">
-            @for (tag of src.tags; track tag) {
-              <nz-tag>{{ tag }}</nz-tag>
-            }
-          </div>
-        </div>
-        <div class="source-actions">
-          <nz-switch [ngModel]="src.enabled" (ngModelChange)="toggle(src, $event)"></nz-switch>
-          <button nz-button nzSize="small" (click)="openEditor(src)">编辑</button>
-          <button nz-button nzSize="small" (click)="openDebug(src)">调试</button>
-          <button nz-button nzSize="small" nzDanger (click)="confirmDelete(src)">删除</button>
-        </div>
+<div class="source-list">
+  @for (src of filtered(); track src.fileName) {
+  <div class="source-card">
+    <div class="source-info">
+      <h3>{{ src.name }}</h3>
+      <p class="meta">{{ src.author || '未知作者' }} · {{ src.url || '无 URL' }}</p>
+      @if (src.description) {
+      <p class="desc">{{ src.description }}</p>
+      }
+      <div class="tags">
+        @for (tag of src.tags; track tag) {
+        <nz-tag>{{ tag }}</nz-tag>
+        }
       </div>
-    }
+    </div>
+    <div class="source-actions">
+      <nz-switch [ngModel]="src.enabled" (ngModelChange)="toggle(src, $event)"></nz-switch>
+      <button nz-button nzSize="small" (click)="openEditor(src)">编辑</button>
+      <button nz-button nzSize="small" (click)="openDebug(src)">调试</button>
+      <button nz-button nzSize="small" nzDanger (click)="confirmDelete(src)">删除</button>
+    </div>
   </div>
+  }
+</div>
 }

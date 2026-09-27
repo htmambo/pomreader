@@ -1,7 +1,7 @@
-import { Injectable, signal, inject, type WritableSignal } from '@angular/core'
-import { type Chapter } from '../models/chapter.model'
+import { Injectable, signal, inject, type WritableSignal } from '@angular/core';
+import { type Chapter } from '../models/chapter.model';
 import { BookSourceRegistry } from '../book-source/book-source.registry';
-import { type CatalogEntry } from '../book-source/book-source.adapter'
+import { type CatalogEntry } from '../book-source/book-source.adapter';
 import { DbService } from './db.service';
 
 /**
@@ -64,7 +64,10 @@ export class ChapterLoader {
         const list = m.get(bookId);
         if (!list) return m;
         const next = new Map(m);
-        next.set(bookId, list.map((c) => (c.index === index ? updated : c)));
+        next.set(
+          bookId,
+          list.map((c) => (c.index === index ? updated : c)),
+        );
         return next;
       });
       this.chaptersVersion.update((v) => v + 1);
@@ -91,7 +94,10 @@ export class ChapterLoader {
         const list = m.get(bookId);
         if (!list) return m;
         const next = new Map(m);
-        next.set(bookId, list.map((c) => (c.index === index ? updated : c)));
+        next.set(
+          bookId,
+          list.map((c) => (c.index === index ? updated : c)),
+        );
         return next;
       });
       this.chaptersVersion.update((v) => v + 1);
@@ -130,9 +136,7 @@ export class ChapterLoader {
       const list = m.get(bookId);
       // 缓存 miss 路径：直接把单章写进新数组（覆盖写）
       const next = new Map(m);
-      const newList = list
-        ? list.map((c) => (c.index === index ? updated : c))
-        : [updated];
+      const newList = list ? list.map((c) => (c.index === index ? updated : c)) : [updated];
       next.set(bookId, newList);
       return next;
     });
@@ -154,7 +158,7 @@ export class ChapterLoader {
   /**
    * 测试入口：手动注入依赖（绕开 Angular DI 上下文 NG0203）。
    */
-   
+
   static forTest(db: DbService, sources: BookSourceRegistry): ChapterLoader {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const loader: any = Object.create(ChapterLoader.prototype);

@@ -68,7 +68,7 @@ describe('BookService.count ↔ BookRepository.count 不变量', () => {
     registry.register(new StubAdapter('stub'));
     const importViaSource = Object.create(ImportViaSourceService.prototype);
     importViaSource.importByUrl = async () => ({ book: { chapters: [] } });
-     
+
     svc = BookService.forTest(fakeDb as any, registry, importViaSource as any);
   });
 

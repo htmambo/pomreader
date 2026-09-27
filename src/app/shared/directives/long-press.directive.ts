@@ -1,4 +1,4 @@
-import { Directive, type OnDestroy, output } from '@angular/core'
+import { Directive, type OnDestroy, output } from '@angular/core';
 
 /**
  * 长按指令：按住 500ms 触发 (appLongPress)。

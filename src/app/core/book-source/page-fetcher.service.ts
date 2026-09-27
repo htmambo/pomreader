@@ -1,6 +1,6 @@
 import { Injectable, NgZone, inject } from '@angular/core';
 import { NzModalService } from 'ng-zorro-antd/modal';
-import { type PageFetcher } from './book-source.adapter'
+import { type PageFetcher } from './book-source.adapter';
 import { FetchError } from './fetch-error';
 
 declare global {
@@ -8,7 +8,7 @@ declare global {
     pomAPI?: {
       fetchHtml: (
         url: string,
-        encoding?: 'auto' | 'utf-8' | 'gbk'
+        encoding?: 'auto' | 'utf-8' | 'gbk',
       ) => Promise<{ html?: string; error?: string }>;
       fetchRendered: (url: string) => Promise<{ text?: string; error?: string }>;
       /** Cloudflare Tier 2 人工过盾（弹可见窗口；返回渲染后的 HTML，null = 用户关窗/超时） */
@@ -26,20 +26,31 @@ declare global {
         method?: string;
         headers?: Record<string, string>;
         body?: string | null;
-      }) => Promise<{ status: number; headers: Record<string, string>; body: string; cfChallenge?: boolean }>;
+      }) => Promise<{
+        status: number;
+        headers: Record<string, string>;
+        body: string;
+        cfChallenge?: boolean;
+      }>;
       /** 书源文件读取（T-004 js-source.adapter.ts 用） */
       booksourceRead?: (fileName: string, sourceDir?: string) => Promise<string>;
       /** 书源列表（T-004 registry 用） */
-      booksourceList?: () => Promise<Array<{
-        fileName: string;
-        name: string;
-        url: string;
-        enabled: boolean;
-        sourceDir?: string;
-        [key: string]: unknown;
-      }>>;
+      booksourceList?: () => Promise<
+        Array<{
+          fileName: string;
+          name: string;
+          url: string;
+          enabled: boolean;
+          sourceDir?: string;
+          [key: string]: unknown;
+        }>
+      >;
       /** 封面缓存 IPC（T-008 CoverService 用） */
-      coverResolveCache?: (req: { url: string; referer?: string; headers?: Record<string, string> }) => Promise<{
+      coverResolveCache?: (req: {
+        url: string;
+        referer?: string;
+        headers?: Record<string, string>;
+      }) => Promise<{
         localPath: string;
         localRef: string;
       }>;
@@ -68,15 +79,12 @@ export class PageFetcherService implements PageFetcher {
     return new Promise<T>((resolve, reject) =>
       p.then(
         (v) => this.zone.run(() => resolve(v)),
-        (e: unknown) => this.zone.run(() => reject(e))
-      )
+        (e: unknown) => this.zone.run(() => reject(e)),
+      ),
     );
   }
 
-  async fetchHtml(
-    url: string,
-    encoding: 'auto' | 'utf-8' | 'gbk' = 'auto'
-  ): Promise<string> {
+  async fetchHtml(url: string, encoding: 'auto' | 'utf-8' | 'gbk' = 'auto'): Promise<string> {
     if (window.pomAPI?.fetchHtml) {
       const res = await this.inZone(window.pomAPI.fetchHtml(url, encoding));
       // Tier 1 自动过盾仍失败 → Tier 2：询问用户手动完成 CF 验证后重试一次
@@ -94,10 +102,7 @@ export class PageFetcherService implements PageFetcher {
 
   /** CF 挑战：弹确认框 → 打开人工验证窗口 → 提取的渲染 HTML 直接返回；
    * 取消/用户关窗/超时 → 抛 cf-challenge */
-  private cfChallengeFlow(
-    _url: string,
-    _encoding: 'auto' | 'utf-8' | 'gbk'
-  ): Promise<string> {
+  private cfChallengeFlow(_url: string, _encoding: 'auto' | 'utf-8' | 'gbk'): Promise<string> {
     return new Promise<string>((resolve, reject) => {
       const fail = (): void => reject(new FetchError('cf-challenge'));
       this.modal.confirm({
@@ -110,7 +115,10 @@ export class PageFetcherService implements PageFetcher {
           try {
             const api = window.pomAPI!;
             const html = await this.inZone(api.cfPassManual!(_url));
-            if (!html) { fail(); return; }
+            if (!html) {
+              fail();
+              return;
+            }
             resolve(html);
           } catch {
             fail();

@@ -76,12 +76,7 @@ describe('chapter-split', () => {
     });
 
     it('preserves blank lines at start/end without losing chapters', () => {
-      const text = [
-        '',
-        '第一章 开始',
-        '内容',
-        '',
-      ].join('\n');
+      const text = ['', '第一章 开始', '内容', ''].join('\n');
       const result = splitChapters(text);
       expect(result.length).toBeGreaterThanOrEqual(2);
       // preamble 段只有空行，回退到 '__preamble__'

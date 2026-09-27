@@ -156,7 +156,7 @@ describe('BookService.changeBookSource', () => {
 
   it('throws FetchError(unsupported-source) when source is local-txt', async () => {
     // 设置 in-memory _books 包含一本 local-txt 书
-     
+
     (svc as any)._books.set([makeBook({ source: 'local-txt' })]);
     await expect(svc.changeBookSource('book-1', 'http://new', 'stub')).rejects.toMatchObject({
       code: 'unsupported-source',
@@ -164,7 +164,6 @@ describe('BookService.changeBookSource', () => {
   });
 
   it('throws FetchError(unsupported-source) when source is auto-import', async () => {
-     
     (svc as any)._books.set([makeBook({ source: 'auto-import' })]);
     await expect(svc.changeBookSource('book-1', 'http://new', 'stub')).rejects.toMatchObject({
       code: 'unsupported-source',
@@ -172,11 +171,10 @@ describe('BookService.changeBookSource', () => {
   });
 
   it('throws FetchError(parse-failed) when new catalog has 0 chapters', async () => {
-     
     (svc as any)._books.set([makeBook()]);
     const emptyResolved = makeResolved({ chapters: [] });
     const emptyVia = makeFakeImportViaSource(emptyResolved, 'new-uuid');
-     
+
     (svc as any).importViaSource = emptyVia;
     await expect(svc.changeBookSource('book-1', 'http://new', 'stub')).rejects.toMatchObject({
       code: 'parse-failed',
@@ -184,7 +182,6 @@ describe('BookService.changeBookSource', () => {
   });
 
   it('replaces source-bound fields and preserves user-bound fields', async () => {
-     
     (svc as any)._books.set([makeBook()]);
     await svc.changeBookSource('book-1', 'http://new.example.com/book/1', 'stub');
 
@@ -206,12 +203,11 @@ describe('BookService.changeBookSource', () => {
   });
 
   it('preserves kind and coverImageUrl as fallback when new source lacks them', async () => {
-     
     (svc as any)._books.set([makeBook({ kind: '旧题材', coverImageUrl: 'data:old' })]);
     const resolvedNoExtras = makeResolved({ kind: undefined });
     delete (resolvedNoExtras as { kind?: string }).kind;
     const via = makeFakeImportViaSource(resolvedNoExtras, 'new-uuid');
-     
+
     (svc as any).importViaSource = via;
 
     await svc.changeBookSource('book-1', 'http://new', 'stub');
@@ -221,7 +217,6 @@ describe('BookService.changeBookSource', () => {
   });
 
   it('clamps progress.chapterIndex to [0, newCount-1] when new source has fewer chapters', async () => {
-     
     (svc as any)._books.set([
       makeBook({
         progress: { chapterIndex: 4, scrollOffset: 100, updatedAt: '2026-02-15T10:00:00Z' },
@@ -236,7 +231,6 @@ describe('BookService.changeBookSource', () => {
   });
 
   it('keeps progress.chapterIndex unchanged when within new range', async () => {
-     
     (svc as any)._books.set([
       makeBook({ progress: { chapterIndex: 1, updatedAt: '2026-02-15T10:00:00Z' } }),
     ]);
@@ -246,14 +240,12 @@ describe('BookService.changeBookSource', () => {
   });
 
   it('handles missing progress (legacy books without progress)', async () => {
-     
     (svc as any)._books.set([makeBook({ progress: undefined })]);
     await svc.changeBookSource('book-1', 'http://new', 'stub');
     expect(calls[0].book.progress).toBeUndefined();
   });
 
   it('writes new chapters with content="" and loaded=false (lazy re-fetch)', async () => {
-     
     (svc as any)._books.set([makeBook()]);
     await svc.changeBookSource('book-1', 'http://new', 'stub');
     const newChapters = calls[0].chapters;
@@ -269,7 +261,6 @@ describe('BookService.changeBookSource', () => {
   });
 
   it('passes newUrl and sourceName to importViaSource.importByUrl', async () => {
-     
     (svc as any)._books.set([makeBook()]);
     await svc.changeBookSource('book-1', 'http://new.example.com/book/1', 'stub');
     expect(importViaSource.importByUrl).toHaveBeenCalledWith(
@@ -279,7 +270,6 @@ describe('BookService.changeBookSource', () => {
   });
 
   it('passes undefined sourceName to importViaSource when not specified', async () => {
-     
     (svc as any)._books.set([makeBook()]);
     await svc.changeBookSource('book-1', 'http://new.example.com/book/1');
     expect(importViaSource.importByUrl).toHaveBeenCalledWith(
@@ -289,7 +279,6 @@ describe('BookService.changeBookSource', () => {
   });
 
   it('falls back to old title/author when new resolved values are empty', async () => {
-     
     (svc as any)._books.set([makeBook()]);
     const emptyResolved: ResolvedBook = {
       title: '',
@@ -297,7 +286,7 @@ describe('BookService.changeBookSource', () => {
       chapters: [{ title: 'ch1', url: 'http://new/1' }],
     };
     const via = makeFakeImportViaSource(emptyResolved, 'new-uuid');
-     
+
     (svc as any).importViaSource = via;
     await svc.changeBookSource('book-1', 'http://new', 'stub');
     const merged = calls[0].book;
@@ -306,10 +295,9 @@ describe('BookService.changeBookSource', () => {
   });
 
   it('forwards UNIVERSAL_BOOK_SOURCE_UUID when importByUrl returns universal uuid', async () => {
-     
     (svc as any)._books.set([makeBook()]);
     const via = makeFakeImportViaSource(makeResolved(), UNIVERSAL_BOOK_SOURCE_UUID);
-     
+
     (svc as any).importViaSource = via;
     await svc.changeBookSource('book-1', 'http://new');
     expect(calls[0].book.bookSourceUuid).toBe(UNIVERSAL_BOOK_SOURCE_UUID);
@@ -383,7 +371,6 @@ describe('BookService.refreshChapters', () => {
   });
 
   it('throws FetchError(unsupported-source) when source is not online', async () => {
-     
     (svc as any)._books.set([makeBook({ source: 'local-txt' })]);
     await expect(svc.refreshChapters('book-1')).rejects.toMatchObject({
       code: 'unsupported-source',
@@ -391,7 +378,6 @@ describe('BookService.refreshChapters', () => {
   });
 
   it('throws FetchError(parse-failed) when book has no sourceUrl', async () => {
-     
     (svc as any)._books.set([makeBook({ sourceUrl: undefined })]);
     await expect(svc.refreshChapters('book-1')).rejects.toMatchObject({
       code: 'parse-failed',
@@ -399,13 +385,12 @@ describe('BookService.refreshChapters', () => {
   });
 
   it('throws FetchError(parse-failed) when new catalog has 0 chapters', async () => {
-     
     (svc as any)._books.set([makeBook()]);
     const emptyVia = makeFakeImportViaSource(
       { title: 'x', author: 'x', chapters: [] },
       'stub-uuid',
     );
-     
+
     (svc as any).importViaSource = emptyVia;
     await expect(svc.refreshChapters('book-1')).rejects.toMatchObject({
       code: 'parse-failed',
@@ -413,7 +398,6 @@ describe('BookService.refreshChapters', () => {
   });
 
   it('returns {added:0, skipped, total} when all chapters are duplicates (no addBook call)', async () => {
-     
     (svc as any)._books.set([makeBook()]);
     // 全部重复：只有旧 3 章
     const via = makeFakeImportViaSource(
@@ -428,7 +412,7 @@ describe('BookService.refreshChapters', () => {
       },
       'stub-uuid',
     );
-     
+
     (svc as any).importViaSource = via;
 
     const result = await svc.refreshChapters('book-1');
@@ -438,7 +422,6 @@ describe('BookService.refreshChapters', () => {
   });
 
   it('appends only new chapters (URL dedup), preserves existing chapter indices', async () => {
-     
     (svc as any)._books.set([makeBook()]);
     const result = await svc.refreshChapters('book-1');
 
@@ -471,7 +454,6 @@ describe('BookService.refreshChapters', () => {
   });
 
   it('updates Book.chapterCount and totalChars without touching other fields', async () => {
-     
     (svc as any)._books.set([makeBook()]);
     await svc.refreshChapters('book-1');
     const merged = calls[0].book;
@@ -488,7 +470,6 @@ describe('BookService.refreshChapters', () => {
   });
 
   it('preserves progress.chapterIndex unchanged (no clamp needed)', async () => {
-     
     (svc as any)._books.set([
       makeBook({
         progress: { chapterIndex: 2, scrollOffset: 500, updatedAt: '2026-02-15T10:00:00Z' },
@@ -502,7 +483,6 @@ describe('BookService.refreshChapters', () => {
   });
 
   it('passes source.name (looked up from bookSourceUuid) to importByUrl', async () => {
-     
     (svc as any)._books.set([makeBook({ bookSourceUuid: 'stub-uuid' })]);
     await svc.refreshChapters('book-1');
     expect(importViaSource.importByUrl).toHaveBeenCalledWith(
@@ -512,7 +492,6 @@ describe('BookService.refreshChapters', () => {
   });
 
   it('passes undefined sourceName when bookSourceUuid is UNIVERSAL_BOOK_SOURCE_UUID', async () => {
-     
     (svc as any)._books.set([makeBook({ bookSourceUuid: UNIVERSAL_BOOK_SOURCE_UUID })]);
     await svc.refreshChapters('book-1');
     expect(importViaSource.importByUrl).toHaveBeenCalledWith(
@@ -522,7 +501,6 @@ describe('BookService.refreshChapters', () => {
   });
 
   it('passes undefined sourceName when bookSourceUuid is missing', async () => {
-     
     (svc as any)._books.set([makeBook({ bookSourceUuid: undefined })]);
     await svc.refreshChapters('book-1');
     expect(importViaSource.importByUrl).toHaveBeenCalledWith(
@@ -533,7 +511,7 @@ describe('BookService.refreshChapters', () => {
 
   it('fetches chapters from PouchDB when in-memory cache is empty (chapterAll fallback)', async () => {
     // _chaptersCache 空白（beforeEach 未预填）→ refreshChapters 应走 db.chapterAll
-     
+
     (svc as any)._books.set([makeBook()]);
     expect(fakeDb.chapterAll).not.toHaveBeenCalled();
     await svc.refreshChapters('book-1');
@@ -541,14 +519,13 @@ describe('BookService.refreshChapters', () => {
   });
 
   it('treats missing sourceUrl on existing chapter as not-duplicate (still dedupes by URL presence)', async () => {
-     
     (svc as any)._books.set([makeBook()]);
     // 把所有旧章 sourceUrl 清空 → existingUrls 是空集 → 全部视为新章（追加）
     const clearedFakeDb = makeFakeDb([
       { bookId: 'book-1', index: 0, title: 'ch1' },
       { bookId: 'book-1', index: 1, title: 'ch2' },
     ]).fakeDb;
-     
+
     (svc as any).db = clearedFakeDb;
 
     const result = await svc.refreshChapters('book-1');

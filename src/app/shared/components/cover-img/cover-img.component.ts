@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, Input, signal, computed, inject, type OnChanges } from '@angular/core'
+import {
+  ChangeDetectionStrategy,
+  Component,
+  Input,
+  signal,
+  computed,
+  inject,
+  type OnChanges,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { CoverService } from '../../../core/cover/cover.service';
 
@@ -40,12 +48,7 @@ declare global {
       @if (loading()) {
         <div class="skeleton"></div>
       } @else if (displaySrc()) {
-        <img
-          [src]="displaySrc()"
-          [alt]="title"
-          (error)="onError()"
-          loading="lazy"
-        />
+        <img [src]="displaySrc()" [alt]="title" (error)="onError()" loading="lazy" />
       } @else {
         <span class="fallback-text">{{ firstChar }}</span>
       }
@@ -81,8 +84,13 @@ declare global {
         text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
       }
       @keyframes cover-pulse {
-        0%, 100% { opacity: 0.12; }
-        50% { opacity: 0.32; }
+        0%,
+        100% {
+          opacity: 0.12;
+        }
+        50% {
+          opacity: 0.32;
+        }
       }
     `,
   ],

@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { type CoverRequest } from './cover.types'
+import { type CoverRequest } from './cover.types';
 
 /**
  * 封面解析 + 缓存服务（实施计划 T-008 + spec FR-3）
@@ -13,9 +13,9 @@ import { type CoverRequest } from './cover.types'
  * Window.pomAPI 类型声明统一在 page-fetcher.service.ts
  */
 
-const BATCH_CONCURRENCY = 6;          // spec FR-3.7
-const RETRY_BACKOFF_MS = 500;         // 重试退避
-const MAX_RETRY = 1;                  // 总尝试次数 = 1（首次）+ 1 = 2 次
+const BATCH_CONCURRENCY = 6; // spec FR-3.7
+const RETRY_BACKOFF_MS = 500; // 重试退避
+const MAX_RETRY = 1; // 总尝试次数 = 1（首次）+ 1 = 2 次
 
 @Injectable({ providedIn: 'root' })
 export class CoverService {
@@ -103,10 +103,7 @@ export class CoverService {
    * 同一 URL 总生成相同颜色（避免重渲染抖动）
    */
   private fallbackDataUrl(url: string): string {
-    const hash = Array.from(url).reduce(
-      (h, c) => (h * 31 + c.charCodeAt(0)) | 0,
-      0,
-    );
+    const hash = Array.from(url).reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0);
     const hue = Math.abs(hash) % 360;
     const svg =
       `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 140">` +

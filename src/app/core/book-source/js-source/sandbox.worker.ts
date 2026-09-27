@@ -21,44 +21,64 @@
 // 加载超时,根因即此路径未被覆盖)
 // Round 11: 分阶段 try-catch —— 任何阶段抛错都立刻 postMessage 回主线程,精确定位失败阶段
 try {
-  logToMain("info", '[sandbox.worker] ▶ 阶段 1/4: 删敏感全局(window/document/localStorage/parent/top)');
+  logToMain(
+    'info',
+    '[sandbox.worker] ▶ 阶段 1/4: 删敏感全局(window/document/localStorage/parent/top)',
+  );
   delete (self as unknown as Record<string, unknown>)['window'];
   delete (self as unknown as Record<string, unknown>)['document'];
   delete (self as unknown as Record<string, unknown>)['localStorage'];
   delete (self as unknown as Record<string, unknown>)['parent'];
   delete (self as unknown as Record<string, unknown>)['top'];
-  logToMain("info", '[sandbox.worker] ✓ 阶段 1/4 完成');
+  logToMain('info', '[sandbox.worker] ✓ 阶段 1/4 完成');
 } catch (err) {
   replyInitError(err, '阶段 1/4 删敏感全局');
 }
 try {
-  logToMain("info", '[sandbox.worker] ▶ 阶段 2/4: 屏蔽 10 个网络出口(fetch/XMLHttpRequest/WebSocket 等)');
+  logToMain(
+    'info',
+    '[sandbox.worker] ▶ 阶段 2/4: 屏蔽 10 个网络出口(fetch/XMLHttpRequest/WebSocket 等)',
+  );
   // 注意:navigator 不在此处屏蔽!阶段 3/4 要 Object.defineProperty(self, 'navigator', ...),
   //   二次 defineProperty 同一属性(configurable:false)会抛 TypeError,导致整个硬化段崩
   const NETWORK_API_BLOCKLIST = [
-    'fetch', 'XMLHttpRequest', 'WebSocket', 'importScripts',
-    'Worker', 'SharedWorker', 'EventSource', 'WebTransport',
-    'RTCPeerConnection', 'RTCDataChannel',
+    'fetch',
+    'XMLHttpRequest',
+    'WebSocket',
+    'importScripts',
+    'Worker',
+    'SharedWorker',
+    'EventSource',
+    'WebTransport',
+    'RTCPeerConnection',
+    'RTCDataChannel',
   ];
   for (const name of NETWORK_API_BLOCKLIST) {
     Object.defineProperty(self, name, {
-      get: () => { throw new Error(`${name} is disabled in sandbox; use legado.http instead`); },
-      set: () => { throw new Error(`${name} is read-only and disabled in sandbox`); },
+      get: () => {
+        throw new Error(`${name} is disabled in sandbox; use legado.http instead`);
+      },
+      set: () => {
+        throw new Error(`${name} is read-only and disabled in sandbox`);
+      },
       enumerable: false,
       configurable: false,
     });
   }
-  logToMain("info", '[sandbox.worker] ✓ 阶段 2/4 完成');
+  logToMain('info', '[sandbox.worker] ✓ 阶段 2/4 完成');
 } catch (err) {
   replyInitError(err, '阶段 2/4 屏蔽网络出口');
 }
 try {
-  logToMain("info", '[sandbox.worker] ▶ 阶段 3/4: navigator Proxy + sendBeacon 拦截');
+  logToMain('info', '[sandbox.worker] ▶ 阶段 3/4: navigator Proxy + sendBeacon 拦截');
   const originalNavigator = (self as unknown as { navigator?: object })['navigator'] ?? {};
   Object.defineProperty(self, 'navigator', {
     value: new Proxy(originalNavigator, {
       get(target, prop) {
-        if (prop === 'sendBeacon') return () => { throw new Error('sendBeacon is disabled in sandbox'); };
+        if (prop === 'sendBeacon')
+          return () => {
+            throw new Error('sendBeacon is disabled in sandbox');
+          };
         const v = Reflect.get(target, prop);
         return typeof v === 'function' ? v.bind(target) : v;
       },
@@ -67,36 +87,43 @@ try {
         return Reflect.has(target, prop);
       },
       getOwnPropertyDescriptor(target, prop) {
-        if (prop === 'sendBeacon') return { configurable: false, enumerable: true, value: undefined };
+        if (prop === 'sendBeacon')
+          return { configurable: false, enumerable: true, value: undefined };
         return Reflect.getOwnPropertyDescriptor(target, prop);
       },
       set(_, prop) {
         if (prop === 'sendBeacon') throw new Error('sendBeacon is disabled in sandbox');
         throw new Error(`navigator is read-only in sandbox (attempted set: ${String(prop)})`);
       },
-      defineProperty(_, prop) { throw new Error(`navigator is frozen in sandbox (attempted defineProperty: ${String(prop)})`); },
-      deleteProperty(_, prop) { throw new Error(`navigator is frozen in sandbox (attempted delete: ${String(prop)})`); },
+      defineProperty(_, prop) {
+        throw new Error(
+          `navigator is frozen in sandbox (attempted defineProperty: ${String(prop)})`,
+        );
+      },
+      deleteProperty(_, prop) {
+        throw new Error(`navigator is frozen in sandbox (attempted delete: ${String(prop)})`);
+      },
     }),
     writable: false,
     configurable: false,
   });
-  logToMain("info", '[sandbox.worker] ✓ 阶段 3/4 完成');
+  logToMain('info', '[sandbox.worker] ✓ 阶段 3/4 完成');
 } catch (err) {
   replyInitError(err, '阶段 3/4 navigator Proxy');
 }
 try {
-  logToMain("info", '[sandbox.worker] ▶ 阶段 4/4: 冻结 Object/Array/Function 原型链');
+  logToMain('info', '[sandbox.worker] ▶ 阶段 4/4: 冻结 Object/Array/Function 原型链');
   Object.freeze(Object.prototype);
   Object.freeze(Array.prototype);
   Object.freeze(Function.prototype);
-  logToMain("info", '[sandbox.worker] ✓ 阶段 4/4 完成');
+  logToMain('info', '[sandbox.worker] ✓ 阶段 4/4 完成');
 } catch (err) {
   replyInitError(err, '阶段 4/4 冻结原型链');
 }
 
 /** 启动失败时主动 postMessage 回主线程,避免 LOAD_TIMEOUT_MS 才看到「无回执」 */
 function replyInitError(err: unknown, phase = '未知阶段'): void {
-  logToMain("error", `[sandbox.worker] ✗ ${phase}抛错:`, err);
+  logToMain('error', `[sandbox.worker] ✗ ${phase}抛错:`, err);
   const e = err as { message?: string; stack?: string };
   try {
     (self as DedicatedWorkerGlobalScope).postMessage({
@@ -104,10 +131,10 @@ function replyInitError(err: unknown, phase = '未知阶段'): void {
       error: `${phase}失败：${String(e?.message ?? err)}`,
       stack: String(e?.stack ?? ''),
     });
-    logToMain("info", '[sandbox.worker] → init-error 消息已发出');
+    logToMain('info', '[sandbox.worker] → init-error 消息已发出');
   } catch {
     // postMessage 自身失败(Worker 已死),主线程 onerror 兜底
-    logToMain("error", '[sandbox.worker] ✗ init-error postMessage 失败(Worker 已死)');
+    logToMain('error', '[sandbox.worker] ✗ init-error postMessage 失败(Worker 已死)');
   }
 }
 
@@ -128,13 +155,17 @@ function logToMain(level: 'info' | 'warn' | 'error', ...args: unknown[]): void {
   const msg = args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ');
   try {
     (self as DedicatedWorkerGlobalScope).postMessage({ type: 'worker-log', level, msg });
-  } catch { /* swallow:worker 已死,主线程读不到 */ }
+  } catch {
+    /* swallow:worker 已死,主线程读不到 */
+  }
   // 双写 console(DevTools 可见)
   try {
     if (level === 'error') console.error(...args);
     else if (level === 'warn') console.warn(...args);
     else console.info(...args);
-  } catch { /* swallow */ }
+  } catch {
+    /* swallow */
+  }
 }
 
 interface HttpProxyResponse {
@@ -150,9 +181,9 @@ interface HttpProxyResponse {
 function signalReady(): void {
   try {
     (self as DedicatedWorkerGlobalScope).postMessage({ type: 'worker-ready' });
-    logToMain("info", '[sandbox.worker] ✓ 启动完成,worker-ready 已发出');
+    logToMain('info', '[sandbox.worker] ✓ 启动完成,worker-ready 已发出');
   } catch {
-    logToMain("error", '[sandbox.worker] ✗ worker-ready postMessage 失败');
+    logToMain('error', '[sandbox.worker] ✗ worker-ready postMessage 失败');
   }
 }
 
@@ -196,7 +227,14 @@ type WorkerOutbound =
   | { type: 'http'; reqId: string; request: HttpProxyRequest }
   | { type: 'query'; reqId: string; html: string; selector: string; baseUrl: string }
   | { type: 'worker-log'; level: 'info' | 'warn' | 'error'; msg: string }
-  | { type: 'result'; reqId: string; ok: boolean; value?: unknown; error?: string; errorName?: string };
+  | {
+      type: 'result';
+      reqId: string;
+      ok: boolean;
+      value?: unknown;
+      error?: string;
+      errorName?: string;
+    };
 
 // ── 模块缓存（spec §3.2 — fileName → 命名函数表） ─────────────────────────
 
@@ -232,7 +270,9 @@ function buildShim(): {
   return {
     http: {
       get: ((url: string, headers?: Record<string, string>) =>
-        requestHttp({ url, method: 'GET', headers: headers ?? {} }).then((r) => r.body)) as unknown as (req: unknown) => Promise<unknown>,
+        requestHttp({ url, method: 'GET', headers: headers ?? {} }).then(
+          (r) => r.body,
+        )) as unknown as (req: unknown) => Promise<unknown>,
       post: ((url: string, body?: string, headers?: Record<string, string>) =>
         requestHttp({
           url,
@@ -240,11 +280,17 @@ function buildShim(): {
           body: body ?? null,
           headers: headers ?? {},
         }).then((r) => r.body)) as unknown as (req: unknown) => Promise<unknown>,
-      request: ((request: HttpProxyRequest) => requestHttp(request)) as unknown as (req: unknown) => Promise<unknown>,
+      request: ((request: HttpProxyRequest) => requestHttp(request)) as unknown as (
+        req: unknown,
+      ) => Promise<unknown>,
     },
     /** CSS 选择器查询（主线程 DOMParser 执行；选择器非法/超限/被禁用时 reject） */
     query: ((html: string, selector: string, baseUrl: string) =>
-      requestQuery(html, selector, baseUrl)) as unknown as (html: string, selector: string, baseUrl: string) => Promise<QueryItem[]>,
+      requestQuery(html, selector, baseUrl)) as unknown as (
+      html: string,
+      selector: string,
+      baseUrl: string,
+    ) => Promise<QueryItem[]>,
   };
 }
 
@@ -285,11 +331,14 @@ self.addEventListener('message', (e: MessageEvent<WorkerInbound>) => {
   const msg = e.data as WorkerInbound | null;
   try {
     if (!msg || typeof msg.type !== 'string') {
-      logToMain("error", '[sandbox.worker] ✗ 收到非预期消息:', msg);
+      logToMain('error', '[sandbox.worker] ✗ 收到非预期消息:', msg);
       return;
     }
     if (msg.type === 'load') {
-      logToMain("info", `[sandbox.worker] ▶ 收到 load 消息 fileName=${msg.fileName} sourceLen=${msg.source.length}`);
+      logToMain(
+        'info',
+        `[sandbox.worker] ▶ 收到 load 消息 fileName=${msg.fileName} sourceLen=${msg.source.length}`,
+      );
       // 编译失败必须显式回 error —— load 消息无 reqId，走外层 catch 会把错误吞掉，
       // 主线程只能收到空 fns，真实语法错误被掩盖成「书源未定义 search()」
       try {
@@ -304,9 +353,7 @@ self.addEventListener('message', (e: MessageEvent<WorkerInbound>) => {
           type: 'loaded',
           fileName: msg.fileName,
           fns: [],
-          error: String(
-            (err as { message?: string })?.message ?? err,
-          ),
+          error: String((err as { message?: string })?.message ?? err),
         });
       }
       return;
@@ -338,9 +385,11 @@ self.addEventListener('message', (e: MessageEvent<WorkerInbound>) => {
               reqId: msg.reqId,
               ok: false,
               errorName: (err as { name?: string })?.name ?? 'Error',
-              error: String((err as { stack?: string; message?: string })?.stack
-                ?? (err as { message?: string })?.message
-                ?? err),
+              error: String(
+                (err as { stack?: string; message?: string })?.stack ??
+                  (err as { message?: string })?.message ??
+                  err,
+              ),
             }),
         );
       return;
@@ -379,9 +428,11 @@ self.addEventListener('message', (e: MessageEvent<WorkerInbound>) => {
         reqId,
         ok: false,
         errorName: (err as { name?: string })?.name ?? 'Error',
-        error: String((err as { stack?: string; message?: string })?.stack
-          ?? (err as { message?: string })?.message
-          ?? err),
+        error: String(
+          (err as { stack?: string; message?: string })?.stack ??
+            (err as { message?: string })?.message ??
+            err,
+        ),
       });
     }
   }

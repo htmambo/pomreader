@@ -17,7 +17,7 @@ interface HTMLWebViewElement extends HTMLElement {
   getWebContentsId(): number;
   addEventListener(
     type: string,
-    listener: (event: { url: string; preventDefault?: () => void }) => void
+    listener: (event: { url: string; preventDefault?: () => void }) => void,
   ): void;
   removeEventListener(type: string, listener: (event: any) => void): void;
 }

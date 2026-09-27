@@ -55,7 +55,15 @@ type EncodingMode = 'auto' | 'utf-8' | 'gbk';
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-universal-search',
   standalone: true,
-  imports: [CommonModule, FormsModule, NzInputModule, NzButtonModule, NzIconModule, NzDropDownModule, NzMenuModule],
+  imports: [
+    CommonModule,
+    FormsModule,
+    NzInputModule,
+    NzButtonModule,
+    NzIconModule,
+    NzDropDownModule,
+    NzMenuModule,
+  ],
   schemas: [NO_ERRORS_SCHEMA],
   template: `
     <div class="search-page">
@@ -314,7 +322,10 @@ export class UniversalSearchComponent {
     let u = (target ?? this.url).trim();
     if (!u) return;
     // 看起来不像 URL 则当搜索词走百度
-    if (!/^https?:\/\//.test(u) && u.includes(' ') || (!/\./.test(u) && u.length > 0 && !/^https?:/.test(u))) {
+    if (
+      (!/^https?:\/\//.test(u) && u.includes(' ')) ||
+      (!/\./.test(u) && u.length > 0 && !/^https?:/.test(u))
+    ) {
       u = 'https://www.baidu.com/s?wd=' + encodeURIComponent(u);
     } else if (!/^https?:\/\//.test(u)) {
       u = 'http://' + u;

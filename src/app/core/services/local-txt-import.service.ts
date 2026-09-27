@@ -1,9 +1,9 @@
 import { Injectable, inject } from '@angular/core';
-import { splitChapters, toChapters, type ImportedChapter } from '../logic/chapter-split'
+import { splitChapters, toChapters, type ImportedChapter } from '../logic/chapter-split';
 import { randomCoverFor } from '../cover/generators/random';
 import { BookService } from './book.service';
-import { type Book, type BookSource } from '../models/book.model'
-import { type Chapter } from '../models/chapter.model'
+import { type Book, type BookSource } from '../models/book.model';
+import { type Chapter } from '../models/chapter.model';
 
 export interface TxtImportResult {
   book: Book;
@@ -36,7 +36,11 @@ export class LocalTxtImportService {
     return splitChapters(text);
   }
 
-  async importText(fileName: string, text: string, source: BookSource = 'local-txt'): Promise<TxtImportResult> {
+  async importText(
+    fileName: string,
+    text: string,
+    source: BookSource = 'local-txt',
+  ): Promise<TxtImportResult> {
     const chs = splitChapters(text);
     const id = `txt-${Date.now()}`;
     const baseTitle = this.titleOf(fileName);

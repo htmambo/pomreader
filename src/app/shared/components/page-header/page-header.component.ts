@@ -42,7 +42,13 @@ import { PageHeaderService } from '../../../core/services/page-header.service';
       }
       <div class="actions">
         @if (isBookshelf()) {
-          <button nz-button nzType="primary" nz-dropdown [nzDropdownMenu]="importMenu" nzTrigger="click">
+          <button
+            nz-button
+            nzType="primary"
+            nz-dropdown
+            [nzDropdownMenu]="importMenu"
+            nzTrigger="click"
+          >
             <span nz-icon nzType="plus"></span>
             导入
           </button>

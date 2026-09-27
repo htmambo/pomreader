@@ -9,8 +9,12 @@ import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { ToastService } from '../../core/services/toast.service';
-import { type BookSourceMeta } from '../../core/book-source/js-source/source-meta.types'
-import { SourceTestService, DEFAULT_TEST_KEYWORD, type TestStepResult } from '../../core/book-source/source-test/source-test.service'
+import { type BookSourceMeta } from '../../core/book-source/js-source/source-meta.types';
+import {
+  SourceTestService,
+  DEFAULT_TEST_KEYWORD,
+  type TestStepResult,
+} from '../../core/book-source/source-test/source-test.service';
 
 type PomList = { booksourceList?: () => Promise<BookSourceMeta[]> };
 
@@ -55,32 +59,145 @@ const STEP_LABELS: Record<string, string> = {
   preserveWhitespaces: true,
   styles: [
     `
-      .toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
-      .progress-text { font-size: 13px; color: var(--pom-text-muted); }
-      .settings { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-wrap: wrap; }
-      .settings-label { font-size: 12px; color: var(--pom-text-muted); white-space: nowrap; }
-      .keyword-input { width: 110px; }
-      nz-input-number { width: 76px; }
-      .body { display: grid; grid-template-columns: 280px 1fr; gap: 12px; min-height: 0; height: calc(100vh - 240px); }
-      .list { display: flex; flex-direction: column; gap: 4px; overflow-y: auto; padding-right: 4px; }
-      .item { padding: 8px 10px; border-radius: 4px; background: var(--pom-card); border: 1px solid var(--pom-border); }
-      .item--running { border-color: var(--pom-accent); }
-      .item--pass { border-left: 3px solid #52c41a; }
-      .item--fail { border-left: 3px solid #ff4d4f; }
-      .item-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-      .item-name { font-size: 13px; font-weight: 500; color: var(--pom-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-      .steps { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 4px; align-items: center; }
-      .step { font-size: 11px; color: var(--pom-text-muted); white-space: nowrap; }
-      .step--pass { color: #52c41a; }
-      .step--fail { color: #ff4d4f; }
-      .log { display: flex; flex-direction: column; border: 1px solid var(--pom-border); border-radius: 4px; overflow: hidden; min-height: 0; }
-      .log-header { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: var(--pom-card); border-bottom: 1px solid var(--pom-border); gap: 8px; }
-      .log-body { flex: 1; overflow-y: auto; padding: 8px 10px; font-family: 'Cascadia Code', Consolas, monospace; font-size: 12px; line-height: 1.6; color: var(--pom-text); background: var(--pom-bg); }
-      .log-empty { color: var(--pom-text-muted); font-style: italic; padding: 24px 0; text-align: center; }
-      .log-line { white-space: pre-wrap; word-break: break-all; }
-      .log-line--pass { color: #52c41a; }
-      .log-line--fail { color: #ff4d4f; }
-      .log-line--banner { color: var(--pom-text-muted); font-weight: 500; opacity: 0.85; }
+      .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px;
+        flex-wrap: wrap;
+      }
+      .progress-text {
+        font-size: 13px;
+        color: var(--pom-text-muted);
+      }
+      .settings {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-left: auto;
+        flex-wrap: wrap;
+      }
+      .settings-label {
+        font-size: 12px;
+        color: var(--pom-text-muted);
+        white-space: nowrap;
+      }
+      .keyword-input {
+        width: 110px;
+      }
+      nz-input-number {
+        width: 76px;
+      }
+      .body {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        gap: 12px;
+        min-height: 0;
+        height: calc(100vh - 240px);
+      }
+      .list {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        overflow-y: auto;
+        padding-right: 4px;
+      }
+      .item {
+        padding: 8px 10px;
+        border-radius: 4px;
+        background: var(--pom-card);
+        border: 1px solid var(--pom-border);
+      }
+      .item--running {
+        border-color: var(--pom-accent);
+      }
+      .item--pass {
+        border-left: 3px solid #52c41a;
+      }
+      .item--fail {
+        border-left: 3px solid #ff4d4f;
+      }
+      .item-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .item-name {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--pom-text);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        min-width: 0;
+      }
+      .steps {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 8px;
+        margin-top: 4px;
+        align-items: center;
+      }
+      .step {
+        font-size: 11px;
+        color: var(--pom-text-muted);
+        white-space: nowrap;
+      }
+      .step--pass {
+        color: #52c41a;
+      }
+      .step--fail {
+        color: #ff4d4f;
+      }
+      .log {
+        display: flex;
+        flex-direction: column;
+        border: 1px solid var(--pom-border);
+        border-radius: 4px;
+        overflow: hidden;
+        min-height: 0;
+      }
+      .log-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 6px 10px;
+        background: var(--pom-card);
+        border-bottom: 1px solid var(--pom-border);
+        gap: 8px;
+      }
+      .log-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 8px 10px;
+        font-family: 'Cascadia Code', Consolas, monospace;
+        font-size: 12px;
+        line-height: 1.6;
+        color: var(--pom-text);
+        background: var(--pom-bg);
+      }
+      .log-empty {
+        color: var(--pom-text-muted);
+        font-style: italic;
+        padding: 24px 0;
+        text-align: center;
+      }
+      .log-line {
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+      .log-line--pass {
+        color: #52c41a;
+      }
+      .log-line--fail {
+        color: #ff4d4f;
+      }
+      .log-line--banner {
+        color: var(--pom-text-muted);
+        font-weight: 500;
+        opacity: 0.85;
+      }
     `,
   ],
 })
@@ -166,16 +283,29 @@ export class BookSourceTestComponent {
 
   /** 单书源测试（批量 worker 也走这里） */
   async runSingle(src: BookSourceMeta): Promise<void> {
-    const st: TestSourceState = { fileName: src.fileName, status: 'running', steps: [], allPassed: null, logs: [] };
+    const st: TestSourceState = {
+      fileName: src.fileName,
+      status: 'running',
+      steps: [],
+      allPassed: null,
+      logs: [],
+    };
     this.patchState(src.fileName, st);
     this.pushLog(st, `▶ 开始测试: ${src.name || src.fileName}`);
     try {
-      const result = await this.testService.runTest(src, this.keyword.trim() || DEFAULT_TEST_KEYWORD, this.itemTimeoutSecs);
+      const result = await this.testService.runTest(
+        src,
+        this.keyword.trim() || DEFAULT_TEST_KEYWORD,
+        this.itemTimeoutSecs,
+      );
       st.steps = result.steps;
       st.allPassed = result.allPassed;
       st.status = 'done';
       for (const step of result.steps) {
-        this.pushLog(st, `  ${step.passed ? '✓' : '✗'} [${this.stepLabel(step.step)}] ${step.message} (${step.durationMs}ms)`);
+        this.pushLog(
+          st,
+          `  ${step.passed ? '✓' : '✗'} [${this.stepLabel(step.step)}] ${step.message} (${step.durationMs}ms)`,
+        );
       }
       this.pushLog(st, `  ${result.allPassed ? '✅ 全部通过' : '❌ 存在失败'}`);
     } catch (e) {

@@ -2,9 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SandboxService } from './sandbox.service';
 
 // 模块级 reset hook —— 测试 teardown 释放 storage listener 让下一例可以重新注册
- 
+
 function resetModuleStorageListener(): void {
-   
   const svc: any = Object.create(SandboxService.prototype);
   svc.ngOnDestroy();
 }
@@ -23,7 +22,6 @@ function resetModuleStorageListener(): void {
  * 纯 pool 状态机测试 —— 不涉及沙箱消息路径。
  */
 function makeBareSvc(): SandboxService {
-   
   const svc: any = Object.create(SandboxService.prototype);
   svc.progress = { set: () => undefined, update: () => undefined };
   svc.usePool = false;
@@ -55,20 +53,20 @@ describe('SandboxService — EV-3 Worker Pool 渐进迁移', () => {
     expect(svc.isUsingPool()).toBe(false);
     svc.setUsePool(true);
     expect(svc.isUsingPool()).toBe(true);
-     
+
     expect((svc as any).pool).not.toBeNull();
     svc.setUsePool(false);
     expect(svc.isUsingPool()).toBe(false);
-     
+
     expect((svc as any).pool).toBeNull();
-     
+
     expect((svc as any).usePool).toBe(false);
   });
 
   it('setUsePool(false) 在未启用时应幂等（无副作用）', () => {
     svc.setUsePool(false);
     expect(svc.isUsingPool()).toBe(false);
-     
+
     expect((svc as any).pool).toBeNull();
   });
 
@@ -76,9 +74,9 @@ describe('SandboxService — EV-3 Worker Pool 渐进迁移', () => {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('evo3.v1.workerPool.forceOff', '1');
     }
-     
+
     const fresh: any = new (SandboxService as any)();
-     
+
     expect(fresh.forceOff).toBe(true);
     expect(fresh.isUsingPool()).toBe(false);
   });
@@ -87,9 +85,9 @@ describe('SandboxService — EV-3 Worker Pool 渐进迁移', () => {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('evo3.v1.workerPool.forceOff', 'true');
     }
-     
+
     const fresh: any = new (SandboxService as any)();
-     
+
     expect(fresh.forceOff).toBe(true);
   });
 
@@ -97,17 +95,17 @@ describe('SandboxService — EV-3 Worker Pool 渐进迁移', () => {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('evo3.v1.workerPool.forceOff', '0');
     }
-     
+
     const fresh1: any = new (SandboxService as any)();
-     
+
     expect(fresh1.forceOff).toBe(false);
 
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('evo3.v1.workerPool.forceOff', 'false');
     }
-     
+
     const fresh2: any = new (SandboxService as any)();
-     
+
     expect(fresh2.forceOff).toBe(false);
   });
 
@@ -117,7 +115,7 @@ describe('SandboxService — EV-3 Worker Pool 渐进迁移', () => {
     svc.setUsePool(true);
     // forceOff 锁死 → 仍为 false
     expect(svc.isUsingPool()).toBe(false);
-     
+
     expect((svc as any).pool).toBeNull();
   });
 
@@ -130,17 +128,17 @@ describe('SandboxService — EV-3 Worker Pool 渐进迁移', () => {
     };
     svc.setUsePool(false);
     expect(terminateCalled).toBe(true);
-     
+
     expect((svc as any).pool).toBeNull();
   });
 
   it('P3-B: forceEnablePool() 解除 kill-switch（内存 + localStorage）', () => {
     svc.forceDisablePool();
-     
+
     expect((svc as any).forceOff).toBe(true);
     expect(svc.isUsingPool()).toBe(false);
     svc.forceEnablePool();
-     
+
     expect((svc as any).forceOff).toBe(false);
     if (typeof localStorage !== 'undefined') {
       expect(localStorage.getItem('evo3.v1.workerPool.forceOff')).toBeNull();
@@ -156,51 +154,50 @@ describe('SandboxService — EV-3 Worker Pool 渐进迁移', () => {
     }
     svc.forceEnablePool();
     // 模拟 reload：构造新实例
-     
+
     const reloaded: any = new (SandboxService as any)();
-     
+
     expect(reloaded.forceOff).toBe(false);
   });
 
   it('P3-C: storage 事件 key===null（localStorage.clear()）应重置 forceOff=false', () => {
     svc.forceDisablePool();
-     
+
     expect((svc as any).forceOff).toBe(true);
     // 构造一个实例触发 storage 监听注册
-     
+
     const inst: any = new (SandboxService as any)();
-     
+
     expect(inst.forceOff).toBe(true);
     // 直接调用注册的 handler（模块级 MODULE_STORAGE_HANDLER）—— 无需 inst.storageHandler 字段
     // 通过 import 间接访问：getRegisteredHandler() 已在测试套件内部导出
     if (typeof window !== 'undefined') {
       const ev = new StorageEvent('storage', { key: null, newValue: null });
-       
+
       const handler = (SandboxService as any).__test_getStorageHandler?.();
       if (handler) handler(ev);
-       
+
       expect((inst as any).forceOff).toBe(false);
     }
   });
 
   it('P3-C: storage 事件跨标签页同步 forceOff=true（其它 tab 调用 forceDisablePool）', () => {
-     
     const inst: any = new (SandboxService as any)();
-     
+
     expect(inst.forceOff).toBe(false);
     inst.setUsePool(true);
-     
+
     expect(inst.forceOff).toBe(false);
     if (typeof window !== 'undefined') {
       const ev = new StorageEvent('storage', {
         key: 'evo3.v1.workerPool.forceOff',
         newValue: '1',
       });
-       
+
       const handler = (SandboxService as any).__test_getStorageHandler?.();
       if (handler) {
         handler(ev);
-         
+
         expect((inst as any).forceOff).toBe(true);
         expect(inst.isUsingPool()).toBe(false);
       }
@@ -208,21 +205,20 @@ describe('SandboxService — EV-3 Worker Pool 渐进迁移', () => {
   });
 
   it('P1-δ: storage 事件 e.newValue=null（其它 tab 调 removeItem）应解除 forceOff', () => {
-     
     const inst: any = new (SandboxService as any)();
     inst.forceDisablePool();
-     
+
     expect(inst.forceOff).toBe(true);
     if (typeof window !== 'undefined') {
       const ev = new StorageEvent('storage', {
         key: 'evo3.v1.workerPool.forceOff',
         newValue: null, // removeItem 触发
       });
-       
+
       const handler = (SandboxService as any).__test_getStorageHandler?.();
       if (handler) {
         handler(ev);
-         
+
         expect((inst as any).forceOff).toBe(false);
       }
     }

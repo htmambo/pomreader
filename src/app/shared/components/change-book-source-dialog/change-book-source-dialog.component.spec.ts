@@ -11,10 +11,7 @@ describe('resolveCurrentSourceAdapter（换源弹窗默认选中）', () => {
   const jsAdapter = { name: 'hetushu' } as BookSourceAdapter;
   const builtinAdapter = { name: '笔趣阁' } as BookSourceAdapter;
 
-  function makeRegistry(overrides?: {
-    byUuid?: BookSourceAdapter;
-    byUrl?: BookSourceAdapter;
-  }) {
+  function makeRegistry(overrides?: { byUuid?: BookSourceAdapter; byUrl?: BookSourceAdapter }) {
     const calls = { getByUuid: 0, matchByUrl: 0 };
     const registry = {
       getByUuid: (_uuid: string) => {

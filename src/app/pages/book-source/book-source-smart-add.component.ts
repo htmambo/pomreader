@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, effect, inject, signal, viewChild } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  effect,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -59,7 +66,12 @@ type PomSave = {
         (keyup.enter)="analyze()"
         class="grow"
       />
-      <button nz-button nzType="primary" (click)="analyze()" [disabled]="analyzing() || !targetUrl.trim()">
+      <button
+        nz-button
+        nzType="primary"
+        (click)="analyze()"
+        [disabled]="analyzing() || !targetUrl.trim()"
+      >
         <span nz-icon [nzType]="analyzing() ? 'loading' : 'thunderbolt'"></span>
         {{ analyzing() ? '分析中...' : '分析' }}
       </button>
@@ -72,11 +84,19 @@ type PomSave = {
     @if (analyzed()) {
       <!-- ② 探测摘要 -->
       <div class="summary">
-        <div class="summary-item"><span class="k">章节链接</span><span class="v">首页检测到 {{ chapterLinkCount() }} 个疑似章节链接</span></div>
+        <div class="summary-item">
+          <span class="k">章节链接</span
+          ><span class="v">首页检测到 {{ chapterLinkCount() }} 个疑似章节链接</span>
+        </div>
       </div>
 
       <!-- ③ 规则处理提示(智能添加特有,讲清楚 CSS/正则双模式与 css: 前缀) -->
-      <div class="rules-title">规则处理<span class="rules-hint">支持 CSS 选择器(如 dl.list dd a)或正则;含 * ^ $ | + ? ( ) &#123; &#125; 等正则特征符号的 CSS(如 a[href*="x"]、div + p、a:not(.x))需加 css: 前缀</span></div>
+      <div class="rules-title">
+        规则处理<span class="rules-hint"
+          >支持 CSS 选择器(如 dl.list dd a)或正则;含 * ^ $ | + ? ( ) &#123; &#125; 等正则特征符号的
+          CSS(如 a[href*="x"]、div + p、a:not(.x))需加 css: 前缀</span
+        >
+      </div>
 
       <!-- ④ 规则编辑 + 测试面板 -->
       <app-rules-panel #panel [baseUrl]="targetUrl" />
@@ -88,43 +108,95 @@ type PomSave = {
         <span class="hint">规则修改后下方代码自动重新生成</span>
       </div>
 
-      <textarea
-        nz-input
-        [(ngModel)]="code"
-        class="code-editor"
-        spellcheck="false"
-      ></textarea>
+      <textarea nz-input [(ngModel)]="code" class="code-editor" spellcheck="false"></textarea>
 
       <div class="actions">
-        <button nz-button (click)="reset()">
-          <span nz-icon nzType="reload"></span> 重新分析
-        </button>
-        <button nz-button nzType="primary" (click)="save(true)" [disabled]="saving() || !fileName.trim()">
+        <button nz-button (click)="reset()"><span nz-icon nzType="reload"></span> 重新分析</button>
+        <button
+          nz-button
+          nzType="primary"
+          (click)="save(true)"
+          [disabled]="saving() || !fileName.trim()"
+        >
           <span nz-icon nzType="save"></span> {{ saving() ? '保存中...' : '保存并调试' }}
         </button>
-        <button nz-button (click)="save(false)" [disabled]="saving() || !fileName.trim()">仅保存</button>
+        <button nz-button (click)="save(false)" [disabled]="saving() || !fileName.trim()">
+          仅保存
+        </button>
       </div>
     }
   `,
   styles: [
     `
-      .url-row { display: flex; gap: 8px; margin-bottom: 12px; }
-.back-row { margin-bottom: 8px; }
-      .grow { flex: 1; min-width: 0; }
-      .mb { margin-bottom: 12px; }
-      .summary { display: flex; gap: 32px; padding: 10px 12px; border: 1px solid var(--pom-border); border-radius: 4px; background: var(--pom-card); margin-bottom: 14px; }
-      .summary-item { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
-      .k { color: var(--pom-text-muted); font-size: 12px; white-space: nowrap; }
-      .file-row { display: flex; align-items: center; gap: 8px; margin: 14px 0 10px; flex-wrap: wrap; }
-      .file-input { width: 240px; font-family: Consolas, monospace; }
-      .hint { color: var(--pom-text-muted); font-size: 12px; }
-      .code-editor {
-        width: 100%; height: 38vh; resize: vertical;
-        font-family: 'Cascadia Code', Consolas, monospace; font-size: 12px; line-height: 1.6;
-        background: var(--pom-card); color: var(--pom-text);
-        border: 1px solid var(--pom-border); border-radius: 4px; padding: 12px;
+      .url-row {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
       }
-      .actions { display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end; }
+      .back-row {
+        margin-bottom: 8px;
+      }
+      .grow {
+        flex: 1;
+        min-width: 0;
+      }
+      .mb {
+        margin-bottom: 12px;
+      }
+      .summary {
+        display: flex;
+        gap: 32px;
+        padding: 10px 12px;
+        border: 1px solid var(--pom-border);
+        border-radius: 4px;
+        background: var(--pom-card);
+        margin-bottom: 14px;
+      }
+      .summary-item {
+        display: flex;
+        gap: 8px;
+        align-items: baseline;
+        min-width: 0;
+      }
+      .k {
+        color: var(--pom-text-muted);
+        font-size: 12px;
+        white-space: nowrap;
+      }
+      .file-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 14px 0 10px;
+        flex-wrap: wrap;
+      }
+      .file-input {
+        width: 240px;
+        font-family: Consolas, monospace;
+      }
+      .hint {
+        color: var(--pom-text-muted);
+        font-size: 12px;
+      }
+      .code-editor {
+        width: 100%;
+        height: 38vh;
+        resize: vertical;
+        font-family: 'Cascadia Code', Consolas, monospace;
+        font-size: 12px;
+        line-height: 1.6;
+        background: var(--pom-card);
+        color: var(--pom-text);
+        border: 1px solid var(--pom-border);
+        border-radius: 4px;
+        padding: 12px;
+      }
+      .actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+        justify-content: flex-end;
+      }
     `,
   ],
 })

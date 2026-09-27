@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, inject, signal, type OnInit } from '@angular/core'
+import { Component, ChangeDetectionStrategy, inject, signal, type OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NZ_MODAL_DATA } from 'ng-zorro-antd/modal';
@@ -11,11 +11,14 @@ import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { BookSourceRegistry } from '../../core/book-source/book-source.registry';
 import { UNIVERSAL_BOOK_SOURCE_UUID } from '../../core/book-source/book-source.constants';
 import { FetchError, FETCH_ERROR_MESSAGES } from '../../core/book-source/fetch-error';
-import { type ResolvedBook } from '../../core/book-source/book-source.adapter'
-import { ImportViaSourceService, type SourceSearchHit } from '../../core/book-source/import-via-source.service'
+import { type ResolvedBook } from '../../core/book-source/book-source.adapter';
+import {
+  ImportViaSourceService,
+  type SourceSearchHit,
+} from '../../core/book-source/import-via-source.service';
 import { ToastService } from '../../core/services/toast.service';
 import { BookService } from '../../core/services/book.service';
-import { type Book } from '../../core/models/book.model'
+import { type Book } from '../../core/models/book.model';
 import { randomCoverFor } from '../../core/cover/generators/random';
 
 type ImportMode = 'url' | 'keyword';
@@ -194,9 +197,10 @@ export class ImportOnlineComponent implements OnInit {
         this.toast.info('该书源无搜索结果');
       }
     } catch (e) {
-      const msg = e instanceof FetchError
-        ? FETCH_ERROR_MESSAGES[e.code]
-        : `搜索失败：${(e as Error).message}`;
+      const msg =
+        e instanceof FetchError
+          ? FETCH_ERROR_MESSAGES[e.code]
+          : `搜索失败：${(e as Error).message}`;
       this.errorMsg.set(msg);
       this.toast.error(msg);
       this.searchResults.set([]);
@@ -235,9 +239,10 @@ export class ImportOnlineComponent implements OnInit {
       this.resolved.set(book);
       this.parsedBookSourceUuid = bookSourceUuid;
     } catch (e) {
-      const msg = e instanceof FetchError
-        ? FETCH_ERROR_MESSAGES[e.code]
-        : `解析失败：${(e as Error).message}`;
+      const msg =
+        e instanceof FetchError
+          ? FETCH_ERROR_MESSAGES[e.code]
+          : `解析失败：${(e as Error).message}`;
       this.errorMsg.set(msg);
       this.toast.error(msg);
     } finally {

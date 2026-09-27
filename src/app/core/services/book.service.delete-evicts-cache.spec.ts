@@ -79,10 +79,10 @@ describe('BookService.deleteBook → ChapterLoader.evictCache 联动契约', () 
     registry.register(new StubAdapter('stub'));
     const importViaSource = Object.create(ImportViaSourceService.prototype);
     importViaSource.importByUrl = async () => ({ book: { chapters: [] } });
-     
+
     svc = BookService.forTest(fakeDb as any, registry, importViaSource as any);
     // Spy on loader.evictCache: 替换为 spy 记录调用
-     
+
     (svc as any).loader.evictCache = (id: string) => {
       evictCalls.push(id);
     };

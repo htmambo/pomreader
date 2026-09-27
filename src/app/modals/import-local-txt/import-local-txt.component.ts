@@ -2,10 +2,10 @@ import { ChangeDetectionStrategy, Component, inject, signal, computed } from '@a
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ScrollingModule } from '@angular/cdk/scrolling';
-import { NzUploadModule, type NzUploadFile } from 'ng-zorro-antd/upload'
+import { NzUploadModule, type NzUploadFile } from 'ng-zorro-antd/upload';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
-import { splitChapters, type ImportedChapter } from '../../core/logic/chapter-split'
+import { splitChapters, type ImportedChapter } from '../../core/logic/chapter-split';
 import { finalizeChapterContent } from '../../core/logic/text-format';
 import { ToastService } from '../../core/services/toast.service';
 import { LocalTxtImportService } from '../../core/services/local-txt-import.service';
@@ -21,7 +21,14 @@ const DEFAULT_DISPLAY_COUNT = 50;
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-import-local-txt',
   standalone: true,
-  imports: [CommonModule, FormsModule, ScrollingModule, NzUploadModule, NzButtonModule, NzIconModule],
+  imports: [
+    CommonModule,
+    FormsModule,
+    ScrollingModule,
+    NzUploadModule,
+    NzButtonModule,
+    NzIconModule,
+  ],
   template: `
     <div class="import-local-txt">
       <p>将 TXT 文件拖到下方或点击选择（≤ 50MB）：</p>
@@ -43,7 +50,9 @@ const DEFAULT_DISPLAY_COUNT = 50;
       @if (chapters().length > 0) {
         <h4>
           识别到 {{ chapters().length }} 个章节
-          <small class="hint-inline">（{{ chaptersPreview().length }} 预览 / {{ chapters().length }} 总数）</small>
+          <small class="hint-inline"
+            >（{{ chaptersPreview().length }} 预览 / {{ chapters().length }} 总数）</small
+          >
           @if (chapters().length > DEFAULT_DISPLAY_COUNT) {
             <button nz-button nzType="link" nzSize="small" (click)="toggleShowAll()">
               {{ showAll() ? '收起' : '展开全部' }}

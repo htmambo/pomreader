@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NZ_MODAL_DATA } from 'ng-zorro-antd/modal';
 import { NzInputModule } from 'ng-zorro-antd/input';
-import { type Book } from '../../../core/models/book.model'
+import { type Book } from '../../../core/models/book.model';
 
 interface EditBookInfoData {
   book: Book;
@@ -35,7 +35,11 @@ export interface EditBookInfoResult {
 
       <div class="book-times">
         <span>入库时间：{{ formatTime(data.book.importedAt) }}</span>
-        <span>最后阅读：{{ data.book.lastReadAt ? formatTime(data.book.lastReadAt) : '尚未阅读' }}</span>
+        <span
+          >最后阅读：{{
+            data.book.lastReadAt ? formatTime(data.book.lastReadAt) : '尚未阅读'
+          }}</span
+        >
       </div>
 
       <div class="field-row">
@@ -79,7 +83,9 @@ export interface EditBookInfoResult {
           maxlength="20"
         />
       </div>
-      <p class="field-hint">(可选；用于「生成封面」选择模板风格，如：玄幻 / 言情 / 科幻 / 武侠 / 悬疑)</p>
+      <p class="field-hint">
+        (可选；用于「生成封面」选择模板风格，如：玄幻 / 言情 / 科幻 / 武侠 / 悬疑)
+      </p>
 
       <div class="field-row">
         <label class="field-label">封面图片 URL</label>

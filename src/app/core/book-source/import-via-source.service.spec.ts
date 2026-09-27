@@ -15,7 +15,6 @@ import { ImportViaSourceService } from './import-via-source.service';
 import { UNIVERSAL_BOOK_SOURCE_UUID } from './book-source.constants';
 
 function emptyFetcher(): PageFetcher {
-   
   return { fetchHtml: async () => '', fetchRendered: async () => '' } as any;
 }
 
@@ -25,11 +24,15 @@ class StubAdapter implements BookSourceAdapter {
     public readonly name: string,
     public readonly meta?: { uuid?: string },
   ) {}
-  match(): boolean { return true; }
+  match(): boolean {
+    return true;
+  }
   async fetchCatalog(): Promise<ResolvedBook> {
     return { title: 'stub book', author: 'stub', chapters: [{ title: 'ch1', url: 'http://a/1' }] };
   }
-  async fetchChapter(): Promise<string> { return ''; }
+  async fetchChapter(): Promise<string> {
+    return '';
+  }
 }
 
 describe('ImportViaSourceService · importByUrl bookSourceUuid 锚定', () => {
@@ -46,8 +49,15 @@ describe('ImportViaSourceService · importByUrl bookSourceUuid 锚定', () => {
         name: 'hetushu',
         url: 'https://www.hetushu.com',
         urls: ['https://www.hetushu.com'],
-        enabled: true, fileSize: 0, modifiedAt: 0, sourceDir: '',
-        sourceType: 'novel', version: '1', tags: [], minDelayMs: 0, requireUrls: [],
+        enabled: true,
+        fileSize: 0,
+        modifiedAt: 0,
+        sourceDir: '',
+        sourceType: 'novel',
+        version: '1',
+        tags: [],
+        minDelayMs: 0,
+        requireUrls: [],
       };
       const sandbox = {
         load: async () => ({ fileName: meta.fileName, fns: ['bookInfo'] }),
@@ -105,25 +115,31 @@ describe('ImportViaSourceService · importByUrl bookSourceUuid 锚定', () => {
   it('P0-1 回归：sourceName 指定但 match 失败抛 FetchError（不静默降级）', async () => {
     const reg = BookSourceRegistry.forTest(emptyFetcher());
     class NoMatchAdapter extends StubAdapter {
-      override match(): boolean { return false; }
+      override match(): boolean {
+        return false;
+      }
     }
     reg.register(new NoMatchAdapter('a-source'));
     const svc = ImportViaSourceService.forTest(reg, emptyFetcher());
-    await expect(svc.importByUrl('https://example.com/book/', 'a-source'))
-      .rejects.toMatchObject({ code: 'unsupported-source' });
+    await expect(svc.importByUrl('https://example.com/book/', 'a-source')).rejects.toMatchObject({
+      code: 'unsupported-source',
+    });
   });
 
   it('P0-1 回归：sourceName 指定但 registry.get 找不到源抛 FetchError', async () => {
     const reg = BookSourceRegistry.forTest(emptyFetcher());
     const svc = ImportViaSourceService.forTest(reg, emptyFetcher());
-    await expect(svc.importByUrl('https://example.com/book/', '不存在的源'))
-      .rejects.toMatchObject({ code: 'unsupported-source' });
+    await expect(svc.importByUrl('https://example.com/book/', '不存在的源')).rejects.toMatchObject({
+      code: 'unsupported-source',
+    });
   });
 
   it('空 uuid 归一化为 UNIVERSAL（破损数据兜底）', async () => {
     const reg = BookSourceRegistry.forTest(emptyFetcher());
     class EmptyUuidAdapter extends StubAdapter {
-      constructor() { super('empty-uuid', { uuid: '' }); }
+      constructor() {
+        super('empty-uuid', { uuid: '' });
+      }
     }
     reg.register(new EmptyUuidAdapter());
     const svc = ImportViaSourceService.forTest(reg, emptyFetcher());

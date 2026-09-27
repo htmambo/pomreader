@@ -21,9 +21,7 @@ export function stripEdgeBlankLines(text: string): string {
 export function normalizeParagraphIndent(text: string): string {
   return text
     .split('\n')
-    .map((line) =>
-      line.trim().length === 0 ? '' : '　　' + line.replace(/^[^\S\n]+/, '')
-    )
+    .map((line) => (line.trim().length === 0 ? '' : '　　' + line.replace(/^[^\S\n]+/, '')))
     .join('\n');
 }
 

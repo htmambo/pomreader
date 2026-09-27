@@ -45,7 +45,9 @@ class MockSandboxService {
 /** 注入 stub `window.pomAPI.booksourceRead`：jsdom 默认无 pomAPI */
 function installPomApi(): void {
   const w = window as unknown as { pomAPI?: { booksourceRead: (fn: string) => Promise<string> } };
-  w.pomAPI = { booksourceRead: vi.fn(async () => 'function bookInfo(){}; function chapterContent(){};') };
+  w.pomAPI = {
+    booksourceRead: vi.fn(async () => 'function bookInfo(){}; function chapterContent(){};'),
+  };
 }
 
 const meta: BookSourceMeta = {
@@ -78,7 +80,10 @@ function makeAdapter(): { adapter: JsSourceAdapter; mock: MockSandboxService } {
     chapters: [{ title: '第1章', url: 'http://example.com/1' }],
   });
   mock.results.set('test.js::chapterContent', '正文内容...');
-  const adapter = new JsSourceAdapter(meta, mock as unknown as ConstructorParameters<typeof JsSourceAdapter>[1]);
+  const adapter = new JsSourceAdapter(
+    meta,
+    mock as unknown as ConstructorParameters<typeof JsSourceAdapter>[1],
+  );
   return { adapter, mock };
 }
 
@@ -99,7 +104,9 @@ describe('JsSourceAdapter', () => {
     expect(r.author).toBe('测试作者');
     expect(r.chapters).toHaveLength(1);
     expect(r.chapters[0].title).toBe('第1章');
-    expect(mock.callMock).toHaveBeenCalledWith('test.js', 'bookInfo', ['https://example.com/book/1']);
+    expect(mock.callMock).toHaveBeenCalledWith('test.js', 'bookInfo', [
+      'https://example.com/book/1',
+    ]);
   });
 
   it('fetchChapter 走 chapterContent', async () => {
@@ -109,16 +116,20 @@ describe('JsSourceAdapter', () => {
       {} as never,
     );
     expect(text).toBe('正文内容...');
-    expect(mock.callMock).toHaveBeenCalledWith('test.js', 'chapterContent', ['https://example.com/1']);
+    expect(mock.callMock).toHaveBeenCalledWith('test.js', 'chapterContent', [
+      'https://example.com/1',
+    ]);
   });
 
   it('bookInfo 缺 chapters 抛 FetchError("parse-failed")', async () => {
     const { adapter, mock } = makeAdapter();
     mock.results.set('test.js::bookInfo', { title: '空书', author: 'x' });
-    await expect(adapter.fetchCatalog('https://example.com', {} as never))
-      .rejects.toThrow(FetchError);
-    await expect(adapter.fetchCatalog('https://example.com', {} as never))
-      .rejects.toMatchObject({ code: 'parse-failed' });
+    await expect(adapter.fetchCatalog('https://example.com', {} as never)).rejects.toThrow(
+      FetchError,
+    );
+    await expect(adapter.fetchCatalog('https://example.com', {} as never)).rejects.toMatchObject({
+      code: 'parse-failed',
+    });
   });
 
   it('load cache 命中：sandbox 内部按 sourceCache 判断；同源码不重新编译', async () => {
@@ -142,7 +153,11 @@ describe('JsSourceAdapter', () => {
     await adapter.fetchCatalog('https://example.com', {} as never);
     const firstLoadCount = mock.loadCount;
     // 第二次：mock.callMock 仍能命中（不依赖 load 重新编译）
-    mock.results.set('test.js::bookInfo', { title: '新', author: 'x', chapters: [{ title: '1', url: 'http://a' }] });
+    mock.results.set('test.js::bookInfo', {
+      title: '新',
+      author: 'x',
+      chapters: [{ title: '1', url: 'http://a' }],
+    });
     await adapter.fetchCatalog('https://example.com', {} as never);
     // sandbox 内部 sourceCache 命中（同源码），loadCount 不增
     expect(mock.loadCount).toBe(firstLoadCount);
@@ -269,7 +284,10 @@ describe('JsSourceAdapter', () => {
 
   it('search() 结果截断（>100 条只取前 100）', async () => {
     const { adapter, mock } = makeAdapter();
-    const big = Array.from({ length: 150 }, (_, i) => ({ name: `书${i}`, bookUrl: `https://a/${i}` }));
+    const big = Array.from({ length: 150 }, (_, i) => ({
+      name: `书${i}`,
+      bookUrl: `https://a/${i}`,
+    }));
     mock.results.set('test.js::search', big);
     const items = await adapter.search('kw');
     expect(items).toHaveLength(100);
@@ -285,7 +303,10 @@ describe('JsSourceAdapter', () => {
     try {
       const mock = new MockSandboxService();
       mock.results.set('test.js::bookInfo', { title: '', author: '', chapters: [] });
-      const adapter = new JsSourceAdapter(meta, mock as unknown as ConstructorParameters<typeof JsSourceAdapter>[1]);
+      const adapter = new JsSourceAdapter(
+        meta,
+        mock as unknown as ConstructorParameters<typeof JsSourceAdapter>[1],
+      );
       await expect(adapter.search('kw')).rejects.toThrow(FetchError);
     } finally {
       w.pomAPI = orig;
@@ -339,15 +360,13 @@ describe('JsSourceAdapter', () => {
       { name: '  有效书名  ', author: '  作者  ', bookUrl: '  http://a/1  ' },
     ]);
     const items = await adapter.search('kw');
-    expect(items).toEqual([
-      { name: '有效书名', author: '作者', url: 'http://a/1' },
-    ]);
+    expect(items).toEqual([{ name: '有效书名', author: '作者', url: 'http://a/1' }]);
   });
 
   it('search() 非字符串字段（数字/布尔）跳过，fallback 到下一 key', async () => {
     const { adapter, mock } = makeAdapter();
     mock.results.set('test.js::search', [
-      { name: 123, bookUrl: true, author: null },  // 全非字符串 → 全 fallback 无值
+      { name: 123, bookUrl: true, author: null }, // 全非字符串 → 全 fallback 无值
     ]);
     // 全 fallback 无值 → 整体丢弃
     expect(await adapter.search('kw')).toEqual([]);
@@ -362,7 +381,10 @@ describe('JsSourceAdapter', () => {
     try {
       const mock = new MockSandboxService();
       mock.results.set('test.js::bookInfo', { title: '', author: '', chapters: [] });
-      const adapter = new JsSourceAdapter(meta, mock as unknown as ConstructorParameters<typeof JsSourceAdapter>[1]);
+      const adapter = new JsSourceAdapter(
+        meta,
+        mock as unknown as ConstructorParameters<typeof JsSourceAdapter>[1],
+      );
       await expect(adapter.search('kw')).rejects.toThrow(FetchError);
       expect(warnSpy).toHaveBeenCalled();
       const msg = String(warnSpy.mock.calls[0]?.[0] ?? '');

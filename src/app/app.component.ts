@@ -1,5 +1,11 @@
 import { ChangeDetectionStrategy, Component, inject, effect, signal } from '@angular/core';
-import { RouterOutlet, Router, NavigationEnd, ActivatedRouteSnapshot, type Data } from '@angular/router'
+import {
+  RouterOutlet,
+  Router,
+  NavigationEnd,
+  ActivatedRouteSnapshot,
+  type Data,
+} from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map, startWith } from 'rxjs/operators';
 import { NzLayoutModule } from 'ng-zorro-antd/layout';
@@ -7,15 +13,40 @@ import { NzMenuModule } from 'ng-zorro-antd/menu';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule, provideNzIconsPatch } from 'ng-zorro-antd/icon';
 import {
-  BookOutline, SearchOutline, FileTextOutline,
-  ArrowLeftOutline, ArrowRightOutline, MenuOutline, SettingOutline, CloseOutline,
-  PlusOutline, LinkOutline, WarningOutline,
-  CheckOutline, MinusOutline, ArrowUpOutline,
-  ReloadOutline, DownloadOutline, TranslationOutline, LoadingOutline,
-  AppstoreOutline, CloudDownloadOutline, CopyOutline, DeleteOutline,
-  DragOutline, EditOutline, GlobalOutline,
-  InfoOutline, InfoCircleOutline, RobotOutline, SwapOutline,
-  PlayCircleOutline, ThunderboltOutline, SaveOutline, SyncOutline, ImportOutline,
+  BookOutline,
+  SearchOutline,
+  FileTextOutline,
+  ArrowLeftOutline,
+  ArrowRightOutline,
+  MenuOutline,
+  SettingOutline,
+  CloseOutline,
+  PlusOutline,
+  LinkOutline,
+  WarningOutline,
+  CheckOutline,
+  MinusOutline,
+  ArrowUpOutline,
+  ReloadOutline,
+  DownloadOutline,
+  TranslationOutline,
+  LoadingOutline,
+  AppstoreOutline,
+  CloudDownloadOutline,
+  CopyOutline,
+  DeleteOutline,
+  DragOutline,
+  EditOutline,
+  GlobalOutline,
+  InfoOutline,
+  InfoCircleOutline,
+  RobotOutline,
+  SwapOutline,
+  PlayCircleOutline,
+  ThunderboltOutline,
+  SaveOutline,
+  SyncOutline,
+  ImportOutline,
 } from '@ant-design/icons-angular/icons';
 import { PageHeaderComponent } from './shared/components/page-header/page-header.component';
 import { PageHeaderService } from './core/services/page-header.service';
@@ -39,15 +70,40 @@ import { UniversalSearchComponent } from './pages/universal-search/universal-sea
   ],
   providers: [
     provideNzIconsPatch([
-      BookOutline, SearchOutline, FileTextOutline,
-      ArrowLeftOutline, ArrowRightOutline, MenuOutline, SettingOutline, CloseOutline,
-      PlusOutline, LinkOutline, WarningOutline,
-      CheckOutline, MinusOutline, ArrowUpOutline,
-      ReloadOutline, DownloadOutline, TranslationOutline, LoadingOutline,
-      AppstoreOutline, CloudDownloadOutline, CopyOutline, DeleteOutline,
-      DragOutline, EditOutline, GlobalOutline,
-      InfoOutline, InfoCircleOutline, RobotOutline, SwapOutline,
-      PlayCircleOutline, ThunderboltOutline, SaveOutline, SyncOutline, ImportOutline,
+      BookOutline,
+      SearchOutline,
+      FileTextOutline,
+      ArrowLeftOutline,
+      ArrowRightOutline,
+      MenuOutline,
+      SettingOutline,
+      CloseOutline,
+      PlusOutline,
+      LinkOutline,
+      WarningOutline,
+      CheckOutline,
+      MinusOutline,
+      ArrowUpOutline,
+      ReloadOutline,
+      DownloadOutline,
+      TranslationOutline,
+      LoadingOutline,
+      AppstoreOutline,
+      CloudDownloadOutline,
+      CopyOutline,
+      DeleteOutline,
+      DragOutline,
+      EditOutline,
+      GlobalOutline,
+      InfoOutline,
+      InfoCircleOutline,
+      RobotOutline,
+      SwapOutline,
+      PlayCircleOutline,
+      ThunderboltOutline,
+      SaveOutline,
+      SyncOutline,
+      ImportOutline,
     ]),
   ],
   template: `
@@ -117,9 +173,9 @@ export class AppComponent {
     this.router.events.pipe(
       filter((e): e is NavigationEnd => e instanceof NavigationEnd),
       map((e) => e.urlAfterRedirects.startsWith('/reader/')),
-      startWith(this.router.url.startsWith('/reader/'))
+      startWith(this.router.url.startsWith('/reader/')),
     ),
-    { initialValue: this.router.url.startsWith('/reader/') }
+    { initialValue: this.router.url.startsWith('/reader/') },
   );
 
   /** 当前路由是否在万能搜索页（控制常驻组件显示/隐藏与激活态） */
@@ -127,9 +183,9 @@ export class AppComponent {
     this.router.events.pipe(
       filter((e): e is NavigationEnd => e instanceof NavigationEnd),
       map((e) => e.urlAfterRedirects.startsWith('/search')),
-      startWith(this.router.url.startsWith('/search'))
+      startWith(this.router.url.startsWith('/search')),
     ),
-    { initialValue: this.router.url.startsWith('/search') }
+    { initialValue: this.router.url.startsWith('/search') },
   );
 
   /** 是否访问过 /search：见过一次即永久 true（触发常驻挂载），初始值覆盖 hash 深链接直接进 /search 的场景 */
@@ -152,15 +208,17 @@ export class AppComponent {
 
     // 路由变化 → 从最深层 activated route 的 data 中读取 title/subtitle，写入全局 header
     // 子路由会覆盖父路由(parent first → child 后写,Angular 标准合并顺序)
-    this.router.events.pipe(
-      filter((e): e is NavigationEnd => e instanceof NavigationEnd),
-      startWith(null),
-    ).subscribe(() => {
-      const data = this.collectRouteData();
-      this.pageHeader.title.set(data['title'] ?? '');
-      // subtitle 没在路由里显式声明 → 留空(具体页面如果有动态副标题,会在 effect 里覆写)
-      this.pageHeader.subtitle.set(data['subtitle'] ?? '');
-    });
+    this.router.events
+      .pipe(
+        filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+        startWith(null),
+      )
+      .subscribe(() => {
+        const data = this.collectRouteData();
+        this.pageHeader.title.set(data['title'] ?? '');
+        // subtitle 没在路由里显式声明 → 留空(具体页面如果有动态副标题,会在 effect 里覆写)
+        this.pageHeader.subtitle.set(data['subtitle'] ?? '');
+      });
   }
 
   /** 从 routerState.root 沿 firstChild 链走到叶子,合并所有层级的 data(子覆盖父) */

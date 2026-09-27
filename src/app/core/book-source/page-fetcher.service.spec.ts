@@ -21,11 +21,10 @@ import { PageFetcherService } from './page-fetcher.service';
  */
 
 describe('PageFetcherService', () => {
-   
   let svc: any;
-   
+
   let modalMock: any;
-   
+
   let originalPomApi: any;
 
   beforeAll(() => {
@@ -33,32 +32,26 @@ describe('PageFetcherService', () => {
   });
 
   beforeEach(() => {
-     
     originalPomApi = (globalThis as any).window?.pomAPI;
-     
+
     modalMock = {
       confirm: vi.fn(() => ({ triggerClose: () => {} })),
     };
-     
+
     (globalThis as any).window = { pomAPI: undefined };
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
-      providers: [
-        PageFetcherService,
-        { provide: NzModalService, useValue: modalMock },
-      ],
+      providers: [PageFetcherService, { provide: NzModalService, useValue: modalMock }],
     });
     svc = TestBed.inject(PageFetcherService);
   });
 
   afterEach(() => {
-     
     (globalThis as any).window = { pomAPI: originalPomApi };
   });
 
   describe('fetchHtml', () => {
     it('window.pomAPI.fetchHtml 成功时应返回 html', async () => {
-       
       (globalThis as any).window.pomAPI = {
         fetchHtml: vi.fn(async () => ({ html: '<div>ok</div>' })),
       };
@@ -67,12 +60,11 @@ describe('PageFetcherService', () => {
     });
 
     it('window.pomAPI.fetchHtml 返回 error 时应抛 FetchError', async () => {
-       
       (globalThis as any).window.pomAPI = {
         fetchHtml: vi.fn(async () => ({ error: 'cf-challenge' })),
       };
       // cf-challenge 走 cfChallengeFlow → 弹窗 → 用户取消 → reject
-       
+
       modalMock.confirm.mockImplementationOnce((opts: any) => {
         opts.nzOnCancel();
         return { triggerClose: () => {} };
@@ -83,7 +75,6 @@ describe('PageFetcherService', () => {
     });
 
     it('返回 html 为空时应抛 FetchError(parse-failed)', async () => {
-       
       (globalThis as any).window.pomAPI = {
         fetchHtml: vi.fn(async () => ({ html: '' })),
       };
@@ -95,7 +86,6 @@ describe('PageFetcherService', () => {
 
   describe('fetchRendered', () => {
     it('成功应返回 text', async () => {
-       
       (globalThis as any).window.pomAPI = {
         fetchRendered: vi.fn(async () => ({ text: '<p>rendered</p>' })),
       };
@@ -104,7 +94,6 @@ describe('PageFetcherService', () => {
     });
 
     it('text 为空应抛 FetchError(parse-failed)', async () => {
-       
       (globalThis as any).window.pomAPI = {
         fetchRendered: vi.fn(async () => ({})),
       };
@@ -116,7 +105,6 @@ describe('PageFetcherService', () => {
 
   describe('fetchPost', () => {
     it('成功应返回 body', async () => {
-       
       (globalThis as any).window.pomAPI = {
         booksourceHttpProxy: vi.fn(async () => ({
           status: 200,
@@ -129,7 +117,6 @@ describe('PageFetcherService', () => {
     });
 
     it('HTTP 4xx/5xx 应抛 FetchError(parse-failed)', async () => {
-       
       (globalThis as any).window.pomAPI = {
         booksourceHttpProxy: vi.fn(async () => ({
           status: 500,
@@ -143,7 +130,6 @@ describe('PageFetcherService', () => {
     });
 
     it('cfChallenge 标记应抛 FetchError(cf-challenge)', async () => {
-       
       (globalThis as any).window.pomAPI = {
         booksourceHttpProxy: vi.fn(async () => ({
           status: 200,
@@ -160,11 +146,10 @@ describe('PageFetcherService', () => {
 
   describe('inZone 包装', () => {
     it('应通过 NgZone.run 重入 zone', async () => {
-       
       const ngZone = TestBed.inject(NgZone) as NgZone;
-       
+
       const runSpy = vi.spyOn(ngZone, 'run');
-       
+
       (globalThis as any).window.pomAPI = {
         fetchHtml: vi.fn(async () => ({ html: 'ok' })),
       };

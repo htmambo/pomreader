@@ -30,23 +30,18 @@ function makeLegadoSource(overrides: Partial<LegadoSource> = {}): LegadoSource {
   };
 }
 
- 
 function setupTestBed(api: { booksourceList?: unknown; booksourceSave?: unknown }): any {
-   
   const toastMock: any = {
     error: vi.fn(),
     info: vi.fn(),
     success: vi.fn(),
     warn: vi.fn(),
   };
-   
+
   (globalThis as any).window = { pomAPI: api };
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
-    providers: [
-      LegadoImportService,
-      { provide: ToastService, useValue: toastMock },
-    ],
+    providers: [LegadoImportService, { provide: ToastService, useValue: toastMock }],
   });
   return { svc: TestBed.inject(LegadoImportService), toastMock };
 }
@@ -57,13 +52,11 @@ describe('LegadoImportService', () => {
   });
 
   beforeEach(() => {
-     
     delete (globalThis as any).window;
   });
 
   describe('persistSelected', () => {
     it('IPC 不可用时应 toast.error + 返回 { written:0, skeletons:0, failed:[] }', async () => {
-       
       const { svc, toastMock } = setupTestBed({});
       const result = await svc.persistSelected([]);
       expect(toastMock.error).toHaveBeenCalledWith(expect.stringContaining('IPC'));
@@ -71,9 +64,8 @@ describe('LegadoImportService', () => {
     });
 
     it('IPC 成功应逐项写入 + 累计 written / skeletons', async () => {
-       
       const saveMock = vi.fn(async () => undefined);
-       
+
       const { svc } = setupTestBed({ booksourceSave: saveMock });
       const items = [
         { fileName: 'a.js', translatedJs: 'js1', isSkeleton: false },
@@ -88,11 +80,10 @@ describe('LegadoImportService', () => {
     });
 
     it('IPC 抛错应收集到 failed 但继续后续项', async () => {
-       
       const saveMock = vi.fn(async (fileName: string) => {
         if (fileName === 'b.js') throw new Error('disk full');
       });
-       
+
       const { svc } = setupTestBed({ booksourceSave: saveMock });
       const result = await svc.persistSelected([
         { fileName: 'a.js', translatedJs: 'js1', isSkeleton: false },
@@ -113,15 +104,13 @@ describe('LegadoImportService', () => {
     });
 
     it('特殊字符应替换为 _ 并折叠连续 _', () => {
-      expect(
-        deriveFileName(makeLegadoSource({ bookSourceName: 'a/b\\c:d*e?f' })),
-      ).toBe('a_b_c_d_e_f.js');
+      expect(deriveFileName(makeLegadoSource({ bookSourceName: 'a/b\\c:d*e?f' }))).toBe(
+        'a_b_c_d_e_f.js',
+      );
     });
 
     it('空字符串 + 源名应 fallback legado-imported', () => {
-      expect(deriveFileName(makeLegadoSource({ bookSourceName: '' }))).toBe(
-        'legado-imported.js',
-      );
+      expect(deriveFileName(makeLegadoSource({ bookSourceName: '' }))).toBe('legado-imported.js');
     });
 
     it('只有特殊字符的源名应 fallback legado-imported', () => {
@@ -138,9 +127,9 @@ describe('LegadoImportService', () => {
     });
 
     it('控制字符应被剥离', () => {
-      expect(
-        deriveFileName(makeLegadoSource({ bookSourceName: 'foo\x00bar\x1fbaz' })),
-      ).toBe('foo_bar_baz.js');
+      expect(deriveFileName(makeLegadoSource({ bookSourceName: 'foo\x00bar\x1fbaz' }))).toBe(
+        'foo_bar_baz.js',
+      );
     });
   });
 });

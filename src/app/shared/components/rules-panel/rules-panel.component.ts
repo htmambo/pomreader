@@ -7,7 +7,19 @@ import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { PageFetcherService } from '../../../core/book-source/page-fetcher.service';
-import { type SearchMethod, type SourceRules, applyContentReplaceRules, buildFormBody, absUrl, matchLinkItems, pickAttr, pickHtml, pickText, randomTestKeyword, stripTags } from '../../../core/book-source/smart-add/smart-rules'
+import {
+  type SearchMethod,
+  type SourceRules,
+  applyContentReplaceRules,
+  buildFormBody,
+  absUrl,
+  matchLinkItems,
+  pickAttr,
+  pickHtml,
+  pickText,
+  randomTestKeyword,
+  stripTags,
+} from '../../../core/book-source/smart-add/smart-rules';
 
 interface StageSample {
   label: string;

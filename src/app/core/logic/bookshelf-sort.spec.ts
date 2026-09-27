@@ -14,9 +14,19 @@ function book(partial: Partial<Book> & { id: string; title: string }): Book {
 }
 
 const BOOKS: Book[] = [
-  book({ id: '1', title: '三体', importedAt: '2026-01-03T00:00:00.000Z', lastReadAt: '2026-02-01T00:00:00.000Z' }),
+  book({
+    id: '1',
+    title: '三体',
+    importedAt: '2026-01-03T00:00:00.000Z',
+    lastReadAt: '2026-02-01T00:00:00.000Z',
+  }),
   book({ id: '2', title: '活着', importedAt: '2026-01-01T00:00:00.000Z' }),
-  book({ id: '3', title: '百年孤独', importedAt: '2026-01-02T00:00:00.000Z', lastReadAt: '2026-02-03T00:00:00.000Z' }),
+  book({
+    id: '3',
+    title: '百年孤独',
+    importedAt: '2026-01-02T00:00:00.000Z',
+    lastReadAt: '2026-02-03T00:00:00.000Z',
+  }),
 ];
 
 describe('sortBooks', () => {

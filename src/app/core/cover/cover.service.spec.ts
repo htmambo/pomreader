@@ -88,8 +88,12 @@ describe('CoverService', () => {
   });
 
   it('fallback: 同 URL 生成稳定 SVG（多次调用相同结果）', async () => {
-    const a = (service as unknown as { fallbackDataUrl(u: string): string }).fallbackDataUrl('https://example.com/x.jpg');
-    const b = (service as unknown as { fallbackDataUrl(u: string): string }).fallbackDataUrl('https://example.com/x.jpg');
+    const a = (service as unknown as { fallbackDataUrl(u: string): string }).fallbackDataUrl(
+      'https://example.com/x.jpg',
+    );
+    const b = (service as unknown as { fallbackDataUrl(u: string): string }).fallbackDataUrl(
+      'https://example.com/x.jpg',
+    );
     expect(a).toBe(b);
   });
 });
