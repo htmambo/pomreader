@@ -14,7 +14,7 @@
   border-radius: 4px;
   background: var(--pom-card);
   padding: 10px 12px;
-  margin-bottom: 10px;
+  overflow: hidden;
 }
 :host-context(.dark) .stage-card { background: #1f1f1f; border-color: #444; }
 .stage-header { font-size: 13px; font-weight: 600; color: var(--pom-accent); margin-bottom: 8px; }
@@ -29,13 +29,13 @@
 .mono { font-family: 'Cascadia Code', Consolas, monospace; font-size: 12px; }
 
 /* 测试输出样式 */
-.stage-error { color: #ff4d4f; font-size: 12px; margin: 6px 0 2px 92px; white-space: pre-wrap; }
-.stage-summary { color: #52c41a; font-size: 12px; margin: 6px 0 2px 92px; }
+.stage-error { color: #ff4d4f; font-size: 12px; margin: 6px 0 2px 0px; white-space: pre-wrap; }
+.stage-summary { color: #52c41a; font-size: 12px; margin: 6px 0 2px 0px; }
 
 /* 样本列表(240px = 10 行,带滚动) */
 .sample-list {
   max-height: 180px;
-  width: calc( 50vw - 140px);
+  width: calc( 50vw - 160px);
   overflow-y: auto;
   overflow-x: hidden;
   margin: 4px 0;
@@ -50,7 +50,6 @@
   gap: 10px;
   align-items: baseline;
   padding: 3px 8px;
-  margin-left: 92px;
   border-radius: 3px;
   cursor: pointer;
 }

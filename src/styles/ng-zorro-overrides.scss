@@ -208,8 +208,9 @@
     color: #bf2c24;
     background: rgba(191, 44, 36, 0.08);
   }
-  .ant-btn.ant-btn-text[disabled] {
-    color: #444444;
+.ant-btn[disabled], .ant-btn[disabled]:active, .ant-btn[disabled]:focus, .ant-btn[disabled]:hover,
+.ant-btn.ant-btn-text[disabled] {
+    color: #444444 !important;
   }
   /* nz-button link 类型 */
   .ant-btn.ant-btn-link {

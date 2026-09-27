@@ -5,7 +5,7 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['src/test-setup.ts'],
-    include: ['src/**/*.spec.ts'],
+    include: ['src/**/*.spec.ts', 'electron/**/*.spec.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
