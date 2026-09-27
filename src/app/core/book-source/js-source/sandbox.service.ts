@@ -4,7 +4,28 @@ import { cssRulesEnabled } from '../smart-add/smart-rules';
 import { createWorkerPool, WorkerLike } from './worker-pool.factory';
 
 /** EVO-3 conservative kill-switch: operator can force-off pool without redeploy. */
-const EVO3_KILL_SWITCH_KEY = 'evo3.workerPool.forceOff';
+const EVO3_KILL_SWITCH_KEY = 'evo3.v1.workerPool.forceOff';
+
+/** P2-C: 接受 '1' / 'true' 两种写法；SSR / 隐私模式下 try/catch 兜底。 */
+function readForceOff(): boolean {
+  try {
+    if (typeof localStorage === 'undefined') return false;
+    const v = localStorage.getItem(EVO3_KILL_SWITCH_KEY);
+    return v === '1' || v === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function writeForceOff(): void {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(EVO3_KILL_SWITCH_KEY, '1');
+    }
+  } catch {
+    /* SSR / 隐私模式静默 —— operator 后续无法 reload，但当前实例立即生效 */
+  }
+}
 
 export type SandboxFn =
   | 'search' | 'bookInfo' | 'toc' | 'chapterList'
@@ -108,13 +129,26 @@ export class SandboxService {
   private pool: WorkerLike | null = null;
   private usePool = false;
 
+  /** P2-A/P1-A: 强制关闭标志（本地 + 跨实例通过 localStorage 同步） */
+  private forceOff = false;
+  /** P3-C: 跨标签页 storage 事件 → 收到本 key 变更时立即终止 pool */
+  private storageHandler: ((e: StorageEvent) => void) | null = null;
+
   constructor() {
-    // P0-2: 构造期读 kill-switch（force-off 后不可 setUsePool(true) 绕过）
-    if (
-      typeof localStorage !== 'undefined' &&
-      localStorage.getItem(EVO3_KILL_SWITCH_KEY) === '1'
-    ) {
-      this.usePool = false;
+    // P0-2 / P2-C: 构造期读 kill-switch（force-off 后不可 setUsePool(true) 绕过）
+    // P3-C: 注册 storage 监听，跨标签页同步 kill-switch 状态
+    this.forceOff = readForceOff();
+    if (this.forceOff) this.usePool = false;
+    if (typeof window !== 'undefined') {
+      this.storageHandler = (e: StorageEvent) => {
+        if (e.key !== EVO3_KILL_SWITCH_KEY) return;
+        const shouldDisable = e.newValue === '1' || e.newValue === 'true';
+        if (shouldDisable) {
+          this.forceOff = true;
+          this.setUsePool(false);
+        }
+      };
+      window.addEventListener('storage', this.storageHandler);
     }
   }
   private readonly loaded = new Map<string, LoadedModule>();
@@ -140,8 +174,10 @@ export class SandboxService {
 
   /** EV-3 渐进迁移：启用 Worker Pool（spec NFR-2 沙箱隔离不变；多 worker 并行调度）
    *  通过 localStorage['pom.sandbox.usePool'] === 'true' 也可启用（生产 kill-switch 路径）
+   *  P1-A: 当 forceOff=true 时 enable=true 也被忽略（kill-switch 强制生效）
    */
   setUsePool(enabled: boolean): void {
+    if (enabled && this.forceOff) return; // P1-A: kill-switch 锁定
     if (this.usePool === enabled) return;
     // P0-1: flip 之前 tear down 旧 pool，避免 toggle 留下悬挂 worker
     if (this.pool) {
@@ -160,14 +196,25 @@ export class SandboxService {
 
   /** 检查当前是否启用 Pool（测试 / 调试用） */
   isUsingPool(): boolean {
-    return this.usePool && this.pool !== null;
+    return this.usePool && this.pool !== null && !this.forceOff;
   }
 
-  /** P0-2: Operator-only runtime kill switch. Idempotent. */
+  /** P0-2 / P1-A / P2-C: Operator-only runtime kill switch. Idempotent. 立即生效. */
   forceDisablePool(): void {
+    this.forceOff = true; // P1-A: 本实例立即锁定（即使 usePool 已是 false 也能阻止后续 setUsePool(true)）
     this.setUsePool(false);
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(EVO3_KILL_SWITCH_KEY, '1');
+    writeForceOff();
+  }
+
+  /** P3-B: 提供 re-enable 入口（仅用于测试 / 调试，生产 UI 不暴露） */
+  forceEnablePool(): void {
+    this.forceOff = false;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(EVO3_KILL_SWITCH_KEY);
+      }
+    } catch {
+      /* noop */
     }
   }
 

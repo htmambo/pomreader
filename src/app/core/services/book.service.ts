@@ -6,7 +6,7 @@ import { CatalogEntry } from '../book-source/book-source.adapter';
 import { ImportViaSourceService } from '../book-source/import-via-source.service';
 import { FetchError } from '../book-source/fetch-error';
 import { DbService } from './db.service';
-import { BookRepository } from './book.repository';
+import { BookRepository, BookRepositoryPort } from './book.repository';
 import { ChapterLoader } from './chapter-loader';
 import { BookUpdater } from './book-updater';
 
@@ -30,7 +30,7 @@ export type DbLoadState = 'idle' | 'loading' | 'ready' | 'error';
 @Injectable({ providedIn: 'root' })
 export class BookService {
   private readonly db = inject(DbService);
-  private readonly repo = inject(BookRepository);
+  private readonly repo: BookRepositoryPort = inject(BookRepository);
   private readonly loader = inject(ChapterLoader);
   private readonly updater = inject(BookUpdater);
   private readonly sources = inject(BookSourceRegistry);
@@ -355,7 +355,7 @@ export class BookService {
     db: DbService,
     sources: BookSourceRegistry,
     importViaSource: ImportViaSourceService,
-    repo?: BookRepository,
+    repo?: BookRepositoryPort,
     loader?: ChapterLoader,
     updater?: BookUpdater,
   ): BookService {
@@ -371,10 +371,10 @@ export class BookService {
     svc.chaptersVersion = signal(0);
     // 构造 BookRepository stub：所有读操作走 svc._books（spec 直接写 svc._books 即可）
     // 写操作（persistBook / persistChapters / deleteBook）镜像回 svc._books
-    // P1-4: `satisfies BookRepository` 编译期绑定接口，避免 silent drift
+    // P1-4 (Round 2 复审): 用 `satisfies BookRepositoryPort`（仅 public surface）
+    //   编译期绑定，**无 `as unknown as`** 双重强转 — 接口演进时静默破坏风险清零
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    svc.repo = repo ?? (Object.assign(Object.create(BookRepository.prototype), {
-      // public fields/methods —— `satisfies BookRepository` 强制编译期绑定（spec NFR-7 防止 silent drift）
+    svc.repo = repo ?? ({
       books: svc._books.asReadonly(),
       loadState: svc._loadState.asReadonly(),
       count: signal(0),
@@ -395,16 +395,8 @@ export class BookService {
       deleteBook: async (id: string) => {
         svc._books.update((list: Book[]) => list.filter((b) => b.id !== id));
       },
-    // private 字段转发（spec 通过 svc._books 直接写；tests 复用 BookService.forTest 入口）
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      db,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      _books: svc._books as any,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      _loadState: svc._loadState as any,
-    // Object.create + Object.assign 绕过 constructor → 不走 field initializer → 需要强制断言
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    }) as unknown as BookRepository);
+    } satisfies BookRepositoryPort);
     svc.loader = loader ?? ChapterLoader.forTest(db, sources);
     svc.updater = updater ?? BookUpdater.forTest(svc.repo, svc.loader, db, sources, importViaSource);
     return svc as BookService;

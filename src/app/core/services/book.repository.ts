@@ -4,6 +4,21 @@ import { Chapter } from '../models/chapter.model';
 import { DbService } from './db.service';
 
 /**
+ * BookRepository 公开契约（public surface, no `db`）。
+ * 测试 stub 用此接口做编译期绑定（避免 `as unknown as` 双重强转）。
+ */
+export interface BookRepositoryPort {
+  readonly books: Signal<Book[]>;
+  readonly loadState: Signal<'idle' | 'loading' | 'ready' | 'error'>;
+  readonly count: Signal<number>;
+  getById(id: string): Book | undefined;
+  load(): Promise<void>;
+  persistBook(book: Book): Promise<void>;
+  persistChapters(chapters: Chapter[]): Promise<void>;
+  deleteBook(bookId: string): Promise<void>;
+}
+
+/**
  * BookRepository — Book/Chapter 持久化 + signal 同步层（EVO-1）
  *
  * 职责（单一数据源）：
@@ -22,7 +37,7 @@ import { DbService } from './db.service';
  * 写入。**禁止**绕过 signal 直接调用 `DbService`（会破坏单源真相）。
  */
 @Injectable({ providedIn: 'root' })
-export class BookRepository {
+export class BookRepository implements BookRepositoryPort {
   private readonly db = inject(DbService);
 
   private readonly _books = signal<Book[]>([]);
