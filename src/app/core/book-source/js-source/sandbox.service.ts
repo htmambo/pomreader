@@ -1,6 +1,37 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, OnDestroy, signal } from '@angular/core';
 import { FetchError } from '../fetch-error';
 import { cssRulesEnabled } from '../smart-add/smart-rules';
+import { createWorkerPool, WorkerLike } from './worker-pool.factory';
+
+/** EVO-3 conservative kill-switch: operator can force-off pool without redeploy. */
+const EVO3_KILL_SWITCH_KEY = 'evo3.v1.workerPool.forceOff';
+
+/** P1-α: 模块级 storage 监听注册标志 —— 跨 SandboxService 实例持久，
+ *  防止 HMR / lazy provider / 多实例化导致 listener 重复叠加 */
+let MODULE_STORAGE_LISTENER_INSTALLED = false;
+/** P1-α: 稳定监听引用 —— addEventListener / removeEventListener 必须使用同一引用 */
+let MODULE_STORAGE_HANDLER: ((e: StorageEvent) => void) | null = null;
+
+/** P2-C: 接受 '1' / 'true' 两种写法；SSR / 隐私模式下 try/catch 兜底。 */
+function readForceOff(): boolean {
+  try {
+    if (typeof localStorage === 'undefined') return false;
+    const v = localStorage.getItem(EVO3_KILL_SWITCH_KEY);
+    return v === '1' || v === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function writeForceOff(): void {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(EVO3_KILL_SWITCH_KEY, '1');
+    }
+  } catch {
+    /* SSR / 隐私模式静默 —— operator 后续无法 reload，但当前实例立即生效 */
+  }
+}
 
 export type SandboxFn =
   | 'search' | 'bookInfo' | 'toc' | 'chapterList'
@@ -99,6 +130,61 @@ export class SandboxService {
   }
 
   private worker: Worker | null = null;
+  /** Worker Pool 接入（EV-3 渐进迁移）：默认 null 走原 single worker 路径
+   *  通过 setUsePool(true) 或 localStorage['pom.sandbox.usePool'] === 'true' 启用 */
+  private pool: WorkerLike | null = null;
+  private usePool = false;
+
+  /** P2-A/P1-A: 强制关闭标志（本地 + 跨实例通过 localStorage 同步） */
+  private forceOff = false;
+
+  constructor() {
+    // P0-2 / P2-C: 构造期读 kill-switch（force-off 后不可 setUsePool(true) 绕过）
+    // P3-C: 注册 storage 监听，跨标签页同步 kill-switch 状态
+    this.forceOff = readForceOff();
+    if (this.forceOff) this.usePool = false;
+    // P1-α: 模块级标志 + 稳定引用 —— addEventListener/removeEventListener 使用同一 handler
+    if (typeof window !== 'undefined' && !MODULE_STORAGE_LISTENER_INSTALLED) {
+      MODULE_STORAGE_HANDLER = (e: StorageEvent) => {
+        // P0-2: localStorage.clear() → e.key === null + e.newValue === null
+        //       此时应重置 forceOff=false（kill-switch 已被全量清理）
+        if (e.key === null) {
+          this.forceOff = false;
+          return;
+        }
+        if (e.key !== EVO3_KILL_SWITCH_KEY) return;
+        // P1-δ: e.newValue === null（其它 tab 调 removeItem）→ 解除锁定
+        //       e.newValue === '0' / 'false' / 其它 → 同样视为解除
+        const shouldDisable = e.newValue === '1' || e.newValue === 'true';
+        if (shouldDisable) {
+          this.forceOff = true;
+          this.setUsePool(false);
+        } else {
+          this.forceOff = false;
+        }
+      };
+      window.addEventListener('storage', MODULE_STORAGE_HANDLER);
+      MODULE_STORAGE_LISTENER_INSTALLED = true;
+    }
+  }
+
+  /** P1-β: HMR / TestBed teardown / lazy provider destroy 闭环 —— removeEventListener */
+  ngOnDestroy(): void {
+    // 注意：本服务通常为 root singleton，ngOnDestroy 几乎不会触发；
+    // 但为 HMR / 多实例化 / 测试 teardown 安全，保留 removeEventListener 路径
+    // 当前架构下 root service 不会被销毁，因此这里**只**在测试场景需要时被调用
+    if (typeof window !== 'undefined' && MODULE_STORAGE_HANDLER && MODULE_STORAGE_LISTENER_INSTALLED) {
+      window.removeEventListener('storage', MODULE_STORAGE_HANDLER);
+      MODULE_STORAGE_HANDLER = null;
+      MODULE_STORAGE_LISTENER_INSTALLED = false;
+    }
+  }
+
+  /** 测试钩子：暴露模块级 storage handler 给 spec 验证跨标签页同步语义。
+   *  仅 sandbox.pool.spec.ts 使用；生产 UI 不暴露。 */
+  static __test_getStorageHandler(): ((e: StorageEvent) => void) | null {
+    return MODULE_STORAGE_HANDLER;
+  }
   private readonly loaded = new Map<string, LoadedModule>();
   /** 书源源码缓存:key=fileName, value=上次加载的源码 —— load 时比对,内容变化则重新加载 */
   private readonly sourceCache = new Map<string, string>();
@@ -118,6 +204,56 @@ export class SandboxService {
     const svc = new SandboxService();
     svc.attach(worker);
     return svc;
+  }
+
+  /** EV-3 渐进迁移：启用 Worker Pool（spec NFR-2 沙箱隔离不变；多 worker 并行调度）
+   *  通过 localStorage['pom.sandbox.usePool'] === 'true' 也可启用（生产 kill-switch 路径）
+   *  P1-A: 当 forceOff=true 时 enable=true 也被忽略（kill-switch 强制生效）
+   *  P1-A semantic: 启用被阻断时（forceOff=true 或 usePool 未变化），**已有 pool 仍会被同步 terminate()**；
+   *  terminate() 会 reject 所有 in-flight pending task（worker-pool.ts:250），不留悬挂任务。
+   */
+  setUsePool(enabled: boolean): void {
+    if (enabled && this.forceOff) return; // P1-A: kill-switch 锁定
+    if (this.usePool === enabled) return;
+    // P0-1: flip 之前 tear down 旧 pool，避免 toggle 留下悬挂 worker
+    if (this.pool) {
+      try {
+        this.pool.terminate();
+      } catch {
+        /* noop */
+      }
+      this.pool = null;
+    }
+    this.usePool = enabled;
+    if (enabled) {
+      this.pool = createWorkerPool();
+    }
+  }
+
+  /** 检查当前是否启用 Pool（测试 / 调试用） */
+  isUsingPool(): boolean {
+    return this.usePool && this.pool !== null && !this.forceOff;
+  }
+
+  /** P0-2 / P1-A / P2-C: Operator-only runtime kill switch. Idempotent. 立即生效. */
+  forceDisablePool(): void {
+    this.forceOff = true; // P1-A: 本实例立即锁定（即使 usePool 已是 false 也能阻止后续 setUsePool(true)）
+    this.setUsePool(false);
+    writeForceOff();
+  }
+
+  /** P3-B: 提供 re-enable 入口（仅用于测试 / 调试，生产 UI 不暴露）
+   *  P0-3: 必须删除 localStorage entry，否则 reload 后 kill-switch 复活
+   */
+  forceEnablePool(): void {
+    this.forceOff = false;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(EVO3_KILL_SWITCH_KEY);
+      }
+    } catch {
+      /* noop */
+    }
   }
 
   private ensureWorker(): Worker {
@@ -268,7 +404,12 @@ export class SandboxService {
         entry.resolve(msg.value);
       } else {
         // 重建原始错误类型（保留 ReferenceError / TypeError）— 沙箱隔离可观测
-        const name = msg.errorName ?? 'Error';
+        // security: defense-in-depth — 白名单 errorName 防止恶意书源注入非 Error 构造器
+        const ALLOWED_ERROR_NAMES = new Set([
+          'Error', 'TypeError', 'RangeError', 'ReferenceError', 'SyntaxError',
+        ]);
+        const requestedName = msg.errorName ?? 'Error';
+        const name = ALLOWED_ERROR_NAMES.has(requestedName) ? requestedName : 'Error';
         const Ctor = (globalThis as unknown as Record<string, typeof Error>)[name] ?? Error;
         const e = new Ctor(msg.error ?? '沙箱调用失败');
         e.name = name;

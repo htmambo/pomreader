@@ -4,7 +4,12 @@
 > 父仓（白虎阅读 macOS DMG Linux 重打包）的任务历史已留在原仓 `docs/Task/`。
 
 ## Active Tasks
-_(无)_
+
+- 🔄 [技术演进与架构优化（16 项建议落地）](Active/POMREADER_ARCH_EVOLUTION_PLAN.md) — Started 2026-09-27
+  - iteration 1+2 完成（11/16 EVO 落地，5 atomic commits）
+  - iteration 3（接力 `pomreader-arch-evo-2`）正在实施剩余 5 EVO
+  - 分支：`feat/arch-evolution-2026-09`
+  - fullauto 状态：`.omc/fullauto/pomreader-arch-evo-2/state.json`
 
 ## Completed Tasks (Archive)
 

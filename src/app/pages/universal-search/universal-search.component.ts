@@ -1,4 +1,5 @@
 import {
+  ChangeDetectionStrategy,
   Component,
   ElementRef,
   inject,
@@ -51,6 +52,7 @@ type EncodingMode = 'auto' | 'utf-8' | 'gbk';
  * CSS 隐藏可保留会话）；active=false 期间对 webview 静音，避免后台页面继续发声
  */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-universal-search',
   standalone: true,
   imports: [CommonModule, FormsModule, NzInputModule, NzButtonModule, NzIconModule, NzDropDownModule, NzMenuModule],

@@ -1,4 +1,4 @@
-import { Component, Input, inject, output, ViewChild, TemplateRef, OnDestroy } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, inject, output, ViewChild, TemplateRef, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { NzDropdownMenuComponent } from 'ng-zorro-antd/dropdown';
@@ -17,6 +17,7 @@ import { LongPressDirective } from '../../directives/long-press.directive';
  * - 右键菜单：NzContextMenuService.create()（ng-zorro 标准右键方案，避开 nz-dropdown 指令绑定）
  */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-book-card',
   standalone: true,
   imports: [CommonModule, RouterLink, NzDropdownMenuComponent, NzMenuModule, NzIconModule, CoverImgComponent, LongPressDirective],

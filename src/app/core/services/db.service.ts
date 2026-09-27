@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import PouchDB from 'pouchdb-browser';
 import { Book } from '../models/book.model';
 import { Chapter } from '../models/chapter.model';
+import { classifyBulkResults, formatBulkFatalMessage } from '../db/bulk-result';
 
 /** Book PouchDB 文档（含嵌入的阅读进度）
  *  `_rev` 不显式声明——PouchDB 类型系统区分 `NewDocument`/`ExistingDocument` 自动扩展 */
@@ -247,16 +248,11 @@ export class DbService {
       removeDocs as unknown as PouchDB.Core.PutDocument<BookDoc | ChapterDoc>[],
     );
     // 删除操作：409 = _rev 过期 = 文档未被删除——必须暴露，不能静默（Round 5）
-    // 与 chapterPutMany（创建操作，409=幂等成功）语义不同
-    const failures = results.filter(
-      (r): r is PouchDB.Core.Error => 'error' in r,
-    );
-    if (failures.length > 0) {
-      const detail = failures
-        .map((f) => `${f.id ?? '?'}[${f.name ?? f.status ?? '?'}]`)
-        .join(', ');
+    // 与 chapterPutMany（创建操作，409=幂等成功）语义不同；用 conflictAsConflict=true 保留 409
+    const classified = classifyBulkResults(results, { conflictAsConflict: true });
+    if (classified.fatal.length > 0) {
       throw new Error(
-        `bookDelete partial failure: ${failures.length}/${removeDocs.length} docs failed: ${detail}`,
+        `bookDelete partial failure: ${formatBulkFatalMessage('bookDelete', classified)}`,
       );
     }
   }
@@ -345,25 +341,20 @@ export class DbService {
     // - 删除 409 = _rev 过期 = 实际未删除；仅记录警告，下次 chapterPutMany 会自然清理
     //   （不在此重试：换源调用方已拿到成功语义，不阻塞主流程）
     // - 其它错误 = 真失败
-    const failures: PouchDB.Core.Error[] = [];
-    res.forEach((r, i) => {
-      if (!('error' in r)) return;
-      if (r.status === 409) return;
-      failures.push(r);
-    });
-    if (failures.length > 0) {
-      const detail = failures
-        .map((f) => `${f.id ?? '?'}[${f.name ?? f.status ?? '?'}]`)
-        .join(', ');
-      throw new Error(`chapter bulk write failed (${failures.length}/${batch.length}): ${detail}`);
+    const classified = classifyBulkResults(res);
+    if (classified.fatal.length > 0) {
+      throw new Error(formatBulkFatalMessage('chapter bulk write', classified));
     }
     if (orphans.length > 0) {
-      const deleteConflicts = res.slice(newDocs.length).filter(
-        (r): r is PouchDB.Core.Error => 'error' in r && r.status === 409,
+      // orphan 删除阶段的 409 单独统计（默认 classifyBulkResults 已将其归入幂等成功）
+      // 这里用 conflictAsConflict=true 单独过滤查看真实冲突
+      const deleteClassified = classifyBulkResults(
+        res.slice(newDocs.length),
+        { conflictAsConflict: true },
       );
-      if (deleteConflicts.length > 0) {
+      if (deleteClassified.conflicts.length > 0) {
         console.warn(
-          `[chapterPutMany] ${deleteConflicts.length}/${orphans.length} orphan deletes lost _rev race; will retry on next put`,
+          `[chapterPutMany] ${deleteClassified.conflicts.length}/${orphans.length} orphan deletes lost _rev race; will retry on next put`,
         );
       }
     }
@@ -426,13 +417,11 @@ export class DbService {
       );
 
       // 仅记录非 409 失败（409 是并发冲突，下次启动会再尝试旧 _id → 幂等）
-      const fatalFailures = results.filter(
-        (r): r is PouchDB.Core.Error => 'error' in r && r.status !== 409,
-      );
-      if (fatalFailures.length > 0) {
+      const classified = classifyBulkResults(results);
+      if (classified.fatal.length > 0) {
         console.warn(
           '[DbService] legacy chapter migration partial failure:',
-          fatalFailures.map((f) => ('id' in f ? f.id : 'unknown')),
+          classified.fatal.map((f) => ('id' in f ? f.id : 'unknown')),
         );
       }
     } catch (e) {

@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -25,6 +25,7 @@ import { ImportLegadoComponent } from '../../modals/import-legado/import-legado.
  * 路由切走再回来直接展示；后台再走一次 IPC 同步磁盘真实状态
  */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-book-source-list',
   standalone: true,
   imports: [

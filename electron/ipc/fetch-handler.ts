@@ -5,6 +5,13 @@ import { isCfChallenge } from './cf-guard';
 import { getFetchSession, getUA, defaultUA, setFetchUA, browserHeaders } from './fetch-session';
 import { cfFetchHtmlHidden } from './render-handler';
 import { isPrivateHost } from './net-guard';
+import {
+  safeHandleWithMeta,
+  FetchHtmlArgsSchema,
+  GetFetchUaArgsSchema,
+  SetFetchUaArgsSchema,
+  SetWebviewEncodingArgsSchema,
+} from './schema';
 
 const FETCH_TIMEOUT_MS = 15000;
 const MAX_BYTES = 8 * 1024 * 1024; // 8MB 响应上限，防内存爆炸
@@ -93,17 +100,19 @@ function doFetch(rawUrl: string, mode: EncodingMode): Promise<FetchResult> {
 }
 
 export function registerFetchHandler(ipcMain: IpcMain): void {
-  ipcMain.handle(
+  // EVO-4: safeHandle 接管所有 4 个 channel；入参由 schema parse 验证
+  safeHandleWithMeta(
+    ipcMain,
     'pom:fetch-html',
-    async (_e, rawUrl: string, mode: EncodingMode = 'auto') => {
+    'FetchHtmlArgsSchema',
+    FetchHtmlArgsSchema,
+    async (_e, [rawUrl, mode = 'auto']) => {
       if (!validateUrl(rawUrl)) {
         return { error: 'invalid-url' };
       }
 
       let res = await doFetch(rawUrl, mode);
       // CF 挑战页 → 隐藏窗口真实加载 + 等待挑战消失 + 提取渲染 HTML
-      // （浏览器能打开即视为过盾成功；99csw 这类 managed challenge 自动通过，
-      //  交互式 Turnstile 则 20s 超时返回 null → 仍报错引导用户人工验证）
       if (res.error === 'cf-challenge') {
         const html = await cfFetchHtmlHidden(rawUrl);
         if (html) return { html };
@@ -112,25 +121,42 @@ export function registerFetchHandler(ipcMain: IpcMain): void {
     }
   );
 
-  // 抓取 UA 设置（设置页）：读取当前生效值 + 默认值；设置自定义 UA（null/空 = 恢复默认）
-  ipcMain.handle('pom:get-fetch-ua', () => ({ ua: getUA(), defaultUa: defaultUA() }));
-  ipcMain.handle('pom:set-fetch-ua', (_e, ua: string | null) => {
-    const v = (ua ?? '').trim();
-    if (v.length > 0) {
-      if (v.length > 300 || !v.startsWith('Mozilla/5.0')) {
-        throw new Error('UA 格式无效（应以 Mozilla/5.0 开头，长度 ≤ 300）');
+  // 抓取 UA 设置（设置页）：读取当前生效值 + 默认值
+  safeHandleWithMeta(
+    ipcMain,
+    'pom:get-fetch-ua',
+    'GetFetchUaArgsSchema',
+    GetFetchUaArgsSchema,
+    () => ({ ua: getUA(), defaultUa: defaultUA() })
+  );
+
+  // 抓取 UA 设置：自定义 UA（null/空 = 恢复默认）
+  safeHandleWithMeta(
+    ipcMain,
+    'pom:set-fetch-ua',
+    'SetFetchUaArgsSchema',
+    SetFetchUaArgsSchema,
+    (_e, [ua]) => {
+      const v = (ua ?? '').trim();
+      if (v.length > 0) {
+        if (v.length > 300 || !v.startsWith('Mozilla/5.0')) {
+          throw new Error('UA 格式无效（应以 Mozilla/5.0 开头，长度 ≤ 300）');
+        }
+        setFetchUA(v);
+      } else {
+        setFetchUA(null);
       }
-      setFetchUA(v);
-    } else {
-      setFetchUA(null);
+      return { ua: getUA() };
     }
-    return { ua: getUA() };
-  });
+  );
 
   // webview 编码切换：给指定 session 重写 Content-Type charset
-  ipcMain.handle(
+  safeHandleWithMeta(
+    ipcMain,
     'pom:set-webview-encoding',
-    async (_e, webviewId: string, mode: EncodingMode) => {
+    'SetWebviewEncodingArgsSchema',
+    SetWebviewEncodingArgsSchema,
+    async (_e, [webviewId, mode]) => {
       // 渲染进程侧用 webview.partition 隔离 session；这里按 webviewId 解析
       // 简化实现：mode=auto 时移除拦截器，否则重写 charset
       const { session } = require('electron');
