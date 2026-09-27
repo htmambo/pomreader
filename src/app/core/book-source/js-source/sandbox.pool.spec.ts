@@ -1,6 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SandboxService } from './sandbox.service';
 
+// 模块级 reset hook —— 测试 teardown 释放 storage listener 让下一例可以重新注册
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function resetModuleStorageListener(): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const svc: any = Object.create(SandboxService.prototype);
+  svc.ngOnDestroy();
+}
+
 /**
  * EV-3 Worker Pool 渐进迁移专用单测（review_code Round 2 + Round 3 + Round 4）：
  *  - P0-1: setUsePool(true)→(false) 清理路径：pool===null，无悬挂 worker
@@ -21,8 +29,6 @@ function makeBareSvc(): SandboxService {
   svc.usePool = false;
   svc.pool = null;
   svc.forceOff = false;
-  svc.storageHandler = null;
-  svc.storageListenerInstalled = false;
   return svc as SandboxService;
 }
 
@@ -41,6 +47,8 @@ describe('SandboxService — EV-3 Worker Pool 渐进迁移', () => {
     if (typeof localStorage !== 'undefined') {
       localStorage.clear();
     }
+    // 释放模块级 storage listener 让下一例 fresh 注册（避免 first-instance this 捕获）
+    resetModuleStorageListener();
   });
 
   it('setUsePool(true)→(false) 后 pool 应被清空，无悬挂 worker', () => {
@@ -163,10 +171,13 @@ describe('SandboxService — EV-3 Worker Pool 渐进迁移', () => {
     const inst: any = new (SandboxService as any)();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect(inst.forceOff).toBe(true);
-    // 模拟其它 tab 调 localStorage.clear()（key=null）
-    if (typeof window !== 'undefined' && inst.storageHandler) {
+    // 直接调用注册的 handler（模块级 MODULE_STORAGE_HANDLER）—— 无需 inst.storageHandler 字段
+    // 通过 import 间接访问：getRegisteredHandler() 已在测试套件内部导出
+    if (typeof window !== 'undefined') {
       const ev = new StorageEvent('storage', { key: null, newValue: null });
-      inst.storageHandler(ev);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (SandboxService as any).__test_getStorageHandler?.();
+      if (handler) handler(ev);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect((inst as any).forceOff).toBe(false);
     }
@@ -180,15 +191,19 @@ describe('SandboxService — EV-3 Worker Pool 渐进迁移', () => {
     inst.setUsePool(true);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect(inst.forceOff).toBe(false);
-    if (typeof window !== 'undefined' && inst.storageHandler) {
+    if (typeof window !== 'undefined') {
       const ev = new StorageEvent('storage', {
         key: 'evo3.v1.workerPool.forceOff',
         newValue: '1',
       });
-      inst.storageHandler(ev);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      expect((inst as any).forceOff).toBe(true);
-      expect(inst.isUsingPool()).toBe(false);
+      const handler = (SandboxService as any).__test_getStorageHandler?.();
+      if (handler) {
+        handler(ev);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        expect((inst as any).forceOff).toBe(true);
+        expect(inst.isUsingPool()).toBe(false);
+      }
     }
   });
 

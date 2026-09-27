@@ -1,10 +1,16 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, OnDestroy, signal } from '@angular/core';
 import { FetchError } from '../fetch-error';
 import { cssRulesEnabled } from '../smart-add/smart-rules';
 import { createWorkerPool, WorkerLike } from './worker-pool.factory';
 
 /** EVO-3 conservative kill-switch: operator can force-off pool without redeploy. */
 const EVO3_KILL_SWITCH_KEY = 'evo3.v1.workerPool.forceOff';
+
+/** P1-α: 模块级 storage 监听注册标志 —— 跨 SandboxService 实例持久，
+ *  防止 HMR / lazy provider / 多实例化导致 listener 重复叠加 */
+let MODULE_STORAGE_LISTENER_INSTALLED = false;
+/** P1-α: 稳定监听引用 —— addEventListener / removeEventListener 必须使用同一引用 */
+let MODULE_STORAGE_HANDLER: ((e: StorageEvent) => void) | null = null;
 
 /** P2-C: 接受 '1' / 'true' 两种写法；SSR / 隐私模式下 try/catch 兜底。 */
 function readForceOff(): boolean {
@@ -131,18 +137,15 @@ export class SandboxService {
 
   /** P2-A/P1-A: 强制关闭标志（本地 + 跨实例通过 localStorage 同步） */
   private forceOff = false;
-  /** P3-C: 跨标签页 storage 事件 → 收到本 key 变更时立即终止 pool */
-  private storageHandler: ((e: StorageEvent) => void) | null = null;
-  /** P3-C: 是否已注册 storage 监听（避免 SPA/HMR 重复实例化叠加监听） */
-  private storageListenerInstalled = false;
 
   constructor() {
     // P0-2 / P2-C: 构造期读 kill-switch（force-off 后不可 setUsePool(true) 绕过）
     // P3-C: 注册 storage 监听，跨标签页同步 kill-switch 状态
     this.forceOff = readForceOff();
     if (this.forceOff) this.usePool = false;
-    if (typeof window !== 'undefined' && !this.storageListenerInstalled) {
-      this.storageHandler = (e: StorageEvent) => {
+    // P1-α: 模块级标志 + 稳定引用 —— addEventListener/removeEventListener 使用同一 handler
+    if (typeof window !== 'undefined' && !MODULE_STORAGE_LISTENER_INSTALLED) {
+      MODULE_STORAGE_HANDLER = (e: StorageEvent) => {
         // P0-2: localStorage.clear() → e.key === null + e.newValue === null
         //       此时应重置 forceOff=false（kill-switch 已被全量清理）
         if (e.key === null) {
@@ -156,9 +159,27 @@ export class SandboxService {
           this.setUsePool(false);
         }
       };
-      window.addEventListener('storage', this.storageHandler);
-      this.storageListenerInstalled = true;
+      window.addEventListener('storage', MODULE_STORAGE_HANDLER);
+      MODULE_STORAGE_LISTENER_INSTALLED = true;
     }
+  }
+
+  /** P1-β: HMR / TestBed teardown / lazy provider destroy 闭环 —— removeEventListener */
+  ngOnDestroy(): void {
+    // 注意：本服务通常为 root singleton，ngOnDestroy 几乎不会触发；
+    // 但为 HMR / 多实例化 / 测试 teardown 安全，保留 removeEventListener 路径
+    // 当前架构下 root service 不会被销毁，因此这里**只**在测试场景需要时被调用
+    if (typeof window !== 'undefined' && MODULE_STORAGE_HANDLER && MODULE_STORAGE_LISTENER_INSTALLED) {
+      window.removeEventListener('storage', MODULE_STORAGE_HANDLER);
+      MODULE_STORAGE_HANDLER = null;
+      MODULE_STORAGE_LISTENER_INSTALLED = false;
+    }
+  }
+
+  /** 测试钩子：暴露模块级 storage handler 给 spec 验证跨标签页同步语义。
+   *  仅 sandbox.pool.spec.ts 使用；生产 UI 不暴露。 */
+  static __test_getStorageHandler(): ((e: StorageEvent) => void) | null {
+    return MODULE_STORAGE_HANDLER;
   }
   private readonly loaded = new Map<string, LoadedModule>();
   /** 书源源码缓存:key=fileName, value=上次加载的源码 —— load 时比对,内容变化则重新加载 */
