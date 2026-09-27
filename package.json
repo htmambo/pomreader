@@ -42,7 +42,7 @@
     "@ctrl/tinycolor": "^4.2.1",
     "@types/pouchdb-browser": "^6.1.5",
     "adm-zip": "^0.6.1",
-    "iconv-lite": "^0.6.3",
+    "iconv-lite": "^0.7.3",
     "ng-zorro-antd": "^18.2.1",
     "pouchdb-browser": "^9.0.0",
     "rxjs": "~7.8.0",
@@ -58,8 +58,8 @@
     "@types/adm-zip": "^0.5.8",
     "@types/node": "^20.14.0",
     "@vitest/coverage-v8": "^2.1.9",
-    "concurrently": "^9.0.0",
-    "cross-env": "^7.0.3",
+    "concurrently": "^10.0.5",
+    "cross-env": "^10.1.0",
     "electron": "^44.4.5",
     "electron-builder": "^26.16.1",
     "jsdom": "^26.1.0",
@@ -67,7 +67,7 @@
     "puppeteer-core": "^23.11.1",
     "typescript": "~5.5.2",
     "vitest": "^2.1.9",
-    "wait-on": "^8.0.0"
+    "wait-on": "^9.1.0"
   },
   "build": {
     "appId": "com.baihu.reader",
