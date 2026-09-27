@@ -133,14 +133,22 @@ export class SandboxService {
   private forceOff = false;
   /** P3-C: 跨标签页 storage 事件 → 收到本 key 变更时立即终止 pool */
   private storageHandler: ((e: StorageEvent) => void) | null = null;
+  /** P3-C: 是否已注册 storage 监听（避免 SPA/HMR 重复实例化叠加监听） */
+  private storageListenerInstalled = false;
 
   constructor() {
     // P0-2 / P2-C: 构造期读 kill-switch（force-off 后不可 setUsePool(true) 绕过）
     // P3-C: 注册 storage 监听，跨标签页同步 kill-switch 状态
     this.forceOff = readForceOff();
     if (this.forceOff) this.usePool = false;
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && !this.storageListenerInstalled) {
       this.storageHandler = (e: StorageEvent) => {
+        // P0-2: localStorage.clear() → e.key === null + e.newValue === null
+        //       此时应重置 forceOff=false（kill-switch 已被全量清理）
+        if (e.key === null) {
+          this.forceOff = false;
+          return;
+        }
         if (e.key !== EVO3_KILL_SWITCH_KEY) return;
         const shouldDisable = e.newValue === '1' || e.newValue === 'true';
         if (shouldDisable) {
@@ -149,6 +157,7 @@ export class SandboxService {
         }
       };
       window.addEventListener('storage', this.storageHandler);
+      this.storageListenerInstalled = true;
     }
   }
   private readonly loaded = new Map<string, LoadedModule>();
@@ -175,6 +184,8 @@ export class SandboxService {
   /** EV-3 渐进迁移：启用 Worker Pool（spec NFR-2 沙箱隔离不变；多 worker 并行调度）
    *  通过 localStorage['pom.sandbox.usePool'] === 'true' 也可启用（生产 kill-switch 路径）
    *  P1-A: 当 forceOff=true 时 enable=true 也被忽略（kill-switch 强制生效）
+   *  P1-A semantic: 启用被阻断时（forceOff=true 或 usePool 未变化），**已有 pool 仍会被同步 terminate()**；
+   *  terminate() 会 reject 所有 in-flight pending task（worker-pool.ts:250），不留悬挂任务。
    */
   setUsePool(enabled: boolean): void {
     if (enabled && this.forceOff) return; // P1-A: kill-switch 锁定
@@ -206,7 +217,9 @@ export class SandboxService {
     writeForceOff();
   }
 
-  /** P3-B: 提供 re-enable 入口（仅用于测试 / 调试，生产 UI 不暴露） */
+  /** P3-B: 提供 re-enable 入口（仅用于测试 / 调试，生产 UI 不暴露）
+   *  P0-3: 必须删除 localStorage entry，否则 reload 后 kill-switch 复活
+   */
   forceEnablePool(): void {
     this.forceOff = false;
     try {

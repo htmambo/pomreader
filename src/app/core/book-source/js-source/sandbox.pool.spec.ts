@@ -2,12 +2,14 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SandboxService } from './sandbox.service';
 
 /**
- * EV-3 Worker Pool 渐进迁移专用单测（review_code Round 2 + Round 3）：
+ * EV-3 Worker Pool 渐进迁移专用单测（review_code Round 2 + Round 3 + Round 4）：
  *  - P0-1: setUsePool(true)→(false) 清理路径：pool===null，无悬挂 worker
  *  - P0-2: localStorage kill-switch `evo3.v1.workerPool.forceOff`：构造后 isUsingPool()===false
  *  - P1-A: forceDisablePool() 后 setUsePool(true) 应被忽略（立即生效）
  *  - P2-C: '1' / 'true' 两种写法均识别；SSR / 无 localStorage 兜底
- *  - P3-B: forceEnablePool() 应清除 kill-switch
+ *  - P3-B: forceEnablePool() 应清除 kill-switch（localStorage + reload survival）
+ *  - P3-C: storage 事件处理 key===null / 跨标签页同步
+ *  - P3-A: localStorage mock 跨用例隔离（beforeEach/afterEach clear）
  *
  * 用 Object.create + 手动初始化绕开 constructor（不依赖 DI / 不调 forTest 的 attach(Worker)）。
  * 纯 pool 状态机测试 —— 不涉及沙箱消息路径。
@@ -20,6 +22,7 @@ function makeBareSvc(): SandboxService {
   svc.pool = null;
   svc.forceOff = false;
   svc.storageHandler = null;
+  svc.storageListenerInstalled = false;
   return svc as SandboxService;
 }
 
@@ -27,15 +30,16 @@ describe('SandboxService — EV-3 Worker Pool 渐进迁移', () => {
   let svc: SandboxService;
 
   beforeEach(() => {
+    // P3-A: 跨用例隔离
     if (typeof localStorage !== 'undefined') {
-      localStorage.removeItem('evo3.v1.workerPool.forceOff');
+      localStorage.clear();
     }
     svc = makeBareSvc();
   });
 
   afterEach(() => {
     if (typeof localStorage !== 'undefined') {
-      localStorage.removeItem('evo3.v1.workerPool.forceOff');
+      localStorage.clear();
     }
   });
 
@@ -109,15 +113,83 @@ describe('SandboxService — EV-3 Worker Pool 渐进迁移', () => {
     expect((svc as any).pool).toBeNull();
   });
 
-  it('P3-B: forceEnablePool() 解除 kill-switch', () => {
+  it('P1-A semantic: setUsePool(false) 已启用 pool 时 terminate() 同步触发（无悬挂 worker）', () => {
+    svc.setUsePool(true);
+    const pool = (svc as unknown as { pool: { terminate: () => void } }).pool;
+    let terminateCalled = false;
+    pool.terminate = () => {
+      terminateCalled = true;
+    };
+    svc.setUsePool(false);
+    expect(terminateCalled).toBe(true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect((svc as any).pool).toBeNull();
+  });
+
+  it('P3-B: forceEnablePool() 解除 kill-switch（内存 + localStorage）', () => {
     svc.forceDisablePool();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((svc as any).forceOff).toBe(true);
+    expect(svc.isUsingPool()).toBe(false);
     svc.forceEnablePool();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((svc as any).forceOff).toBe(false);
+    if (typeof localStorage !== 'undefined') {
+      expect(localStorage.getItem('evo3.v1.workerPool.forceOff')).toBeNull();
+    }
     svc.setUsePool(true);
     expect(svc.isUsingPool()).toBe(true);
+  });
+
+  it('P0-3: forceEnablePool() 后 reload 新实例应保持 forceOff=false', () => {
+    svc.forceDisablePool();
+    if (typeof localStorage !== 'undefined') {
+      expect(localStorage.getItem('evo3.v1.workerPool.forceOff')).toBe('1');
+    }
+    svc.forceEnablePool();
+    // 模拟 reload：构造新实例
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const reloaded: any = new (SandboxService as any)();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(reloaded.forceOff).toBe(false);
+  });
+
+  it('P3-C: storage 事件 key===null（localStorage.clear()）应重置 forceOff=false', () => {
+    svc.forceDisablePool();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect((svc as any).forceOff).toBe(true);
+    // 构造一个实例触发 storage 监听注册
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const inst: any = new (SandboxService as any)();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(inst.forceOff).toBe(true);
+    // 模拟其它 tab 调 localStorage.clear()（key=null）
+    if (typeof window !== 'undefined' && inst.storageHandler) {
+      const ev = new StorageEvent('storage', { key: null, newValue: null });
+      inst.storageHandler(ev);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect((inst as any).forceOff).toBe(false);
+    }
+  });
+
+  it('P3-C: storage 事件跨标签页同步 forceOff=true（其它 tab 调用 forceDisablePool）', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const inst: any = new (SandboxService as any)();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(inst.forceOff).toBe(false);
+    inst.setUsePool(true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(inst.forceOff).toBe(false);
+    if (typeof window !== 'undefined' && inst.storageHandler) {
+      const ev = new StorageEvent('storage', {
+        key: 'evo3.v1.workerPool.forceOff',
+        newValue: '1',
+      });
+      inst.storageHandler(ev);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect((inst as any).forceOff).toBe(true);
+      expect(inst.isUsingPool()).toBe(false);
+    }
   });
 
   it('forceDisablePool() 应写 localStorage kill-switch', () => {
