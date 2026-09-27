@@ -562,3 +562,9 @@
     background: #232323;
   }
 }
+
+.ant-alert-with-description .ant-alert-message,
+.ant-alert-description {
+  font-size: 12px;
+  line-height: 1.5;
+}
