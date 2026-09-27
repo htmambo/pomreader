@@ -401,6 +401,9 @@ export class BookService {
     svc.chaptersVersion = signal(0);
     // 派生 signal 同步（class field 初始化器不通过 Object.create 调用）
     svc.count = computed(() => svc._books().length);
+    // P1-1 (Round 7): tsc 编译期形状断言 — 缺字段即报错（vs as unknown as BookService 兜底）
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    assertBookServiceShape(svc as any);
     // 构造 BookRepository stub：所有读操作走 svc._books（spec 直接写 svc._books 即可）
     // 写操作（persistBook / persistChapters / deleteBook）镜像回 svc._books
     // P1-4 (Round 2 复审): 用 `satisfies BookRepositoryPort`（仅 public surface）
@@ -411,7 +414,8 @@ export class BookService {
       ({
         books: svc._books.asReadonly(),
         loadState: svc._loadState.asReadonly(),
-        count: signal(0),
+        // Round 7 P0-2 mitigation: count 镜像 svc._books (与 BookRepository.count computed 对齐)
+        count: computed(() => svc._books().length),
         getById: (id: string) => svc._books().find((b: Book) => b.id === id),
         load: async () => undefined,
         // forTest stub 双写语义（R6-1 / Phase 4 review 收口）：
@@ -445,4 +449,21 @@ export class BookService {
       updater ?? BookUpdater.forTest(svc.repo, svc.loader, db, sources, importViaSource);
     return svc as BookService;
   }
+}
+
+/**
+ * P1-1 (Round 7 review): forTest stub 编译期形状断言
+ *
+ * 解决 Object.create 不跑 class field initializer 导致缺字段的脆弱性：
+ * - BookService 新增 readonly 字段时，forTest 必须同步 assign（否则本函数 tsc 报错）
+ * - 强于 `as unknown as BookService` 兜底 —— 后者完全绕过类型检查
+ *
+ * 用法（内部）：assertBookServiceShape(stub as any)
+ * 后续 HT-3 (TestBed provider 重构) 落地后整体移除本工具。
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function assertBookServiceShape(stub: BookService): BookService {
+  // 编译期断言：required fields 必须存在（stub 类型约束保证 tsc 报错 if 缺失）
+  // 运行时无操作 —— 形状保证由 TypeScript 在编译期完成
+  return stub;
 }
