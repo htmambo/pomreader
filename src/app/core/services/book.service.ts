@@ -111,14 +111,37 @@ export class BookService {
     }
   }
 
-  /** 在线导入：目录入库 + 预加载前 N 章
-   *  HT-1 facade 收口：保留 BookService 自实现，原因见下方变更注释。
-   *  历史：曾尝试委托 `this.updater.importOnlineBook`，但 BookService.importOnlineBook 走
-   *  `addBook → repo.persistBook → fakeDb.bookPut` 链路，spec 通过 `spyAddBook` 拦截
-   *  addBook 验证 merged book；委托后 addBook 不再被 BookService 触发，spec 需重写为
-   *  spy fakeDb.bookPut（已实现但语义略变：刷新元数据等场景 bookPut/chapterPutMany 顺序敏感）。
-   *  后续 sprint 在 TestBed provider 重构（HT-3）时一并迁移 spec 模式。
+  /**
+   * ## HT-1 DEFERRED — Facade 委托未完成（review_code R6-2 / Phase 4 收口）
+   *
+   * **BookService half-migrated state**:
+   *   - 6/10 chapter methods (getChapters/getChaptersSync/loadChapterContent/refreshChapter/
+   *     clearChapterContents/updateChapter) → delegate to ChapterLoader (d9979b1) ✅
+   *   - 1/10 high-level method (updateProgress) → delegate to BookUpdater (031ce1a) ✅
+   *   - 4/10 high-level methods (importOnlineBook/changeBookSource/refreshChapters/
+   *     refreshBookInfo) → self-implemented ⚠️ HT-1 deferred
+   *
+   * **阻塞原因** (Round 6):
+   *   1. spec 通过 `spyAddBook(svc, calls)` 拦截 BookService.addBook 验证 merged book
+   *      —— 委托后 addBook 不再被 BookService 触发（改走 BookUpdater.persistBook）
+   *   2. refreshChapters 委托后 3 tests fail（章节顺序副作用未拆解）
+   *
+   * **解阻塞条件**: HT-3 TestBed provider 重构完成
+   *   - 重构后 spec 应通过 BookRepositoryPort 直接观测持久化结果
+   *   - 章节顺序副作用通过 ChapterLoader 显式 sequencing 拆解
+   *
+   * **迁移步骤** (HT-3 完成后):
+   *   1. importOnlineBook → this.updater.importOnlineBook(book, catalog)
+   *   2. changeBookSource → this.updater.changeBookSource(bookId, newUrl, sourceName)
+   *   3. refreshChapters → this.updater.refreshChapters(bookId)（附顺序回归测试）
+   *   4. refreshBookInfo → this.updater.refreshBookInfo(bookId)
+   *
+   * **回归矩阵**: spec 27/27 (book.service.spec) + 16/16 (book-updater.spec) 全绿
+   *
+   * @see HT-3 ticket: EVO-1-HT-3 (TestBed provider 重构合并处理)
+   * @see Round 6 review: P2 R6-2（half-migrated 状态记录）
    */
+  /** 在线导入：目录入库 + 预加载前 N 章（HT-1 deferred —— 见上方详细注释） */
   async importOnlineBook(book: Book, catalog: CatalogEntry[]): Promise<void> {
     const chapters: Chapter[] = catalog.map((e, i) => ({
       bookId: book.id,
@@ -389,8 +412,11 @@ export class BookService {
         count: signal(0),
         getById: (id: string) => svc._books().find((b: Book) => b.id === id),
         load: async () => undefined,
-        // HT-1 适配：stub persistBook 同时调 fakeDb.bookPut + 镜像 _books
-        // 让 spec 通过 fakeDb.bookPut.mock.calls 观察写入路径（生产链路等价）
+        // forTest stub 双写语义（R6-1 / Phase 4 review 收口）：
+        //   db-first（source of truth），mirror-second（同步读路径缓存）
+        //   db 抛错 → 测试即失败，_books 不被污染（await 后再镜像）
+        //   错误传播语义：原 stub 不调 db = 吞错；现 stub 调 db = 抛错（更接近 prod）
+        //   NG0203 边界：仅由 BookService.forTest 注入，prod 链路通过 Angular DI 隔离
         persistBook: async (book: Book) => {
           await db.bookPut(book);
           svc._books.update((list: Book[]) => {
