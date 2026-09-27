@@ -45,6 +45,8 @@ declare global {
       }>;
       coverCacheSize?: () => Promise<number>;
       coverCacheClear?: () => Promise<number>;
+      /** 设置 webview 编码（universal-search.component.ts:364 用） */
+      setWebviewEncoding?: (webContentsId: string, mode: 'auto' | 'utf-8' | 'gbk') => Promise<void>;
     };
   }
 }

@@ -83,7 +83,7 @@ module.exports = tseslint.config(
       ],
       'no-unused-vars': 'off',
 
-      '@typescript-eslint/no-explicit-any': 'off', // 暂时 off；后续渐进收紧
+      '@typescript-eslint/no-explicit-any': 'warn', // 渐进收紧：先 warn 看分布
       '@typescript-eslint/no-non-null-assertion': 'off', // 仓库允许
 
       'no-console': 'off',

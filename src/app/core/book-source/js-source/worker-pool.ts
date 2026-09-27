@@ -80,7 +80,7 @@ interface PendingEntry {
 // P3 sprint 待接入 sandbox：当前工厂返回 SynchronousWorkerAdapter，
 // WorkerPoolImpl 仅保留 + tests 覆盖；故不强约束 implements WorkerLike
 export class WorkerPoolImpl {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   private _workerLikeMarker: WorkerLike | undefined = undefined;
   private workers: WorkerLikeInternal[] = [];
   /** modules: fileName → 内部缓存（LRU） */

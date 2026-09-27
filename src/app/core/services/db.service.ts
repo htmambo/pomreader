@@ -540,7 +540,7 @@ export class DbService {
   }
 
   private chapterDocToChapter(doc: StoredChapterDoc): Chapter {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     const { _id, _rev, type, ...rest } = doc;
     return rest as Chapter;
   }

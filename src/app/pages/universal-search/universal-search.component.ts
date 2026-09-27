@@ -215,7 +215,7 @@ export class UniversalSearchComponent {
   readonly active = input(true);
 
   constructor() {
-    this.isElectron.set(typeof window !== 'undefined' && !!(window as any).pomAPI);
+    this.isElectron.set(typeof window !== 'undefined' && !!window.pomAPI);
 
     // webview 元素出现/重建时（重新）挂事件；旧元素随 @for 销毁，监听器随之回收
     effect(() => {
@@ -231,7 +231,7 @@ export class UniversalSearchComponent {
       const wv = this.webviewRef()?.nativeElement;
       if (!wv || !ready) return;
       try {
-        (wv as any).setAudioMuted?.(!active);
+        wv.setAudioMuted(!active);
       } catch {
         // 容错：webview 未 attach / guest 异常时原生方法不可用
       }
@@ -243,7 +243,7 @@ export class UniversalSearchComponent {
       this.wvReady.set(true);
       this.refreshNavState();
     });
-    wv.addEventListener('will-navigate', (e: any) => {
+    wv.addEventListener('will-navigate', (e) => {
       if (!/^https?:\/\//.test(e.url)) {
         e.preventDefault?.();
         return;
@@ -265,7 +265,7 @@ export class UniversalSearchComponent {
         this.refreshNavState();
       }
     });
-    wv.addEventListener('new-window', (e: any) => {
+    wv.addEventListener('new-window', (e) => {
       // 主进程 setWindowOpenHandler 已 deny + loadURL 在当前 webview 跳转
       // 这里仅同步地址栏（did-stop-loading 也会刷新，保留作即时反馈）
       if (/^https?:\/\//.test(e.url)) this.url = e.url;
@@ -332,13 +332,12 @@ export class UniversalSearchComponent {
       this.navTarget = u;
       try {
         // 先终止进行中的加载（触发 did-stop-loading → 立即停转圈），再开始新导航
-        // stop 不在 HTMLWebViewElement 类型声明中（与 loadURL 同为运行时方法）
-        if (this.loading()) (wv as any).stop?.();
+        if (this.loading()) wv.stop();
       } catch {
         // 容错：原生方法偶发不可用
       }
-      // loadURL 实际返回 Promise（类型声明为 void）；ERR_ABORTED（被下一次导航中止）属正常竞争，静默
-      void (wv.loadURL(u) as unknown as Promise<void>)?.catch(() => {});
+      // ERR_ABORTED（被下一次导航中止）属正常竞争，静默
+      void wv.loadURL(u)?.catch(() => {});
     } else {
       this.recreateWebview(u);
     }
@@ -357,10 +356,10 @@ export class UniversalSearchComponent {
   setEncoding(mode: EncodingMode): void {
     this.encoding = mode;
     if (!this.wvReady()) return;
-    const wv = this.webviewRef()?.nativeElement as any;
-    if (wv?.getWebContentsId) {
+    const wv = this.webviewRef()?.nativeElement;
+    if (wv) {
       const id = String(wv.getWebContentsId());
-      (window as any).pomAPI?.setWebviewEncoding?.(id, mode);
+      window.pomAPI?.setWebviewEncoding?.(id, mode);
     }
     this.reload();
   }
