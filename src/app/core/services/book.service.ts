@@ -317,23 +317,27 @@ export class BookService {
     await this.loader.updateChapter(bookId, index, patch);
   }
 
-  /** 更新阅读进度（嵌入 Book 文档） */
+  /** 更新阅读进度（嵌入 Book 文档）—— 委托 BookUpdater */
   async updateProgress(bookId: string, chapterIndex: number, scrollOffset?: number): Promise<void> {
     try {
-      await this.db.bookUpdateProgress(bookId, chapterIndex, scrollOffset);
-      const now = new Date().toISOString();
-      const progress = { chapterIndex, scrollOffset, updatedAt: now };
-      this._books.update((list) =>
-        list.map((b) => (b.id === bookId ? { ...b, progress, lastReadAt: now } : b)),
-      );
+      await this.updater.updateProgress(bookId, chapterIndex, scrollOffset);
     } catch (e) {
       console.warn('[BookService.updateProgress] failed', e);
     }
+    // 镜像同步：BookUpdater 已 persistBook，但 BookService 自身 _books 仍保留镜像
+    // （spec NFR-7 facade 渐进迁移：现有调用方依赖 BookService.books signal 即时刷新）
+    const now = new Date().toISOString();
+    const progress = { chapterIndex, scrollOffset, updatedAt: now };
+    this._books.update((list) =>
+      list.map((b) => (b.id === bookId ? { ...b, progress, lastReadAt: now } : b)),
+    );
   }
 
   /** 删除一本书 + 级联删除其所有章节 */
   async deleteBook(bookId: string): Promise<void> {
     await this.repo.deleteBook(bookId);
+    // 委托 ChapterLoader 清理缓存（避免删除后 _chaptersCache 残留）
+    this.loader.evictCache(bookId);
     // 镜像同步
     this._books.update((list) => list.filter((b) => b.id !== bookId));
     this._chaptersCache.update((m) => {

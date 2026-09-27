@@ -1,4 +1,4 @@
-import { Injectable, Signal, WritableSignal, inject, signal } from '@angular/core';
+import { Injectable, Signal, WritableSignal, computed, inject, signal } from '@angular/core';
 import { Book } from '../models/book.model';
 import { Chapter } from '../models/chapter.model';
 import { DbService } from './db.service';
@@ -47,8 +47,8 @@ export class BookRepository implements BookRepositoryPort {
   readonly books: Signal<Book[]> = this._books.asReadonly();
   /** 加载状态（启动 / 失败 / 成功） */
   readonly loadState: Signal<'idle' | 'loading' | 'ready' | 'error'> = this._loadState.asReadonly();
-  /** 便利派生：book 数量 */
-  readonly count: Signal<number> = signal(0); // 由外部 computed 注入，避免循环依赖
+  /** 便利派生：book 数量（auto-tracks _books） */
+  readonly count: Signal<number> = computed(() => this._books().length);
 
   /**
    * 一次性加载所有书籍。APP_INITIALIZER 启动时调一次。
@@ -117,7 +117,7 @@ export class BookRepository implements BookRepositoryPort {
     // 手动绑定 readonly signal getter（class field initializer 不通过 Object.create 调用）
     repo.books = repo._books.asReadonly();
     repo.loadState = repo._loadState.asReadonly();
-    repo.count = signal(0);
+    repo.count = computed(() => repo._books().length);
     return repo as BookRepository;
   }
 }
