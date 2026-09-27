@@ -14,32 +14,32 @@ export const BOOK_SOURCE_ROUTES: Routes = [
   {
     // 注意:search/smart-add/debug/test 必须放在 'edit/:fileName' 之前,否则会被 :fileName 捕获
     path: 'search',
-    data: { title: '书源搜索', subtitle: '跨书源聚合搜索' },
+    data: { title: '搜索', subtitle: '跨书源聚合搜索' },
     loadComponent: () =>
       import('./book-source-search.component').then((m) => m.BookSourceSearchComponent),
   },
   {
     path: 'smart-add',
-    data: { title: '智能添加', subtitle: '输入网址 → 调整规则 → 生成书源' },
+    data: { title: '添加', subtitle: '输入网址 → 调整规则 → 生成书源' },
     loadComponent: () =>
       import('./book-source-smart-add.component').then((m) => m.BookSourceSmartAddComponent),
   },
   {
     path: 'debug',
-    data: { title: '调试书源', subtitle: '逐函数调用书源,预览结果与原始 JSON' },
+    data: { title: '调试', subtitle: '逐函数调用书源,预览结果与原始 JSON' },
     loadComponent: () =>
       import('./book-source-debug.component').then((m) => m.BookSourceDebugComponent),
   },
   {
     path: 'test',
-    data: { title: '书源测试', subtitle: '批量检测书源可用性(搜索 → 详情 → 目录 → 正文)' },
+    data: { title: '测试', subtitle: '批量检测书源可用性(搜索 → 详情 → 目录 → 正文)' },
     loadComponent: () =>
       import('./book-source-test.component').then((m) => m.BookSourceTestComponent),
   },
   {
     // 副标题为当前编辑的文件名 —— 路由加载后由组件在 loadExisting() 里写入 service
     path: 'edit/:fileName',
-    data: { title: '编辑书源' },
+    data: { title: '编辑' },
     loadComponent: () =>
       import('./book-source-editor.component').then((m) => m.BookSourceEditorComponent),
   },

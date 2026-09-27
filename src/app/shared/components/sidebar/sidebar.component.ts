@@ -30,16 +30,16 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
       >
         <ul>
           <li nz-menu-item [routerLink]="['/book-sources']" [routerLinkActiveOptions]="{ exact: true }" routerLinkActive="ant-menu-item-selected">
-            <span>书源列表</span>
+            <span>列表</span>
           </li>
           <li nz-menu-item [routerLink]="['/book-sources/search']" [routerLinkActiveOptions]="{ exact: true }" routerLinkActive="ant-menu-item-selected">
-            <span>书源搜索</span>
+            <span>搜索</span>
           </li>
           <li nz-menu-item [routerLink]="['/book-sources/debug']" [routerLinkActiveOptions]="{ exact: true }" routerLinkActive="ant-menu-item-selected">
-            <span>调试书源</span>
+            <span>调试</span>
           </li>
           <li nz-menu-item [routerLink]="['/book-sources/test']" [routerLinkActiveOptions]="{ exact: true }" routerLinkActive="ant-menu-item-selected">
-            <span>书源测试</span>
+            <span>测试</span>
           </li>
         </ul>
       </li>
