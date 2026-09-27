@@ -153,10 +153,14 @@ export class SandboxService {
           return;
         }
         if (e.key !== EVO3_KILL_SWITCH_KEY) return;
+        // P1-δ: e.newValue === null（其它 tab 调 removeItem）→ 解除锁定
+        //       e.newValue === '0' / 'false' / 其它 → 同样视为解除
         const shouldDisable = e.newValue === '1' || e.newValue === 'true';
         if (shouldDisable) {
           this.forceOff = true;
           this.setUsePool(false);
+        } else {
+          this.forceOff = false;
         }
       };
       window.addEventListener('storage', MODULE_STORAGE_HANDLER);

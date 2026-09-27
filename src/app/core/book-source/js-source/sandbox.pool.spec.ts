@@ -207,6 +207,27 @@ describe('SandboxService — EV-3 Worker Pool 渐进迁移', () => {
     }
   });
 
+  it('P1-δ: storage 事件 e.newValue=null（其它 tab 调 removeItem）应解除 forceOff', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const inst: any = new (SandboxService as any)();
+    inst.forceDisablePool();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(inst.forceOff).toBe(true);
+    if (typeof window !== 'undefined') {
+      const ev = new StorageEvent('storage', {
+        key: 'evo3.v1.workerPool.forceOff',
+        newValue: null, // removeItem 触发
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (SandboxService as any).__test_getStorageHandler?.();
+      if (handler) {
+        handler(ev);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        expect((inst as any).forceOff).toBe(false);
+      }
+    }
+  });
+
   it('forceDisablePool() 应写 localStorage kill-switch', () => {
     svc.forceDisablePool();
     expect(svc.isUsingPool()).toBe(false);
