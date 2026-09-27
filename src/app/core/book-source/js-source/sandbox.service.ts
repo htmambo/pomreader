@@ -404,7 +404,12 @@ export class SandboxService {
         entry.resolve(msg.value);
       } else {
         // 重建原始错误类型（保留 ReferenceError / TypeError）— 沙箱隔离可观测
-        const name = msg.errorName ?? 'Error';
+        // security: defense-in-depth — 白名单 errorName 防止恶意书源注入非 Error 构造器
+        const ALLOWED_ERROR_NAMES = new Set([
+          'Error', 'TypeError', 'RangeError', 'ReferenceError', 'SyntaxError',
+        ]);
+        const requestedName = msg.errorName ?? 'Error';
+        const name = ALLOWED_ERROR_NAMES.has(requestedName) ? requestedName : 'Error';
         const Ctor = (globalThis as unknown as Record<string, typeof Error>)[name] ?? Error;
         const e = new Ctor(msg.error ?? '沙箱调用失败');
         e.name = name;

@@ -38,26 +38,29 @@ describe('WorkerPool factory + SynchronousWorkerAdapter', () => {
   });
 
   describe('createWorkerPool', () => {
-    it('kill-switch 关闭时应返回 SynchronousWorkerAdapter', () => {
+    it('kill-switch "false" 时应返回 SynchronousWorkerAdapter + warn log', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
       localStorage.setItem('pom.workerPool', 'false');
       const pool = createWorkerPool();
       expect(pool).toBeInstanceOf(SynchronousWorkerAdapter);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('kill-switch'));
+      warnSpy.mockRestore();
     });
 
-    it('kill-switch 未设置时应返回可用 adapter（默认行为）', () => {
+    it('默认（无 kill-switch）应返回 SynchronousWorkerAdapter（Phase 4 P3 defer placeholder）', () => {
       const pool: WorkerLike = createWorkerPool();
       expect(pool).toBeDefined();
       expect(typeof pool.run).toBe('function');
       expect(typeof pool.terminate).toBe('function');
     });
 
-    it('kill-switch 仅在 "false" 字符串时触发', () => {
+    it('"0" / "true" 等非 "false" 值不应触发 kill-switch warn', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
       localStorage.setItem('pom.workerPool', '0');
       const pool = createWorkerPool();
       expect(pool).toBeInstanceOf(SynchronousWorkerAdapter);
-      // "0" 视作 truthy in string → 不同处理？
-      // 当前实现：localStorage.getItem 返回 "0" 时 !== "false"，所以不触发
-      // 这符合"仅显式 'false' 关闭"的语义
+      expect(warnSpy).not.toHaveBeenCalled();
+      warnSpy.mockRestore();
     });
   });
 });

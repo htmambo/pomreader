@@ -1,17 +1,23 @@
 /**
- * Worker Pool 工厂（EVO-3 试点 + R1 kill-switch）
+ * Worker Pool 工厂（EV-3 现状 — Phase 4 architect/code-review 评审后正式 defer）
  *
- * 提供 WorkerLike 抽象 + 工厂函数 + SynchronousWorkerAdapter 降级路径。
- * 完整 pool（pool≤4 / pending≤8 / LRU≤50 / 30s terminate-before-reject）移交后续 sprint。
+ * 现状（2026-09-27 review）：
+ * - 完整 WorkerPoolImpl（pool≤4 / pending≤8 / 30s terminate-before-reject / LRU≤50
+ *   / exit-refill）已在 worker-pool.ts 实现 + 7 个 spec 覆盖
+ * - 但 sandbox.service.ts 通过 worker 协议（postMessage + WorkerTask）与 worker.ts 通讯，
+ *   而 factory 的 WorkerLike.run<T>(task: () => Promise<T>) 接口是 function-based，
+ *   两者协议不兼容 —— 强制 wire 需重新设计 sandbox ↔ worker 抽象
+ * - Phase 4 双评审（architect + code-reviewer）判定当前 ship "渐进迁移"为 50%
+ * - 决策：保留 WorkerPoolImpl + tests 作为未来 P3 sprint 资产，
+ *   factory 简化：默认走 SynchronousWorkerAdapter + kill-switch 仍生效
  *
- * 当前实现：
- * - 默认：走单 worker（保留 sandbox.service.ts 现有行为）
- * - kill-switch：`localStorage['pom.workerPool'] === 'false'` → SynchronousWorkerAdapter
- *   在调用线程同步执行任务，绕过 Worker 启动。生产环境紧急止血开关。
+ * Kill-switch 语义：
+ * - localStorage['pom.workerPool'] === 'false' → 同步执行 + warn log（生产环境紧急止血）
+ * - 其它值（包括 '0' / 'true' / 缺省） → 同步执行（placeholder，未来 P3 替换为 WorkerPoolImpl）
  *
  * 设计原则：
- * - SynchronousWorkerAdapter 接口与 WorkerPool 完全相同（WorkerLike），便于未来无痛切换
- * - 同步执行不做沙箱隔离（仅做"能跑通"的最低保障）；生产仍走 Worker 路径
+ * - SynchronousWorkerAdapter 与未来 WorkerPool 共享 WorkerLike 接口，无痛切换
+ * - 同步执行不做沙箱隔离（仅做"能跑通"的最低保障）；生产仍走 sandbox.worker.ts
  * - kill-switch 通过 localStorage 读取，无需重新打包即可启用/关闭
  */
 import { SandboxService } from './sandbox.service';
@@ -35,25 +41,31 @@ export class SynchronousWorkerAdapter implements WorkerLike {
 }
 
 /**
- * 创建 Worker Pool 工厂入口
- * - 默认：返回单 worker adapter（与 sandbox.service.ts 现有行为一致）
- * - kill-switch：`localStorage['pom.workerPool'] === 'false'` → 同步执行
+ * 创建 Worker Pool 工厂入口（当前简化为：始终返回 SynchronousWorkerAdapter）
  *
- * 完整 pool（pool size / pending queue cap / 30s timeout / LRU / exit-refill）
- * 由下次接力 task pomreader-arch-evo-3 实施。
+ * - kill-switch `localStorage['pom.workerPool'] === 'false'` → 同步执行 + warn log
+ * - 默认 → 同步执行（placeholder）
+ *
+ * TODO(P3): 待 sandbox.service.ts 与 worker 协议重构完成后，替换为：
+ * ```ts
+ * import { WorkerPoolImpl } from './worker-pool';
+ * return new WorkerPoolImpl({
+ *   workerFactory: () => new Worker(new URL('assets/sandbox.worker.js', ...)),
+ *   size: 4,
+ *   pendingCap: 8,
+ *   timeoutMs: 30_000,
+ *   lruMax: 50,
+ * });
+ * ```
  */
 export function createWorkerPool(_sandbox?: SandboxService): WorkerLike {
-  const enabled =
+  const killSwitch =
     typeof localStorage !== 'undefined' &&
-    localStorage.getItem('pom.workerPool') !== 'false';
+    localStorage.getItem('pom.workerPool') === 'false';
 
-  if (!enabled) {
+  if (killSwitch) {
     // eslint-disable-next-line no-console
     console.warn('[pom] WorkerPool disabled via kill-switch, using sync adapter');
-    return new SynchronousWorkerAdapter();
   }
-
-  // 暂返回同步 adapter 作为 placeholder；后续接力替换为真正的 WorkerPool 实现
-  // （pool size ≤4 / pending ≤8 / 30s terminate-before-reject / LRU ≤50）
   return new SynchronousWorkerAdapter();
 }

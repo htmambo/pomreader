@@ -91,7 +91,13 @@ export type SetFetchUaArgs = v.InferOutput<typeof SetFetchUaArgsSchema>;
 
 /** pom:set-webview-encoding args tuple: (webviewId: string, mode: EncodingMode) */
 export const SetWebviewEncodingArgsSchema = v.tuple([
-  v.pipe(v.string(), v.minLength(1, 'webviewId must be non-empty')),
+  v.pipe(
+    v.string(),
+    v.minLength(1, 'webviewId must be non-empty'),
+    // security: defense-in-depth — Electron partition name sanitizes internally,
+    // but regex prevents typos/edge cases from reaching session.fromPartition
+    v.regex(/^[a-zA-Z0-9_-]+$/, 'webviewId must be alphanumeric, dash, or underscore'),
+  ),
   v.picklist(['auto', 'utf-8', 'gbk']),
 ]);
 export type SetWebviewEncodingArgs = v.InferOutput<typeof SetWebviewEncodingArgsSchema>;
