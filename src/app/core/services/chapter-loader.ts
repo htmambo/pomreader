@@ -128,9 +128,12 @@ export class ChapterLoader {
     await this.db.chapterPut(updated);
     this._chaptersCache.update((m) => {
       const list = m.get(bookId);
-      if (!list) return m;
+      // 缓存 miss 路径：直接把单章写进新数组（覆盖写）
       const next = new Map(m);
-      next.set(bookId, list.map((c) => (c.index === index ? updated : c)));
+      const newList = list
+        ? list.map((c) => (c.index === index ? updated : c))
+        : [updated];
+      next.set(bookId, newList);
       return next;
     });
     this.chaptersVersion.update((v) => v + 1);
