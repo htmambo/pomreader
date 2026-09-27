@@ -399,6 +399,8 @@ export class BookService {
     svc._loadState = signal<DbLoadState>('idle');
     svc._chaptersCache = signal(new Map());
     svc.chaptersVersion = signal(0);
+    // 派生 signal 同步（class field 初始化器不通过 Object.create 调用）
+    svc.count = computed(() => svc._books().length);
     // 构造 BookRepository stub：所有读操作走 svc._books（spec 直接写 svc._books 即可）
     // 写操作（persistBook / persistChapters / deleteBook）镜像回 svc._books
     // P1-4 (Round 2 复审): 用 `satisfies BookRepositoryPort`（仅 public surface）

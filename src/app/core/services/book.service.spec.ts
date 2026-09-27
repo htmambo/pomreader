@@ -67,6 +67,7 @@ function makeFakeDb(
   let chapters = [...initialChapters];
   const fakeDb = {
     bookPut: vi.fn(async () => undefined),
+    bookDelete: vi.fn(async () => undefined),
     chapterPutMany: vi.fn(async (chs: typeof chapters) => {
       // 模拟 PouchDB upsert（chapterPutMany 同 _id 覆盖）
       for (const nc of chs) {
@@ -554,5 +555,41 @@ describe('BookService.refreshChapters', () => {
     // existingUrls 是空集 → 旧 3 章视为新 → 全部追加
     expect(result.added).toBe(5);
     expect(result.skipped).toBe(0);
+  });
+});
+
+/**
+ * BookService facade count 行为锁定（与 BookRepository.count computed 契约对齐）
+ * - Phase 4 R3 修补：count 由死 signal 改为 computed(_books().length)
+ * - BookService.count 是独立的 computed(_books().length)（BookRepository.count 的 facade 镜像）
+ */
+describe('BookService.count facade', () => {
+  let svc: BookService;
+
+  beforeEach(() => {
+    const { fakeDb } = makeFakeDb();
+    const registry = BookSourceRegistry.forTest(emptyFetcher());
+    registry.register(new StubAdapter('stub'));
+    const importViaSource = makeFakeImportViaSource(makeResolved(), 'new-uuid');
+    svc = BookService.forTest(fakeDb as never, registry, importViaSource);
+  });
+
+  it('初始 count 应为 0', () => {
+    expect(svc.count()).toBe(0);
+  });
+
+  it('addBook 后 count 应追踪 _books 长度', async () => {
+    await svc.addBook(makeBook({ id: 'b1' }), []);
+    expect(svc.count()).toBe(1);
+    await svc.addBook(makeBook({ id: 'b2' }), []);
+    expect(svc.count()).toBe(2);
+  });
+
+  it('deleteBook 后 count 应减少', async () => {
+    await svc.addBook(makeBook({ id: 'b1' }), []);
+    await svc.addBook(makeBook({ id: 'b2' }), []);
+    expect(svc.count()).toBe(2);
+    await svc.deleteBook('b1');
+    expect(svc.count()).toBe(1);
   });
 });
