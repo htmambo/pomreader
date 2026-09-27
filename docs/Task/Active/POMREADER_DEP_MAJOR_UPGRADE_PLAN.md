@@ -28,12 +28,39 @@
 
 > 2026-09-28 复核新增。缺了这一节，Phase 0 每一步的「`npm test` 通过」都是**无法判读**的信号：当前本机 `node_modules` 相对 `package.json` 已过期。
 
-- [ ] **P-0-1 `npm ci` + 钉死绿色基线**。当前实测 `npm test` = **2 failed | 52 passed（54 文件），677 用例通过**，失败原因是 `opencc-js` / `valibot` 解析不到（`node_modules` 里这俩 + `eslint` + `angular-eslint` 全缺失，`concurrently@9.2.4` / `cross-env@7.0.3` 报 `invalid`，早于 `0bee9ba`），**不是** vitest 行为差异。`npm run lint` 目前根本跑不起来。
+- [x] **P-0-1 `npm ci` + 钉死绿色基线**。当前实测 `npm test` = **2 failed | 52 passed（54 文件），677 用例通过**，失败原因是 `opencc-js` / `valibot` 解析不到（`node_modules` 里这俩 + `eslint` + `angular-eslint` 全缺失，`concurrently@9.2.4` / `cross-env@7.0.3` 报 `invalid`，早于 `0bee9ba`），**不是** vitest 行为差异。`npm run lint` 目前根本跑不起来。
   - 健康基线 = **54 文件 / 700 用例**（677 + 两个加载失败文件内的 23 个 `it`）。写入本节，后续每级与此比对。
-- [ ] **P-0-2 修好 e2e 验收门**。当前 `npx playwright test`（CI e2e job 与 `npm run e2e` 用的都是它）从仓库根跑：根目录无 `playwright.config.ts` → Playwright 回落默认配置、`testDir=cwd`、默认 `testMatch` 收 `**/*.spec.ts` → 误收 54 个 vitest spec，实测输出 **`Total: 0 tests in 0 files`**。真正的 19 个 e2e 只有显式指定配置时才被收集：`npx playwright test -c e2e/playwright.config.ts` → **`Total: 19 tests in 5 files`**。
+- [x] **P-0-2 修好 e2e 验收门**。当前 `npx playwright test`（CI e2e job 与 `npm run e2e` 用的都是它）从仓库根跑：根目录无 `playwright.config.ts` → Playwright 回落默认配置、`testDir=cwd`、默认 `testMatch` 收 `**/*.spec.ts` → 误收 54 个 vitest spec，实测输出 **`Total: 0 tests in 0 files`**。真正的 19 个 e2e 只有显式指定配置时才被收集：`npx playwright test -c e2e/playwright.config.ts` → **`Total: 19 tests in 5 files`**。
   - 二选一：① 根目录加 `playwright.config.ts`（`testDir: 'e2e'`）；② `package.json` script 与 `.github/workflows/ci.yml` 同改 `-c e2e/playwright.config.ts`。
   - 不修的后果比没门更危险：每级「全量验证」会**静默漏掉整个 e2e 面**，而它在 CI 里显示为绿。
-- [ ] **P-0-3 每级附 `npm ls --depth=0` 无 missing/invalid 的输出**。本次正是它暴露了过期 `node_modules`；把它固化为升级 PR 的证据附件。
+- [x] **P-0-3 每级附 `npm ls --depth=0` 无 missing/invalid 的输出**。本次正是它暴露了过期 `node_modules`；把它固化为升级 PR 的证据附件。
+- [ ] **P-0-4 修 `format:check` 红门（实施时新发现的 Blocker，见下）**。
+
+## P-0 实施结果（2026-09-28，分支 `chore/dep-major-upgrade`）
+
+| 项 | 结果 |
+|---|---|
+| P-0-1 | ✅ `npm ci` 完成；`npm ls --depth=0` 无 missing/invalid（valibot / opencc-js / eslint / angular-eslint 已就位，concurrently 10.0.5 / cross-env 10.1.0） |
+| P-0-1 基线 | ✅ `npm test` = **54 文件 / 700 用例全通过**（与预测的 54/700 完全一致），耗时 53.59s |
+| P-0-1 覆盖率基线 | ✅ All files **76.36% stmts / 81.91% branch / 83.14% funcs / 76.36% lines**（阈值 50/75/60/50 未触碰） |
+| P-0-1 其他 | ✅ `npm run lint` 干净；`npm run build` 通过；esbuild 0.23.0 在 install-script 被 npm 12 拦下的情况下仍可用（平台二进制走 optional deps） |
+| P-0-1 补充 | ⚠️ `npm run build:electron` **原本是红的**（tsc exit=2，3 处错误），非本次升级引入、CI 因更早的 format:check 中断从未跑到 → 已由 commit `427d4ea` 修复，现 `tsc --noEmit` 0 error、`build:electron` exit=0、700/700 回归通过 |
+| P-0-2 | ✅ 采用方案 ①：commit `13072d8`，`git mv e2e/playwright.config.ts playwright.config.ts` + `testDir: './e2e'`。根目录 `npx playwright test --list` 现为 **`Total: 19 tests in 5 files`**，`package.json` 与 CI **无需改动**（`npm run e2e` / CI 的 `npx playwright test` 同一入口） |
+| P-0-3 | ✅ 已纳入 P-0-1 实测；后续每级复跑 |
+| P-0-4 | ⛔ **未做，待决策**（见下） |
+
+### P-0-4：`format:check` 早已是红门，且它是 main 上 CI 唯一失败项
+
+实施中实测发现，**不是本次升级引入的**：
+
+- `npm run format:check` → `Code style issues found in **166 files**`（144 `.ts` / 12 `.html` / 7 `.scss` / 3 `.json`）
+- `gh run list` 显示 main 最近 20 次 CI：**18 failure / 2 cancelled**；`gh run view --log-failed` 定位到唯一失败 step = `Prettier format check`，输出同样是 166 files
+- 用 `prettier@3.4.0`（package.json 下限）复检结果**完全相同** → 排除 prettier 版本漂移，代码就是没按现有 `.prettierrc` 格式化过
+- 差异形态属机械性：多行数组被折叠成单行（`"lib": ["ES2022", "dom"]`）、文件末尾缺换行
+- 连带影响：CI 在该 step 中断 → **`npm test` / `ng build` / `build:electron` / e2e 这些后续 step 从未在 CI 上跑过**。也就是说 P-0-4 不修，任何升级 commit 的 CI 结论都无意义
+- 与本计划的关系：`Phase 0 顶部验收命令块`含 `npm run format:check`，在这道门修好前**该命令块不可能全绿**
+
+**待决策（不自行处理）**：① 单独一个 `style:` commit 跑 `npm run format` 重排 166 文件（机械可预期，但会与升级 diff 混在同一分支，需保证独立 commit）；② 把 prettier pin 到某个能过现有代码的版本；③ 临时从验收命令块移除 `format:check`。倾向 ①，但影响面大，需用户拍板。
 
 ## Phase 0：测试工具链（不依赖 Angular，可立即做）
 
@@ -41,7 +68,7 @@
 
 ```bash
 npm ci && npm run format:check && npm run lint && npm test && npm run build && npm run build:electron
-npx playwright test -c e2e/playwright.config.ts --reporter=list
+npx playwright test --reporter=list   # 配置已在仓库根（P-0-2 修好），无需 -c
 ```
 
 - [ ] **P0-0 CI Node 20 → 24 + `.npmrc` `engine-strict=true`**：两个 job（`lint-unit-build` / `e2e`）的 `node-version` 都锁在 `'20'`，与本地 24.15.0 对齐后统一提到 `24`。`engine-strict` 缺了的话 `engines` 只是文档、装错版本也不拦。**本项必须先于 P0-2 / P0-4 落地**，否则那两个「可立即做」的步骤会在合并当天打断 CI。
@@ -95,7 +122,7 @@ npx playwright test -c e2e/playwright.config.ts --reporter=list
 
 ## 全局风险与对策
 
-1. **每级升级后必须全量验证**，命令见 Phase 0 顶部（注意 e2e 必须带 `-c e2e/playwright.config.ts`，见 P-0-2），外加手工过一遍阅读页（翻页测量/简繁转换对 effect 时序敏感）。
+1. **每级升级后必须全量验证**，命令见 Phase 0 顶部（e2e 配置已移至仓库根，直接 `npx playwright test` 即可，P-0-2 已修），外加手工过一遍阅读页（翻页测量/简繁转换对 effect 时序敏感）。
 2. **不许跳级**：schematic 逐级依赖，跳级漏自动修复。
 3. **TS 版本 pin 死**：各级区间 5.5（19）/ 5.8（20）/ 5.9（21）/ ~6.0（22），`~` 前缀防 npm 装到 7.x。
 4. **lockstep 依赖不得漏跟**：`ng-zorro-antd` / `@ant-design/icons-angular` / `angular-eslint` 三者主版本必须同帧移动（前者 peer 校验，后两者是硬依赖 / CLI peer）。
