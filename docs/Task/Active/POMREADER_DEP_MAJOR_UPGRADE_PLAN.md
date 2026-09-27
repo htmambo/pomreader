@@ -34,7 +34,7 @@
   - 二选一：① 根目录加 `playwright.config.ts`（`testDir: 'e2e'`）；② `package.json` script 与 `.github/workflows/ci.yml` 同改 `-c e2e/playwright.config.ts`。
   - 不修的后果比没门更危险：每级「全量验证」会**静默漏掉整个 e2e 面**，而它在 CI 里显示为绿。
 - [x] **P-0-3 每级附 `npm ls --depth=0` 无 missing/invalid 的输出**。本次正是它暴露了过期 `node_modules`；把它固化为升级 PR 的证据附件。
-- [ ] **P-0-4 修 `format:check` 红门（实施时新发现的 Blocker，见下）**。
+- [x] **P-0-4 修 `format:check` 红门（实施时新发现的 Blocker，见下）**。
 
 ## P-0 实施结果（2026-09-28，分支 `chore/dep-major-upgrade`）
 
@@ -47,7 +47,7 @@
 | P-0-1 补充 | ⚠️ `npm run build:electron` **原本是红的**（tsc exit=2，3 处错误），非本次升级引入、CI 因更早的 format:check 中断从未跑到 → 已由 commit `427d4ea` 修复，现 `tsc --noEmit` 0 error、`build:electron` exit=0、700/700 回归通过 |
 | P-0-2 | ✅ 采用方案 ①：commit `13072d8`，`git mv e2e/playwright.config.ts playwright.config.ts` + `testDir: './e2e'`。根目录 `npx playwright test --list` 现为 **`Total: 19 tests in 5 files`**，`package.json` 与 CI **无需改动**（`npm run e2e` / CI 的 `npx playwright test` 同一入口） |
 | P-0-3 | ✅ 已纳入 P-0-1 实测；后续每级复跑 |
-| P-0-4 | ⛔ **未做，待决策**（见下） |
+| P-0-4 | ✅ 用户拍板方案 ①，commit `dd26ab9`：165 文件按 `.prettierrc` 重排 + `**/__fixtures__/` 加入 `.prettierignore`。**五门全绿** |
 
 ### P-0-4：`format:check` 早已是红门，且它是 main 上 CI 唯一失败项
 
@@ -60,7 +60,14 @@
 - 连带影响：CI 在该 step 中断 → **`npm test` / `ng build` / `build:electron` / e2e 这些后续 step 从未在 CI 上跑过**。也就是说 P-0-4 不修，任何升级 commit 的 CI 结论都无意义
 - 与本计划的关系：`Phase 0 顶部验收命令块`含 `npm run format:check`，在这道门修好前**该命令块不可能全绿**
 
-**待决策（不自行处理）**：① 单独一个 `style:` commit 跑 `npm run format` 重排 166 文件（机械可预期，但会与升级 diff 混在同一分支，需保证独立 commit）；② 把 prettier pin 到某个能过现有代码的版本；③ 临时从验收命令块移除 `format:check`。倾向 ①，但影响面大，需用户拍板。
+**处置（已执行）**：用户拍板方案 ①，实际落地为 commit `dd26ab9`，165 文件重排 + 1 项配置改动，`.prettierrc` 本身未动。
+
+其中唯一带判断的决定是 **`**/__fixtures__/` 加入 `.prettierignore`**：`adapters/__fixtures__/*.html` 是抓取来的第三方原始字节（hetushu 19KB 页面 + xbiquge 两个片段），格式化等于改掉「被测输入」本身；且该文件还导致 `npm run format` **不收敛**（复位后单次全量 format 后 check 仍报它，需第二遍才干净，单文件 `prettier --write` 可绕过）。排除后已实测 format 幂等。三个夹具文件已复位为捕获原字节。
+
+**P-0 收口状态**：`format:check` / `lint` / `test`（54 文件 700 用例）/ `build` / `build:electron` / `e2e --list`（19 tests 5 files）**本地全绿**，Phase 0 可以开工。
+
+> ⚠️ 唯一未做的验证：`.html` 重排会重缩进 `@if`/`@for` 块内元素（`reader.component.html` 单文件 560 行），属视觉缩进而非结构变化，700 用例与两次 build 均通过，但**阅读页渲染空白未经人工目视复核**。Phase 1 之后 reader 组件的 `effect()` 时序才是真正高风险区，合并前建议手过一遍阅读页。
+
 
 ## Phase 0：测试工具链（不依赖 Angular，可立即做）
 
