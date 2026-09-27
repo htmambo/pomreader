@@ -405,6 +405,10 @@ export class BookService {
     svc.chaptersVersion = signal(0);
     // 派生 signal 同步（class field 初始化器不通过 Object.create 调用）
     svc.count = computed(() => svc._books().length);
+    // readonly signal getter 同步（BookService.books / loadState 是 getter，class field 不通过
+    // Object.create 调用）—— P1-1 mitigation Round 8 遗漏修补
+    svc.books = svc._books.asReadonly();
+    svc.loadState = svc._loadState.asReadonly();
     // P1-1 (Round 7): tsc 编译期形状断言 — 缺字段即报错（vs as unknown as BookService 兜底）
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     assertBookServiceShape(svc as any);
