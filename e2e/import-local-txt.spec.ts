@@ -4,7 +4,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('导入本地 TXT E2E', () => {
   test('应能从书架页触发导入 modal', async ({ page }) => {
-    await page.goto('/bookshelf');
+    await page.goto('#/bookshelf');
     await expect(page.locator('app-sidebar, nz-sider').first()).toBeVisible({ timeout: 10_000 });
     // 查找触发导入的按钮（可能在 sidebar / page-header / book-grid 上）
     const importBtn = page.locator(
@@ -22,7 +22,7 @@ test.describe('导入本地 TXT E2E', () => {
   });
 
   test('文件选择 input 应存在（条件渲染）', async ({ page }) => {
-    await page.goto('/bookshelf');
+    await page.goto('#/bookshelf');
     await page.waitForTimeout(2_000);
     // 全局查找 file input（modal 未打开时通常隐藏）
     const fileInputs = await page.locator('input[type="file"]').count();

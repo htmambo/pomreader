@@ -9,28 +9,28 @@ import { test, expect } from '@playwright/test';
  */
 test.describe('书源系统 E2E', () => {
   test('应能在书架页加载', async ({ page }) => {
-    await page.goto('/bookshelf');
+    await page.goto('#/bookshelf');
     // 项目 index.html 标题为「白虎阅读」
     await expect(page).toHaveTitle(/白虎|pomreader/i);
   });
 
   test('应能访问书源管理列表页', async ({ page }) => {
-    await page.goto('/book-sources');
+    await page.goto('#/book-sources');
     await expect(page.locator('app-book-source-list')).toBeVisible({ timeout: 5000 });
   });
 
   test('应能访问书源搜索页', async ({ page }) => {
-    await page.goto('/book-sources/search');
+    await page.goto('#/book-sources/search');
     await expect(page.locator('app-book-source-search')).toBeVisible({ timeout: 5000 });
   });
 
   test('应能访问缓存设置页', async ({ page }) => {
-    await page.goto('/settings/cache');
+    await page.goto('#/settings/cache');
     await expect(page.locator('app-cache-settings')).toBeVisible({ timeout: 5000 });
   });
 
   test('应能打开导入在线书 modal（条件存在）', async ({ page }) => {
-    await page.goto('/bookshelf');
+    await page.goto('#/bookshelf');
     // 书架页可能存在「导入」入口；若存在则尝试打开 modal
     const importBtn = page.locator('button:has-text("导入")').first();
     if (await importBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
@@ -49,11 +49,11 @@ test.describe('书源系统 E2E', () => {
  */
 test.describe('路由可达性（无控制台错误）', () => {
   const routes = [
-    '/bookshelf',
-    '/book-sources',
-    '/book-sources/search',
-    '/settings/cache',
-    '/disclaimer',
+    '#/bookshelf',
+    '#/book-sources',
+    '#/book-sources/search',
+    '#/settings/cache',
+    '#/disclaimer',
   ];
 
   for (const route of routes) {

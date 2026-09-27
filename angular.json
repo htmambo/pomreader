@@ -31,7 +31,6 @@
             "polyfills": ["zone.js", "@angular/localize/init"],
             "tsConfig": "tsconfig.app.json",
             "inlineStyleLanguage": "scss",
-            "baseHref": "./",
             "assets": [
               {
                 "glob": "**/*",
@@ -61,10 +60,12 @@
                   "maximumError": "16kB"
                 }
               ],
+              "baseHref": "./",
               "outputHashing": "all"
             },
             "development": {
               "optimization": false,
+              "baseHref": "/",
               "outputHashing": "none",
               "extractLicenses": false,
               "sourceMap": true
