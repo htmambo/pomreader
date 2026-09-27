@@ -12,7 +12,7 @@
  *  - 字段缺失给空字符串 / 0 兜底（保证下游 translator 拿到的 shape 完整）
  *  - 解析失败抛 Error，message 含失败原因 + 原始片段（便于 UI 弹错）
  */
-import { LegadoSource, LEGADO_SOURCE_TYPE_MAP } from './legado-types';
+import { type LegadoSource, LEGADO_SOURCE_TYPE_MAP } from './legado-types'
 export type { LegadoSource, LegadoSourceType } from './legado-types';
 
 /** 解析后的统一数组（单源也包成数组） */

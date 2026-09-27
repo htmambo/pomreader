@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, effect, signal } from '@angular/core';
-import { RouterOutlet, Router, NavigationEnd, ActivatedRouteSnapshot, Data } from '@angular/router';
+import { RouterOutlet, Router, NavigationEnd, ActivatedRouteSnapshot, type Data } from '@angular/router'
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map, startWith } from 'rxjs/operators';
 import { NzLayoutModule } from 'ng-zorro-antd/layout';

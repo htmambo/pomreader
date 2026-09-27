@@ -1,17 +1,10 @@
 import { Injectable, inject } from '@angular/core';
-import {
-  BookSourceAdapter,
-  CatalogEntry,
-  PageFetcher,
-  ResolvedBook,
-  extractMetaUuid,
-  hasMetaUuid,
-} from './book-source.adapter';
+import { type BookSourceAdapter, type CatalogEntry, type PageFetcher, type ResolvedBook, extractMetaUuid, hasMetaUuid } from './book-source.adapter'
 import { PageFetcherService } from './page-fetcher.service';
 import { FetchError } from './fetch-error';
 import { JsSourceAdapter } from './js-source/js-source.adapter';
 import { SandboxService } from './js-source/sandbox.service';
-import { BookSourceMeta } from './js-source/source-meta.types';
+import { type BookSourceMeta } from './js-source/source-meta.types'
 import { BOOK_SOURCE_FEATURE_FLAGS } from './feature-flag';
 import { UNIVERSAL_BOOK_SOURCE_UUID } from './book-source.constants';
 

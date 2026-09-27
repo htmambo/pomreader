@@ -1,4 +1,4 @@
-import { BookSourceConfig } from './book-source.adapter';
+import { type BookSourceConfig } from './book-source.adapter'
 
 /**
  * 内置适配器（笔趣阁）的编码 + 选择器规则配置（spec §4.4）

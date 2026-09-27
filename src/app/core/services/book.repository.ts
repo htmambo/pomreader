@@ -1,6 +1,6 @@
-import { Injectable, Signal, computed, inject, signal } from '@angular/core';
-import { Book } from '../models/book.model';
-import { Chapter } from '../models/chapter.model';
+import { Injectable, type Signal, computed, inject, signal } from '@angular/core'
+import { type Book } from '../models/book.model'
+import { type Chapter } from '../models/chapter.model'
 import { DbService } from './db.service';
 
 /**

@@ -1,9 +1,9 @@
 import { Injectable, inject } from '@angular/core';
-import { splitChapters, toChapters, ImportedChapter } from '../logic/chapter-split';
+import { splitChapters, toChapters, type ImportedChapter } from '../logic/chapter-split'
 import { randomCoverFor } from '../cover/generators/random';
 import { BookService } from './book.service';
-import { Book, BookSource } from '../models/book.model';
-import { Chapter } from '../models/chapter.model';
+import { type Book, type BookSource } from '../models/book.model'
+import { type Chapter } from '../models/chapter.model'
 
 export interface TxtImportResult {
   book: Book;

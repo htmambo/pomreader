@@ -1,11 +1,11 @@
 import { Injectable, inject } from '@angular/core';
-import { Book } from '../models/book.model';
-import { Chapter } from '../models/chapter.model';
+import { type Book } from '../models/book.model'
+import { type Chapter } from '../models/chapter.model'
 import { BookSourceRegistry } from '../book-source/book-source.registry';
-import { CatalogEntry } from '../book-source/book-source.adapter';
+import { type CatalogEntry } from '../book-source/book-source.adapter'
 import { ImportViaSourceService } from '../book-source/import-via-source.service';
 import { FetchError } from '../book-source/fetch-error';
-import { BookRepository, BookRepositoryPort } from './book.repository';
+import { BookRepository, type BookRepositoryPort } from './book.repository'
 import { ChapterLoader } from './chapter-loader';
 import { DbService } from './db.service';
 

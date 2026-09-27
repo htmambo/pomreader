@@ -2,10 +2,10 @@ import { ChangeDetectionStrategy, Component, inject, signal, computed } from '@a
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ScrollingModule } from '@angular/cdk/scrolling';
-import { NzUploadModule, NzUploadFile } from 'ng-zorro-antd/upload';
+import { NzUploadModule, type NzUploadFile } from 'ng-zorro-antd/upload'
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
-import { splitChapters, ImportedChapter } from '../../core/logic/chapter-split';
+import { splitChapters, type ImportedChapter } from '../../core/logic/chapter-split'
 import { finalizeChapterContent } from '../../core/logic/text-format';
 import { ToastService } from '../../core/services/toast.service';
 import { LocalTxtImportService } from '../../core/services/local-txt-import.service';

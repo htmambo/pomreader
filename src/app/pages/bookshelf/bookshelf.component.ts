@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, ChangeDetectionStrategy, computed, inject, type OnInit, signal } from '@angular/core'
 import { CommonModule } from '@angular/common';
 import { NzGridModule } from 'ng-zorro-antd/grid';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
@@ -11,13 +11,10 @@ import { SettingsService } from '../../core/services/settings.service';
 import { ToastService } from '../../core/services/toast.service';
 import { CoverService } from '../../core/cover/cover.service';
 import { BookCardComponent } from '../../shared/components/book-card/book-card.component';
-import { Book } from '../../core/models/book.model';
+import { type Book } from '../../core/models/book.model'
 import { sortBooks } from '../../core/logic/bookshelf-sort';
 import { CoverGeneratorDialogComponent } from '../../shared/components/cover-generator-dialog/cover-generator-dialog.component';
-import {
-  EditBookInfoDialogComponent,
-  EditBookInfoResult,
-} from '../../shared/components/edit-book-info-dialog/edit-book-info-dialog.component';
+import { EditBookInfoDialogComponent, type EditBookInfoResult } from '../../shared/components/edit-book-info-dialog/edit-book-info-dialog.component'
 import { ChangeBookSourceDialogComponent } from '../../shared/components/change-book-source-dialog/change-book-source-dialog.component';
 
 @Component({

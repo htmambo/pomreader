@@ -16,7 +16,7 @@ import { RulesPanelComponent } from '../../shared/components/rules-panel/rules-p
 import { PageHeaderService } from '../../core/services/page-header.service';
 import { ToastService } from '../../core/services/toast.service';
 import { parseHeaderMeta } from '../../core/book-source/js-source/header-parser';
-import { generateSourceCode, SearchMethod } from '../../core/book-source/smart-add/smart-rules';
+import { generateSourceCode, type SearchMethod } from '../../core/book-source/smart-add/smart-rules'
 
 /** PomAPI 子集(全局 Window.pomAPI 在 page-fetcher.service.ts 声明)。 */
 type PomBooksourceEditor = {

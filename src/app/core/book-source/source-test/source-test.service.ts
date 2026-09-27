@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
-import { SandboxService, SandboxFn } from '../js-source/sandbox.service';
-import { BookSourceMeta } from '../js-source/source-meta.types';
+import { SandboxService, type SandboxFn } from '../js-source/sandbox.service'
+import { type BookSourceMeta } from '../js-source/source-meta.types'
 
 /** 单个测试步骤的结果 */
 export interface TestStepResult {

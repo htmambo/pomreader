@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal, type OnInit } from '@angular/core'
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NzButtonModule } from 'ng-zorro-antd/button';
@@ -9,7 +9,7 @@ import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { CoverService } from '../../core/cover/cover.service';
 import { SettingsService } from '../../core/services/settings.service';
-import { BookshelfSort } from '../../core/models/settings.model';
+import { type BookshelfSort } from '../../core/models/settings.model'
 import { ToastService } from '../../core/services/toast.service';
 
 /**

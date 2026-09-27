@@ -9,7 +9,7 @@ import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzModalService } from 'ng-zorro-antd/modal';
-import { SearchResultItem } from '../../core/book-source/multi-source-search.service';
+import { type SearchResultItem } from '../../core/book-source/multi-source-search.service'
 import { SourceSearchStateService } from '../../core/book-source/source-search-state.service';
 import { ToastService } from '../../core/services/toast.service';
 import { ImportOnlineComponent } from '../../modals/import-online/import-online.component';

@@ -1,10 +1,10 @@
-import { Component, inject, signal, computed, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, signal, computed, type OnInit, ChangeDetectionStrategy } from '@angular/core'
 import { CommonModule } from '@angular/common';
 import { NZ_MODAL_DATA, NzModalRef } from 'ng-zorro-antd/modal';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
-import { Book } from '../../../core/models/book.model';
+import { type Book } from '../../../core/models/book.model'
 import { BUILTIN_COVER_GENERATORS } from '../../../core/cover/generators/builtin';
 
 interface CoverGeneratorData {

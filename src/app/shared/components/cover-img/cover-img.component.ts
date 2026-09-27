@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, Input, signal, computed, inject, OnChanges } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, signal, computed, inject, type OnChanges } from '@angular/core'
 import { CommonModule } from '@angular/common';
 import { CoverService } from '../../../core/cover/cover.service';
 

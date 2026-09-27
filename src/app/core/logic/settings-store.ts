@@ -1,19 +1,5 @@
-import { signal, Signal, WritableSignal } from '@angular/core';
-import {
-  Settings,
-  DEFAULT_SETTINGS,
-  PAGE_WIDTHS,
-  MIN_FONT_SIZE,
-  MAX_FONT_SIZE,
-  MIN_FONT_WEIGHT,
-  MAX_FONT_WEIGHT,
-  MIN_LINE_HEIGHT,
-  MAX_LINE_HEIGHT,
-  MIN_PARAGRAPH_SPACING,
-  MAX_PARAGRAPH_SPACING,
-  BOOKSHELF_SORTS,
-  CONVERT_MODES,
-} from '../models/settings.model';
+import { signal, type Signal, type WritableSignal } from '@angular/core'
+import { type Settings, DEFAULT_SETTINGS, PAGE_WIDTHS, MIN_FONT_SIZE, MAX_FONT_SIZE, MIN_FONT_WEIGHT, MAX_FONT_WEIGHT, MIN_LINE_HEIGHT, MAX_LINE_HEIGHT, MIN_PARAGRAPH_SPACING, MAX_PARAGRAPH_SPACING, BOOKSHELF_SORTS, CONVERT_MODES } from '../models/settings.model'
 
 const STORAGE_KEY = 'pom.settings';
 

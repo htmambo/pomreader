@@ -1,18 +1,4 @@
-import {
-  Component,
-  ChangeDetectionStrategy,
-  inject,
-  OnInit,
-  AfterViewInit,
-  OnDestroy,
-  HostListener,
-  signal,
-  computed,
-  effect,
-  untracked,
-  viewChild,
-  ElementRef,
-} from '@angular/core';
+import { Component, ChangeDetectionStrategy, inject, type OnInit, type AfterViewInit, type OnDestroy, HostListener, signal, computed, effect, untracked, viewChild, ElementRef } from '@angular/core'
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -24,30 +10,11 @@ import { BookService } from '../../core/services/book.service';
 import { ReaderService } from '../../core/services/reader.service';
 import { SettingsService } from '../../core/services/settings.service';
 import { JumpChapterDialogComponent } from '../../shared/components/jump-chapter-dialog/jump-chapter-dialog.component';
-import {
-  PAGE_WIDTHS,
-  MIN_FONT_SIZE,
-  MAX_FONT_SIZE,
-  MIN_FONT_WEIGHT,
-  MAX_FONT_WEIGHT,
-  FONT_WEIGHT_STEP,
-  MIN_LINE_HEIGHT,
-  MAX_LINE_HEIGHT,
-  LINE_HEIGHT_STEP,
-  MIN_PARAGRAPH_SPACING,
-  MAX_PARAGRAPH_SPACING,
-  PARAGRAPH_SPACING_STEP,
-  ReadMode,
-  ConvertMode,
-} from '../../core/models/settings.model';
-import { Chapter } from '../../core/models/chapter.model';
-import { Book } from '../../core/models/book.model';
+import { PAGE_WIDTHS, MIN_FONT_SIZE, MAX_FONT_SIZE, MIN_FONT_WEIGHT, MAX_FONT_WEIGHT, FONT_WEIGHT_STEP, MIN_LINE_HEIGHT, MAX_LINE_HEIGHT, LINE_HEIGHT_STEP, MIN_PARAGRAPH_SPACING, MAX_PARAGRAPH_SPACING, PARAGRAPH_SPACING_STEP, type ReadMode, type ConvertMode } from '../../core/models/settings.model'
+import { type Chapter } from '../../core/models/chapter.model'
+import { type Book } from '../../core/models/book.model'
 import { normalizeParagraphIndent } from '../../core/logic/text-format';
-import {
-  getChineseConverter,
-  loadChineseConverter,
-  ChineseConvertFn,
-} from '../../core/logic/convert-chinese';
+import { getChineseConverter, loadChineseConverter, type ChineseConvertFn } from '../../core/logic/convert-chinese'
 
 interface ReaderViewSettings {
   theme: number;

@@ -9,8 +9,8 @@ import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { ToastService } from '../../core/services/toast.service';
-import { BookSourceMeta } from '../../core/book-source/js-source/source-meta.types';
-import { SourceTestService, DEFAULT_TEST_KEYWORD, TestStepResult } from '../../core/book-source/source-test/source-test.service';
+import { type BookSourceMeta } from '../../core/book-source/js-source/source-meta.types'
+import { SourceTestService, DEFAULT_TEST_KEYWORD, type TestStepResult } from '../../core/book-source/source-test/source-test.service'
 
 type PomList = { booksourceList?: () => Promise<BookSourceMeta[]> };
 

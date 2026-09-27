@@ -1,6 +1,6 @@
 import { Injectable, NgZone, inject } from '@angular/core';
 import { NzModalService } from 'ng-zorro-antd/modal';
-import { PageFetcher } from './book-source.adapter';
+import { type PageFetcher } from './book-source.adapter'
 import { FetchError } from './fetch-error';
 
 declare global {

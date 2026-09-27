@@ -1,6 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import { BookSourceRegistry } from './book-source.registry';
-import { RawSearchItem } from './book-source.adapter';
+import { type RawSearchItem } from './book-source.adapter'
 
 /**
  * 重新导出 RawSearchItem 以保留既有调用方 import 路径（多源聚合搜索服务对外契约），

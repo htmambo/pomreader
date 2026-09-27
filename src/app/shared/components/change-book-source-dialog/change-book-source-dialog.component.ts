@@ -9,14 +9,11 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
-import { Book } from '../../../core/models/book.model';
+import { type Book } from '../../../core/models/book.model'
 import { BookSourceRegistry } from '../../../core/book-source/book-source.registry';
-import {
-  ImportViaSourceService,
-  SourceSearchHit,
-} from '../../../core/book-source/import-via-source.service';
+import { ImportViaSourceService, type SourceSearchHit } from '../../../core/book-source/import-via-source.service'
 import { FetchError, FETCH_ERROR_MESSAGES } from '../../../core/book-source/fetch-error';
-import { BookSourceAdapter, ResolvedBook } from '../../../core/book-source/book-source.adapter';
+import { type BookSourceAdapter, type ResolvedBook } from '../../../core/book-source/book-source.adapter'
 import { BookService } from '../../../core/services/book.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { UNIVERSAL_BOOK_SOURCE_UUID } from '../../../core/book-source/book-source.constants';

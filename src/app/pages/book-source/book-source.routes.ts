@@ -1,4 +1,4 @@
-import { Routes } from '@angular/router';
+import { type Routes } from '@angular/router'
 
 /**
  * 书源管理页路由（实施计划 T-005）

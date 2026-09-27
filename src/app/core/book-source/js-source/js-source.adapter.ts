@@ -12,16 +12,10 @@
  * - 全部用 pickString helper 做 fallback 链，不写 `||` 字面量
  * - pickString 接受任意对象，内部防御 null / 非 plain object
  */
-import {
-  BookSourceAdapter,
-  CatalogEntry,
-  PageFetcher,
-  RawSearchItem,
-  ResolvedBook,
-} from '../book-source.adapter';
+import { type BookSourceAdapter, type CatalogEntry, type PageFetcher, type RawSearchItem, type ResolvedBook } from '../book-source.adapter'
 import { FetchError } from '../fetch-error';
 import { SandboxService } from './sandbox.service';
-import { BookSourceMeta } from './source-meta.types';
+import { type BookSourceMeta } from './source-meta.types'
 
 /**
  * legado bookInfo() 返回结构（兼容多种命名）：

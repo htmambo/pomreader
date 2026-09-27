@@ -8,10 +8,10 @@
  * 不写盘的项（翻译失败）由 UI 弹 toast 提示用户走智能添加手写。
  */
 import { Injectable, inject } from '@angular/core';
-import { LegadoSource, LegadoImportItem } from './legado-types';
+import { type LegadoSource, type LegadoImportItem } from './legado-types'
 import { parseLegadoText, fetchAndParseLegadoUrl } from './legado-parser';
 import { translateLegadoToJs } from './legado-translator';
-import { BookSourceMeta } from '../js-source/source-meta.types';
+import { type BookSourceMeta } from '../js-source/source-meta.types'
 import { ToastService } from '../../services/toast.service';
 
 interface PomApiSubset {

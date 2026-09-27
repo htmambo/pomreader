@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { BookSourceRegistry } from './book-source.registry';
-import { PageFetcher, ResolvedBook, extractMetaUuid } from './book-source.adapter';
+import { type PageFetcher, type ResolvedBook, extractMetaUuid } from './book-source.adapter'
 import { FetchError } from './fetch-error';
 import { PageFetcherService } from './page-fetcher.service';
 import { UNIVERSAL_BOOK_SOURCE_UUID } from './book-source.constants';

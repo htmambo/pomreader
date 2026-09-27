@@ -1,10 +1,4 @@
-import {
-  BookSourceAdapter,
-  BookSourceConfig,
-  CatalogEntry,
-  PageFetcher,
-  ResolvedBook,
-} from '../book-source.adapter';
+import { type BookSourceAdapter, type BookSourceConfig, type CatalogEntry, type PageFetcher, type ResolvedBook } from '../book-source.adapter'
 import { finalizeChapterContent } from '../../logic/text-format';
 
 /**

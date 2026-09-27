@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import PouchDB from 'pouchdb-browser';
-import { Book } from '../models/book.model';
-import { Chapter } from '../models/chapter.model';
+import { type Book } from '../models/book.model'
+import { type Chapter } from '../models/chapter.model'
 import { classifyBulkResults, formatBulkFatalMessage } from '../db/bulk-result';
 
 /** Book PouchDB 文档（含嵌入的阅读进度）

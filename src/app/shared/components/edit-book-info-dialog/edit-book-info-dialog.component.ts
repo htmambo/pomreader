@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NZ_MODAL_DATA } from 'ng-zorro-antd/modal';
 import { NzInputModule } from 'ng-zorro-antd/input';
-import { Book } from '../../../core/models/book.model';
+import { type Book } from '../../../core/models/book.model'
 
 interface EditBookInfoData {
   book: Book;

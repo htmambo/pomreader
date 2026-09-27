@@ -10,8 +10,8 @@ import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { ToastService } from '../../core/services/toast.service';
-import { SandboxService, SandboxFn } from '../../core/book-source/js-source/sandbox.service';
-import { BookSourceMeta } from '../../core/book-source/js-source/source-meta.types';
+import { SandboxService, type SandboxFn } from '../../core/book-source/js-source/sandbox.service'
+import { type BookSourceMeta } from '../../core/book-source/js-source/source-meta.types'
 import { pickBookUrl, pickChapterUrl } from '../../core/book-source/source-test/source-test.service';
 import { randomTestKeyword } from '../../core/book-source/smart-add/smart-rules';
 

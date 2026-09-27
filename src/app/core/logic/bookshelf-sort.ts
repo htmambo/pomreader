@@ -1,5 +1,5 @@
-import { Book } from '../models/book.model';
-import { BookshelfSort } from '../models/settings.model';
+import { type Book } from '../models/book.model'
+import { type BookshelfSort } from '../models/settings.model'
 
 /**
  * 书架排序纯函数（设置页 bookshelfSort 对应的展示规则）

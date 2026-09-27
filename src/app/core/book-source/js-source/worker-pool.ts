@@ -14,7 +14,7 @@
  * 不直接用本类（factory 负责 kill-switch 决策）。
  */
 
-import { WorkerLike } from './worker-pool.factory';
+import { type WorkerLike } from './worker-pool.factory'
 
 /** PoolFullError：pending queue cap 已满，调用方应 backoff 或放弃 */
 export class PoolFullError extends Error {

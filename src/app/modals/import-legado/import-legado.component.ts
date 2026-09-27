@@ -30,9 +30,7 @@ import { NzAlertModule } from 'ng-zorro-antd/alert';
 import {
   LegadoImportService,
 } from '../../core/book-source/legado/legado-import.service';
-import {
-  LegadoImportItem,
-} from '../../core/book-source/legado/legado-types';
+import { type LegadoImportItem } from '../../core/book-source/legado/legado-types'
 import { ToastService } from '../../core/services/toast.service';
 
 type Mode = 'url' | 'json';

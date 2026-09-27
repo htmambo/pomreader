@@ -1,4 +1,4 @@
-import { Routes } from '@angular/router';
+import { type Routes } from '@angular/router'
 
 /**
  * Settings 子路由(实施计划 T-019)

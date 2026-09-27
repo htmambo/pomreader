@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { CoverRequest } from './cover.types';
+import { type CoverRequest } from './cover.types'
 
 /**
  * 封面解析 + 缓存服务（实施计划 T-008 + spec FR-3）

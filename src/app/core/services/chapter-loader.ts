@@ -1,7 +1,7 @@
-import { Injectable, signal, inject, WritableSignal } from '@angular/core';
-import { Chapter } from '../models/chapter.model';
+import { Injectable, signal, inject, type WritableSignal } from '@angular/core'
+import { type Chapter } from '../models/chapter.model'
 import { BookSourceRegistry } from '../book-source/book-source.registry';
-import { CatalogEntry } from '../book-source/book-source.adapter';
+import { type CatalogEntry } from '../book-source/book-source.adapter'
 import { DbService } from './db.service';
 
 /**

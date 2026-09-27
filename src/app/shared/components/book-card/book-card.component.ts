@@ -1,11 +1,11 @@
-import { ChangeDetectionStrategy, Component, Input, inject, output, ViewChild, OnDestroy } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, inject, output, ViewChild, type OnDestroy } from '@angular/core'
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { NzDropdownMenuComponent } from 'ng-zorro-antd/dropdown';
 import { NzContextMenuService } from 'ng-zorro-antd/dropdown';
 import { NzMenuModule } from 'ng-zorro-antd/menu';
 import { NzIconModule } from 'ng-zorro-antd/icon';
-import { Book } from '../../../core/models/book.model';
+import { type Book } from '../../../core/models/book.model'
 import { ToastService } from '../../../core/services/toast.service';
 import { CoverService } from '../../../core/cover/cover.service';
 import { CoverImgComponent } from '../cover-img/cover-img.component';

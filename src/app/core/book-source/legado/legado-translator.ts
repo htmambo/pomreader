@@ -12,13 +12,9 @@
  *  - legado `header` JSON 字符串注入到 `const HEADERS = ...`
  *  - 文件头加 @uuid / @tags / @type / @url 让 BookSourceMeta 解析正确
  */
-import { LegadoSource, mapLegadoSourceType } from './legado-parser';
-import {
-  parseSelector,
-  ParsedSelector,
-  toRulePattern,
-} from './legado-selector';
-import { generateSourceCode, SourceRules } from '../smart-add/smart-rules';
+import { type LegadoSource, mapLegadoSourceType } from './legado-parser'
+import { parseSelector, type ParsedSelector, toRulePattern } from './legado-selector'
+import { generateSourceCode, type SourceRules } from '../smart-add/smart-rules'
 
 const UNSUPPORTED_FEATURES = [
   'jsLib',
