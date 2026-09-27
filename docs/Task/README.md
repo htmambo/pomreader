@@ -6,10 +6,11 @@
 ## Active Tasks
 
 - 📋 [依赖大版本升级（Angular 18→22 + 测试工具链）](Active/POMREADER_DEP_MAJOR_UPGRADE_PLAN.md) — 🔄 In progress 2026-09-28
-  - Phase 0：@types/node→24 / jsdom→30 / vitest→3.2 / puppeteer-core→25 / engines 收紧（不依赖 Angular）
-    - 已完成 P0-0（CI Node 20→24 + `.npmrc` engine-strict）/ P0-1（@types/node 24.19.0）/ P0-2（jsdom 30.1.1）/ P0-3（vitest 3.2.7 + 覆盖率新基线 74.96/81.91/83.14/74.96）
-    - 顺带修复 `worker-pool.spec.ts` 的既有 unhandled rejection（vitest 3 起会升级为失败）
-    - 待办 P0-4（puppeteer-core 25，ESM-only）/ P0-5（engines 字段）
+  - Phase 0：@types/node→24 / jsdom→30 / vitest→3.2 / puppeteer-core→25 / engines 收紧（不依赖 Angular）—— ✅ **全部 6 项收口**
+    - P0-0 CI Node 20→24 + `.npmrc` engine-strict / P0-1 @types/node 24.19.0 / P0-2 jsdom 30.1.1 / P0-3 vitest 3.2.7（覆盖率新基线 74.96/81.91/83.14/74.96）/ P0-4 puppeteer-core 25.12.0（`require(esm)` 实测可用，`.cjs` 无需改写）/ P0-5 `engines` 字段
+    - 顺带修复 `worker-pool.spec.ts` 的既有 unhandled rejection（vitest 3 起会升级为失败）；4 个脚本 `headless: 'new'` → `true`（v25 类型契约变更，运行时等价）
+    - 外部审核 Round 1/5 NEEDS_CHANGES → Round 2/5 APPROVED（三条 risk 均以证据驳回，代码零改动）
+    - 遗留人工复核 2 项：reader 页 `.html` 重排后的渲染目视、5 个 `.cjs` 冒烟脚本在有 Chrome 的机器上实跑
   - Phase 1-4：Angular 逐级 18→19→20→21→22 + ng-zorro 跟随（TS pin ~6.0，严禁 7.x）
   - Phase 5：vitest 4/5 或 @angular/build:unit-test、zoneless 评估（收尾）
 

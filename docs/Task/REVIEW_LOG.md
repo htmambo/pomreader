@@ -251,3 +251,40 @@
 
 按 CLAUDE.md §1.5 协议：APPROVED = pass。`commit + push to origin`。
 后续 3 个非阻塞建议可作为下一轮 backlog，不阻塞本轮交付。
+---
+
+# Phase 0 P0-4 / P0-5（puppeteer-core 25 + engines）
+
+## Round 1/5 — 2026-09-28 (P0-4 + P0-5 改动)
+
+**Provider:** coding-bridge
+**Session:** `1e9f1891-fd76-49df-b3a3-0a948fbd1ed2`
+**Kind:** code
+**VERDICT:** ⚠️ **NEEDS_CHANGES**
+
+### Findings
+
+| # | 严重 | Finding |
+|---|---|---|
+| 1 | 高 | `engines.node` 下限 `^22.22.3` 过高，称「Node 22.22.3 极其前沿甚至尚未发布」，会在 `engine-strict=true` 下阻断常规 Node 22 LTS，建议放宽为 `^22.12.0 \|\| ^24.0.0` |
+| 2 | 高 | 上下文提及 5 个脚本，diff 只改了 4 个，疑漏 `e2e-cf-guard.cjs` 的 `headless` |
+| 3 | 中 | 缺 `require(esm)` 依赖与 `headless` 契约变更的说明注释 |
+
+## Round 2/5 — 2026-09-28（同 session 复审，diff 未改动）
+
+**VERDICT:** ✅ **APPROVED**
+
+三条 risk 逐条以证据回应后全部关闭，**代码零改动**：
+
+| # | Finding | 处置 | 依据 |
+|---|---|---|---|
+| 1 | engines 下限过高 | **驳回，不改** | ① `npm view node versions` → 22.22.3 / 24.15.0 **均已发布**，「尚未发布」前提不成立；② 该值逐字取自 `@angular/core@22.0.x` 的 `engines`，非臆造；③ 决定性事实——`jsdom@30.1.1`（P0-2 已装）自身 engines 即 `^22.22.2 \|\| ^24.15.0 \|\| >=26.0.0`，配合既有 `.npmrc` 的 `engine-strict=true`，**改动前有效下限已是 22.22.2**，本次未新增任何负担；④ 建议值 `^22.12.0 \|\| ^24.0.0` 比 jsdom 30 自身更松，会让 `engines` 低报真实约束，恰好制造 P0-5 要防的「协作者踩坑」 |
+| 2 | 漏改 `e2e-cf-guard.cjs` | **驳回，无可改** | `rg "headless\|puppeteer\.(launch\|connect)" scripts/e2e-cf-guard.cjs` 仅 1 行：该脚本用 `puppeteer.connect()` 挂到 spawn 出来的真实 Electron DevTools 端口，**根本不含 `headless` 键**；headed Electron 窗口下 headless 标志无意义 |
+| 3 | 补说明注释 | **驳回，不加** | 违反用户全局 CLAUDE.md「comments/documentation 严格 do not create unless necessary」；且向 4 个文件写同一条注释解释一个已验证的运行时 no-op 属冗余。理由已落在计划文档 Phase 0 章节 |
+
+### Reviewer 认可并接受的非阻塞观察（不阻塞交付）
+
+- puppeteer 25 移除 Node 18 支持；脚本均显式指定 `executablePath`，不受浏览器下载类变更影响
+- `CHROME_PATH` 默认值仅适配 Linux、`--no-sandbox` 安全提示 —— 均为**既有代码**，本 diff 范围外，不动
+
+**Review Loop 状态：CLOSE（Round 2/5 APPROVED，未触发 5 轮上限）**

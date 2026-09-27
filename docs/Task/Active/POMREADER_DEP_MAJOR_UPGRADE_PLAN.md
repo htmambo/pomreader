@@ -1,6 +1,6 @@
 # POMREADER 依赖大版本升级计划（Dep Major Upgrade Plan）
 
-> Status: 🔄 In progress — 2026-09-27 建档；2026-09-28 复核修订 + **Phase 0 执行 P0-0 ~ P0-3**（见下「Phase 0 实施结果」）
+> Status: 🔄 In progress — 2026-09-27 建档；2026-09-28 复核修订 + **Phase 0 全部收口（P0-0 ~ P0-5）**（见下两节「Phase 0 实施结果」）。下一步：Phase 1 Angular 18 → 19
 > 分支：`chore/dep-major-upgrade`
 > 触发：`npm outdated` 梳理（2026-09-27），安全项已先行升级并提交（`0bee9ba`）。
 > 目标：Angular 18 → 22 逐级迁移 + 测试工具链升级，每级独立 commit、独立验证。
@@ -84,8 +84,8 @@ npx playwright test --reporter=list   # 配置已在仓库根（P-0-2 修好）�
 - [x] **P0-2 jsdom → ^30.1.1**：回归重点——v27 起 `element.click()` 派发 PointerEvent、v29 CSSOM 重写影响 `getComputedStyle` 断言。
 - [x] **P0-3 vitest + @vitest/coverage-v8 → ^3.2.7**（**只到 3.x，4.x 留到 Phase 5**）：原计划写的阻塞理由「Angular 18 内置 vite 5.4，vitest 过不了 3.x」**已被证伪**——vitest 3.2.4 依赖 `vite ^5.0.0 || ^6.0.0 || ^7.0.0-0`，与锁内 vite 5.4.21 兼容；真正要 vite 6+ 的是 vitest 4。迁移清单——`spy.mockReset()` 行为变化、`vi.useFakeTimers()` 默认 toFake 移除、错误相等性更严格（`cause`/原型比对）。本项目 `mockReset` 0 处、`useFakeTimers` 7 处、`vi.mock` 3 个文件；worker-pool / sandbox 4 个 spec（`sandbox.spec.ts` / `worker-pool.spec.ts` / `worker-pool.factory.spec.ts` / `sandbox.pool.spec.ts`）是高风险区。
   - 升完顺手重跑一次 `npm run test:coverage` 记新基线（`include` 只覆盖 `core/logic`、`core/book-source`、`core/services`、`core/db`，阈值 lines 50 / functions 60 / branches 75 / statements 50），别等到 vitest 4 才发现分母变化。
-- [ ] **P0-4 puppeteer-core → ^25.12.0**：升级后立即跑 `scripts/` 下 5 个 `.cjs`（e2e-cf-guard / e2e-import-local-txt / e2e-import-online / e2e-search / e2e-txt-preview，均为 `require('puppeteer-core')`）验证 `require(esm)`；失败则改 `await import('puppeteer-core')` 或重命名 `.mjs`。
-- [ ] **P0-5 package.json 加 `engines: { "node": "^22.22.3 || ^24.15.0 || ^26.0.0" }`**：jsdom 30 / Angular 22 的 Node 底线前置声明，避免协作者环境踩坑。与 P0-0 的 `.npmrc` 配套。
+- [x] **P0-4 puppeteer-core → ^25.12.0**：升级后立即跑 `scripts/` 下 5 个 `.cjs`（e2e-cf-guard / e2e-import-local-txt / e2e-import-online / e2e-search / e2e-txt-preview，均为 `require('puppeteer-core')`）验证 `require(esm)`；失败则改 `await import('puppeteer-core')` 或重命名 `.mjs`。**实测 `require(esm)` 直接可用，`.cjs` 无需改动**（详见下节）。
+- [x] **P0-5 package.json 加 `engines: { "node": "^22.22.3 || ^24.15.0 || ^26.0.0" }`**：jsdom 30 / Angular 22 的 Node 底线前置声明，避免协作者环境踩坑。与 P0-0 的 `.npmrc` 配套。
 
 ## Phase 0 实施结果（2026-09-28，分支 `chore/dep-major-upgrade`）
 
@@ -117,9 +117,50 @@ P0-1 全量验收时 vitest 汇总出现 `Errors 2 errors`，而 `Test Files 54 
 
 本轮 **未经外部审核 MCP 审核**。`coding-bridge` 与 `codex` 两个 provider 均为 `Failed to connect — connection timed out after 30000ms`（`claude mcp list` 实测），按降级链「调 prompt 重试 → 切 fallback provider → 自主完成」逐级降级后由我自行验证。后续步骤恢复时需补审。
 
+---
+
+## Phase 0 实施结果（第二批：P0-4 / P0-5，2026-09-28）
+
+| 项 | 结果 |
+|---|---|
+| P0-4 | ✅ `puppeteer-core` `^23.11.1` → `^25.12.0`，实装 25.12.0。**计划担心的 `require(esm)` 断链没有发生**，5 个 `.cjs` 全部原样保留 |
+| P0-5 | ✅ `package.json` 顶层加 `engines: { "node": "^22.22.3 \|\| ^24.15.0 \|\| ^26.0.0" }`。本机 Node 24.15.0 满足；`engine-strict=true` 下 `npm ci` / `npm install` 仍成功 |
+| 附带修正 | 4 个脚本 `headless: 'new'` → `headless: true`（puppeteer 25 类型契约变更，详见下节） |
+
+### P0-4：为什么 `.cjs` 不需要改写成 `.mjs`
+
+计划原文预设了「`require(esm)` 失败则改 `await import()` 或重命名 `.mjs`」的兜底。**实测兜底不必要**，三条依据：
+
+1. **包自身给了 `require` 条件**。`npm view puppeteer-core@25.12.0` 显示 `type: module`，但 `exports['.'.require` 显式指向同一个 ESM 文件 `./lib/puppeteer/puppeteer-core.js` —— 即包方主动支持 CJS 消费者，不是碰巧能用。
+2. **Node 已 unflagged**。Node ≥22.12 起 `require(esm)` 正式支持（模块图内无 top-level await 即可）；本机 24.15.0 满足。P0-5 的 `engines` 下限 `^22.22.3` 也在此之上。
+3. **实测**：`node -e "require('puppeteer-core')"` 在 `.cjs` 下 `typeof launch === 'function'`、`typeof connect === 'function'`、207 个导出；5 个脚本全部加载并执行到浏览器启动阶段，堆栈来自 `file:///.../puppeteer-core/lib/...`，证明 ESM 模块真的跑了。
+
+进一步做了**真实浏览器**验证（不只到「能加载」为止）：
+
+- 临时冒烟脚本（跑完即删，未入库）以 `executablePath` 指向 playwright 自带的 Chromium 153.0.8010.12，`puppeteer.launch()` 后逐个跑通 5 个脚本用到的 API：`goto` + `waitUntil: 'networkidle2'` / `type` / `evaluateHandle(...).asElement().click()` / `$` / `$$` / `$$eval` / `evaluate` / `screenshot` / `page.url()` / `browser.version()` / `browser.close()` / `pageerror`+`console` 监听 —— 断言全过，0 page error。
+- 真实 `scripts/e2e-search.cjs` 用同一 Chromium 跑，链路走完 `require → launch → newPage → setViewport → goto`，止于 `net::ERR_CONNECTION_REFUSED 127.0.0.1:4200`（无 dev server），即**脚本自身代码路径在 v25 下无阻塞**。
+
+### 附带修正：`headless: 'new'` 已不是合法值
+
+puppeteer 25 的 `LaunchOptions.headless` 类型收紧为 `boolean | 'shell'`，字符串 `'new'` 不在其中。运行时并未报错（`ChromeLauncher.js:203` 是 `headless === 'shell' ? '--headless' : '--headless=new'`，`'new'` 为真值 → 产出与 `true` **完全相同**的 flag），但留着等于埋雷：将来谁把这批脚本迁到 TS 或加类型检查就会红。改为 `headless: true`，4 个文件各 1 行，语义零变化。
+
+`e2e-cf-guard.cjs` **不需要改** —— 它不 launch 浏览器，而是 spawn 真实 Electron 后 `puppeteer.connect({ browserWSEndpoint })` 挂到其 DevTools 端口，文件里根本没有 `headless` 键（headed 窗口下该标志无意义）。
+
+### 本批验收门（全绿）
+
+`format:check` / `lint` / `test`（54 文件 700 用例 0 error，8.73s）/ `build` / `build:electron`（exit 0）/ `e2e --list`（19 tests in 5 files）/ `npm ls --depth=0`（无 missing/invalid/UNMET）。
+
+### 外部审核状态
+
+**Round 1/5 `NEEDS_CHANGES` → Round 2/5 `APPROVED`（session `1e9f1891`），代码零改动收口。** 三条 risk 全部以证据驳回：engines 下限「尚未发布」前提不成立（22.22.3 已发布且逐字取自 `@angular/core@22` engines）、`jsdom@30.1.1` 自身已要求 `^22.22.2` 故未新增负担、cf-guard 确无 `headless` 键、补注释违反项目「do not create unless necessary」。详见 `docs/Task/REVIEW_LOG.md`。
+
+> ⚠️ 本批**未做**的验证（与上批同）：5 个脚本的**端到端业务行为**未在本机观察 —— 它们需要 dev server（`e2e-cf-guard.cjs` 还需 DISPLAY 与真实 CF 站点网络）。`puppeteer.connect()` 对真实 Electron 的路径**未**被覆盖，只覆盖了 `launch()`。这些脚本不在 `package.json` scripts、也不在 CI 中，属人工冒烟工具。
+
 ### 下一步
 
-P0-4 puppeteer-core → `^25.12.0`（25 起 ESM-only，需验证 `scripts/` 下 5 个 `.cjs` 的 `require()`）+ P0-5 `engines` 字段（与 P0-0 的 `.npmrc` 配套落地）。
+Phase 0 全部 6 项（P0-0 ~ P0-5）收口。**进入 Phase 1：Angular 18 → 19**（`@ant-design/icons-angular` + `angular-eslint` lockstep 跟随、zone.js → `~0.15.0`、`ng update ng-zorro-antd@19` 的 `<span nz-icon>` → `<nz-icon>` 迁移 8 文件 35 处、回归 reader 的 5 处 `effect()` 时序）。
+
+另外，Phase 0 遗留两项**人工目视复核**仍未做，建议在 Phase 1 合并前一并处理：① P-0-4 的 `.html` 重排改了 reader 组件缩进，阅读页渲染未经人眼确认；② 5 个 `.cjs` 冒烟脚本在有 Chrome 的机器上跑一遍。
 
 ## Phase 1：Angular 18 → 19
 
