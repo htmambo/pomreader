@@ -59,16 +59,103 @@ const CHAPTER_SEP = '';
 const HIGH_CHAR = '￰';
 
 /**
+ * PouchDB 最小操作面——DbService 实际用到的 5 个方法。
+ * 显式定义（而非 Pick PouchDB 重载签名）以便 IPC 代理实现。
+ */
+interface PouchBackend {
+  allDocs<Content extends object>(
+    options: PouchDB.Core.AllDocsWithinRangeOptions,
+  ): Promise<PouchDB.Core.AllDocsResponse<Content>>;
+  get<Content extends object>(
+    docId: string,
+  ): Promise<PouchDB.Core.Document<Content> & PouchDB.Core.GetMeta>;
+  put<Content extends object>(
+    doc: PouchDB.Core.PutDocument<Content>,
+  ): Promise<PouchDB.Core.Response>;
+  bulkDocs<Content extends object>(
+    docs: PouchDB.Core.PutDocument<Content>[],
+  ): Promise<Array<PouchDB.Core.Response | PouchDB.Core.Error>>;
+  destroy(): Promise<void>;
+}
+
+/** preload 暴露的 DB 桥（electron/preload.ts dbRequest） */
+interface DbBridgeResponse {
+  ok: boolean;
+  result?: unknown;
+  error?: { status?: number; name?: string; message?: string };
+}
+type DbBridgeRequest = (op: string, args: unknown[]) => Promise<DbBridgeResponse>;
+
+/**
+ * IPC 后端：把 PouchDB 调用转发给隐藏 DB 窗口（file:// origin 的 IndexedDB）。
+ * 错误包络 {status, name, message} 原样抛出，保持 404 / 409 判定语义不变。
+ */
+class IpcPouchBackend implements PouchBackend {
+  constructor(private readonly request: DbBridgeRequest) {}
+
+  private async call<T>(op: string, args: unknown[]): Promise<T> {
+    const res = await this.request(op, args);
+    if (!res.ok) {
+      throw res.error ?? new Error(`db ${op} failed`);
+    }
+    return res.result as T;
+  }
+
+  allDocs<Content extends object>(
+    options: PouchDB.Core.AllDocsWithinRangeOptions,
+  ): Promise<PouchDB.Core.AllDocsResponse<Content>> {
+    return this.call('allDocs', [options]);
+  }
+
+  get<Content extends object>(
+    docId: string,
+  ): Promise<PouchDB.Core.Document<Content> & PouchDB.Core.GetMeta> {
+    return this.call('get', [docId]);
+  }
+
+  put<Content extends object>(
+    doc: PouchDB.Core.PutDocument<Content>,
+  ): Promise<PouchDB.Core.Response> {
+    return this.call('put', [doc]);
+  }
+
+  bulkDocs<Content extends object>(
+    docs: PouchDB.Core.PutDocument<Content>[],
+  ): Promise<Array<PouchDB.Core.Response | PouchDB.Core.Error>> {
+    return this.call('bulkDocs', [docs]);
+  }
+
+  async destroy(): Promise<void> {
+    await this.call('destroy', []);
+  }
+}
+
+/** 后端选择：Electron（pomAPI.dbRequest 存在）走 IPC；纯浏览器回落本地 IndexedDB */
+function createBackend(): PouchBackend {
+  const api =
+    typeof window !== 'undefined'
+      ? (window as unknown as { pomAPI?: { dbRequest?: DbBridgeRequest } }).pomAPI
+      : undefined;
+  if (api?.dbRequest) {
+    return new IpcPouchBackend(api.dbRequest.bind(api));
+  }
+  return new PouchDB<BookDoc | ChapterDoc>(DB_NAME);
+}
+
+/**
  * DbService — PouchDB 单例封装
  * 单一数据库 `pomreader`，按 _id 前缀分表：
  *   book:{uuid}                    → BookDoc（含阅读进度）
  *   chapter:{bookId}{idx}   → ChapterDoc（含正文）
  *
- * 浏览器（ng serve）+ Electron 渲染进程都直连 IndexedDB，无需 IPC。
+ * 后端双实现（见 PouchBackend）：
+ * - Electron：经 pomAPI.dbRequest 委托给隐藏 DB 窗口（file:// origin 的 IndexedDB），
+ *   HMR / dev:file / 打包三种运行方式共享同一份书库
+ * - 纯浏览器（ng serve / vitest）：本地直连 IndexedDB
  */
 @Injectable({ providedIn: 'root' })
 export class DbService {
-  private readonly db = new PouchDB<BookDoc | ChapterDoc>(DB_NAME);
+  private readonly db: PouchBackend = createBackend();
   /** 启动时一次性迁移旧 chapter _id 的 Promise
    *  上层读操作通过 ensureMigrated() await 避免迁移窗口期返回重复章节（R3-2） */
   private readonly migrationPromise: Promise<void>;

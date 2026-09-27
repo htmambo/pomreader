@@ -6,7 +6,8 @@ import { CoverService } from '../../../core/cover/cover.service';
  * CoverImg — 统一封面渲染组件（实施计划 T-009 + spec FR-3.6）
  *
  * URL 协议识别：
- * - local://     → window.electronAPI.convertFileSrc 转 file://
+ * - local://     → window.electronAPI.convertFileSrc 转 pom-local://
+ * - file://      → 同上（旧数据存量引用；http origin 页面无法直接加载 file://）
  * - http(s)://   → CoverService.resolve（IPC 下载 + 本地缓存 + fallback data:）
  * - data:        → 直传（inline SVG / base64）
  * - 其他（asset:// / 相对路径） → 直传，<img> 自处理
@@ -93,7 +94,7 @@ export class CoverImgComponent implements OnChanges {
 
   private readonly cover = inject(CoverService);
 
-  /** 异步解析后的最终 src（local:// → file:// 或 http(s) → localRef） */
+  /** 异步解析后的最终 src（local:// / file:// → pom-local:// 或 http(s) → localRef） */
   resolvedSrc = signal<string | null>(null);
   loading = signal(false);
   failed = signal(false);
@@ -120,14 +121,23 @@ export class CoverImgComponent implements OnChanges {
     const src = (this.src ?? '').trim();
     if (!src) return;
 
-    // data: / file:// / http://localhost → 直传，不走 IPC
+    // data: / http://localhost → 直传，不走 IPC
     if (
       src.startsWith('data:') ||
-      src.startsWith('file://') ||
       src.startsWith('http://localhost') ||
       src.startsWith('https://localhost')
     ) {
       this.resolvedSrc.set(null);
+      return;
+    }
+
+    // file://（旧数据存量引用）→ convertFileSrc 转 pom-local://
+    // （http origin 的 HMR 页面无法加载 file:// 子资源，必须走自定义 scheme）
+    if (src.startsWith('file://')) {
+      const api = window.electronAPI;
+      if (api?.convertFileSrc) {
+        this.resolvedSrc.set(api.convertFileSrc(src.slice('file://'.length)));
+      }
       return;
     }
 
@@ -146,7 +156,7 @@ export class CoverImgComponent implements OnChanges {
           // IPC 不可用或失败 → fallback 已是 data:，不再加载 <img>
           this.failed.set(true);
         } else {
-          // localRef = "local://..." —— 必须再走 convertFileSrc 转 file://，<img> 才能加载
+          // localRef = "local://..." —— 必须再走 convertFileSrc 转 pom-local://，<img> 才能加载
           this.applyLocalRef(localRef);
         }
       } catch {
@@ -168,7 +178,7 @@ export class CoverImgComponent implements OnChanges {
 
   /**
    * CoverService / IPC 返回的引用 → <img src> 可加载的字符串。
-   * - "local://..." → window.electronAPI.convertFileSrc() 转 file://（Electron 渲染进程才能加载）
+   * - "local://..." → window.electronAPI.convertFileSrc() 转 pom-local://
    * - 其他原样透传（asset:// / 相对路径等）
    * 无 electronAPI（ng serve 模式）→ 标记 failed 返回 false
    */

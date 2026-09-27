@@ -1,5 +1,6 @@
-import { app, BrowserWindow, ipcMain, webContents } from 'electron';
+import { app, BrowserWindow, ipcMain, net, protocol, webContents } from 'electron';
 import * as path from 'path';
+import { pathToFileURL } from 'url';
 import { registerFetchHandler } from './ipc/fetch-handler';
 import { applyUaEverywhere, migrateLegacySearchCookies } from './ipc/fetch-session';
 import { registerRenderHandler } from './ipc/render-handler';
@@ -8,12 +9,20 @@ import { registerBookSourceHandler } from './ipc/booksource-handler';
 import { registerCoverHandler } from './ipc/cover-handler';
 import { registerCfGuardHandler } from './ipc/cf-guard';
 import { registerAutoImport } from './auto-import';
+import { registerDbHandler } from './db/db-window';
 import { loadWindowState, trackWindowState } from './window-state';
 
 // 沿用原 vendor 兼容补丁 ⑤：防双实例 IndexedDB 锁争用
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 }
+
+// 本地资源自定义 scheme：HMR 开发页（http://localhost:4200 origin）无法加载 file://
+// 子资源（Chromium 安全策略），封面等本地缓存统一走 pom-local://，三种运行方式通用。
+// 必须在 app ready 之前注册为特权 scheme
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'pom-local', privileges: { secure: true, stream: true, supportFetchAPI: true } },
+]);
 
 // 网络环境无法解析 WebRTC STUN 服务器（Google/Cloudflare）时，Chromium 网络服务
 // 会反复刷 "Failed to resolve address for stun.*" DNS 错误日志 —— 映射到本地地址
@@ -92,6 +101,16 @@ function createWindow(userData: string): void {
 
 app.whenReady().then(() => {
   const userData = app.getPath('userData');
+  // pom-local://<encodeURIComponent(绝对路径)> —— 本地文件读取，仅限 userData 目录内
+  // （防止 webview 内远程页面借该 scheme 读任意本地文件）。
+  // 供 <img> 等 no-cors 子资源加载使用（fetch() 对自定义 scheme 另有 CORS 限制，页面侧不走 fetch）
+  protocol.handle('pom-local', (request) => {
+    const abs = path.resolve(decodeURIComponent(request.url.slice('pom-local://'.length)));
+    if (!abs.startsWith(userData + path.sep)) {
+      return new Response('forbidden', { status: 403 });
+    }
+    return net.fetch(pathToFileURL(abs).toString());
+  });
   registerFetchHandler(ipcMain);
   registerRenderHandler(ipcMain);
   registerExternalHandler(ipcMain);
@@ -99,6 +118,8 @@ app.whenReady().then(() => {
   registerCoverHandler(ipcMain, userData);
   registerCfGuardHandler(ipcMain, () => mainWindow);
   registerAutoImport(ipcMain, userData, () => mainWindow);
+  // 书库 DB：隐藏窗口统一持有 PouchDB（详见 db/db-window.ts 头注释）
+  registerDbHandler(ipcMain);
   // 旧 webview session（persist:universal-search）的 cookie 迁移进共享抓取 session
   // （用户此前在其中手动过盾的 cf_clearance 不丢失）；异步执行不阻塞窗口创建
   void migrateLegacySearchCookies();

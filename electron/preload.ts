@@ -1,12 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
-// file:// URL 转换：沙盒化 preload 里 electron.convertFileSrc (renderer-only) 和
-// url.pathToFileURL (legacy url polyfill 未提供) 都不可用。
-// 手动拼字符串：缓存路径是 sha256 哈希（[a-f0-9.]），无 #/?/空格等保留字符，无需编码。
+// 本地路径 → pom-local:// URL：HMR 页面（http origin）无法加载 file:// 子资源，
+// 本地缓存文件（封面等）统一走自定义 scheme（主进程 protocol.handle，仅限 userData 目录）。
+// 路径整体 encodeURIComponent，主进程 decode 后还原，无需关心保留字符。
 const toFileSrc = (filePath: string): string => {
   const normalized = filePath.replace(/\\/g, '/');
   const withSlash = normalized.startsWith('/') ? normalized : `/${normalized}`;
-  return `file://${withSlash}`;
+  return `pom-local://${encodeURIComponent(withSlash)}`;
 };
 
 /**
@@ -146,6 +146,20 @@ contextBridge.exposeInMainWorld('pomAPI', {
   /** 读取自动导入产出的 utf-8 文本（txtName 限 auto-import/txt 目录内） */
   autoImportReadText: (txtName: string): Promise<string> =>
     ipcRenderer.invoke('pom:auto-import-read-text', txtName),
+
+  /**
+   * 书库 DB 操作代理：op ∈ allDocs/get/put/bulkDocs/destroy（隐藏 DB 窗口统一持有 PouchDB，
+   * HMR / dev:file / 打包三种运行方式因此共享同一份书库；详见 electron/db/db-window.ts）。
+   * 返回包络 { ok, result|error }，error 保留 PouchDB 的 status/name/message（404/409 语义）
+   */
+  dbRequest: (
+    op: string,
+    args: unknown[]
+  ): Promise<{
+    ok: boolean;
+    result?: unknown;
+    error?: { status?: number; name?: string; message?: string };
+  }> => ipcRenderer.invoke('pom:db-request', op, args),
 });
 
 /**
@@ -153,6 +167,6 @@ contextBridge.exposeInMainWorld('pomAPI', {
  * 仅暴露渲染端确实需要的同步 API；不做整模块透传，避免泄漏 ipcRenderer / require 等能力
  */
 contextBridge.exposeInMainWorld('electronAPI', {
-  /** 把本地绝对路径转成 <img src> 可加载的 file:// URL（renderer 用） */
+  /** 把本地绝对路径转成 <img src> 可加载的 pom-local:// URL（renderer 用） */
   convertFileSrc: (filePath: string): string => toFileSrc(filePath),
 });
