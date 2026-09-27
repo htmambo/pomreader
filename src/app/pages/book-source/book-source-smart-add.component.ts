@@ -76,7 +76,7 @@ type PomSave = {
       </div>
 
       <!-- ③ 规则处理提示(智能添加特有,讲清楚 CSS/正则双模式与 css: 前缀) -->
-      <div class="rules-title">规则处理<span class="rules-hint">支持 CSS 选择器(如 dl.list dd a)或正则;含 * ^ $ | + ? ( ) &#123; &#125; \ 等正则特征符号的 CSS(如 a[href*="x"]、div + p、a:not(.x))需加 css: 前缀</span></div>
+      <div class="rules-title">规则处理<span class="rules-hint">支持 CSS 选择器(如 dl.list dd a)或正则;含 * ^ $ | + ? ( ) &#123; &#125; 等正则特征符号的 CSS(如 a[href*="x"]、div + p、a:not(.x))需加 css: 前缀</span></div>
 
       <!-- ④ 规则编辑 + 测试面板 -->
       <app-rules-panel #panel [baseUrl]="targetUrl" />

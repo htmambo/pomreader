@@ -5,7 +5,7 @@ import { filter, map, startWith } from 'rxjs/operators';
 import { NzLayoutModule } from 'ng-zorro-antd/layout';
 import { NzMenuModule } from 'ng-zorro-antd/menu';
 import { NzButtonModule } from 'ng-zorro-antd/button';
-import { NzIconModule, NZ_ICONS, provideNzIconsPatch } from 'ng-zorro-antd/icon';
+import { NzIconModule, provideNzIconsPatch } from 'ng-zorro-antd/icon';
 import {
   BookOutline, SearchOutline, FileTextOutline,
   ArrowLeftOutline, ArrowRightOutline, MenuOutline, SettingOutline, CloseOutline,

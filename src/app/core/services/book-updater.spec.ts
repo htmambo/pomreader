@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { BookUpdater } from './book-updater';
+/* eslint-disable @typescript-eslint/no-unused-vars -- type-only 引用 for TypeScript 推断 */
 import { BookRepository } from './book.repository';
 import { ChapterLoader } from './chapter-loader';
 import { FetchError } from '../book-source/fetch-error';
 import { BookSourceRegistry } from '../book-source/book-source.registry';
 import { ImportViaSourceService } from '../book-source/import-via-source.service';
+/* eslint-enable @typescript-eslint/no-unused-vars */
 
 function makeBook(overrides = {}) {
   return {

@@ -72,7 +72,7 @@ describe('decodeBuffer — auto 模式', () => {
       '<html><head><meta charset="gbk"></head><body>你好</body></html>',
       'latin1',
     );
-    const result = decodeBuffer(buf, 'auto', {
+    const _result = decodeBuffer(buf, 'auto', {
       'content-type': 'text/html',
     });
     // gbk 字节写入后 latin1 读会乱码 —— 测试应能正确解码

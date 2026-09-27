@@ -142,7 +142,8 @@ async function followRedirect(
   const maxBytes = options.maxBytes ?? DEFAULT_MAX;
   const method = (options.method || 'GET').toUpperCase();
 
-  return new Promise(async (resolve, reject) => {
+  // eslint-disable-next-line no-async-promise-executor
+return new Promise(async (resolve, reject) => {
     let settled = false;
     /** Round 3 hardening: 联合类型显式判别（避免正常响应对象误判含 'error' 字段） */
     type FollowResult = { ok: true; resp: SafeNetResult } | { ok: false; error: string };

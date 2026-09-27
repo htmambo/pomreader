@@ -1,4 +1,4 @@
-import { Injectable, Signal, WritableSignal, signal, inject } from '@angular/core';
+import { Injectable, signal, inject, WritableSignal } from '@angular/core';
 import { Chapter } from '../models/chapter.model';
 import { BookSourceRegistry } from '../book-source/book-source.registry';
 import { CatalogEntry } from '../book-source/book-source.adapter';

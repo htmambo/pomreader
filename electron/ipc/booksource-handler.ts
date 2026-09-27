@@ -6,7 +6,7 @@
  * - 写文件走 `atomicWrite`（FR-1.5：写入失败时原文件不被截断）
  * - HTTP 代理走 `safeNetRequest`（含 isPrivateHost SSRF 防护）
  */
-import { app, IpcMain } from 'electron';
+import { IpcMain } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import { atomicWrite, safeFileName, scanDir } from './booksource-meta';

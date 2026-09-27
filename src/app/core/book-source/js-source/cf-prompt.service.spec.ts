@@ -129,7 +129,7 @@ describe('CfPromptService', () => {
   describe('验证结果分支', () => {
     it('验证成功（cfManual 返回 html）应 toast.success 并允许再次弹同 host', async () => {
        
-      const { svc, toastMock, modalMock } = setupTestBed(async () => '<html>ok</html>');
+      const { svc: _svc, toastMock, modalMock } = setupTestBed(async () => '<html>ok</html>');
       triggerHook('https://example.com/');
        
       await (modalMock as any).lastOpts.nzOnOk();

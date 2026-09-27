@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Book } from '../models/book.model';
+/* eslint-disable @typescript-eslint/no-unused-vars -- type-only 引用 */
 import { BookService } from './book.service';
 import { ReaderService } from './reader.service';
+/* eslint-enable @typescript-eslint/no-unused-vars */
 
 /**
  * ReaderService facade spec（EVO-12 后续 hardening）

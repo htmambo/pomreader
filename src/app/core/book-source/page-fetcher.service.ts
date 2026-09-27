@@ -93,8 +93,8 @@ export class PageFetcherService implements PageFetcher {
   /** CF 挑战：弹确认框 → 打开人工验证窗口 → 提取的渲染 HTML 直接返回；
    * 取消/用户关窗/超时 → 抛 cf-challenge */
   private cfChallengeFlow(
-    url: string,
-    encoding: 'auto' | 'utf-8' | 'gbk'
+    _url: string,
+    _encoding: 'auto' | 'utf-8' | 'gbk'
   ): Promise<string> {
     return new Promise<string>((resolve, reject) => {
       const fail = (): void => reject(new FetchError('cf-challenge'));
@@ -107,7 +107,7 @@ export class PageFetcherService implements PageFetcher {
           // nzOnOk 内不向外抛错（reject 会让 modal 悬停不关），统一 try-catch 后 fail()
           try {
             const api = window.pomAPI!;
-            const html = await this.inZone(api.cfPassManual!(url));
+            const html = await this.inZone(api.cfPassManual!(_url));
             if (!html) { fail(); return; }
             resolve(html);
           } catch {

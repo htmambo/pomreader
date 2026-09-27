@@ -10,6 +10,17 @@ const angularTemplate = require('@angular-eslint/eslint-plugin-template');
 const templateParser = require('@angular-eslint/template-parser');
 const globals = require('globals');
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const globalsPatch = {
+  // Electron type-only globals (auto-import.ts 用 `Electron.X` 形如 `Electron.CrossProcessCommunicationMessages`)
+  // NodeJS 全局（window-state.ts:77）
+  // HTMLWebViewElement（universal-search.component.ts webview 引用）
+  Electron: 'readonly',
+  NodeJS: 'readonly',
+  HTMLWebViewElement: 'readonly',
+  DedicatedWorkerGlobalScope: 'readonly',
+};
+
 const SRC_PROJECT = './tsconfig.app.json';
 const ELECTRON_PROJECT = './electron/tsconfig.electron.json';
 
@@ -43,7 +54,7 @@ module.exports = tseslint.config(
     languageOptions: {
       parser: tseslint.parser,
       parserOptions: { project: SRC_PROJECT, tsconfigRootDir: __dirname },
-      globals: { ...globals.browser },
+      globals: { ...globals.browser, ...globalsPatch },
     },
     rules: {
       ...eslint.configs.recommended.rules,
@@ -79,6 +90,9 @@ module.exports = tseslint.config(
       'no-empty': 'off', // 仓库允许 catch {} 等空块
       'no-control-regex': 'off', // legado-import 解析含控制字符正则
       'no-async-promise-executor': 'off', // safe-net.ts 异步 executor 必要
+      'no-irregular-whitespace': ['error', { skipStrings: true, skipComments: false, skipRegExps: true, skipTemplates: true }],
+      // 中日韩全角空格在注释里常见；允许 strings/regex/templates 不规则空白
+      'no-redeclare': 'off', // TypeScript interface + namespace 同名是合法合并
       eqeqeq: ['error', 'smart'],
     },
   },
@@ -91,7 +105,7 @@ module.exports = tseslint.config(
     languageOptions: {
       parser: tseslint.parser,
       parserOptions: { project: ELECTRON_PROJECT, tsconfigRootDir: __dirname },
-      globals: { ...globals.node },
+      globals: { ...globals.node, ...globalsPatch },
     },
     rules: {
       ...eslint.configs.recommended.rules,

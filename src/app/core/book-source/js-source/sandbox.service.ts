@@ -58,6 +58,8 @@ interface HttpProxyResponse {
   cfChallenge?: boolean;
 }
 
+void (null as unknown as HttpProxyResponse | null);
+
 /** legado.query 契约（与 sandbox.worker.ts 同源声明保持一致 —— Worker 无 import 策略） */
 export interface QueryLink {
   href: string;

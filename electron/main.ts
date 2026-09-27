@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, net, protocol, webContents } from 'electron';
+import { app, BrowserWindow, ipcMain, net, protocol } from 'electron';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
 import { registerFetchHandler } from './ipc/fetch-handler';

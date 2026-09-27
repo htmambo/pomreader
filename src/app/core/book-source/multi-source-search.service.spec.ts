@@ -128,8 +128,9 @@ describe('MultiSourceSearchService', () => {
     expect(typeof JsSourceAdapter.prototype.search).toBe('function');
   });
 
-  it('JsSourceAdapter 接入 registry 后能被聚合搜索识别并按 name|author 去重', async () => {
+  it('JsSourceAdapter 接入 registry 后能被聚合搜索识别并按 name|作者 去重', async () => {
     const { JsSourceAdapter } = await import('./js-source/js-source.adapter');
+    /* eslint-disable @typescript-eslint/no-unused-vars, no-undef */
     const { BookSourceMeta } = await import('./js-source/source-meta.types');
     // mock pomAPI.booksourceRead（ensureLoaded 内部 readSource 调用）
     const w = window as unknown as { pomAPI?: { booksourceRead: (fn: string) => Promise<string> } };
@@ -158,6 +159,7 @@ describe('MultiSourceSearchService', () => {
       };
       const adapter = new JsSourceAdapter(meta, sandbox as never);
       registry.registerJsAdapter(adapter);
+      /* eslint-enable @typescript-eslint/no-unused-vars, no-undef */
 
       const results = await service.searchAll('网文');
       // 3 条原始数据去重后 2 条（庆余年只保留先返回者）

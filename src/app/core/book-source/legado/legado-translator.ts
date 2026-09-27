@@ -127,13 +127,6 @@ export function translateLegadoToJs(src: LegadoSource): TranslateResult {
  * 头标 @enabled false（用户编辑 + 启用后生效）。
  */
 function makeSkeleton(src: LegadoSource, error: string): TranslateResult {
-  const url = (() => {
-    try {
-      return deriveBaseUrl(src);
-    } catch {
-      return '';
-    }
-  })();
   const headers: Record<string, string> = parseHeader(src.header);
   const headerLines = buildHeader(src, headers, true);
   const jsonText = safeJsonStringify(src);

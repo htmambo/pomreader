@@ -16,7 +16,7 @@ function makeBook(overrides: Partial<Book> = {}): Book {
   };
 }
 
-function makeDb(books: Book[] = [], chapters: Record<string, Chapter[]> = {}) {
+function makeDb(books: Book[] = [], _chapters: Record<string, Chapter[]> = {}) {
   return {
     seedIfEmpty: async () => undefined,
     bookAll: async () => books,

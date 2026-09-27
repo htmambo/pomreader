@@ -1,4 +1,4 @@
-import { BaseSourceAdapter } from './base-source.adapter';
+// import type { BaseSourceAdapter } from './base-source.adapter';
 import { BookSourceAdapter, CatalogEntry, PageFetcher, ResolvedBook } from '../book-source.adapter';
 import { looksObfuscated, parseCatalog, parseChapterContent } from '../heuristic-parser';
 

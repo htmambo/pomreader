@@ -1,5 +1,5 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { MultiSourceSearchService, SearchResultItem, SearchProgress } from './multi-source-search.service';
+import { MultiSourceSearchService, SearchResultItem } from './multi-source-search.service';
 import { ToastService } from '../services/toast.service';
 
 /**

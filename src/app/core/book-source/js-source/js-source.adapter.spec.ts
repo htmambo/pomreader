@@ -224,7 +224,7 @@ describe('JsSourceAdapter', () => {
   });
 
   it('search() 沙箱抛错时透传错误并打 console.warn', async () => {
-    const { adapter, mock } = makeAdapter();
+    const { adapter, mock: _mock } = makeAdapter();
     // 不预设 search 结果 → mock.call 抛 '未配置' 错误
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     await expect(adapter.search('kw')).rejects.toThrow('未配置');

@@ -3,7 +3,7 @@
  */
 
 /**
- * 去除正文首尾的空白行，但保留首段的段首缩进（全角空格"　"）。
+ * 去除正文首尾的空白行，但保留首段的段首缩进（全角空格）。
  * 不能用 String.trim()：它会连首段开头的全角空格一起剥掉，破坏"段首空两字"排版。
  */
 export function stripEdgeBlankLines(text: string): string {
@@ -15,7 +15,7 @@ export function stripEdgeBlankLines(text: string): string {
 
 /**
  * 段首缩进规范化为两个全角空格（中文排版"段首空两字"）。
- * 段首已有任意空白（全角/半角/Tab）的统一替换为"　　"，没有的补齐；空白行保持空行。
+ * 段首已有任意空白（全角/半角/Tab）的统一替换为两个全角空格，没有的补齐；空白行保持空行。
  * 幂等：对已规范化的文本再次执行结果不变。
  */
 export function normalizeParagraphIndent(text: string): string {

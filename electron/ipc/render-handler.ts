@@ -1,7 +1,7 @@
 import { BrowserWindow, IpcMain } from 'electron';
 import { URL } from 'url';
 import { isPrivateHost } from './net-guard';
-import { FETCH_PARTITION, getFetchSession, getUA } from './fetch-session';
+import { FETCH_PARTITION, getUA } from './fetch-session';
 
 const LOAD_TIMEOUT_MS = 20000;
 const POLL_INTERVAL_MS = 400;
