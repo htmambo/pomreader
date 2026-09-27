@@ -16,10 +16,7 @@ function makeBook(overrides: Partial<Book> = {}): Book {
   };
 }
 
-function makeDb(
-  books: Book[] = [],
-  chapters: Record<string, Chapter[]> = {},
-) {
+function makeDb(books: Book[] = [], chapters: Record<string, Chapter[]> = {}) {
   return {
     seedIfEmpty: async () => undefined,
     bookAll: async () => books,
@@ -41,10 +38,7 @@ describe('BookRepository', () => {
 
   describe('load', () => {
     it('应能从 db 加载并填充 books signal', async () => {
-      const books = [
-        makeBook({ id: 'b1' }),
-        makeBook({ id: 'b2', title: 'Book 2' }),
-      ];
+      const books = [makeBook({ id: 'b1' }), makeBook({ id: 'b2', title: 'Book 2' })];
       repo.db = { ...db, bookAll: async () => books };
       await repo.load();
       expect(repo.books()).toEqual(books);

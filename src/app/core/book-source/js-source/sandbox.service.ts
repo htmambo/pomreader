@@ -34,49 +34,75 @@ function writeForceOff(): void {
 }
 
 export type SandboxFn =
-  | 'search' | 'bookInfo' | 'toc' | 'chapterList'
-  | 'content' | 'chapterContent' | 'explore';
+  'search' | 'bookInfo' | 'toc' | 'chapterList' | 'content' | 'chapterContent' | 'explore';
 
-export interface LoadedModule { fileName: string; fns: string[]; }
+export interface LoadedModule {
+  fileName: string;
+  fns: string[];
+}
 
 /**
  * HTTP 代理请求/响应（仅沙箱内部用）
  * 完整 Window.pomAPI 接口在 page-fetcher.service.ts 声明
  */
 interface HttpProxyRequest {
-  url: string; method?: string;
-  headers?: Record<string, string>; body?: string | null;
+  url: string;
+  method?: string;
+  headers?: Record<string, string>;
+  body?: string | null;
 }
-interface HttpProxyResponse { status: number; headers: Record<string, string>; body: string; cfChallenge?: boolean; }
+interface HttpProxyResponse {
+  status: number;
+  headers: Record<string, string>;
+  body: string;
+  cfChallenge?: boolean;
+}
 
 /** legado.query 契约（与 sandbox.worker.ts 同源声明保持一致 —— Worker 无 import 策略） */
-export interface QueryLink { href: string; text: string; }
+export interface QueryLink {
+  href: string;
+  text: string;
+}
 export interface QueryItem {
-  tag: string; text: string; html: string; href: string; links: QueryLink[];
+  tag: string;
+  text: string;
+  html: string;
+  href: string;
+  links: QueryLink[];
   /** 元素属性集合（key 已 lowercase）。img@src/a@href 也包含在内 —— 封面/链接属性提取用 */
   attrs?: Record<string, string>;
 }
 
 interface PendingCall {
-  resolve: (v: unknown) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout>;
+  resolve: (v: unknown) => void;
+  reject: (e: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
 }
 
 interface PendingLoad {
-  resolve: (m: LoadedModule) => void; reject: (e: Error) => void;
+  resolve: (m: LoadedModule) => void;
+  reject: (e: Error) => void;
 }
 
 interface WorkerMessage {
   type: 'loaded' | 'result' | 'http' | 'query' | 'init-error' | 'worker-ready' | 'worker-log';
-  fileName?: string; fns?: string[];
-  reqId?: string; ok?: boolean; value?: unknown;
-  error?: string; errorName?: string; request?: HttpProxyRequest;
-  html?: string; selector?: string; baseUrl?: string;
+  fileName?: string;
+  fns?: string[];
+  reqId?: string;
+  ok?: boolean;
+  value?: unknown;
+  error?: string;
+  errorName?: string;
+  request?: HttpProxyRequest;
+  html?: string;
+  selector?: string;
+  baseUrl?: string;
   stack?: string;
   level?: 'info' | 'warn' | 'error';
   msg?: string;
 }
 
-const POOL_CAPACITY = 6;       // spec FR-1.3.2
+const POOL_CAPACITY = 6; // spec FR-1.3.2
 const CALL_TIMEOUT_MS = 15_000; // spec FR-1.3.2
 // load 必须等 Worker 真实回执：首次加载含 Worker 脚本启动耗时，50ms 兜底会把
 // 「回复未到」误判成空 fns（书源未定义 search()）；10s 超时拒绝并保留真实原因
@@ -116,12 +142,16 @@ export class SandboxService {
     }
     try {
       this.progress.update((arr) => [...arr, line].slice(-100));
-    } catch { /* progress 不可用时静默 */ }
+    } catch {
+      /* progress 不可用时静默 */
+    }
     try {
       if (level === 'error') console.error(msg);
       else if (level === 'warn') console.warn(msg);
       else console.info(msg);
-    } catch { /* console.* 在 Worker error 期间可能被 zone 抑制,静默 */ }
+    } catch {
+      /* console.* 在 Worker error 期间可能被 zone 抑制,静默 */
+    }
   }
 
   /** 清空进度日志(每次新执行前) */
@@ -173,7 +203,11 @@ export class SandboxService {
     // 注意：本服务通常为 root singleton，ngOnDestroy 几乎不会触发；
     // 但为 HMR / 多实例化 / 测试 teardown 安全，保留 removeEventListener 路径
     // 当前架构下 root service 不会被销毁，因此这里**只**在测试场景需要时被调用
-    if (typeof window !== 'undefined' && MODULE_STORAGE_HANDLER && MODULE_STORAGE_LISTENER_INSTALLED) {
+    if (
+      typeof window !== 'undefined' &&
+      MODULE_STORAGE_HANDLER &&
+      MODULE_STORAGE_LISTENER_INSTALLED
+    ) {
       window.removeEventListener('storage', MODULE_STORAGE_HANDLER);
       MODULE_STORAGE_HANDLER = null;
       MODULE_STORAGE_LISTENER_INSTALLED = false;
@@ -288,22 +322,39 @@ export class SandboxService {
         const ev = e as ErrorEvent & { error?: Error; colno?: number };
         const errObj = ev.error;
         const stack = errObj?.stack ?? '';
-        const detail = errObj ? `${errObj.name ?? 'Error'}: ${errObj.message ?? '?'}` : '(no error obj)';
+        const detail = errObj
+          ? `${errObj.name ?? 'Error'}: ${errObj.message ?? '?'}`
+          : '(no error obj)';
         // 行 1:console.error —— 用普通 try-catch 包(zone patch 在 Worker error 期间可能抛错)
-        try { console.error(`[SandboxService] ✗ Worker onerror: ${detail} (${ev.filename ?? ''}:${ev.lineno ?? 0}:${ev.colno ?? 0}) stack=${stack.slice(0, 200)}`); } catch {}
+        try {
+          console.error(
+            `[SandboxService] ✗ Worker onerror: ${detail} (${ev.filename ?? ''}:${ev.lineno ?? 0}:${ev.colno ?? 0}) stack=${stack.slice(0, 200)}`,
+          );
+        } catch {}
         // 行 2:progress.update —— 同样 try-catch
-        this.log(`✗ Worker onerror: ${detail} (${ev.filename ?? ""}:${ev.lineno ?? 0}) stack=${stack.slice(0, 200)}`, "error");
+        this.log(
+          `✗ Worker onerror: ${detail} (${ev.filename ?? ''}:${ev.lineno ?? 0}) stack=${stack.slice(0, 200)}`,
+          'error',
+        );
         // 行 3:拼 reject reason
         reason = `Worker 错误：${errObj?.message ?? ev.message ?? '未知'}（${ev.filename ?? ''}:${ev.lineno ?? 0}）`;
         // 行 4:集中 settle workerReadyPromise(幂等,init-error 也走同一路径避免 race)
-        try { this.settleWorkerReady(reason); } catch {}
+        try {
+          this.settleWorkerReady(reason);
+        } catch {}
         // 行 5:failAllPendingLoads —— cb.reject 可能抛错(用户 reject handler 抛错) 每个 reject 包 try
         this.failAllPendingLoads(reason);
       } catch (handlerErr) {
         // 兜底:任何路径抛错 —— 仍尝试 settle 一次,但不抛
-        try { console.error('[SandboxService] ✗ onerror handler threw:', handlerErr); } catch {}
-        try { this.settleWorkerReady(reason); } catch {}
-        try { this.failAllPendingLoads(reason); } catch {}
+        try {
+          console.error('[SandboxService] ✗ onerror handler threw:', handlerErr);
+        } catch {}
+        try {
+          this.settleWorkerReady(reason);
+        } catch {}
+        try {
+          this.failAllPendingLoads(reason);
+        } catch {}
       }
       // 最外层 guard:即使 try/catch 都没接住(极少见,如 Zone patch 后全局抛错),也不让 escape
       // (实际上到这里已经没有 throw,但某些 V8 引擎在 async 任务结束后仍可能检测到 unhandled)
@@ -323,11 +374,19 @@ export class SandboxService {
   private settleWorkerReady(reason: string): void {
     const err = new Error(reason);
     if (this.workerReadyReject) {
-      try { this.workerReadyReject(err); } catch { /* silent */ }
+      try {
+        this.workerReadyReject(err);
+      } catch {
+        /* silent */
+      }
       this.workerReadyReject = null;
     }
     if (this.workerReadyResolve) {
-      try { this.workerReadyResolve(); } catch { /* silent */ }
+      try {
+        this.workerReadyResolve();
+      } catch {
+        /* silent */
+      }
       this.workerReadyResolve = null;
     }
   }
@@ -337,7 +396,11 @@ export class SandboxService {
     if (this.pendingLoads.size === 0) return; // 幂等守卫：超时 reject 后再触发 init-error 不会重复 reject
     for (const [fileName, cb] of this.pendingLoads) {
       this.pendingLoads.delete(fileName);
-      try { cb.reject(new Error(reason)); } catch { /* 用户 reject handler 抛错时静默,避免污染 onerror 链 */ }
+      try {
+        cb.reject(new Error(reason));
+      } catch {
+        /* 用户 reject handler 抛错时静默,避免污染 onerror 链 */
+      }
     }
   }
 
@@ -349,9 +412,15 @@ export class SandboxService {
     if (this.workerReadyPromise) {
       await Promise.race([
         this.workerReadyPromise,
-        new Promise<void>((_, reject) => setTimeout(() => {
-          reject(new Error(`Worker 未在 ${LOAD_TIMEOUT_MS}ms 内发 ready 信号(可能硬化段抛错且 init-error 未送达)`));
-        }, LOAD_TIMEOUT_MS)),
+        new Promise<void>((_, reject) =>
+          setTimeout(() => {
+            reject(
+              new Error(
+                `Worker 未在 ${LOAD_TIMEOUT_MS}ms 内发 ready 信号(可能硬化段抛错且 init-error 未送达)`,
+              ),
+            );
+          }, LOAD_TIMEOUT_MS),
+        ),
       ]);
     }
   }
@@ -406,7 +475,11 @@ export class SandboxService {
         // 重建原始错误类型（保留 ReferenceError / TypeError）— 沙箱隔离可观测
         // security: defense-in-depth — 白名单 errorName 防止恶意书源注入非 Error 构造器
         const ALLOWED_ERROR_NAMES = new Set([
-          'Error', 'TypeError', 'RangeError', 'ReferenceError', 'SyntaxError',
+          'Error',
+          'TypeError',
+          'RangeError',
+          'ReferenceError',
+          'SyntaxError',
         ]);
         const requestedName = msg.errorName ?? 'Error';
         const name = ALLOWED_ERROR_NAMES.has(requestedName) ? requestedName : 'Error';
@@ -427,13 +500,17 @@ export class SandboxService {
   }
 
   private poolAcquire(): Promise<void> {
-    if (this.poolActive < POOL_CAPACITY) { this.poolActive++; return Promise.resolve(); }
+    if (this.poolActive < POOL_CAPACITY) {
+      this.poolActive++;
+      return Promise.resolve();
+    }
     return new Promise<void>((r) => this.poolQueue.push(r));
   }
 
   private poolRelease(): void {
     const next = this.poolQueue.shift();
-    if (next) next(); else this.poolActive = Math.max(0, this.poolActive - 1);
+    if (next) next();
+    else this.poolActive = Math.max(0, this.poolActive - 1);
   }
 
   /** load(fileName, source) — 缓存命中直接返回；否则等 Worker ready 后发 'load' 并等回执（编译失败/超时均 reject） */
@@ -460,11 +537,14 @@ export class SandboxService {
         this.pendingLoads.delete(fileName);
         const diag = `ready=${this.workerReadyReceived ? '是' : '否'} 收到消息=${this.workerMessageCount} 条`;
         this.log(`✗ 步骤 2/3 超时: ${diag}`, 'error');
-        reject(new FetchError('timeout',
-          `书源 ${fileName} 加载超时（${LOAD_TIMEOUT_MS}ms，Worker 未回执；${diag}）。` +
-          `如 ready=否 → Worker 启动段硬化代码抛错或 Worker 整体未启动；` +
-          `如 ready=是 → Worker 处理 load 时未回执,可能书源顶层有同步死循环或阻塞调用。`,
-        ));
+        reject(
+          new FetchError(
+            'timeout',
+            `书源 ${fileName} 加载超时（${LOAD_TIMEOUT_MS}ms，Worker 未回执；${diag}）。` +
+              `如 ready=否 → Worker 启动段硬化代码抛错或 Worker 整体未启动；` +
+              `如 ready=是 → Worker 处理 load 时未回执,可能书源顶层有同步死循环或阻塞调用。`,
+          ),
+        );
       }, LOAD_TIMEOUT_MS);
       this.pendingLoads.set(fileName, {
         resolve: (m) => {
@@ -486,19 +566,24 @@ export class SandboxService {
     await this.poolAcquire();
     const reqId = `req-${Math.random().toString(36).slice(2)}-${Date.now()}`;
     // 步骤化日志:便于用户定位卡哪一步
-    this.log(`▶ 调用 ${fileName}.${fn}(${args.map((a) => typeof a === 'string' ? `"${a.slice(0, 60)}${a.length > 60 ? '...' : ''}"` : JSON.stringify(a)).join(', ')})`);
+    this.log(
+      `▶ 调用 ${fileName}.${fn}(${args.map((a) => (typeof a === 'string' ? `"${a.slice(0, 60)}${a.length > 60 ? '...' : ''}"` : JSON.stringify(a))).join(', ')})`,
+    );
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
         if (this.pending.delete(reqId)) {
           this.poolRelease();
           this.log(`✗ ${fileName}.${fn} 超时 (${CALL_TIMEOUT_MS}ms)`, 'error');
-          reject(new FetchError('timeout', `沙箱调用 ${fileName}.${fn} 超时（${CALL_TIMEOUT_MS}ms）`));
+          reject(
+            new FetchError('timeout', `沙箱调用 ${fileName}.${fn} 超时（${CALL_TIMEOUT_MS}ms）`),
+          );
         }
       }, CALL_TIMEOUT_MS);
       this.pending.set(reqId, {
         resolve: (v) => {
           clearTimeout(timer);
-          const len = typeof v === 'string' ? v.length : v === undefined ? 0 : JSON.stringify(v).length;
+          const len =
+            typeof v === 'string' ? v.length : v === undefined ? 0 : JSON.stringify(v).length;
           this.log(`✓ ${fileName}.${fn} 返回 (${len} 字节)`);
           resolve(v as T);
         },
@@ -531,7 +616,13 @@ export class SandboxService {
         const res = await proxy(request);
         // Tier 1 自动过盾失败（交互式 Turnstile）→ 通知 UI 层引导人工过盾（Tier 2）
         if (res.cfChallenge) SandboxService.cfChallengeHook?.(request.url);
-        this.worker!.postMessage({ type: 'http-result', reqId, status: res.status, headers: res.headers, body: res.body });
+        this.worker!.postMessage({
+          type: 'http-result',
+          reqId,
+          status: res.status,
+          headers: res.headers,
+          body: res.body,
+        });
       } catch (e) {
         const msg = (e as Error)?.message ?? String(e);
         this.log(`✗ legado.http 主进程代理失败: ${msg} (URL=${request.url.slice(0, 80)})`, 'error');
@@ -548,14 +639,20 @@ export class SandboxService {
       });
       const body = await resp.text();
       const headers: Record<string, string> = {};
-      resp.headers.forEach((v, k) => { headers[k] = v; });
+      resp.headers.forEach((v, k) => {
+        headers[k] = v;
+      });
       this.worker!.postMessage({ type: 'http-result', reqId, status: resp.status, headers, body });
     } catch (e) {
       const msg = (e as Error)?.message ?? String(e);
-      const hint = msg.includes('Failed to fetch') || msg.includes('NetworkError')
-        ? ' —— 网络/CORS/DNS 失败(浏览器 fetch 限制):检查书源 URL 可达性或设置 CSP/CORS 头'
-        : '';
-      this.log(`✗ legado.http fetch 失败: ${msg}${hint} (URL=${request.url.slice(0, 80)})`, 'error');
+      const hint =
+        msg.includes('Failed to fetch') || msg.includes('NetworkError')
+          ? ' —— 网络/CORS/DNS 失败(浏览器 fetch 限制):检查书源 URL 可达性或设置 CSP/CORS 头'
+          : '';
+      this.log(
+        `✗ legado.http fetch 失败: ${msg}${hint} (URL=${request.url.slice(0, 80)})`,
+        'error',
+      );
       this.sendHttpError(reqId);
     }
   }
@@ -583,7 +680,9 @@ export class SandboxService {
     // 书源 BOOK_TITLE_RULE / BOOK_AUTHOR_RULE / CHAPTER_ITEM_RULE / CONTENT_RULE / COVER_RULE / BOOK_CATEGORY_RULE
     // 任意一个为空字符串都会触发,直接告诉用户去检查书源编辑器
     if (!selector || !selector.trim()) {
-      fail('选择器为空：书源规则未填写（BOOK_TITLE_RULE / BOOK_AUTHOR_RULE / CHAPTER_ITEM_RULE / CONTENT_RULE / COVER_RULE / BOOK_CATEGORY_RULE 中至少一个为空）— 打开书源编辑器确认');
+      fail(
+        '选择器为空：书源规则未填写（BOOK_TITLE_RULE / BOOK_AUTHOR_RULE / CHAPTER_ITEM_RULE / CONTENT_RULE / COVER_RULE / BOOK_CATEGORY_RULE 中至少一个为空）— 打开书源编辑器确认',
+      );
       return;
     }
     try {

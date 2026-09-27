@@ -47,9 +47,7 @@ export class BookUpdater {
     await this.repo.persistChapters(chapters);
     // 预加载前 N 章（失败静默，阅读时重试）
     await Promise.allSettled(
-      chapters
-        .slice(0, PRELOAD_COUNT)
-        .map((c) => this.loader.loadChapterContent(book.id, c.index)),
+      chapters.slice(0, PRELOAD_COUNT).map((c) => this.loader.loadChapterContent(book.id, c.index)),
     );
   }
 
@@ -131,7 +129,9 @@ export class BookUpdater {
   /**
    * 更新最新章节（同源增量追加）
    */
-  async refreshChapters(bookId: string): Promise<{ added: number; skipped: number; total: number }> {
+  async refreshChapters(
+    bookId: string,
+  ): Promise<{ added: number; skipped: number; total: number }> {
     const oldBook = this.repo.getById(bookId);
     if (!oldBook) throw new FetchError('source-unavailable', `书不存在: ${bookId}`);
     if (oldBook.source !== 'online') {

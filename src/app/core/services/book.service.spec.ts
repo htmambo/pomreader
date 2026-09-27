@@ -12,11 +12,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BookService } from './book.service';
 import { BookSourceRegistry } from '../book-source/book-source.registry';
-import {
-  BookSourceAdapter,
-  PageFetcher,
-  ResolvedBook,
-} from '../book-source/book-source.adapter';
+import { BookSourceAdapter, PageFetcher, ResolvedBook } from '../book-source/book-source.adapter';
 import { ImportViaSourceService } from '../book-source/import-via-source.service';
 import { FetchError } from '../book-source/fetch-error';
 import { UNIVERSAL_BOOK_SOURCE_UUID } from '../book-source/book-source.constants';
@@ -34,17 +30,40 @@ class StubAdapter implements BookSourceAdapter {
     public readonly name: string,
     public readonly meta?: { uuid?: string },
   ) {}
-  match(): boolean { return true; }
+  match(): boolean {
+    return true;
+  }
   async fetchCatalog(): Promise<ResolvedBook> {
     return { title: 'stub', author: 'stub', chapters: [{ title: 'ch1', url: 'http://a/1' }] };
   }
-  async fetchChapter(): Promise<string> { return ''; }
+  async fetchChapter(): Promise<string> {
+    return '';
+  }
 }
 
-interface AddBookCall { book: Book; chapters: Array<{ bookId: string; index: number; title: string; sourceUrl?: string; content: string; loaded: boolean }> }
+interface AddBookCall {
+  book: Book;
+  chapters: Array<{
+    bookId: string;
+    index: number;
+    title: string;
+    sourceUrl?: string;
+    content: string;
+    loaded: boolean;
+  }>;
+}
 
 /** 假 DbService：仅实现 addBook / refreshChapters 链路需要的最小接口 */
-function makeFakeDb(initialChapters: Array<{ bookId: string; index: number; title: string; content?: string; sourceUrl?: string; loaded?: boolean }> = []) {
+function makeFakeDb(
+  initialChapters: Array<{
+    bookId: string;
+    index: number;
+    title: string;
+    content?: string;
+    sourceUrl?: string;
+    loaded?: boolean;
+  }> = [],
+) {
   let chapters = [...initialChapters];
   const fakeDb = {
     bookPut: vi.fn(async () => undefined),
@@ -68,7 +87,9 @@ function makeFakeDb(initialChapters: Array<{ bookId: string; index: number; titl
  *  spec spyAddBook 链路自然成立（详见 book.service.ts:114-296 注释）。
  */
 function spyAddBook(svc: BookService, sink: AddBookCall[]): void {
-  const original = (svc as unknown as { addBook: (b: Book, c: AddBookCall['chapters']) => Promise<void> }).addBook.bind(svc);
+  const original = (
+    svc as unknown as { addBook: (b: Book, c: AddBookCall['chapters']) => Promise<void> }
+  ).addBook.bind(svc);
   (svc as unknown as { addBook: typeof original }).addBook = vi.fn(async (b, c) => {
     sink.push({ book: b, chapters: c });
     await original(b, c);
@@ -250,14 +271,20 @@ describe('BookService.changeBookSource', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (svc as any)._books.set([makeBook()]);
     await svc.changeBookSource('book-1', 'http://new.example.com/book/1', 'stub');
-    expect(importViaSource.importByUrl).toHaveBeenCalledWith('http://new.example.com/book/1', 'stub');
+    expect(importViaSource.importByUrl).toHaveBeenCalledWith(
+      'http://new.example.com/book/1',
+      'stub',
+    );
   });
 
   it('passes undefined sourceName to importViaSource when not specified', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (svc as any)._books.set([makeBook()]);
     await svc.changeBookSource('book-1', 'http://new.example.com/book/1');
-    expect(importViaSource.importByUrl).toHaveBeenCalledWith('http://new.example.com/book/1', undefined);
+    expect(importViaSource.importByUrl).toHaveBeenCalledWith(
+      'http://new.example.com/book/1',
+      undefined,
+    );
   });
 
   it('falls back to old title/author when new resolved values are empty', async () => {
@@ -291,9 +318,30 @@ describe('BookService.changeBookSource', () => {
 /** refreshChapters 测试用：mock 一本含 3 章的 online 书，缓存为空时 chapterAll 兜底 */
 function makeBookWithChapters() {
   const existing = [
-    { bookId: 'book-1', index: 0, title: '旧第1章', sourceUrl: 'http://old/1', content: 'old1', loaded: true },
-    { bookId: 'book-1', index: 1, title: '旧第2章', sourceUrl: 'http://old/2', content: 'old2', loaded: true },
-    { bookId: 'book-1', index: 2, title: '旧第3章', sourceUrl: 'http://old/3', content: 'old3', loaded: true },
+    {
+      bookId: 'book-1',
+      index: 0,
+      title: '旧第1章',
+      sourceUrl: 'http://old/1',
+      content: 'old1',
+      loaded: true,
+    },
+    {
+      bookId: 'book-1',
+      index: 1,
+      title: '旧第2章',
+      sourceUrl: 'http://old/2',
+      content: 'old2',
+      loaded: true,
+    },
+    {
+      bookId: 'book-1',
+      index: 2,
+      title: '旧第3章',
+      sourceUrl: 'http://old/3',
+      content: 'old3',
+      loaded: true,
+    },
   ];
   return { existing };
 }
@@ -317,11 +365,11 @@ describe('BookService.refreshChapters', () => {
       title: '连城诀',
       author: '金庸',
       chapters: [
-        { title: '旧第1章', url: 'http://old/1' },     // 跳过（已存在 URL）
-        { title: '旧第2章', url: 'http://old/2' },     // 跳过
-        { title: '旧第3章', url: 'http://old/3' },     // 跳过
-        { title: '新第4章', url: 'http://old/4' },     // 追加
-        { title: '新第5章', url: 'http://old/5' },     // 追加
+        { title: '旧第1章', url: 'http://old/1' }, // 跳过（已存在 URL）
+        { title: '旧第2章', url: 'http://old/2' }, // 跳过
+        { title: '旧第3章', url: 'http://old/3' }, // 跳过
+        { title: '新第4章', url: 'http://old/4' }, // 追加
+        { title: '新第5章', url: 'http://old/5' }, // 追加
       ],
     };
     importViaSource = makeFakeImportViaSource(resolved, 'stub-uuid');
@@ -441,7 +489,9 @@ describe('BookService.refreshChapters', () => {
   it('preserves progress.chapterIndex unchanged (no clamp needed)', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (svc as any)._books.set([
-      makeBook({ progress: { chapterIndex: 2, scrollOffset: 500, updatedAt: '2026-02-15T10:00:00Z' } }),
+      makeBook({
+        progress: { chapterIndex: 2, scrollOffset: 500, updatedAt: '2026-02-15T10:00:00Z' },
+      }),
     ]);
     await svc.refreshChapters('book-1');
     const merged = calls[0].book;

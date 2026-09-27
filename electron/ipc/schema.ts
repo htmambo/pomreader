@@ -84,9 +84,7 @@ export const GetFetchUaArgsSchema = v.nullish(v.null(), null);
 export type GetFetchUaArgs = v.InferOutput<typeof GetFetchUaArgsSchema>;
 
 /** pom:set-fetch-ua args tuple: (ua: string | null) */
-export const SetFetchUaArgsSchema = v.tuple([
-  v.nullish(v.string(), null),
-]);
+export const SetFetchUaArgsSchema = v.tuple([v.nullish(v.string(), null)]);
 export type SetFetchUaArgs = v.InferOutput<typeof SetFetchUaArgsSchema>;
 
 /** pom:set-webview-encoding args tuple: (webviewId: string, mode: EncodingMode) */
