@@ -44,7 +44,7 @@ npm run dev
 - **PouchDB** IndexedDB（Book/Chapter 持久化）+ **localStorage**（设置）
 - **valibot 1.5**（IPC 入参 runtime schema 验证；`safeHandle` 工厂统一校验）
 - **@angular/localize**（i18n 机制就位；zh-Hans 默认）
-- **Vitest 2.1 + jsdom**（`src/` 与 `electron/` 两侧共测，v8 coverage）+ **Playwright**（E2E）
+- **Vitest 2.1 + jsdom**（`src/` 与 `electron/` 两侧共测，v8 coverage：**74.68% 行 / 81.84% 分支 / 80.66% 函数** 总计；`core/logic` 96.83% 行最高）+ **Playwright**（E2E）
 - **esbuild**（`build:worker` 打包 `sandbox.worker.ts` → `src/assets/sandbox.worker.js`）
 
 ## 书源与扩展
@@ -168,8 +168,18 @@ docs/
 
 ## 演进记录（2026-09）
 
-- **EVO-1 ~ EVO-16**：架构演进 16 项（IPC 拆模块 + safeHandle / 沙箱硬化 v2 / DbWorker pool / 4 进程模型 / 测试覆盖 / 文档对齐等）；详见 [`docs/Task/Active/POMREADER_ARCH_EVOLUTION_PLAN.md`](docs/Task/Active/POMREADER_ARCH_EVOLUTION_PLAN.md) 与 `.omc/fullauto/pomreader-arch-evo/`
-- 累计 691+ tests passing（src/ + electron/ 两侧）
+- **EVO-1 ~ EVO-16**：架构演进 16 项（IPC 拆模块 + safeHandle / 沙箱硬化 v2 / DbWorker pool / 4 进程模型 / 测试覆盖 / 文档对齐等）；详见 [`docs/Task/Archive/2026-09/POMREADER_ARCH_EVOLUTION_PLAN.md`](docs/Task/Archive/2026-09/POMREADER_ARCH_EVOLUTION_PLAN.md) 与 `.omc/fullauto/pomreader-arch-evo/`
+- 累计 691+ tests passing（src/ + electron/ 两侧）；外部审核 Round 9 APPROVED
+- 主要 commit 锚点（详见 CHANGELOG §"Architecture Evolution"）：
+  - EVO-1 `1765d00` BookRepository 拆出 → `d9979b1` 章节方法委托 ChapterLoader → `4af4c00` Loader/Updater 抽出 → `6a37fbe` BookUpdater 改用 BookRepositoryPort
+  - EVO-2 `9628160` bulk-result helper
+  - EVO-3 `97534be` / `e75c398` / `f2560f3` / `53d13d0` Worker Pool（factory → 完整 → 保守接通 → 池安全硬化）
+  - EVO-4 `b226d6b` typed IPC schema via valibot safeHandle → `98c46eb` safeHandle rest args + DbService spec
+  - EVO-6 `a63332a` OnPush 100% (15 component)
+  - EVO-9 `04bb6bc` /search 路由 placeholder + AppComponent shell 常驻
+  - EVO-11 `d3221f5` $localize wired (zh-Hans default)
+  - EVO-12 `1e98637` / `d2affe9` reader / settings 拆纯逻辑 + service facade
+  - EVO-16 集成在 EVO-1~8 commit 中：dev stale chunk 修复 + outputHashing:none + 懒加载自动重试
 
 ## 下一步
 
@@ -186,12 +196,23 @@ docs/
 | 打包 `pacman` 目标失败：`libcrypt.so.1: cannot open shared object file` | electron-builder 内置的 fpm(ruby) 需要 `libcrypt.so.1` | `sudo pacman -S libxcrypt-compat` |
 | 打包警告 `desktopName is not set in package.json` | 窗口 WM_CLASS 与 .desktop 文件不匹配，任务栏/启动器无法关联窗口 | `desktopName` 放 package.json **根级**（非 `build` 内），并在 `build.linux` 设 `syncDesktopName: true` |
 | Angular 18 + Electron `file://` 报 `Failed to fetch dynamically imported module` | Angular 默认 `<base href="/">` + esbuild chunk hash 双重根因（base href 解析 + 陈旧 chunk） | 详见 `memory/angular-electron-file-base-href.md` 与 `memory/angular-electron-stale-chunk-hash.md`（同时改 `<base href="./">` + Angular `useHash=true` + 启动前清缓存） |
+| `dist-electron/` 出现在仓库根目录 | `npm run build:electron` 产物未声明在 `.gitignore`（已修复）；构建过程中生成 | `.gitignore` 已配置忽略；无需清理仓库内残留（首次 `npm run dist` 后自然消失） |
 
 ## 相关文档
 
+### 项目根
+- [`LICENSE`](LICENSE) — MIT
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — 提交流程（commit / PR / 测试要求）
+- [`CHANGELOG.md`](CHANGELOG.md) — 版本历史（含 EVO-1~16 commit 锚点表）
+
+### 设计 & 架构
 - [`docs/Architecture/2026-09-24-POMREADER_UI_CLONE_DESIGN.md`](docs/Architecture/2026-09-24-POMREADER_UI_CLONE_DESIGN.md) — 设计稿 v1.1
-- [`docs/Task/Active/POMREADER_ARCH_EVOLUTION_PLAN.md`](docs/Task/Active/POMREADER_ARCH_EVOLUTION_PLAN.md) — EVO-1 ~ EVO-16 演进计划（当前 active）
-- [`docs/Task/Archive/2026-09/`](docs/Task/Archive/2026-09/) — 历史任务归档（10 项已完成计划）
 - [`docs/superpowers/specs/2026-09-24-online-search-import-design.md`](docs/superpowers/specs/2026-09-24-online-search-import-design.md) — 在线搜索+导入设计
+
+### 任务归档
+- [`docs/Task/README.md`](docs/Task/README.md) — 任务索引（active + archive 总览）
+- [`docs/Task/Active/POMREADER_P1_P2_HARDENING_PLAN.md`](docs/Task/Active/POMREADER_P1_P2_HARDENING_PLAN.md) — 当前 active（P1+P2 基础设施硬化）
+- [`docs/Task/Archive/2026-09/POMREADER_ARCH_EVOLUTION_PLAN.md`](docs/Task/Archive/2026-09/POMREADER_ARCH_EVOLUTION_PLAN.md) — EVO-1 ~ EVO-16 演进计划（已 completed）
+- [`docs/Task/Archive/2026-09/`](docs/Task/Archive/2026-09/) — 历史任务归档（10 项已完成计划）
 
 > 历史 fullauto 审计记录保留在 `.omc/fullauto/` 下（`pomreader-arch-evo/`、`pomreader-arch-evo-2/`、`convention-normalize/`、`legado-migration/`）。
