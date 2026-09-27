@@ -5,7 +5,7 @@ import { BookSourceRegistry } from '../book-source/book-source.registry';
 import { CatalogEntry } from '../book-source/book-source.adapter';
 import { ImportViaSourceService } from '../book-source/import-via-source.service';
 import { FetchError } from '../book-source/fetch-error';
-import { BookRepository } from './book.repository';
+import { BookRepository, BookRepositoryPort } from './book.repository';
 import { ChapterLoader } from './chapter-loader';
 import { DbService } from './db.service';
 
@@ -26,7 +26,8 @@ const PRELOAD_COUNT = 3;
  */
 @Injectable({ providedIn: 'root' })
 export class BookUpdater {
-  private readonly repo = inject(BookRepository);
+  // architect #4 / Phase 4 收口：字段类型改为 BookRepositoryPort 与 BookService 对齐
+  private readonly repo: BookRepositoryPort = inject(BookRepository);
   private readonly loader = inject(ChapterLoader);
   private readonly db = inject(DbService);
   private readonly sources = inject(BookSourceRegistry);
@@ -256,7 +257,7 @@ export class BookUpdater {
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static forTest(
-    repo: BookRepository,
+    repo: BookRepositoryPort,
     loader: ChapterLoader,
     db: DbService,
     sources: BookSourceRegistry,
