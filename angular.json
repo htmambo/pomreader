@@ -69,6 +69,7 @@
             },
             "development": {
               "optimization": false,
+              "outputHashing": "none",
               "extractLicenses": false,
               "sourceMap": true
             }

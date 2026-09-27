@@ -19,6 +19,12 @@ _(无)_
   - 父设计稿：[2026-09-24-POMREADER_UI_CLONE_DESIGN.md v1.1](../Architecture/2026-09-24-POMREADER_UI_CLONE_DESIGN.md) Round 1 APPROVED
 
 ### 2026-09（独立仓库阶段）
+- ✅ [npm run dev 启动竞态 + watch 重建懒加载失败修复](Archive/2026-09/DEV_STALE_CHUNK_FIX_PLAN.md) — Completed & Archived 2026-09-27
+  - 根因：`wait-on electron/www/browser/index.html` 命中上次构建残留立即放行 → Electron 加载旧 index.html（旧 hash chunk），本轮构建清空输出目录后旧 chunk 被删 → 懒加载 404
+  - 修复 1：`dev` 脚本前置 `rm -rf electron/www`，确保 wait-on 等到本次构建产物
+  - 修复 2：development 配置 `outputHashing: "none"`（入口 bundle 去 hash）
+  - 修复 3：`src/main.ts` 监听 `unhandledrejection`，懒加载 chunk 失效自动刷新一次（10s 防死循环）
+  - 覆盖：渲染层改动无需重启；`electron/` 主进程/preload 改动仍需重启
 - ✅ [书源搜索桥接 JS 书源适配器 + 暗色 alert 样式](Archive/2026-09/BOOK_SOURCE_SEARCH_BRIDGE_PLAN.md) — Completed 2026-09-26
   - 真正根因：`registry.loadAllJsAdapters()` 从未被调用（app.config.ts APP_INITIALIZER 缺失），用户装的 JS 书源从未进 registry → 鸭子类型过滤全部排除 → 聚合搜索永远空
   - 修复 1：APP_INITIALIZER deps 加 SandboxService（绕开 NG0203 — async 函数 await 后脱离 Angular 注入上下文）
