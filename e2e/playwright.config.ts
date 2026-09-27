@@ -1,11 +1,15 @@
-// Playwright E2E 测试配置（T-016）
+// Playwright E2E 测试配置（T-016 + EVO-8）
 // 依赖：Angular CLI dev server 已在 4200 端口运行（webServer 自动启动）
 // 运行：npm run e2e
 import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
-  // 测试文件根目录
-  testDir: './e2e',
+  // 测试文件根目录：本配置文件位于 e2e/ 目录，用 '.' 即代表 e2e/
+  testDir: '.',
+  // 仅匹配顶级 *.spec.ts（避免误收集 vitest 单元测试文件）
+  testMatch: /.*\.spec\.ts$/,
+  // 排除 vitest 单测目录（防止 playwright 误收集）
+  testIgnore: ['**/node_modules/**', '**/src/**', '**/dist/**'],
   // 单用例超时 30s（包含网络请求 + Angular 启动）
   timeout: 30_000,
   // 串行执行，避免多个 dev server 实例同时拉起
