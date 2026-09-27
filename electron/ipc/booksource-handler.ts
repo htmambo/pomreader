@@ -28,7 +28,7 @@ function draftsDir(userData: string): string {
 }
 
 /** 解析书源文件绝对路径；sourceDir 必须绝对路径 */
-function resolvePath(
+export function resolvePath(
   userData: string,
   fileName: string,
   sourceDir: string | null | undefined
@@ -43,7 +43,7 @@ function resolvePath(
 }
 
 /** 解析目录：sourceDir 必须绝对，主目录自动创建 */
-function resolveDir(userData: string, sourceDir: string | null | undefined): string | null {
+export function resolveDir(userData: string, sourceDir: string | null | undefined): string | null {
   if (sourceDir) {
     if (!path.isAbsolute(sourceDir)) return null;
     return sourceDir;
