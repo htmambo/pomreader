@@ -10,7 +10,7 @@ import { NzDropDownModule } from 'ng-zorro-antd/dropdown';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { ImportOnlineComponent } from '../../../modals/import-online/import-online.component';
 import { ImportLocalTxtComponent } from '../../../modals/import-local-txt/import-local-txt.component';
-import { PageHeaderService } from './page-header.service';
+import { PageHeaderService } from '../../../core/services/page-header.service';
 
 /**
  * PageHeader — 顶部标题 + 操作区(全局唯一,放在 AppComponent 的 <nz-header> 里)

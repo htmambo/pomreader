@@ -19,6 +19,15 @@ _(无)_
   - 父设计稿：[2026-09-24-POMREADER_UI_CLONE_DESIGN.md v1.1](../Architecture/2026-09-24-POMREADER_UI_CLONE_DESIGN.md) Round 1 APPROVED
 
 ### 2026-09（独立仓库阶段）
+- ✅ [规范化与一致性整改（convention-normalize）](Archive/2026-09/CONVENTION_NORMALIZE_PLAN.md) — Completed & Archived 2026-09-27
+  - 11 项不一致整改（P1 命名/模板/OnPush + P2 服务/dialog 归位 + P3 目录/格式 + P4 死代码/文档）
+  - 14 个原子提交（CC-1..CC-14）+ 1 验证步骤（CC-15）
+  - AGENTS.md (73 行 ≤ 80 硬上限) + docs/CONVENTIONS.md (298 行含 15 行 §exceptions 豁免表)
+  - 4 个 source-* 重命名为 book-source-* (FR-1) + 3 个 file move (PageHeaderService / jump-chapter-dialog / good-sites) + 5 个 template split + OnPush (bookshelf / reader / book-source-debug / book-source-test / import-online)
+  - 引入 .prettierrc + format/format:check scripts + Prettier devDependency
+  - 引入 book-source/data/ 子目录；core/data/ 孤儿目录删除
+  - 全自动 /fullauto 端到端：Phase 0 spec APPROVED + Phase 1 plan APPROVED + Phase 2 14 CCs 完成 + Phase 3 QA 22 files/334 tests/ng build 5.1s 全绿
+  - 单文件外部审核严格落地（CC-1 AGENTS.md round 4 APPROVED + CC-2 CONVENTIONS.md round 2 APPROVED）；12 CCs 按 §4.a exemption 走 self-checked（纯配置/重命名/移动/纯注释/spec-driven mechanical）
 - ✅ [npm run dev 启动竞态 + watch 重建懒加载失败修复](Archive/2026-09/DEV_STALE_CHUNK_FIX_PLAN.md) — Completed & Archived 2026-09-27
   - 根因：`wait-on electron/www/browser/index.html` 命中上次构建残留立即放行 → Electron 加载旧 index.html（旧 hash chunk），本轮构建清空输出目录后旧 chunk 被删 → 懒加载 404
   - 修复 1：`dev` 脚本前置 `rm -rf electron/www`，确保 wait-on 等到本次构建产物

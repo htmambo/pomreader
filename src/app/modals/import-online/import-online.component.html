@@ -1,0 +1,120 @@
+
+    <div class="import-online">
+      <p class="hint">输入书页完整 URL 或按书源搜索关键词（支持笔趣阁等 5 站 + 通用启发式 + JS 书源）：</p>
+
+      <div class="source-selector">
+        <label class="source-label">书源：</label>
+        <nz-select
+          [(ngModel)]="selectedSourceModel"
+          (ngModelChange)="onSourceChange($event)"
+          style="min-width: 180px;"
+          nzPlaceHolder="选择书源"
+        >
+          <nz-option
+            *ngFor="let s of sources()"
+            [nzValue]="s"
+            [nzLabel]="s"
+          ></nz-option>
+        </nz-select>
+      </div>
+
+      <div class="mode-tabs">
+        <button
+          type="button"
+          nz-button
+          nzSize="small"
+          [nzType]="mode() === 'url' ? 'primary' : 'default'"
+          (click)="setMode('url')"
+        >URL 导入</button>
+        <button
+          type="button"
+          nz-button
+          nzSize="small"
+          [nzType]="mode() === 'keyword' ? 'primary' : 'default'"
+          (click)="setMode('keyword')"
+          [disabled]="!selectedSource()"
+        >关键词搜索</button>
+      </div>
+
+      @if (mode() === 'url') {
+        <div class="url-row">
+          <input
+            nz-input
+            placeholder="https://example.com/book/123/"
+            [(ngModel)]="url"
+            [disabled]="loading() || importing()"
+            (keyup.enter)="parse()"
+            style="flex: 1;"
+          />
+          <button
+            nz-button
+            nzType="primary"
+            (click)="parse()"
+            [disabled]="!url.trim() || loading() || importing()"
+          >
+            {{ loading() ? '解析中...' : '解析' }}
+          </button>
+        </div>
+      } @else {
+        <div class="url-row">
+          <input
+            nz-input
+            placeholder="输入书名或作者"
+            [(ngModel)]="keyword"
+            [disabled]="loading() || !selectedSource()"
+            (keyup.enter)="searchKeyword()"
+            style="flex: 1;"
+          />
+          <button
+            nz-button
+            nzType="primary"
+            (click)="searchKeyword()"
+            [disabled]="!keyword.trim() || !selectedSource() || loading()"
+          >
+            {{ loading() ? '搜索中...' : '搜索' }}
+          </button>
+        </div>
+      }
+
+      @if (loading()) {
+        <div class="state-block">
+          <nz-spin nzSimple></nz-spin>
+          <p class="hint">{{ mode() === 'keyword' ? '搜索中...' : '解析中...' }}</p>
+        </div>
+      } @else if (errorMsg()) {
+        <p class="hint error">
+          <span nz-icon nzType="warning"></span>
+          {{ errorMsg() }}
+        </p>
+      } @else if (mode() === 'keyword' && searched() && searchResults().length > 0) {
+        <p class="hint">命中 {{ searchResults().length }} 条，点击进入 URL 导入：</p>
+        <ul nz-list nzSize="small" nzBordered class="modal-list-scrollable">
+          @for (r of searchResults(); track r.url) {
+            <li
+              nz-list-item
+              class="search-hit"
+              (click)="selectSearchResult(r)"
+            >
+              <span class="hit-name">{{ r.name || '（无书名）' }}</span>
+              @if (r.author) {
+                <span class="hit-author">— {{ r.author }}</span>
+              }
+              <span class="hit-url">{{ r.url }}</span>
+            </li>
+          }
+        </ul>
+      } @else if (resolved()) {
+        <h4>{{ resolved()!.title }} <small>({{ resolved()!.author }})</small></h4>
+        <p class="hint">共 {{ resolved()!.chapters.length }} 章，点击下方"确认导入"加入书架</p>
+        <ul nz-list nzSize="small" nzBordered class="modal-list-scrollable">
+          @for (ch of resolved()!.chapters; track ch.url; let i = $index) {
+            <li nz-list-item>{{ i + 1 }}. {{ ch.title }}</li>
+          }
+        </ul>
+      }
+
+      @if (importing()) {
+        <p class="hint">正在加入书架并预加载前 3 章...</p>
+      }
+    </div>
+  

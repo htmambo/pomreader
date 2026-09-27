@@ -1,4 +1,4 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, ChangeDetectionStrategy, computed, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { NzGridModule } from 'ng-zorro-antd/grid';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
@@ -23,68 +23,10 @@ import { ChangeBookSourceDialogComponent } from '../../shared/components/change-
 @Component({
   selector: 'app-bookshelf',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, NzGridModule, NzEmptyModule, NzButtonModule, NzIconModule, BookCardComponent],
-  template: `
-    @if (sortedBooks().length > 0) {
-      <div nz-row [nzGutter]="[16, 16]">
-        @for (book of sortedBooks(); track book.id) {
-          <div nz-col nzXs="12" nzSm="8" nzMd="6" nzLg="4" nzXl="3">
-            <app-book-card
-              [book]="book"
-              [selectMode]="selectMode()"
-              [selected]="selectedIds().has(book.id)"
-              (remove)="onRemove(book)"
-              (generateCover)="onGenerateCover(book)"
-              (editInfo)="onEditInfo(book)"
-              (changeSource)="onChangeSource(book)"
-              (refreshChapters)="onRefreshChapters(book)"
-              (longPress)="onCardLongPress(book)"
-              (selectionToggle)="toggleSelect(book)"
-            ></app-book-card>
-          </div>
-        }
-      </div>
-    } @else {
-      <nz-empty nzNotFoundContent="书架暂无书籍"></nz-empty>
-    }
-
-    <!-- 多选模式底部浮动操作栏：长按封面进入，平时不渲染 -->
-    @if (selectMode()) {
-      <div class="batch-bar">
-        <span class="batch-count">已选 {{ selectedCount() }} 本</span>
-        <button nz-button nzSize="small" (click)="selectAll()">
-          {{ allSelected() ? '全不选' : '全选' }}
-        </button>
-        <button nz-button nzSize="small" (click)="invertSelection()">反选</button>
-        <button
-          nz-button
-          nzSize="small"
-          [disabled]="selectedCount() === 0 || batchRunning()"
-          (click)="batchRefreshChapters()"
-        >
-          <span nz-icon nzType="cloud-download"></span> 更新章节
-        </button>
-        <button
-          nz-button
-          nzSize="small"
-          [disabled]="selectedCount() === 0 || batchRunning()"
-          (click)="batchUpdateBookInfo()"
-        >
-          <span nz-icon nzType="sync"></span> 更新作品信息
-        </button>
-        <button
-          nz-button
-          nzSize="small"
-          nzDanger
-          [disabled]="selectedCount() === 0 || batchRunning()"
-          (click)="batchDelete()"
-        >
-          <span nz-icon nzType="delete"></span> 删除
-        </button>
-        <button nz-button nzSize="small" nzType="text" (click)="exitSelectMode()">退出</button>
-      </div>
-    }
-  `,
+  templateUrl: './bookshelf.component.html',
+  preserveWhitespaces: true,
   styles: [
     `
       .batch-bar {

@@ -57,13 +57,15 @@ src/
 │   │   │   ├── adapters/ # 专用站（笔趣阁）/ 启发式密度算法兜底
 │   │   │   ├── js-source/# sandbox.worker（网络出口屏蔽 + 原型冻结）+ 健康检查/多镜像
 │   │   │   ├── legado/   # Legado 订阅源 JSON 解析/翻译/导入
+│   │   │   ├── smart-add/ # 智能添加规则引擎
 │   │   │   └── source-test/ # 书源五步测试
+│   │   ├── data/         # 跨 book-source 子模块共享数据 (例: core/book-source/data/good-sites.ts)
 │   │   └── cover/        # 封面缓存 / 程序生成封面
-│   ├── shared/components/# PageHeader / Sidebar / BookCard / RulesPanel 等
+│   ├── shared/components/# 8 个子目录: book-card / change-book-source-dialog / cover-generator-dialog / cover-img / edit-book-info-dialog / jump-chapter-dialog / page-header / rules-panel / sidebar
 │   ├── pages/            # Bookshelf / UniversalSearch / Reader / Disclaimer
-│   │   ├── book-source/  # 书源管理 6 子页：列表/搜索/智能添加/调试/测试/编辑
+│   │   ├── book-source/  # 书源管理 6 子页: book-source-list / book-source-search / book-source-smart-add / book-source-debug / book-source-test / book-source-editor
 │   │   └── settings/     # 缓存管理
-│   ├── modals/           # ImportOnline / ImportLocalTxt / ImportLegado
+│   ├── modals/           # ImportOnline / ImportLocalTxt / ImportLegado (3 个弹窗，每个独立子目录)
 │   ├── app.config.ts     # bootstrapApplication providers（含书源适配器注册）
 │   └── app.routes.ts     # lazy load 路由
 ├── assets/
@@ -71,6 +73,8 @@ src/
 │   └── sandbox.worker.js # build:worker 产物（esbuild 打包）
 └── styles/               # tokens.scss / ng-zorro-overrides.scss / rules-panel.scss
 ```
+
+> 项目约定详见 [`AGENTS.md`](AGENTS.md)（硬规则，每会话必读）+ [`docs/CONVENTIONS.md`](docs/CONVENTIONS.md)（长篇参考 + §exceptions 豁免清单）。
 
 ## 路由
 

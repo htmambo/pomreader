@@ -9,7 +9,7 @@ import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzModalModule, NzModalService } from 'ng-zorro-antd/modal';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
-import { PageHeaderService } from '../../shared/components/page-header/page-header.service';
+import { PageHeaderService } from '../../core/services/page-header.service';
 import { ToastService } from '../../core/services/toast.service';
 import { BookSourceMeta } from '../../core/book-source/js-source/source-meta.types';
 import { BookSourceListStateService } from '../../core/book-source/book-source-list-state.service';

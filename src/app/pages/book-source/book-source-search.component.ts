@@ -24,7 +24,7 @@ import { ImportOnlineComponent } from '../../modals/import-online/import-online.
  *   路由切换后回来直接恢复，搜索中途切走异步搜索继续跑
  */
 @Component({
-  selector: 'app-source-search',
+  selector: 'app-book-source-search',
   standalone: true,
   imports: [
     CommonModule,
@@ -204,7 +204,7 @@ import { ImportOnlineComponent } from '../../modals/import-online/import-online.
     `,
   ],
 })
-export class SourceSearchComponent {
+export class BookSourceSearchComponent {
   /** 会话级搜索现场（root service，路由切换不丢） */
   readonly state = inject(SourceSearchStateService);
   private readonly modal = inject(NzModalService);

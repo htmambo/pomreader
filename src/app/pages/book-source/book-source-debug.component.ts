@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, ChangeDetectionStrategy, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
@@ -40,8 +40,9 @@ interface RawItem {
  * 书籍详情抽屉/章节阅读弹窗用目录点击填充 + 正文预览替代
  */
 @Component({
-  selector: 'app-source-debug',
+  selector: 'app-book-source-debug',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
     FormsModule,
@@ -53,123 +54,8 @@ interface RawItem {
     NzSpinModule,
     NzTagModule,
   ],
-  template: `
-    <!-- 书源选择 -->
-    <div class="row">
-      <span class="row-label">书源：</span>
-      <nz-select
-        [(ngModel)]="selectedFileName"
-        (ngModelChange)="onSourceChange()"
-        nzPlaceHolder="选择要调试的书源"
-        style="min-width: 260px;"
-        nzShowSearch
-        nzAllowClear
-      >
-        @for (s of sources(); track s.fileName) {
-          <nz-option [nzValue]="s.fileName" [nzLabel]="s.name + (s.enabled ? '' : '（已禁用）')"></nz-option>
-        }
-      </nz-select>
-      @if (selectedMeta; as m) {
-        <nz-tag>{{ m.sourceType || 'novel' }}</nz-tag>
-        <span class="muted">{{ m.url }}</span>
-      }
-    </div>
-
-    <!-- 搜索 -->
-    <div class="row">
-      <input nz-input [(ngModel)]="testKeyword" placeholder="搜索关键词" class="grow" (keyup.enter)="runSearch()" />
-      <button nz-button nzType="primary" (click)="runSearch()" [disabled]="!canRun() || !testKeyword.trim()">
-        <span nz-icon nzType="search"></span> 搜索
-      </button>
-    </div>
-
-    <!-- 书籍 URL → 详情 / 目录 -->
-    <div class="row">
-      <input nz-input [(ngModel)]="bookUrl" placeholder="书籍 URL（搜索结果点击可填充）" class="grow" />
-      <button nz-button (click)="runBookInfo()" [disabled]="!canRun() || !bookUrl.trim()">书籍详情</button>
-      <button nz-button (click)="runChapterList()" [disabled]="!canRun() || !bookUrl.trim()">目录</button>
-    </div>
-
-    <!-- 章节 URL → 正文 -->
-    <div class="row">
-      <input nz-input [(ngModel)]="chapterUrl" placeholder="章节 URL（目录项点击可填充）" class="grow" />
-      <button nz-button (click)="runChapterContent()" [disabled]="!canRun() || !chapterUrl.trim()">正文</button>
-    </div>
-
-    <!-- 状态行 + 视图切换 -->
-    @if (loading()) {
-      <div class="status"><nz-spin nzSimple></nz-spin> 执行中...</div>
-    } @else if (statusText()) {
-      <div class="status" [class.status--ok]="statusOk()" [class.status--err]="!statusOk()">{{ statusText() }}</div>
-    }
-
-    <!-- 沙箱进度日志(显示执行到哪一步,卡哪一步) -->
-    @if (sandboxProgress().length > 0) {
-      <details class="sandbox-progress" open>
-        <summary>沙箱进度（最近 {{ sandboxProgress().length }} 条）</summary>
-        <pre class="progress-log">{{ sandboxProgressText() }}</pre>
-      </details>
-    }
-
-    @if (mode() !== 'idle') {
-      <div class="view-toggle">
-        <nz-radio-group [(ngModel)]="viewMode" nzSize="small">
-          <label nz-radio-button nzValue="preview">预览</label>
-          <label nz-radio-button nzValue="raw">原始 JSON</label>
-        </nz-radio-group>
-        @if (exploreCategories().length > 0) {
-          <div class="cat-row">
-            @for (c of exploreCategories(); track c) {
-              <button
-                nz-button
-                nzSize="small"
-                [nzType]="c === activeCategory() ? 'primary' : 'default'"
-                (click)="runExploreCategory(c)"
-              >{{ c || '(默认)' }}</button>
-            }
-          </div>
-        }
-      </div>
-
-      @if (viewMode === 'raw') {
-        <pre class="raw-json">{{ rawJson() }}</pre>
-      } @else {
-        <!-- 预览渲染 -->
-        @if (mode() === 'search' || mode() === 'explore') {
-          <div class="preview-list">
-            @for (it of items(); track $index) {
-              <div class="preview-item" (click)="fillBookUrl(it)">
-                <div class="preview-item__name">{{ it.name || it.title || '（无书名）' }}</div>
-                @if (it.author) { <div class="preview-item__meta">{{ it.author }}</div> }
-                <div class="preview-item__url">{{ it.bookUrl || it.url }}</div>
-              </div>
-            }
-            @if (items().length === 0) { <div class="muted">无结果</div> }
-          </div>
-        }
-        @if (mode() === 'bookInfo') {
-          <div class="book-info">
-            <h3>{{ bookInfo()['title'] || bookInfo()['name'] }}</h3>
-            <p class="muted">{{ bookInfo()['author'] }}</p>
-            <p>{{ bookInfo()['intro'] || bookInfo()['description'] }}</p>
-          </div>
-        }
-        @if (mode() === 'chapterList') {
-          <div class="preview-list">
-            @for (ch of chapters(); track $index) {
-              <div class="preview-item" (click)="fillChapterUrl(ch)">
-                <div class="preview-item__name">{{ ch.name || ch.title }}</div>
-                <div class="preview-item__url">{{ ch.url }}</div>
-              </div>
-            }
-          </div>
-        }
-        @if (mode() === 'chapterContent' || mode() === 'text') {
-          <pre class="content-text">{{ contentText() }}</pre>
-        }
-      }
-    }
-  `,
+  templateUrl: './book-source-debug.component.html',
+  preserveWhitespaces: true,
   styles: [
     `
       .row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
@@ -213,7 +99,7 @@ interface RawItem {
     `,
   ],
 })
-export class SourceDebugComponent {
+export class BookSourceDebugComponent {
   readonly sources = signal<BookSourceMeta[]>([]);
   readonly loading = signal(false);
   readonly statusText = signal('');

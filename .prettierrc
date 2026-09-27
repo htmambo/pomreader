@@ -1,0 +1,12 @@
+{
+  "printWidth": 100,
+  "singleQuote": true,
+  "trailingComma": "all",
+  "arrowParens": "always",
+  "endOfLine": "lf",
+  "overrides": [
+    { "files": "*.html", "options": { "parser": "html", "printWidth": 120 } },
+    { "files": "*.md", "options": { "printWidth": 80, "proseWrap": "preserve" } },
+    { "files": "*.scss", "options": { "parser": "scss", "printWidth": 100 } }
+  ]
+}

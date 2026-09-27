@@ -1,0 +1,10 @@
+dist/
+coverage/
+release/
+package-lock.json
+node_modules/
+electron/www/
+src/assets/data/chapters/
+*.md
+!docs/CONVENTIONS.md
+!AGENTS.md

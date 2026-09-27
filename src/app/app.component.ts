@@ -18,7 +18,7 @@ import {
   PlayCircleOutline, ThunderboltOutline, SaveOutline, SyncOutline, ImportOutline,
 } from '@ant-design/icons-angular/icons';
 import { PageHeaderComponent } from './shared/components/page-header/page-header.component';
-import { PageHeaderService } from './shared/components/page-header/page-header.service';
+import { PageHeaderService } from './core/services/page-header.service';
 import { SidebarComponent } from './shared/components/sidebar/sidebar.component';
 import { SettingsService } from './core/services/settings.service';
 import { UniversalSearchComponent } from './pages/universal-search/universal-search.component';

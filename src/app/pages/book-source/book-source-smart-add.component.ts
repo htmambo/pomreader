@@ -29,7 +29,7 @@ type PomSave = {
  * 沙箱无 DOM → CSS 选择器经 legado.query 主线程 DOMParser 代理执行
  */
 @Component({
-  selector: 'app-source-smart-add',
+  selector: 'app-book-source-smart-add',
   standalone: true,
   imports: [
     CommonModule,
@@ -127,7 +127,7 @@ type PomSave = {
     `,
   ],
 })
-export class SourceSmartAddComponent {
+export class BookSourceSmartAddComponent {
   readonly analyzing = signal(false);
   readonly saving = signal(false);
   readonly error = signal('');

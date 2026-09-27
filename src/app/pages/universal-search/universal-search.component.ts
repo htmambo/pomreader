@@ -17,7 +17,7 @@ import { NzMenuModule } from 'ng-zorro-antd/menu';
 import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { NzMessageService } from 'ng-zorro-antd/message';
-import { GOOD_SITES } from '../../core/data/good-sites';
+import { GOOD_SITES } from '../../core/book-source/data/good-sites';
 import { ImportOnlineComponent } from '../../modals/import-online/import-online.component';
 import { BookSourceRegistry } from '../../core/book-source/book-source.registry';
 import { AutoImportService, isImportableUrl } from '../../core/services/auto-import.service';
@@ -25,7 +25,18 @@ import { AutoImportService, isImportableUrl } from '../../core/services/auto-imp
 type EncodingMode = 'auto' | 'utf-8' | 'gbk';
 
 /**
- * 万能搜索 — Electron webview 内嵌浏览器（对标原 vendor）
+ * 万能搜索 — Electron webview 内嵌浏览器（对标原 vendor）。
+ *
+ * ⚠️ **本组件非死代码**（曾被误判；已通过 rg 验证）。
+ *
+ * **路由状态**: `app.routes.ts` 的 `/search` 路径**只**指向 `SearchPlaceholderComponent`
+ * （占位，14 行空 template）。本组件 `<app-universal-search>` 不通过路由挂载。
+ *
+ * **挂载机制**: 由 `app.component.ts` 在外壳 `<app-universal-search>` 元素上**常驻保活**
+ * 挂载（keep-alive shell pattern）。原因：Electron webview 元素一旦离开 DOM 即销毁
+ * guest instance，路由切换会丢失 URL / 历史 / 滚动位置。占位组件让路由切换在视觉
+ * 上"换页"，但 webview 始终在同一 DOM 节点中保活。
+ *
  * - webview 加载搜索引擎 / 6 书签站
  * - 地址栏同步、前进/后退/刷新/跳转
  * - 编码手动切换（auto/UTF-8/GBK）兜底
