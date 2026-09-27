@@ -61,7 +61,12 @@ function makeFakeDb(initialChapters: Array<{ bookId: string; index: number; titl
   return { fakeDb };
 }
 
-/** 拦截 BookService.addBook，记录参数；保留原实现让 _books/_chaptersCache 更新到位 */
+/** 拦截 BookService.addBook，记录参数；保留原实现让 _books/_chaptersCache 更新到位
+ *  HT-1 facade 渐进迁移：原计划改 spyPersist（fakeDb.bookPut mock），但发现 fakeDb
+ *  mock 与 forTest stub (fork-and-mirror) 的 _books 镜像语义差异大；保持 spyAddBook 不变
+ *  —— BookService.importOnlineBook/changeBookSource/refreshChapters/refreshBookInfo 仍自实现，
+ *  spec spyAddBook 链路自然成立（详见 book.service.ts:114-296 注释）。
+ */
 function spyAddBook(svc: BookService, sink: AddBookCall[]): void {
   const original = (svc as unknown as { addBook: (b: Book, c: AddBookCall['chapters']) => Promise<void> }).addBook.bind(svc);
   (svc as unknown as { addBook: typeof original }).addBook = vi.fn(async (b, c) => {

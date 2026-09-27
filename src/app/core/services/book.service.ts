@@ -111,7 +111,14 @@ export class BookService {
     }
   }
 
-  /** 在线导入：目录入库 + 预加载前 N 章 */
+  /** 在线导入：目录入库 + 预加载前 N 章
+ *  HT-1 facade 收口：保留 BookService 自实现，原因见下方变更注释。
+ *  历史：曾尝试委托 `this.updater.importOnlineBook`，但 BookService.importOnlineBook 走
+ *  `addBook → repo.persistBook → fakeDb.bookPut` 链路，spec 通过 `spyAddBook` 拦截
+ *  addBook 验证 merged book；委托后 addBook 不再被 BookService 触发，spec 需重写为
+ *  spy fakeDb.bookPut（已实现但语义略变：刷新元数据等场景 bookPut/chapterPutMany 顺序敏感）。
+ *  后续 sprint 在 TestBed provider 重构（HT-3）时一并迁移 spec 模式。
+ */
   async importOnlineBook(book: Book, catalog: CatalogEntry[]): Promise<void> {
     const chapters: Chapter[] = catalog.map((e, i) => ({
       bookId: book.id,
@@ -122,14 +129,13 @@ export class BookService {
       loaded: false,
     }));
     await this.addBook(book, chapters);
-    // 预加载前 N 章（失败静默，阅读时重试）
     await Promise.allSettled(
       chapters.slice(0, PRELOAD_COUNT).map((c) => this.loadChapterContent(book.id, c.index))
     );
   }
 
   /**
-   * 换源（保留 BookService 自实现，因 spec 直接设 svc.importViaSource）
+   * 换源（保留 BookService 自实现 —— 见 importOnlineBook 注释）
    */
   async changeBookSource(bookId: string, newUrl: string, sourceName?: string): Promise<void> {
     const oldBook = this.getById(bookId);
@@ -190,7 +196,7 @@ export class BookService {
   }
 
 
-  /** 更新最新章节（同源增量追加） */
+  /** 更新最新章节（同源增量追加）（保留 BookService 自实现 —— 见 importOnlineBook 注释） */
   async refreshChapters(bookId: string): Promise<{ added: number; skipped: number; total: number }> {
     const oldBook = this.getById(bookId);
     if (!oldBook) throw new FetchError('source-unavailable', `书不存在: ${bookId}`);
@@ -261,7 +267,7 @@ export class BookService {
   }
 
 
-  /** 更新作品信息（同源元数据刷新） */
+  /** 更新作品信息（同源元数据刷新）（保留 BookService 自实现 —— 见 importOnlineBook 注释） */
   async refreshBookInfo(bookId: string): Promise<Book> {
     const oldBook = this.getById(bookId);
     if (!oldBook) throw new FetchError('source-unavailable', `书不存在: ${bookId}`);
@@ -384,7 +390,10 @@ export class BookService {
       count: signal(0),
       getById: (id: string) => svc._books().find((b: Book) => b.id === id),
       load: async () => undefined,
+      // HT-1 适配：stub persistBook 同时调 fakeDb.bookPut + 镜像 _books
+      // 让 spec 通过 fakeDb.bookPut.mock.calls 观察写入路径（生产链路等价）
       persistBook: async (book: Book) => {
+        await db.bookPut(book);
         svc._books.update((list: Book[]) => {
           const idx = list.findIndex((b) => b.id === book.id);
           if (idx >= 0) {
@@ -395,8 +404,11 @@ export class BookService {
           return [...list, book];
         });
       },
-      persistChapters: async () => undefined,
+      persistChapters: async (chapters: Chapter[]) => {
+        if (chapters.length > 0) await db.chapterPutMany(chapters);
+      },
       deleteBook: async (id: string) => {
+        await db.bookDelete(id);
         svc._books.update((list: Book[]) => list.filter((b) => b.id !== id));
       },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
