@@ -6,9 +6,10 @@
 ## Active Tasks
 
 - 🔄 [技术演进与架构优化（16 项建议落地）](Active/POMREADER_ARCH_EVOLUTION_PLAN.md) — Started 2026-09-27
-  - `/fullauto` 全自动实施：P0（4 项技术债）+ P1（5 项架构优化）+ P2（4 项工程）+ P3（3 项长期）
+  - iteration 1+2 完成（11/16 EVO 落地，5 atomic commits）
+  - iteration 3（接力 `pomreader-arch-evo-2`）正在实施剩余 5 EVO
   - 分支：`feat/arch-evolution-2026-09`
-  - fullauto 状态：`.omc/fullauto/pomreader-arch-evo/state.json`
+  - fullauto 状态：`.omc/fullauto/pomreader-arch-evo-2/state.json`
 
 ## Completed Tasks (Archive)
 
