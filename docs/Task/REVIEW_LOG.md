@@ -288,3 +288,33 @@
 - `CHROME_PATH` 默认值仅适配 Linux、`--no-sandbox` 安全提示 —— 均为**既有代码**，本 diff 范围外，不动
 
 **Review Loop 状态：CLOSE（Round 2/5 APPROVED，未触发 5 轮上限）**
+
+---
+
+# Phase 1：Angular 18 → 19
+
+## Round 1/5 — 2026-09-28（需求分析轮，kind=plan）
+
+**Provider:** coding-bridge
+**Session:** `03a593ba-6f30-43f5-a7e2-b45f698274e9`
+**VERDICT:** ⚠️ **NEEDS_CHANGES**
+
+| # | 严重 | Finding | 处置 |
+|---|---|---|---|
+| 1 | 高 | 执行顺序错误：Angular 仍为 18 时先升 ng-zorro 19，会 ERESOLVE | ✅ **确认成立**。实测复现 `peer @angular/common@^19.0.0 from ng-zorro-antd@19.3.1`，已把 S3/S4 对调为「Angular 核心先走」 |
+| 2 | 高 | 遗漏 tslib，应升 `^2.6.1`（称 Angular 19 强制要求） | ❌ **驳回**。查 `@angular/{core,common,compiler,platform-browser}@19.2.16`：tslib 是普通 `dependencies: ^2.3.0`（v18/v19 一致），**不是 peerDependency**，对使用方不构成约束；本地已装 2.8.1 = registry 最新 |
+| 3 | 中 | 风险面过窄，只覆盖了 nz-icon | ✅ **接受并已做 broadened audit**。拆 18.2.1 / 19.3.1 tarball 对比 schematic 规则集：19 仅少 `date-fns-compatible-rule`（本项目 0 处 date-picker）；`dropdown-class-rule` / `secondary-entry-points-rule` 虽存在但 `enabled = false` 且针对的符号本项目未用。另查 Angular 侧：0 个 `@NgModule`、0 个 `standalone: false`、0 处已移除 API |
+
+## Round 2/5 — 2026-09-28（实施计划轮，kind=plan）
+
+**VERDICT:** ✅ **APPROVED** —— 「未发现缺失步骤或未缓解风险，计划可直接执行」
+
+## Round 3/5 — 2026-09-28（代码完成轮，kind=code）
+
+**VERDICT:** ✅ **APPROVED**
+
+逐条确认：依赖集合完整无遗漏；24 文件删 `standalone: true` 安全且完整；**明确认可 F2「不迁移 35 处 nz-icon」的决策**（理由：零功能收益 + 静默回归风险 + scope creep）；认可 `sandbox.worker.js` codegen 差异随本 commit 一并提交（务实，避免检出旧产物与新工具链冲突）；认可 F4 对 e2e 假警报的根因定位。
+
+对 effect() 时序残余风险的判定：「在缺乏 GUI 环境下如实记录为未验证项、并依赖单 commit 可回滚兜底，**不构成本次提交的阻断理由**」。
+
+**Review Loop 状态：CLOSE（3 轮，末轮 APPROVED，未触发 5 轮上限）**

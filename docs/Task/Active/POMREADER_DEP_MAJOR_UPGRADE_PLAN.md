@@ -1,6 +1,6 @@
 # POMREADER 依赖大版本升级计划（Dep Major Upgrade Plan）
 
-> Status: 🔄 In progress — 2026-09-27 建档；2026-09-28 复核修订 + **Phase 0 全部收口（P0-0 ~ P0-5）**（见下两节「Phase 0 实施结果」）。下一步：Phase 1 Angular 18 → 19
+> Status: 🔄 In progress — 2026-09-27 建档；2026-09-28 复核修订 + **Phase 0 全部收口（P0-0 ~ P0-5）** + **Phase 1 完成（Angular 18 → 19）**。下一步：Phase 2 Angular 19 → 20（**起步前先手过一遍阅读页**，见 Phase 1 遗留的 effect() 时序风险）
 > 分支：`chore/dep-major-upgrade`
 > 触发：`npm outdated` 梳理（2026-09-27），安全项已先行升级并提交（`0bee9ba`）。
 > 目标：Angular 18 → 22 逐级迁移 + 测试工具链升级，每级独立 commit、独立验证。
@@ -164,11 +164,108 @@ Phase 0 全部 6 项（P0-0 ~ P0-5）收口。**进入 Phase 1：Angular 18 → 
 
 ## Phase 1：Angular 18 → 19
 
-- [ ] `@ant-design/icons-angular` → `^19.x`、`angular-eslint` → `^19.x`（**lockstep，勿漏**）
-- [ ] TS 保持在 5.5.4（19 区间 `>=5.5 <5.9`，可不动）；zone.js → `~0.15.0`
-- [ ] `ng update @angular/core@19 @angular/cli@19`（standalone 默认值翻转：本项目已全 standalone，影响小）
-- [ ] `ng update ng-zorro-antd@19`：**`[nz-icon]` 属性选择器 → `<nz-icon>` 标签**（本地 **8 个 HTML 文件、35 处 `<span nz-icon>`**，靠 schematic 自动迁移后人工抽查 35 处）；`nzClass/nzStyle` 不再支持 Set
-- [ ] 验证：build + vitest + e2e；**关注 `effect()` 时序变更**（CD 外触发的 effect 改为 CD 流程内运行）——`reader.component.ts` 有 5 处 `effect()`（全项目 6 个生产文件 / 12 处，含 spec 共 7 文件 13 处），重点回归翻页测量与简繁转换
+- [x] `@ant-design/icons-angular` → `^19.0.0`、`angular-eslint` → `^19.8.1`（**lockstep，勿漏**）
+- [x] TS 保持在 5.5.2（19 区间 `>=5.5 <5.9`，未动）；zone.js `~0.14.10` → `~0.15.1`
+- [x] `ng update @angular/core@19 @angular/cli@19`（standalone 默认值翻转：24 个组件各删一处 `standalone: true`）
+- [x] `ng update ng-zorro-antd@19` —— **`[nz-icon]` → `<nz-icon>` 的 schematic 迁移并不存在，计划前提有误；35 处 `<span nz-icon>` 经查证无需改动**（详见下节 F2）
+- [x] 验证：六门全绿 + **e2e 首次实跑 19/19 通过**（详见下节 F4）
+
+## Phase 1 实施结果（2026-09-28，分支 `chore/dep-major-upgrade`）
+
+| 项 | 结果 |
+|---|---|
+| Angular 全家桶 | ✅ 18.2.x → **19.2.25**；`@angular/cli` / `@angular-devkit/build-angular` → **19.2.27** |
+| ng-zorro-antd | ✅ `^18.2.1` → **^19.3.1**（迁移另自动改了 2 个 TS：`book-source-test` / `jump-chapter-dialog`） |
+| @ant-design/icons-angular | ✅ `^18.0.0` → **^19.0.0**，且必须**显式**升（见 F3） |
+| angular-eslint | ✅ `^18.4.3` → **^19.8.1**，子包齐刷刷 19.8.1，`eslint.config.js` **无需改动** |
+| zone.js | ✅ `~0.14.10` → `~0.15.1`（`ng update` 自动完成） |
+| typescript | ✅ 保持 `~5.5.2` 未动（compiler-cli@19 区间 `>=5.5 <5.9`） |
+| 源码改动 | 24 个组件各删一行 `standalone: true,`；**0 处新增 `standalone: false`**；模板 / `electron/` / 各类配置**零改动** |
+| 构建产物 | `src/assets/sandbox.worker.js` 有 esbuild codegen 括号差异（`(x)=>` → `((x)=>`），语义等价 |
+
+### F1：执行顺序必须「Angular 核心先走」，原计划写反了
+
+原计划 S3 是「先把 ng-zorro / icons / angular-eslint 一起升上去」。**这是错的**，实测可复现：
+
+```
+npm install ng-zorro-antd@19.3.1 @angular/core@18.2.14
+→ npm error peer @angular/common@"^19.0.0" from ng-zorro-antd@19.3.1
+```
+
+ng-zorro 19 对 `@angular/*` 是 `^19.0.0` 严格 peer，Angular 还是 18 时必然 ERESOLVE。**正确顺序**：`ng update @angular/core@19 @angular/cli@19` → `ng update ng-zorro-antd@19` → icons / angular-eslint。第二次 `ng update` 需加 `--allow-dirty`（CLI 拒绝脏树；回滚锚点是干净的 `f90e1e8`，且 `--create-commits` 默认 `false`，提交权未交给 CLI）。
+
+### F2：35 处 `<span nz-icon>` **不需要迁移**，原计划前提有误
+
+计划写「靠 schematic 自动迁移后人工抽查 35 处」。**schematic 从来不处理这种用法** —— 拆开 ng-zorro 18.2.1 与 19.3.1 的 tarball 读源码，唯一涉及 icon 的规则 `icon-template-rule.js` 找的是 `findElementWithClassName(content, 'anticon', 'i')`，即裸 `<i class="anticon">`；**该规则在 18 与 19 之间逐字相同**，从来就不覆盖 `span[nzIcon]` 指令形态。实跑后 35 处一处未动。
+
+进一步查证「不动是否安全」：
+
+| | v18 | v19 |
+|---|---|---|
+| 载体 | `NzIconDirective` | `NzIconComponent` |
+| selector | `[nz-icon]` | `nz-icon,[nz-icon]` —— **属性形态仍在**，只是新增了元素形态 |
+| inputs | `nzSpin/nzRotate/nzType/nzTheme/nzTwotoneColor/nzIconfont` | **逐字相同** |
+
+本项目只用到 `nzType`（34 处静态）与 `[nzType]`（1 处绑定），全部保留。**结论：35 处不改是安全的**，且不改才是对的 —— 它零功能收益，却有静默回归风险（图标取不到只是不渲染，**不抛异常**），在「本级不改行为」的 commit 里属于 scope creep。**列为独立技术债，不在本计划内。**
+
+### F3：`@ant-design/icons-angular` 必须显式升，否则装出双份
+
+`ng update ng-zorro-antd@19` 只更新了 ng-zorro 自身。实测 `npm ls` 出现：
+
+```
+├── @ant-design/icons-angular@18.0.0        ← 本项目的直接依赖，还钉在 18
+└─┬ ng-zorro-antd@19.3.1
+  └── @ant-design/icons-angular@19.0.0      ← ng-zorro 自己的依赖
+```
+
+icons-angular 是 ng-zorro 的**普通 dependency 而非 peer**，所以 npm 不会帮我们提升顶层那份 —— 双份图标模块一旦成型，`NzIconService` 取图标**静默失败**。显式 `npm install @ant-design/icons-angular@^19.0.0` 后已 deduped 为单份 19.0.0。
+
+### F4：bundle 预算告警是**既有问题**，已实测基线
+
+`npm run build` 报 `Budget 1.50 MB was not met by 319.05 kB with a total of 1.82 MB`。**没有假定是本次引入** —— stash 改动 + `npm ci` 还原 Angular 18 实测基线：
+
+| | 预算 | 实际 initial | 结果 |
+|---|---|---|---|
+| 基线（Angular 18） | 1.57 MB | **1.77 MB**（超 196.86 kB） | ⚠️ 已有告警 |
+| 本级（Angular 19） | 1.50 MB | **1.82 MB**（超 319.05 kB） | ⚠️ 告警，实增 **+50 kB / +2.8%** |
+
+`angular.json` 的 budgets **未被 `ng update` 改动**（`maximumWarning 1.5MB` / `maximumError 2MB`）；1.82 MB 低于 2 MB error 线，**build exit=0**。两处「Budget」显示值不同（1.57 vs 1.50）是 CLI 的单位换算显示差异，配置值未变。+50 kB 属框架版本本身的正常增量。
+
+> 附带纠正一处**陈旧记录**：归档计划里「prod bundle 611 kB」与两次实测（1.77 / 1.82 MB）都差了两个数量级，该数字已不可信。
+
+### F5：e2e 首次**实跑**通过；先前的 6 个失败是孤儿 dev server 造成的假警报
+
+本项目的 Playwright 配置带 `reuseExistingServer: true`。首次 `npx playwright test` 报 **6 failed / 13 passed**，报错是 `504 (Outdated Optimize Dep)` + `Failed to fetch dynamically imported module`（懒加载路由 chunk 拉不到）。**不是升级引入**：
+
+- 根因是另一个（现已退出的）会话留下的**孤儿 `ng serve`**，已运行 18 分钟；Playwright 静默复用了它，而该进程早于本次两次 `npm ci`，服务的是与当前 `node_modules` 不一致的模块图
+- Angular 19 把 dev server 默认换成 Vite，所以缓存失配的症状表现为 `Outdated Optimize Dep`
+- 杀掉孤儿进程、让 Playwright 拉起全新 `ng serve` 后：**19/19 全部通过**（真实无头 Chromium）
+
+**结论：本级 e2e 门从「只 `--list` 计数」升级为「真跑通过」，是本级验证强度最大的一处提升。**
+
+### 本级验证门（全部 PASS）
+
+| 门 | 结果 |
+|---|---|
+| `npm run format:check` | ✅（迁移后 24 文件曾转红，`npm run format` 后复绿） |
+| `npm run lint` | ✅（angular-eslint 19 flat config 风险点，子包全 19.8.1，`eslint.config.js` 零改动） |
+| `npm test` | ✅ **54 文件 / 700 用例** |
+| `npm run build` | ✅ exit 0（含 F4 的既有预算告警） |
+| `npm run build:electron` | ✅ exit 0（electron tsc 工程仍能用共享的 TS 5.5.2 编译） |
+| `npx playwright test` | ✅ **19/19 真实浏览器通过** |
+| `npm ls --depth=0` | ✅ 无 missing/invalid/UNMET，icons-angular 已 deduped |
+
+### 外部审核
+
+**需求轮 `NEEDS_CHANGES` → 计划轮 `APPROVED` → 代码轮 `APPROVED`（session `03a593ba`）。** 其中 F1（排序错误）与「风险面过窄」两条被审核方命中并已修正；「tslib 需升到 ^2.6.1」一条经查证驳回 —— tslib 在 Angular 各包中是普通 `dependencies: ^2.3.0`（v18/v19 一致）而非 peer，对使用方不构成约束，本地已装 2.8.1（registry 最新）。代码轮另外确认了 F2（不迁移 nz-icon）与 F4（e2e 实跑）的判断。详见 `docs/Task/REVIEW_LOG.md`。
+
+### ⚠️ 本级唯一未闭环的风险：effect() 时序
+
+Angular 19 改变了「CD 外触发的 effect」的调度时机。本项目 **12 处 `effect()` 分布在 6 个生产文件，其中 `reader.component.ts` 占 5 处**，阅读页的翻页测量与简繁转换都对其时序敏感。
+
+- 覆盖情况：700 个单测全绿 + 19 个 e2e 冒烟通过，但 **e2e 的 reader 用例是浅的**（stub 路由 + 缺数据场景），**未触达翻页测量与简繁转换这两条具体路径**
+- 本机无 GUI，**未做人工目视复核**
+- 处置：如实记为未验证项，不宣称通过。**Phase 2 起步前应先手过一遍阅读页**；若后续出现阅读页异常，优先怀疑此项
 
 ## Phase 2：Angular 19 → 20
 

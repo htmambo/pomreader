@@ -11,7 +11,12 @@
     - 顺带修复 `worker-pool.spec.ts` 的既有 unhandled rejection（vitest 3 起会升级为失败）；4 个脚本 `headless: 'new'` → `true`（v25 类型契约变更，运行时等价）
     - 外部审核 Round 1/5 NEEDS_CHANGES → Round 2/5 APPROVED（三条 risk 均以证据驳回，代码零改动）
     - 遗留人工复核 2 项：reader 页 `.html` 重排后的渲染目视、5 个 `.cjs` 冒烟脚本在有 Chrome 的机器上实跑
-  - Phase 1-4：Angular 逐级 18→19→20→21→22 + ng-zorro 跟随（TS pin ~6.0，严禁 7.x）
+  - Phase 1：Angular 18 → 19 — ✅ **完成**，六门全绿 + **e2e 首次实跑 19/19**
+    - 版本：Angular 19.2.25 / ng-zorro 19.3.1 / icons-angular 19.0.0 / angular-eslint 19.8.1 / zone.js 0.15.1；TS 保持 5.5.2
+    - 修正计划 3 处前提：① 顺序必须 Angular 核心先走（否则 ERESOLVE）；② 35 处 `<span nz-icon>` 的 schematic 迁移**根本不存在**，且经查证无需迁移（v19 属性形态与 inputs 均保留）；③ bundle 预算告警是既有问题（基线 1.77 MB → 现 1.82 MB）
+    - icons-angular 必须显式升，否则装出双份导致图标静默失效
+  - Phase 2-4：Angular 逐级 19→20→21→22 + ng-zorro 跟随（TS pin ~6.0，严禁 7.x）
+    - ⚠️ **Phase 2 起步前先手过一遍阅读页**：Phase 1 遗留的 effect() 时序风险未做人工目视复核
   - Phase 5：vitest 4/5 或 @angular/build:unit-test、zoneless 评估（收尾）
 
 ## Completed Tasks (Archive)
