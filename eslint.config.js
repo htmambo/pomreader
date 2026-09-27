@@ -69,6 +69,9 @@ module.exports = tseslint.config(
         'error',
         { type: 'attribute', prefix: 'app', style: 'camelCase' },
       ],
+      // angular-eslint 20 新增。仓库的 spec 一律用 vitest 直实例化（不用 TestBed），
+      // 构造器注入是这些 spec 能 `new Svc(stub)` 的前提；改 inject() 会连带重写测试。
+      '@angular-eslint/prefer-inject': 'off',
 
       '@typescript-eslint/no-unused-vars': [
         'error',
