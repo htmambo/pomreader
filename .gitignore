@@ -50,3 +50,4 @@ Thumbs.db
 /build
 .ace-tool/
 .omc/
+/test-results

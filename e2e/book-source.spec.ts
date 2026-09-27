@@ -21,7 +21,7 @@ test.describe('书源系统 E2E', () => {
 
   test('应能访问书源搜索页', async ({ page }) => {
     await page.goto('/book-sources/search');
-    await expect(page.locator('app-source-search')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('app-book-source-search')).toBeVisible({ timeout: 5000 });
   });
 
   test('应能访问缓存设置页', async ({ page }) => {

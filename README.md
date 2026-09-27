@@ -44,7 +44,7 @@ npm run dev
 - **PouchDB** IndexedDB（Book/Chapter 持久化）+ **localStorage**（设置）
 - **valibot 1.5**（IPC 入参 runtime schema 验证；`safeHandle` 工厂统一校验）
 - **@angular/localize**（i18n 机制就位；zh-Hans 默认）
-- **Vitest 2.1 + jsdom**（`src/` 与 `electron/` 两侧共测，v8 coverage：**74.68% 行 / 81.84% 分支 / 80.66% 函数** 总计；`core/logic` 96.83% 行最高）+ **Playwright**（E2E）
+- **Vitest 2.1 + jsdom**（`src/` 与 `electron/` 两侧共测，v8 coverage：**74.68% 行 / 81.84% 分支 / 80.66% 函数** 总计；`core/logic` 96.83% 行最高；698 tests across 54 files）+ **Playwright 1.63**（E2E，5 spec / 19 tests；Chromium only）
 - **esbuild**（`build:worker` 打包 `sandbox.worker.ts` → `src/assets/sandbox.worker.js`）
 
 ## 书源与扩展
