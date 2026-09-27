@@ -533,7 +533,7 @@ export class DbService {
   }
 
   private bookDocToBook(doc: StoredBookDoc): Book {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     // 主动 strip coverColor：老 PouchDB 数据若残留此字段，...rest 会带进返回的 Book
     const { _id, _rev, type, coverColor: _cc, ...rest } = doc as StoredBookDoc & { coverColor?: string };
     return rest as Book;

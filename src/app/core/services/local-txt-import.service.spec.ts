@@ -49,17 +49,17 @@ describe('LocalTxtImportService', () => {
     registry.register(new StubAdapter('stub'));
     const importViaSource = Object.create(ImportViaSourceService.prototype);
     importViaSource.importByUrl = async () => ({ book: { chapters: [] } });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     booksSvc = BookService.forTest(fakeDb as any, registry, importViaSource as any);
     // spy addBook
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (booksSvc as any).addBook = async (book: Book, chapters: Chapter[]) => {
       addBookCalls.push({ book, chapters });
     };
     // Object.create 不跑 class field initializer；手动注入 books
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     svc = Object.create(LocalTxtImportService.prototype) as any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (svc as any).books = booksSvc;
   });
 
@@ -80,16 +80,16 @@ describe('LocalTxtImportService', () => {
 
   describe('hasBook', () => {
     it('书架有同名书应返回 true', () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (booksSvc as any)._books.set([
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         { id: 'b1', title: '天龙八部', source: 'local-txt' } as any,
       ]);
       expect(svc.hasBook('天龙八部.txt')).toBe(true);
     });
 
     it('书架无同名书应返回 false', () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (booksSvc as any)._books.set([]);
       expect(svc.hasBook('天龙八部.txt')).toBe(false);
     });

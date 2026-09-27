@@ -64,7 +64,7 @@ export function createWorkerPool(_sandbox?: SandboxService): WorkerLike {
     localStorage.getItem('pom.workerPool') === 'false';
 
   if (killSwitch) {
-    // eslint-disable-next-line no-console
+     
     console.warn('[pom] WorkerPool disabled via kill-switch, using sync adapter');
   }
   return new SynchronousWorkerAdapter();

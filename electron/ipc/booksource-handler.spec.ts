@@ -23,7 +23,7 @@ import { resolvePath, resolveDir } from './booksource-handler';
  */
 
 describe('resolvePath', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let tmpUserData: any;
 
   beforeEach(() => {
@@ -74,7 +74,7 @@ describe('resolvePath', () => {
 });
 
 describe('resolveDir', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let tmpUserData: any;
 
   beforeEach(() => {

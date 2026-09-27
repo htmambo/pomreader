@@ -32,7 +32,7 @@ function makeBook(overrides: Partial<Book> = {}): Book {
 
 describe('ReaderService facade（EVO-12）', () => {
   let svc: ReaderService;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let booksMock: any;
   let updateProgressSpy: ReturnType<typeof vi.fn>;
   let getByIdSpy: ReturnType<typeof vi.fn>;
@@ -41,20 +41,20 @@ describe('ReaderService facade（EVO-12）', () => {
     localStorage.removeItem('pom.reader.progress');
     updateProgressSpy = vi.fn(async () => undefined);
     getByIdSpy = vi.fn((id: string) => makeBook({ id }));
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     booksMock = {
       updateProgress: updateProgressSpy,
       getById: getByIdSpy,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
     } as any;
     // Object.create 不跑 class field initializer；手动注入 books 依赖
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     svc = Object.create(ReaderService.prototype) as any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (svc as any).books = booksMock;
     // state mock: currentBookId/currentChapterIndex/pageOffset 是 getter 函数（Signal 调用方式）
     // openBook/nextChapter/... 是 stub 方法（mock 行为）
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (svc as any).state = {
       openBook: vi.fn(),
       nextChapter: vi.fn(),
@@ -67,24 +67,24 @@ describe('ReaderService facade（EVO-12）', () => {
       currentBookId: () => null as string | null,
       currentChapterIndex: () => 0,
       pageOffset: () => 0,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
     } as any;
   });
 
   describe('saveProgress 联动', () => {
     it('currentBookId 为 null 时应静默（不调 books.updateProgress）', () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (svc as any).state.currentBookId = () => null;
       svc.saveProgress();
       expect(updateProgressSpy).not.toHaveBeenCalled();
     });
 
     it('currentBookId 存在时应调 books.updateProgress 带正确参数', () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (svc as any).state.currentBookId = () => 'b1';
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (svc as any).state.currentChapterIndex = () => 3;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (svc as any).state.pageOffset = () => 100;
       svc.saveProgress();
       expect(updateProgressSpy).toHaveBeenCalledWith('b1', 3, 100);
@@ -93,11 +93,11 @@ describe('ReaderService facade（EVO-12）', () => {
 
   describe('openBook / nextChapter / prevChapter / goToChapter', () => {
     beforeEach(() => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (svc as any).state.currentBookId = () => 'b1';
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (svc as any).state.currentChapterIndex = () => 0;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (svc as any).state.pageOffset = () => 0;
     });
 
@@ -135,7 +135,7 @@ describe('ReaderService facade（EVO-12）', () => {
 
   describe('restoreProgress', () => {
     it('book 不存在时应返回 null', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (svc as any).state.currentBookId = () => 'missing';
       getByIdSpy.mockReturnValue(undefined);
       const result = await svc.restoreProgress();
@@ -143,7 +143,7 @@ describe('ReaderService facade（EVO-12）', () => {
     });
 
     it('book 存在 + 有 progress 时应返回完整状态', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (svc as any).state.currentBookId = () => 'b1';
       getByIdSpy.mockReturnValue(
         makeBook({ id: 'b1', progress: { chapterIndex: 3, scrollOffset: 150, updatedAt: 'x' } }),
@@ -153,7 +153,7 @@ describe('ReaderService facade（EVO-12）', () => {
     });
 
     it('book.progress 缺 scrollOffset 时应 fallback 0', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (svc as any).state.currentBookId = () => 'b1';
       getByIdSpy.mockReturnValue(
         makeBook({ id: 'b1', progress: { chapterIndex: 2, updatedAt: 'x' } }),

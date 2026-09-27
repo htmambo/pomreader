@@ -118,7 +118,7 @@ const QUERY_HTML_LIMIT = 5 * 1024 * 1024;
  * invalidate(fileName) 清除 Worker 模块缓存 + 本地 metadata（FR-1.3.1）。
  */
 @Injectable({ providedIn: 'root' })
-export class SandboxService {
+export class SandboxService implements OnDestroy {
   /**
    * CF 挑战钩子：主进程代理报告 Tier 1 自动过盾失败（cfChallenge）时调用。
    * 本类可被 forTest() 手动实例化（无 DI 上下文），UI 引导逻辑由

@@ -18,6 +18,8 @@
     "e2e": "playwright test",
     "format": "prettier --write \"src/**/*.{ts,html,scss,json,md}\" \"electron/**/*.ts\" \"*.{json,md,ts}\"",
     "format:check": "prettier --check \"src/**/*.{ts,html,scss,json,md}\" \"electron/**/*.ts\" \"*.{json,md,ts}\"",
+    "lint": "eslint",
+    "lint:fix": "eslint --fix",
     "build:electron": "tsc -p electron/tsconfig.electron.json && npm run build:db-window",
     "build:db-window": "esbuild electron/db/db-renderer.ts --bundle --platform=browser --target=es2020 --format=iife --external:electron --outfile=dist-electron/db-renderer.js && cp electron/db/db-window.html dist-electron/db-window.html",
     "watch:electron": "tsc -p electron/tsconfig.electron.json --watch",

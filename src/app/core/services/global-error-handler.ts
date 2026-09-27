@@ -36,7 +36,7 @@ export class GlobalErrorHandler implements ErrorHandler {
     } catch {
       msg = '错误格式化失败';
     }
-    // eslint-disable-next-line no-console
+     
     console.error('[GlobalErrorHandler]', msg, '\n', details);
     this.toast.error(`出错了：${msg.slice(0, 100)}`);
   }

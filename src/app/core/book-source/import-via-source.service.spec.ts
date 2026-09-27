@@ -15,7 +15,7 @@ import { ImportViaSourceService } from './import-via-source.service';
 import { UNIVERSAL_BOOK_SOURCE_UUID } from './book-source.constants';
 
 function emptyFetcher(): PageFetcher {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   return { fetchHtml: async () => '', fetchRendered: async () => '' } as any;
 }
 

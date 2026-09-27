@@ -19,9 +19,9 @@ describe('GlobalErrorHandler', () => {
     toastErrorSpy = vi.fn();
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     // Object.create + 手动注入 toast（绕开 Angular DI）
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     handler = Object.create(GlobalErrorHandler.prototype) as any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (handler as any).toast = { error: toastErrorSpy };
   });
 

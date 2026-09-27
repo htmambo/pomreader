@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, inject, signal } from '@angular/core';
+import { Component, ChangeDetectionStrategy, inject, signal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NZ_MODAL_DATA } from 'ng-zorro-antd/modal';
@@ -120,7 +120,7 @@ type ImportMode = 'url' | 'keyword';
     `,
   ],
 })
-export class ImportOnlineComponent {
+export class ImportOnlineComponent implements OnInit {
   url = '';
   keyword = '';
   /** nz-select 用字符串 model（signal 包装便于模板双向绑定） */

@@ -17,7 +17,7 @@ function makeMeta(overrides: Partial<BookSourceMeta> = {}): BookSourceMeta {
 
 describe('BookSourceListStateService', () => {
   let svc: BookSourceListStateService;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let pomApiMock: any;
 
   beforeEach(() => {
@@ -26,7 +26,7 @@ describe('BookSourceListStateService', () => {
       booksourceToggle: vi.fn(async () => undefined),
       booksourceDelete: vi.fn(async () => undefined),
     };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (globalThis as any).window = { pomAPI: pomApiMock };
     svc = new BookSourceListStateService();
   });
@@ -56,9 +56,9 @@ describe('BookSourceListStateService', () => {
     });
 
     it('IPC 不可用时应抛 Error("IPC 不可用")', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (globalThis as any).window = {};
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const fresh = new (BookSourceListStateService as any)();
       await expect(fresh.refresh(true)).rejects.toThrow('IPC 不可用');
     });
@@ -82,9 +82,9 @@ describe('BookSourceListStateService', () => {
     });
 
     it('IPC 不可用时应抛 Error', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (globalThis as any).window = {};
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const fresh = new (BookSourceListStateService as any)();
       fresh.sources.set([makeMeta()]);
       await expect(fresh.toggle(makeMeta(), false)).rejects.toThrow('IPC 不可用');
@@ -110,9 +110,9 @@ describe('BookSourceListStateService', () => {
     });
 
     it('IPC 不可用时应抛 Error', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (globalThis as any).window = {};
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const fresh = new (BookSourceListStateService as any)();
       await expect(fresh.remove(makeMeta())).rejects.toThrow('IPC 不可用');
     });

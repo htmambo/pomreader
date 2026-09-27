@@ -145,9 +145,9 @@ describe('parseHeaderMeta（书源 JS 头部注释解析）', () => {
 });
 
 describe('atomicWrite（FR-1.5 原子写）', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let tmpDir: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let targetFile: any;
 
   beforeEach(() => {
@@ -179,7 +179,7 @@ describe('atomicWrite（FR-1.5 原子写）', () => {
 });
 
 describe('scanDir（目录扫描）', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let tmpDir: any;
 
   beforeEach(() => {

@@ -16,9 +16,9 @@ import { LocalTxtImportService } from './local-txt-import.service';
 
 // Mock ToastService + LocalTxtImportService（auto-import 依赖）
 function setupTestBed(autoImportApi: unknown) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const toastMock: any = { error: vi.fn(), info: vi.fn(), success: vi.fn(), warn: vi.fn() };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const importerMock: any = {
     hasBook: vi.fn(() => false),
     titleOf: vi.fn((name: string) => name.replace(/\.[^.]+$/, '')),
@@ -29,7 +29,7 @@ function setupTestBed(autoImportApi: unknown) {
     })),
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   (globalThis as any).window = { pomAPI: autoImportApi };
 
   TestBed.configureTestingModule({
@@ -44,9 +44,9 @@ function setupTestBed(autoImportApi: unknown) {
 }
 
 describe('AutoImportService', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let toastMock: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let importerMock: any;
   let svc: AutoImportService;
 
@@ -78,7 +78,7 @@ describe('AutoImportService', () => {
     });
 
     it('autoImportFromUrl 抛错时应 toast.error + 仍返回 true（受理后阻止导航）', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (globalThis as any).window = {
         pomAPI: {
           onAutoImport: vi.fn(),
@@ -89,7 +89,7 @@ describe('AutoImportService', () => {
       };
       TestBed.resetTestingModule();
       setupTestBed((globalThis as any).window.pomAPI);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const fresh: any = TestBed.inject(AutoImportService);
       const result = await fresh.importFromUrl('https://example.com/book.txt');
       expect(result).toBe(true);
@@ -98,9 +98,9 @@ describe('AutoImportService', () => {
 
   describe('onDetected（constructor 注册的回调）', () => {
     // 取当前 beforeEach 创建的最新 service 对应的 callback
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     function getCallback(): (p: unknown) => Promise<void> {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const calls = ((globalThis as any).window.pomAPI.onAutoImport as any).mock.calls;
       return calls[calls.length - 1][0] as (p: unknown) => Promise<void>;
     }

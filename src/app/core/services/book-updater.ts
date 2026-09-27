@@ -255,7 +255,7 @@ export class BookUpdater {
   /**
    * 测试入口：手动注入依赖（绕开 Angular DI 上下文 NG0203）。
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   static forTest(
     repo: BookRepositoryPort,
     loader: ChapterLoader,

@@ -384,7 +384,7 @@ export class BookService {
    * Tracked by HARDEN-xxx (Round 8 P1-2 defer: ESLint no-forTest-in-prod rule).
    * R6-4 grep verification currently in effect; CI does not yet enforce.
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   static forTest(
     db: DbService,
     sources: BookSourceRegistry,
@@ -416,7 +416,7 @@ export class BookService {
     // 写操作（persistBook / persistChapters / deleteBook）镜像回 svc._books
     // P1-4 (Round 2 复审): 用 `satisfies BookRepositoryPort`（仅 public surface）
     //   编译期绑定，**无 `as unknown as`** 双重强转 — 接口演进时静默破坏风险清零
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     svc.repo =
       repo ??
       ({
@@ -450,7 +450,7 @@ export class BookService {
           await db.bookDelete(id);
           svc._books.update((list: Book[]) => list.filter((b) => b.id !== id));
         },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
       } satisfies BookRepositoryPort);
     svc.loader = loader ?? ChapterLoader.forTest(db, sources);
     svc.updater =
@@ -469,7 +469,7 @@ export class BookService {
  * 用法（内部）：assertBookServiceShape(stub as any)
  * 后续 HT-3 (TestBed provider 重构) 落地后整体移除本工具。
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function assertBookServiceShape(stub: BookService): BookService {
   // 编译期断言：required fields 必须存在（stub 类型约束保证 tsc 报错 if 缺失）
   // 运行时无操作 —— 形状保证由 TypeScript 在编译期完成

@@ -22,33 +22,33 @@ import {
  *   否则 v.tuple schema 收到第一个字符串参数 → "Expected Array" 失败。
  */
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 type MockIpcMain = any;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function makeIpcMainMock(): any {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const handlers: any[] = [];
   return {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     handle: vi.fn((channel: string, handler: any) => {
       handlers.push({ channel, handler });
     }),
     // 调用注册到 channel 的 handler，模拟 ipcRenderer.invoke
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     invoke: (channel: string, ...args: unknown[]) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const entry = handlers.find((h: any) => h.channel === channel);
       if (!entry) throw new Error(`no handler for ${channel}`);
       // Electron 实际行为：handler 收到 (event, ...args) —— 即 spread
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       return entry.handler({}, ...args);
     },
   };
 }
 
 describe('safeHandle', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let ipc: any;
 
   beforeEach(() => {
@@ -56,7 +56,7 @@ describe('safeHandle', () => {
   });
 
   it('rest args 收集：v.tuple schema 应接收 spread 调用（url, encoding）', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const handler = vi.fn(async (_e: unknown, [url, mode]: [string, string]) => ({
       url,
       mode,
@@ -68,7 +68,7 @@ describe('safeHandle', () => {
   });
 
   it('rest args 收集：仅 url（无 encoding）应使用 schema 默认值', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const handler = vi.fn(async (_e: unknown, [url, mode]: [string, string]) => ({
       url,
       mode,
@@ -79,10 +79,10 @@ describe('safeHandle', () => {
   });
 
   it('rest args 收集：空调用（无参数）应使用 schema 全部默认值', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const handler = vi.fn(async () => 'ok');
     // 单参数 schema（可选）
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const schema = v.tuple([v.optional(v.string())]);
     safeHandle(ipc, 'test:optional', schema, handler);
     const result = await ipc.invoke('test:optional');
@@ -90,7 +90,7 @@ describe('safeHandle', () => {
   });
 
   it('schema 验证失败应抛 IpcValidationError', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const handler = vi.fn();
     safeHandle(ipc, 'test:invalid', FetchHtmlArgsSchema, handler);
     // url 为空字符串 → minLength 验证失败
@@ -99,7 +99,7 @@ describe('safeHandle', () => {
   });
 
   it('IpcValidationError 应包含 channel + issues 详情', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const handler = vi.fn();
     safeHandle(ipc, 'test:bad-url', FetchHtmlArgsSchema, handler);
     try {
@@ -107,7 +107,7 @@ describe('safeHandle', () => {
       throw new Error('expected throw');
     } catch (e: unknown) {
       expect(e).toBeInstanceOf(IpcValidationError);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const err = e as any;
       expect(err.channel).toBe('test:bad-url');
       expect(err.issues.length).toBeGreaterThan(0);
@@ -116,7 +116,7 @@ describe('safeHandle', () => {
   });
 
   it('handler 返回值应原样转发', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     safeHandle(ipc, 'test:passthrough', FetchHtmlArgsSchema, async (_e, [url]) => ({
       ok: true,
       url,
@@ -127,7 +127,7 @@ describe('safeHandle', () => {
 });
 
 describe('safeHandleWithMeta', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let ipc: any;
 
   beforeEach(() => {
@@ -150,7 +150,7 @@ describe('FetchHtmlArgsSchema', () => {
   it('应接受仅 url（encoding 默认 auto）', () => {
     const r = v.safeParse(FetchHtmlArgsSchema, ['https://x.com']);
     expect(r.success).toBe(true);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     if (r.success) expect((r.output as any[])[1]).toBe('auto');
   });
 
@@ -175,7 +175,7 @@ describe('SetFetchUaArgsSchema', () => {
   });
 
   it('应接受 undefined（nullish 默认 null）', () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const r = v.safeParse(SetFetchUaArgsSchema, [undefined]) as any;
     expect(r.success).toBe(true);
     expect(r.output[0]).toBe(null);

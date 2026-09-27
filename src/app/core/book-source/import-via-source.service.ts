@@ -134,7 +134,7 @@ export class ImportViaSourceService {
    * 测试入口：手动注入依赖（绕开 Angular DI 上下文 NG0203）。
    * 与 BookSourceRegistry.forTest 同模式：生产用 Angular 注入，测试用静态工厂。
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   static forTest(registry: BookSourceRegistry, fetcher: PageFetcher): ImportViaSourceService {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const svc: any = Object.create(ImportViaSourceService.prototype);

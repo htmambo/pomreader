@@ -30,16 +30,16 @@ function makeLegadoSource(overrides: Partial<LegadoSource> = {}): LegadoSource {
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function setupTestBed(api: { booksourceList?: unknown; booksourceSave?: unknown }): any {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const toastMock: any = {
     error: vi.fn(),
     info: vi.fn(),
     success: vi.fn(),
     warn: vi.fn(),
   };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   (globalThis as any).window = { pomAPI: api };
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
@@ -57,13 +57,13 @@ describe('LegadoImportService', () => {
   });
 
   beforeEach(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     delete (globalThis as any).window;
   });
 
   describe('persistSelected', () => {
     it('IPC 不可用时应 toast.error + 返回 { written:0, skeletons:0, failed:[] }', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const { svc, toastMock } = setupTestBed({});
       const result = await svc.persistSelected([]);
       expect(toastMock.error).toHaveBeenCalledWith(expect.stringContaining('IPC'));
@@ -71,9 +71,9 @@ describe('LegadoImportService', () => {
     });
 
     it('IPC 成功应逐项写入 + 累计 written / skeletons', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const saveMock = vi.fn(async () => undefined);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const { svc } = setupTestBed({ booksourceSave: saveMock });
       const items = [
         { fileName: 'a.js', translatedJs: 'js1', isSkeleton: false },
@@ -88,11 +88,11 @@ describe('LegadoImportService', () => {
     });
 
     it('IPC 抛错应收集到 failed 但继续后续项', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const saveMock = vi.fn(async (fileName: string) => {
         if (fileName === 'b.js') throw new Error('disk full');
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const { svc } = setupTestBed({ booksourceSave: saveMock });
       const result = await svc.persistSelected([
         { fileName: 'a.js', translatedJs: 'js1', isSkeleton: false },

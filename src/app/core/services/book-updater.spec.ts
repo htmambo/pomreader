@@ -45,7 +45,7 @@ describe('BookUpdater', () => {
     importViaSource = {
       importByUrl: async () => ({ book: { chapters: [] }, bookSourceUuid: 'uuid' }),
     };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     updater = BookUpdater.forTest(repo as any, loader as any, db as any, sources as any, importViaSource as any);
   });
 
@@ -87,7 +87,7 @@ describe('BookUpdater', () => {
         bookSourceUuid: 'new-uuid',
       });
       await updater.changeBookSource('b1', 'http://new');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const merged = persisted as any;
       expect(merged.title).toBe('New Title');
       expect(merged.author).toBe('New Author');
@@ -199,7 +199,7 @@ describe('BookUpdater', () => {
         book: { title: 'Updated', author: 'New Author', kind: 'new-kind' },
       });
       const merged = await updater.refreshBookInfo('b1');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const m = (merged ?? persisted) as any;
       expect(m.title).toBe('Updated');
       expect(m.author).toBe('New Author');
@@ -221,7 +221,7 @@ describe('BookUpdater', () => {
         persisted = b;
       };
       await updater.updateProgress('b1', 5);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const m = persisted as any;
       expect(m.progress.chapterIndex).toBe(5);
       expect(m.lastReadAt).toBeDefined();

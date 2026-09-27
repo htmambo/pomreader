@@ -24,7 +24,7 @@ import { loadWindowState } from './window-state';
  */
 
 describe('loadWindowState', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let tmpDir: any;
 
   beforeEach(() => {

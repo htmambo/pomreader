@@ -238,7 +238,7 @@ function makeMockJsAdapter(name: string, uuid: string, mainUrl: string): JsSourc
     load: async () => ({ fileName: meta.fileName, fns: [] }),
     call: async () => null,
   };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   return new JsSourceAdapter(meta, sandbox as any);
 }
 

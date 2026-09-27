@@ -154,7 +154,7 @@ export class ChapterLoader {
   /**
    * 测试入口：手动注入依赖（绕开 Angular DI 上下文 NG0203）。
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   static forTest(db: DbService, sources: BookSourceRegistry): ChapterLoader {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const loader: any = Object.create(ChapterLoader.prototype);

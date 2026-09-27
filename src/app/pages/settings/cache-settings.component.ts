@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NzButtonModule } from 'ng-zorro-antd/button';
@@ -24,7 +24,7 @@ import { ToastService } from '../../core/services/toast.service';
   templateUrl: './cache-settings.component.html',
   styleUrls: ['./cache-settings.component.scss'],
 })
-export class CacheSettingsComponent {
+export class CacheSettingsComponent implements OnInit {
   private cover = inject(CoverService);
   private modal = inject(NzModalService);
   private toast = inject(ToastService);
