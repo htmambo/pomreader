@@ -27,6 +27,12 @@ describe('stripTags', () => {
   it('空输入返回空串', () => {
     expect(stripTags('')).toBe('');
   });
+  it('双重编码实体（&amp;nbsp;）先还原 &amp; 再统一转换，不残留字面 &nbsp;', () => {
+    expect(stripTags('<p>&amp;nbsp;&amp;nbsp;段落</p>')).toBe('段落');
+  });
+  it('水平空白压缩但保留段间空行（\\n\\n），3+ 换行封顶', () => {
+    expect(stripTags('<p>甲</p><br><br><br><p>乙</p>')).toBe('甲\n\n乙');
+  });
 });
 
 describe('absUrl', () => {

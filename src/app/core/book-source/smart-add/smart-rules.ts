@@ -104,22 +104,26 @@ export const DEFAULT_PATTERNS = {
 
 /** 去标签 + 常见实体反转义（与生成代码里的 stripTags 保持同语义） */
 export function stripTags(html: string): string {
-  return String(html || '')
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<div[^>]*>/gi, '\n')
-    .replace(/<\/p>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/\s{2,}/g, ' ')
-    .replace(/\n{2,}/g, '\n')
-    .replace(/\n\s+/g, '\n')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .trim();
+  return (
+    String(html || '')
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<div[^>]*>/gi, '\n')
+      .replace(/<\/p>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      // 先解码 &amp; 再处理具体实体：双重编码（如 &amp;nbsp;）还原为 &nbsp; 后统一转换
+      .replace(/&amp;/g, '&')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      // 水平空白压缩（不动换行）；3+ 连续换行封顶为段间空行 —— </p> 与 <br> 各产生的换行保留
+      .replace(/[^\S\n]+/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .replace(/\n[^\S\n]+/g, '\n')
+      .trim()
+  );
 }
 
 export function absUrl(href: string, base: string): string {
@@ -439,14 +443,16 @@ function stripTags(html) {
     .replace(/<div[^>]*>/gi, '\\n')
     .replace(/<\\/p>/gi, '\\n')
     .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/\\s{2,}/g, ' ')
-    .replace(/\\n{2,}/g, '\\n')
-    .replace(/\\n\\s+/g, '\\n')
+    // 先解码 &amp; 再处理具体实体:双重编码(如 &amp;nbsp;)还原为 &nbsp; 后统一转换
     .replace(/&amp;/g, '&')
+    .replace(/&nbsp;/g, ' ')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
+    // 水平空白压缩(不动换行);3+ 连续换行封顶为段间空行 —— </p> 与 <br> 各产生的换行保留
+    .replace(/[^\\S\\n]+/g, ' ')
+    .replace(/\\n{3,}/g, '\\n\\n')
+    .replace(/\\n[^\\S\\n]+/g, '\\n')
     .trim()
 }
 

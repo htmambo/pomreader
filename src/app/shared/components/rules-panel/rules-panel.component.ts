@@ -720,21 +720,10 @@ export class RulesPanelComponent {
       const html = await this.fetcher.fetchHtml(url);
       const rawHtml = pickHtml(this.content(), html);
       if (rawHtml) {
-        // 展示内容用的是<pre>,把常见块级 tag 替换为换行符再 strip
-        const withBreaks = rawHtml
-          .replace(/<br\s*\/?>/gi, '\n')
-          .replace(/<p[^>]*>/gi, '\n')
-          .replace(/<div[^>]*>/gi, '\n');
-        const plain = withBreaks
-          .replace(/<[^>]+>/g, ' ')
-          .replace(/\r\n?/g, '\n')
-          .replace(/[^\S\n]+/g, ' ')
-          .replace(/ *\n */g, '\n')
-          .replace(/\n{2,}/g, '\n')
-          .trim();
-        // 与生成的 chapterContent() 同链路:净化规则在正文文本上按顺序执行
+        // 与生成的 chapterContent() 严格同链路:stripTags(去标签 + 实体解码) → 按顺序执行净化规则。
+        // 注意规则在 stripTags 之后执行 —— 想匹配 &nbsp; 等实体是匹配不到的(已转空格),规则应面向解码后文本
         const replaceRules = this.contentReplaceRules().filter((r) => r.rule.trim());
-        const cleaned = applyContentReplaceRules(plain, replaceRules);
+        const cleaned = applyContentReplaceRules(stripTags(rawHtml), replaceRules);
         this.contentPreview.set(cleaned.slice(0, 2000) + (cleaned.length > 2000 ? '…' : ''));
         this.contentStage.set({
           running: false,
