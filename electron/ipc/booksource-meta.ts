@@ -60,6 +60,7 @@ export function parseHeaderMeta(
   let sourceType = 'novel';
   let headerEnabled: boolean | null = null;
   let minDelayMs = 0;
+  let generated: string | null = null;
   const requireUrls: string[] = [];
 
   for (const line of content.split(/\r?\n/)) {
@@ -128,6 +129,9 @@ export function parseHeaderMeta(
       case 'require':
         if (value) requireUrls.push(value);
         break;
+      case 'generated':
+        if (!generated && value) generated = value;
+        break;
     }
   }
 
@@ -159,6 +163,7 @@ export function parseHeaderMeta(
     tags,
     minDelayMs,
     requireUrls,
+    generated,
   };
 }
 

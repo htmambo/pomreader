@@ -10,7 +10,7 @@ vi.mock('electron', () => ({
   IpcMain: class {},
 }));
 
-import { resolvePath, resolveDir } from './booksource-handler';
+import { resolvePath, resolveDir, registerBookSourceHandler } from './booksource-handler';
 
 /**
  * booksource-handler spec — IPC handler 内的 path/fs helper 导出测试
@@ -109,5 +109,55 @@ describe('resolveDir', () => {
   it('相对路径 sourceDir 应返回 null', () => {
     expect(resolveDir(tmpUserData, 'relative')).toBeNull();
     expect(resolveDir(tmpUserData, '../escape')).toBeNull();
+  });
+});
+
+describe('pom:booksource-save — .bak 备份与删除清理', () => {
+  let tmpUserData: string;
+
+  beforeEach(() => {
+    tmpUserData = fs.mkdtempSync(path.join(os.tmpdir(), 'pom-booksource-save-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpUserData, { recursive: true, force: true });
+  });
+
+  type Handler = (e: null, ...args: unknown[]) => unknown;
+
+  /** 注册 handler 并捕获 ipcMain.handle 回调表 */
+  function register(): Map<string, Handler> {
+    const handlers = new Map<string, Handler>();
+    const ipcMain = {
+      handle: (channel: string, fn: Handler) => {
+        handlers.set(channel, fn);
+      },
+    };
+    registerBookSourceHandler(ipcMain as never, tmpUserData);
+    return handlers;
+  }
+
+  it('覆盖保存前把旧内容留为 .bak；首次保存不产生 .bak', () => {
+    const handlers = register();
+    const save = handlers.get('pom:booksource-save')!;
+    const dir = path.join(tmpUserData, 'booksources');
+    save(null, 'a.js', 'v1', undefined);
+    expect(fs.existsSync(path.join(dir, 'a.js.bak'))).toBe(false);
+    save(null, 'a.js', 'v2', undefined);
+    expect(fs.readFileSync(path.join(dir, 'a.js'), 'utf-8')).toBe('v2');
+    expect(fs.readFileSync(path.join(dir, 'a.js.bak'), 'utf-8')).toBe('v1');
+  });
+
+  it('删除书源时连同 .bak 一起清理', () => {
+    const handlers = register();
+    const save = handlers.get('pom:booksource-save')!;
+    const del = handlers.get('pom:booksource-delete')!;
+    const dir = path.join(tmpUserData, 'booksources');
+    save(null, 'a.js', 'v1', undefined);
+    save(null, 'a.js', 'v2', undefined);
+    expect(fs.existsSync(path.join(dir, 'a.js.bak'))).toBe(true);
+    del(null, 'a.js', undefined);
+    expect(fs.existsSync(path.join(dir, 'a.js'))).toBe(false);
+    expect(fs.existsSync(path.join(dir, 'a.js.bak'))).toBe(false);
   });
 });

@@ -113,8 +113,8 @@ export function stripTags(html: string): string {
     .replace(/<[^>]+>/g, '')
     .replace(/&nbsp;/g, ' ')
     .replace(/\s{2,}/g, ' ')
-    .replace(/\n{2,}/g, '\n')
     .replace(/\n\s+/g, '\n')
+    .replace(/\n{2,}/g, '\n')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
@@ -359,6 +359,13 @@ export function buildRules(url: string, html: string): SourceRules {
  * @param rules 可视化规则(列表/标题/作者/章节/正文/分类/封面 + 正文净化规则) + searchPath + 搜索方式(method/body)
  * @param options.headers 注入每个 HTTP 请求的自定义 header（legado JSON 导入用）
  */
+/**
+ * 标准书源 marker（头部注释行）。generateSourceCode 产物带此行；
+ * standard-source.ts 的判定/校正与两个 parseHeaderMeta（renderer + electron）共用此常量语义。
+ * 注意：值改动会同时改变生成产物与判定逻辑，三处（生成/比对/解析）必须保持一致。
+ */
+export const GENERATED_MARKER = '// @generated rules';
+
 export function generateSourceCode(
   url: string,
   rules: SourceRules,
@@ -394,6 +401,7 @@ export function generateSourceCode(
 // @enabled     true
 // @tags        智能识别
 // @description ${description}
+${GENERATED_MARKER}
 
 const BASE_URL = ${j(u.origin)}
 const HEADERS = ${headersJson}
@@ -524,7 +532,8 @@ async function extractAttr(rule, html, baseUrl, attr) {
 /** 把搜索参数键值对序列化为 form-urlencoded 字符串。
  *  - value 支持 {keyword} / {page} 占位符:运行时由 search() 替换后 encodeURIComponent
  *  - 空 key 跳过(避免生成 "&value" 这类无效段)
- *  - 容错:接受 array-of-pairs（默认生成形态）、普通对象 {k:v}、Map；null/undefined → 空串 */
+ *  - 容错:params 接受 array(默认生成形态)、普通对象 {k:v}、Map;null/undefined → 空串;
+ *    数组元素同时接受二元组 ["k","v"] 与对象 {key,value}(历史版本曾写出对象形态,直接解构会抛 TypeError) */
 function buildFormBody(params, key, page) {
   const parts = []
   let entries
@@ -537,7 +546,15 @@ function buildFormBody(params, key, page) {
   } else {
     entries = []
   }
-  for (const [k, v] of entries) {
+  for (const item of entries) {
+    let k, v
+    if (Array.isArray(item)) {
+      k = item[0]
+      v = item[1]
+    } else if (item && typeof item === 'object') {
+      k = item.key
+      v = item.value
+    }
     if (!k) continue
     const replaced = String(v || '')
       .replace('{keyword}', key)

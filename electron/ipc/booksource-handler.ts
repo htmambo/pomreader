@@ -112,7 +112,11 @@ export function registerBookSourceHandler(ipcMain: IpcMain, userData: string): v
       const safe = safeFileName(fileName);
       if (!safe) throw new Error('非法 fileName');
       fs.mkdirSync(dir, { recursive: true });
-      atomicWrite(path.join(dir, safe), content);
+      const target = path.join(dir, safe);
+      // 覆盖写前留一代 .bak —— 用户误改书源(尤其手改增强书源代码)可手动找回上一版;
+      // 只保留最近一代避免无限膨胀;scanDir 只认 .js,.bak 不进列表
+      if (fs.existsSync(target)) fs.copyFileSync(target, target + '.bak');
+      atomicWrite(target, content);
     }
   );
 
@@ -122,7 +126,7 @@ export function registerBookSourceHandler(ipcMain: IpcMain, userData: string): v
       const p = resolvePath(userData, fileName, sourceDir);
       if (!p) throw new Error('非法 fileName');
       if (fs.existsSync(p)) fs.unlinkSync(p);
-      for (const suffix of ['.enabled', '.disabled']) {
+      for (const suffix of ['.enabled', '.disabled', '.bak']) {
         const m = p + suffix;
         if (fs.existsSync(m)) fs.unlinkSync(m);
       }

@@ -40,4 +40,7 @@ export interface BookSourceMeta {
   tags: string[];
   minDelayMs: number;
   requireUrls: string[];
+  /** 标准书源 marker（`// @generated rules` 头注释的值）。存在 = 代码与模板一致的标准书源；
+   *  保存时由编辑器/智能添加页校正（标准补写、增强剔除），列表徽章直接以此为准 */
+  generated?: string;
 }

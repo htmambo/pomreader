@@ -114,6 +114,13 @@ describe('parseHeaderMeta（书源 JS 头部注释解析）', () => {
     expect(r.minDelayMs).toBe(0);
   });
 
+  it('@generated 解析为标准书源 marker；缺省为 null', () => {
+    const r = parseHeaderMeta('// @generated rules', 'a.js', '/d', 0, 0, null);
+    expect(r.generated).toBe('rules');
+    const plain = parseHeaderMeta('// @name x', 'a.js', '/d', 0, 0, null);
+    expect(plain.generated).toBeNull();
+  });
+
   it('description 多行应 join 为 \\n', () => {
     const r = parseHeaderMeta(
       ['// @description 第一行', '// @description 第二行'].join('\n'),

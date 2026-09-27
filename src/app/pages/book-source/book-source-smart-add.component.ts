@@ -14,6 +14,11 @@ import {
   countChapterLinks,
   generateSourceCode,
 } from '../../core/book-source/smart-add/smart-rules';
+import { checkSourceSyntax } from '../../core/book-source/js-source/syntax-check';
+import {
+  isStandardSource,
+  stripGeneratedMarker,
+} from '../../core/book-source/smart-add/standard-source';
 
 type PomSave = {
   booksourceSave?: (fileName: string, content: string, sourceDir?: string) => Promise<void>;
@@ -215,6 +220,16 @@ export class BookSourceSmartAddComponent {
     if (!/^[a-zA-Z0-9_\-一-龥]+\.js$/.test(fileName)) {
       this.toast.warn('文件名需为 字母/数字/下划线/中划线/中文 + .js 后缀');
       return;
+    }
+    // 代码区可手改 → 保存前做语法检查(与沙箱加载同一包装),避免坏源落盘后运行时才报错
+    const syntaxError = checkSourceSyntax(this.code);
+    if (syntaxError) {
+      this.toast.error(`语法错误,保存已取消:${syntaxError}`);
+      return;
+    }
+    // marker 校正:用户手改过代码(已非模板纯规则产物) → 剔除 @generated,避免列表误标「标准」
+    if (!isStandardSource(this.code)) {
+      this.code = stripGeneratedMarker(this.code);
     }
     this.saving.set(true);
     try {
