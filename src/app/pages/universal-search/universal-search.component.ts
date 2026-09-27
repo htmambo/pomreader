@@ -54,7 +54,6 @@ type EncodingMode = 'auto' | 'utf-8' | 'gbk';
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-universal-search',
-  standalone: true,
   imports: [
     CommonModule,
     FormsModule,

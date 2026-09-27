@@ -24,7 +24,6 @@ export interface EditBookInfoResult {
  */
 @Component({
   selector: 'app-edit-book-info-dialog',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, FormsModule, NzInputModule],
   template: `

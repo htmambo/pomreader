@@ -29,7 +29,6 @@ import { ChangeBookSourceDialogComponent } from '../../shared/components/change-
 
 @Component({
   selector: 'app-bookshelf',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,

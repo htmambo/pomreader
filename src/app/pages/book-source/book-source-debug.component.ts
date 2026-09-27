@@ -45,7 +45,6 @@ interface RawItem {
  */
 @Component({
   selector: 'app-book-source-debug',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,

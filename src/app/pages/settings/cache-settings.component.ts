@@ -19,7 +19,6 @@ import { ToastService } from '../../core/services/toast.service';
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-cache-settings',
-  standalone: true,
   imports: [
     CommonModule,
     FormsModule,

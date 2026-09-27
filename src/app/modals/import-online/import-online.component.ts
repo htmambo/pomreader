@@ -31,7 +31,6 @@ type ImportMode = 'url' | 'keyword';
  */
 @Component({
   selector: 'app-import-online',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,

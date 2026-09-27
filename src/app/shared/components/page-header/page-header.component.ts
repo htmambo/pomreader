@@ -22,7 +22,6 @@ import { PageHeaderService } from '../../../core/services/page-header.service';
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-page-header',
-  standalone: true,
   imports: [CommonModule, NzTagModule, NzButtonModule, NzIconModule, NzDropDownModule],
   template: `
     <div class="page-header">

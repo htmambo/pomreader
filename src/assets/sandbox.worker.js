@@ -154,19 +154,19 @@
   function buildShim() {
     return {
       http: {
-        get: (url, headers) => requestHttp({ url, method: "GET", headers: headers ?? {} }).then(
+        get: ((url, headers) => requestHttp({ url, method: "GET", headers: headers ?? {} }).then(
           (r) => r.body
-        ),
-        post: (url, body, headers) => requestHttp({
+        )),
+        post: ((url, body, headers) => requestHttp({
           url,
           method: "POST",
           body: body ?? null,
           headers: headers ?? {}
-        }).then((r) => r.body),
-        request: (request) => requestHttp(request)
+        }).then((r) => r.body)),
+        request: ((request) => requestHttp(request))
       },
       /** CSS 选择器查询（主线程 DOMParser 执行；选择器非法/超限/被禁用时 reject） */
-      query: (html, selector, baseUrl) => requestQuery(html, selector, baseUrl)
+      query: ((html, selector, baseUrl) => requestQuery(html, selector, baseUrl))
     };
   }
   var pendingHttp = /* @__PURE__ */ new Map();

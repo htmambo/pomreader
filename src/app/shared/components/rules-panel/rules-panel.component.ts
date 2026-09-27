@@ -50,7 +50,6 @@ function emptyStage(): StageState {
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-rules-panel',
-  standalone: true,
   imports: [
     CommonModule,
     FormsModule,

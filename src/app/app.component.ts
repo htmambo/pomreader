@@ -57,7 +57,6 @@ import { UniversalSearchComponent } from './pages/universal-search/universal-sea
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-root',
-  standalone: true,
   imports: [
     RouterOutlet,
     NzLayoutModule,

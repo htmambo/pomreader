@@ -31,7 +31,6 @@ interface ModalData {
 
 @Component({
   selector: 'app-import-legado',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,

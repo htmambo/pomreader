@@ -36,7 +36,6 @@ declare global {
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-cover-img',
-  standalone: true,
   imports: [CommonModule],
   template: `
     <div

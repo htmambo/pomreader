@@ -26,7 +26,6 @@ import { ImportOnlineComponent } from '../../modals/import-online/import-online.
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-book-source-search',
-  standalone: true,
   imports: [
     CommonModule,
     FormsModule,

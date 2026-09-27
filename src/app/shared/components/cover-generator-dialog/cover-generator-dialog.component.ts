@@ -35,7 +35,6 @@ interface PreviewItem {
  */
 @Component({
   selector: 'app-cover-generator-dialog',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, NzButtonModule, NzIconModule, NzSpinModule],
   template: `

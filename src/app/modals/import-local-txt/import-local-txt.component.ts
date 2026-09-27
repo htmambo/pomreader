@@ -20,7 +20,6 @@ const DEFAULT_DISPLAY_COUNT = 50;
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-import-local-txt',
-  standalone: true,
   imports: [
     CommonModule,
     FormsModule,

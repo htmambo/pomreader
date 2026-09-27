@@ -27,7 +27,6 @@ import { LongPressDirective } from '../../directives/long-press.directive';
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-book-card',
-  standalone: true,
   imports: [
     CommonModule,
     RouterLink,

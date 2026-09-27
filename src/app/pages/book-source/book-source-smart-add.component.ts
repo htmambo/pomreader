@@ -38,7 +38,6 @@ type PomSave = {
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-book-source-smart-add',
-  standalone: true,
   imports: [
     CommonModule,
     FormsModule,

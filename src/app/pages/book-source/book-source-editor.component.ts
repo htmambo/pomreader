@@ -44,7 +44,6 @@ function pomApi(): PomBooksourceEditor | null {
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-book-source-editor',
-  standalone: true,
   imports: [
     CommonModule,
     FormsModule,

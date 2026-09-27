@@ -27,7 +27,6 @@ import { ImportLegadoComponent } from '../../modals/import-legado/import-legado.
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-book-source-list',
-  standalone: true,
   imports: [
     CommonModule,
     FormsModule,

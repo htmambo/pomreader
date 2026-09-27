@@ -5,7 +5,6 @@ import { NzTypographyModule } from 'ng-zorro-antd/typography';
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-disclaimer',
-  standalone: true,
   imports: [CommonModule, NzTypographyModule],
   template: `
     <div class="disclaimer">

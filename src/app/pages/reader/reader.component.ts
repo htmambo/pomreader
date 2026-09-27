@@ -64,7 +64,6 @@ interface ReaderViewSettings {
 
 @Component({
   selector: 'app-reader',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, FormsModule, NzIconModule, NzColorPickerModule],
   templateUrl: './reader.component.html',

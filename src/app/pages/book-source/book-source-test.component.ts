@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
-import { NzInputNumberModule } from 'ng-zorro-antd/input-number';
+import { NzInputNumberLegacyModule } from 'ng-zorro-antd/input-number-legacy';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
@@ -42,14 +42,13 @@ const STEP_LABELS: Record<string, string> = {
  */
 @Component({
   selector: 'app-book-source-test',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
     FormsModule,
     NzButtonModule,
     NzIconModule,
-    NzInputNumberModule,
+    NzInputNumberLegacyModule,
     NzInputModule,
     NzRadioModule,
     NzSpinModule,

@@ -62,7 +62,6 @@ export function resolveCurrentSourceAdapter(
  */
 @Component({
   selector: 'app-change-book-source-dialog',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,

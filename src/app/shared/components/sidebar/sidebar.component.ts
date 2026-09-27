@@ -13,7 +13,6 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-sidebar',
-  standalone: true,
   imports: [CommonModule, RouterLink, RouterLinkActive, NzMenuModule, NzIconModule],
   template: `
     <h1 class="logo">白虎阅读</h1>
