@@ -43,7 +43,7 @@ describe('BookRepository', () => {
       await repo.load();
       expect(repo.books()).toEqual(books);
       expect(repo.loadState()).toBe('ready');
-      expect(repo.count).toBeDefined();
+      expect(repo.count()).toBe(2); // R3 fix: count 改 computed 追踪 _books()
     });
 
     it('load 完成后 loadState 应为 ready', async () => {
@@ -118,6 +118,7 @@ describe('BookRepository', () => {
       await repo.persistBook(makeBook({ id: 'b1', title: 'Updated' }));
       expect(repo.books()).toHaveLength(1);
       expect(repo.books()[0].title).toBe('Updated');
+      expect(repo.count()).toBe(1); // R3 fix: count 追踪 _books()
     });
 
     it('不同 id 应追加到末尾', async () => {
@@ -126,6 +127,7 @@ describe('BookRepository', () => {
       await repo.persistBook(makeBook({ id: 'b2' }));
       expect(repo.books()).toHaveLength(2);
       expect(repo.books()[1].id).toBe('b2');
+      expect(repo.count()).toBe(2); // R3 fix: count 追踪 _books()
     });
   });
 
@@ -171,6 +173,7 @@ describe('BookRepository', () => {
       await repo.deleteBook('b1');
       expect(deleteCalled).toBe(true);
       expect(repo.books().map((b) => b.id)).toEqual(['b2']);
+      expect(repo.count()).toBe(1); // R3 fix: count 追踪 _books()
     });
   });
 });
