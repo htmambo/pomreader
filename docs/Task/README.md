@@ -20,9 +20,13 @@
     - 构建器切至 `@angular/build`，`@angular-devkit/build-angular` 已移除，**`npm ls webpack` 为 `(empty)`**，lockfile 净减约 5400 行；删除 `extract-i18n` 死 target（用户拍板）
     - 抓出 3 件事：① builder 迁移的 schematic 借临时 CLI 22 写入了 `@angular/build@^22.2.0`，因 peer 标 `optional: true` 而 `npm ls` 漏报；② 切构建器暴露了 `pouchdb-browser` 未声明的**幽灵依赖 `events`**（一直由 webpack 顺带供养），已显式声明；③ angular-eslint 20 新增 `prefer-inject` 与项目 vitest 直实例化约定冲突，关闭该规则
     - `ngIf`/`ngFor` deprecated 清理**刻意推迟**到独立 commit
-  - Phase 3-4：Angular 逐级 20→21→22 + ng-zorro 跟随（TS pin ~6.0，严禁 7.x）
-    - ⚠️ **Phase 3 起步前先手过一遍阅读页**：Phase 1 遗留的 effect() 时序风险至今未做人工目视复核，Phase 2 未解决
-  - Phase 5：vitest 4/5 或 @angular/build:unit-test、zoneless 评估（收尾）
+  - Phase 3：Angular 20 → 21 — ✅ **完成**，七门全绿 + e2e **19/19**
+    - 版本：Angular 21.2.24 / ng-zorro 21.3.3 / icons-angular 21.0.0 / angular-eslint 21.4.0 / TS **5.9.3（被 compiler-cli@21 peer 强制）**
+    - `*ngIf`/`*ngFor` → `@if`/`@for` 由 schematic 自动迁移 20 个组件（原计划「刻意推迟」的项被 ng update 顺带完成）
+    - 抓出 5 件事：① **`ng update` 静默把 vitest 3→4**（超 Phase 5 范围，用户拍板接受并就地修 2 个 fixture）；② ng-zorro 21 删 `NzInputNumberLegacyModule`，一处误删被编译器 NG8002 抓回；③ TS 5.9 Buffer 泛型变体检查（13 个 electron 错误），单层 `as Uint8Array` 宽化断言解决；④ schematic 删 `tsconfig.lib` 属语义等价（`es2022.full` 含 dom）；⑤ vitest 4 AST 重映射致 branches 覆盖 75%→64.89%（测量修正非回归），阈值校准到 60 并加 `TODO(Phase 5)` 收紧锚点
+  - Phase 4：Angular 21 → 22 + ng-zorro 跟随（TS pin ~6.0，严禁 7.x）
+    - ⚠️ **Phase 4 起步前先手过一遍阅读页**：Phase 1 遗留的 effect() 时序风险至今未做人工目视复核，Phase 2/3 均未解决
+  - Phase 5：vitest 4 稳定后评估 5 / @angular/build:unit-test、branches 覆盖率收紧回 ~70、zoneless 评估（收尾；vitest-4 部分已被 Phase 3 提前消化）
 
 ## Completed Tasks (Archive)
 

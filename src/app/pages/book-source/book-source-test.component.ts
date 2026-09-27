@@ -1,13 +1,13 @@
 import { Component, ChangeDetectionStrategy, computed, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
-import { NzInputNumberLegacyModule } from 'ng-zorro-antd/input-number-legacy';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
+import { NzInputNumberModule } from 'ng-zorro-antd/input-number';
 import { ToastService } from '../../core/services/toast.service';
 import { type BookSourceMeta } from '../../core/book-source/js-source/source-meta.types';
 import {
@@ -44,15 +44,14 @@ const STEP_LABELS: Record<string, string> = {
   selector: 'app-book-source-test',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
     FormsModule,
     NzButtonModule,
     NzIconModule,
-    NzInputNumberLegacyModule,
     NzInputModule,
     NzRadioModule,
     NzSpinModule,
     NzEmptyModule,
+    NzInputNumberModule,
   ],
   templateUrl: './book-source-test.component.html',
   preserveWhitespaces: true,

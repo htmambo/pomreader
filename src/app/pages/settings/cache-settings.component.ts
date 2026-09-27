@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, signal, type OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
@@ -20,7 +20,6 @@ import { ToastService } from '../../core/services/toast.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-cache-settings',
   imports: [
-    CommonModule,
     FormsModule,
     NzButtonModule,
     NzIconModule,

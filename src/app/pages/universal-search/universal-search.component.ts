@@ -8,12 +8,12 @@ import {
   effect,
   input,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
-import { NzDropDownModule } from 'ng-zorro-antd/dropdown';
+import { NzDropdownModule } from 'ng-zorro-antd/dropdown';
 import { NzMenuModule } from 'ng-zorro-antd/menu';
 import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { NzModalService } from 'ng-zorro-antd/modal';
@@ -55,12 +55,11 @@ type EncodingMode = 'auto' | 'utf-8' | 'gbk';
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-universal-search',
   imports: [
-    CommonModule,
     FormsModule,
     NzInputModule,
     NzButtonModule,
     NzIconModule,
-    NzDropDownModule,
+    NzDropdownModule,
     NzMenuModule,
   ],
   schemas: [NO_ERRORS_SCHEMA],

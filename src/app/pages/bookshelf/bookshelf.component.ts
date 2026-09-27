@@ -6,7 +6,7 @@ import {
   type OnInit,
   signal,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { NzGridModule } from 'ng-zorro-antd/grid';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzButtonModule } from 'ng-zorro-antd/button';
@@ -30,14 +30,7 @@ import { ChangeBookSourceDialogComponent } from '../../shared/components/change-
 @Component({
   selector: 'app-bookshelf',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    CommonModule,
-    NzGridModule,
-    NzEmptyModule,
-    NzButtonModule,
-    NzIconModule,
-    BookCardComponent,
-  ],
+  imports: [NzGridModule, NzEmptyModule, NzButtonModule, NzIconModule, BookCardComponent],
   templateUrl: './bookshelf.component.html',
   preserveWhitespaces: true,
   styles: [

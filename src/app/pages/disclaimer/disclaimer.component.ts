@@ -1,11 +1,11 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { NzTypographyModule } from 'ng-zorro-antd/typography';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-disclaimer',
-  imports: [CommonModule, NzTypographyModule],
+  imports: [NzTypographyModule],
   template: `
     <div class="disclaimer">
       <h3 nz-typography>免责声明</h3>

@@ -7,7 +7,7 @@ import {
   ViewChild,
   type OnDestroy,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { RouterLink } from '@angular/router';
 import { NzDropdownMenuComponent } from 'ng-zorro-antd/dropdown';
 import { NzContextMenuService } from 'ng-zorro-antd/dropdown';
@@ -28,7 +28,6 @@ import { LongPressDirective } from '../../directives/long-press.directive';
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-book-card',
   imports: [
-    CommonModule,
     RouterLink,
     NzDropdownMenuComponent,
     NzMenuModule,

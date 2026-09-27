@@ -258,7 +258,7 @@ async function followRedirect(
       });
       resp.on('end', () => {
         try {
-          const buf = Buffer.concat(chunks);
+          const buf = Buffer.concat(chunks as Uint8Array[]);
           const body = decodeBuffer(
             buf,
             options.encoding ?? 'auto',

@@ -1,5 +1,5 @@
 import { Component, inject, signal, ChangeDetectionStrategy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { NZ_MODAL_DATA } from 'ng-zorro-antd/modal';
 import { NzInputModule } from 'ng-zorro-antd/input';
@@ -64,7 +64,6 @@ export function resolveCurrentSourceAdapter(
   selector: 'app-change-book-source-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
     FormsModule,
     NzInputModule,
     NzButtonModule,
@@ -100,7 +99,9 @@ export function resolveCurrentSourceAdapter(
           style="min-width: 180px;"
           nzPlaceHolder="选择书源"
         >
-          <nz-option *ngFor="let s of sources()" [nzValue]="s" [nzLabel]="s"></nz-option>
+          @for (s of sources(); track s) {
+            <nz-option [nzValue]="s" [nzLabel]="s"></nz-option>
+          }
         </nz-select>
       </div>
 

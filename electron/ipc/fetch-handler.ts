@@ -77,7 +77,7 @@ function doFetch(rawUrl: string, mode: EncodingMode): Promise<FetchResult> {
       });
       resp.on('end', () => {
         try {
-          const buf = Buffer.concat(chunks);
+          const buf = Buffer.concat(chunks as Uint8Array[]);
           const html = decodeBuffer(buf, mode, resp.headers);
           if (isCfChallenge(status, headers, html.slice(0, 4096))) {
             done({ error: 'cf-challenge' });

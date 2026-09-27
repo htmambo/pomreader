@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, signal, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { ScrollingModule } from '@angular/cdk/scrolling';
 import { NzUploadModule, type NzUploadFile } from 'ng-zorro-antd/upload';
@@ -20,14 +20,7 @@ const DEFAULT_DISPLAY_COUNT = 50;
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-import-local-txt',
-  imports: [
-    CommonModule,
-    FormsModule,
-    ScrollingModule,
-    NzUploadModule,
-    NzButtonModule,
-    NzIconModule,
-  ],
+  imports: [FormsModule, ScrollingModule, NzUploadModule, NzButtonModule, NzIconModule],
   template: `
     <div class="import-local-txt">
       <p>将 TXT 文件拖到下方或点击选择（≤ 50MB）：</p>

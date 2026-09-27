@@ -9,7 +9,9 @@
       style="min-width: 180px"
       nzPlaceHolder="选择书源"
     >
-      <nz-option *ngFor="let s of sources()" [nzValue]="s" [nzLabel]="s"></nz-option>
+      @for (s of sources(); track s) {
+      <nz-option [nzValue]="s" [nzLabel]="s"></nz-option>
+      }
     </nz-select>
   </div>
 

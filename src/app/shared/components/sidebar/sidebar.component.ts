@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { NzMenuModule } from 'ng-zorro-antd/menu';
 import { NzIconModule } from 'ng-zorro-antd/icon';
@@ -13,7 +13,7 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-sidebar',
-  imports: [CommonModule, RouterLink, RouterLinkActive, NzMenuModule, NzIconModule],
+  imports: [RouterLink, RouterLinkActive, NzMenuModule, NzIconModule],
   template: `
     <h1 class="logo">白虎阅读</h1>
     <ul nz-menu nzTheme="light" nzMode="inline">

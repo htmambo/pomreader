@@ -99,7 +99,7 @@ function decodeDataUrl(url: string): { mime: string; bytes: Buffer } {
 function writeCache(dir: string, key: string, bytes: Buffer, mime: string): string {
   fs.mkdirSync(dir, { recursive: true });
   const target = path.join(dir, `${key}.${extFromMime(mime)}`);
-  fs.writeFileSync(target, bytes);
+  fs.writeFileSync(target, bytes as Uint8Array);
   return target;
 }
 

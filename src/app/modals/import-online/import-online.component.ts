@@ -1,5 +1,5 @@
 import { Component, ChangeDetectionStrategy, inject, signal, type OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { NZ_MODAL_DATA } from 'ng-zorro-antd/modal';
 import { NzInputModule } from 'ng-zorro-antd/input';
@@ -33,7 +33,6 @@ type ImportMode = 'url' | 'keyword';
   selector: 'app-import-online',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
     FormsModule,
     NzInputModule,
     NzButtonModule,

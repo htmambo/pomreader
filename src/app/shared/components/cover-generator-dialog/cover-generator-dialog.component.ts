@@ -6,7 +6,7 @@ import {
   type OnInit,
   ChangeDetectionStrategy,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { NZ_MODAL_DATA, NzModalRef } from 'ng-zorro-antd/modal';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
@@ -36,7 +36,7 @@ interface PreviewItem {
 @Component({
   selector: 'app-cover-generator-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, NzButtonModule, NzIconModule, NzSpinModule],
+  imports: [NzButtonModule, NzIconModule, NzSpinModule],
   template: `
     <div class="cg-dialog">
       <div class="cg-summary">

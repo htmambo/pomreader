@@ -1,6 +1,6 @@
 # POMREADER 依赖大版本升级计划（Dep Major Upgrade Plan）
 
-> Status: 🔄 In progress — 2026-09-27 建档；2026-09-28 复核修订 + **Phase 0 全部收口（P0-0 ~ P0-5）** + **Phase 1（18→19）** + **Phase 2（19→20）完成**。下一步：Phase 3 Angular 20 → 21（**起步前先手过一遍阅读页**，effect() 时序风险自 Phase 1 起未做人工目视复核）
+> Status: 🔄 In progress — 2026-09-27 建档；2026-09-28 复核修订 + **Phase 0 全部收口（P0-0 ~ P0-5）** + **Phase 1（18→19）** + **Phase 2（19→20）** + **Phase 3（20→21）完成**。下一步：Phase 4 Angular 21 → 22（**起步前先手过一遍阅读页**，effect() 时序风险自 Phase 1 起未做人工目视复核；TS pin `~6.0.x`，严禁 7.x）
 > 分支：`chore/dep-major-upgrade`
 > 触发：`npm outdated` 梳理（2026-09-27），安全项已先行升级并提交（`0bee9ba`）。
 > 目标：Angular 18 → 22 逐级迁移 + 测试工具链升级，每级独立 commit、独立验证。
@@ -363,11 +363,80 @@ Angular 19 引入的 effect() 调度变更**至今没有做人工目视复核**�
 
 ## Phase 3：Angular 20 → 21
 
-- [ ] `@ant-design/icons-angular` → `^21.x`、`angular-eslint` → `^21.x`（lockstep）
-- [ ] TS → `~5.9.x`
-- [ ] `ng update` 自动补 `provideZoneChangeDetection()`（本项目 `app.config.ts` 已显式写了 `provideZoneChangeDetection({ eventCoalescing: true })`，迁移后确认不被重复注入）
-- [ ] `ng update ng-zorro-antd@21`：`NzDropDownModule` → `NzDropdownModule`（**本地 2 处**：`pages/universal-search/universal-search.component.ts:16`、`shared/components/page-header/page-header.component.ts:9`）；`NzToolTip*` → `NzTooltip*`；可移除 `@angular/animations`（ng-zorro 迁移到原生动画）——**已确认全仓仅 `app.config.ts` 一处 `provideAnimations()`**
-- [ ] 检查点：路由导航多走微任务，时序敏感的测试回归；`lastSuccessfulNavigation` 变 signal（`app.routes.ts` 5 条顶层路由 + 2 处 `loadChildren`，**未用**，确认即可）
+- [x] `@ant-design/icons-angular` → `^21.x`、`angular-eslint` → `^21.x`（lockstep）
+- [x] TS → `~5.9.x`
+- [x] `ng update` 自动补 `provideZoneChangeDetection()`（本项目 `app.config.ts` 已显式写了 `provideZoneChangeDetection({ eventCoalescing: true })`，迁移后确认不被重复注入）
+- [x] `ng update ng-zorro-antd@21`：`NzDropDownModule` → `NzDropdownModule`（**本地 2 处**：`pages/universal-search/universal-search.component.ts:16`、`shared/components/page-header/page-header.component.ts:9`）；`NzToolTip*` → `NzTooltip*`；可移除 `@angular/animations`（ng-zorro 迁移到原生动画）——**已确认全仓仅 `app.config.ts` 一处 `provideAnimations()`**
+- [x] 检查点：路由导航多走微任务，时序敏感的测试回归；`lastSuccessfulNavigation` 变 signal（`app.routes.ts` 5 条顶层路由 + 2 处 `loadChildren`，**未用**，确认即可）
+
+## Phase 3 实施结果（2026-09-28，分支 `chore/dep-major-upgrade`）
+
+改动 **7 个手写文件 + 20 个组件的 schematic 自动迁移**（`*ngIf`/`*ngFor` → `@if`/`@for`）。手写部分：`package.json` / `package-lock.json` / `tsconfig.json` / `vitest.config.ts` / 4 个 electron Buffer 断言 / 2 个 ng-zorro 模块 / 2 个 vitest 4 测试夹具。
+
+| 项 | 结果 |
+|---|---|
+| Angular 全家桶 | ✅ 20.3.32 → **21.2.24**；`@angular/cli` / `@angular/build` → 21.2.24 |
+| ng-zorro-antd | ✅ `^20.4.4` → **^21.3.3**（`NzInputNumberLegacyModule` 已删除，见 F2） |
+| @ant-design/icons-angular | ✅ `^20.0.0` → **^21.0.0**（显式升，避免双份） |
+| angular-eslint | ✅ `^20.7.0` → **^21.4.0** |
+| typescript | ✅ `~5.8.3` → **~5.9.3**（被 compiler-cli@21 peer 强制，区间 `>=5.9 <6.1`） |
+| vitest + coverage-v8 | ⚠️ `^3.2.7` → **^4.1.11**（**被 `ng update` 静默拉升**，超 Phase 5 计划，见 F1） |
+| zone.js | ✅ 保持 `~0.15.1` 未动（`@angular/core@21` peer `~0.15.0` 已满足） |
+| `@if`/`@for` 迁移 | ✅ schematic 自动迁移 20 个组件，**零手改**（原计划「刻意推迟」的项被 ng update 顺带完成） |
+
+### F1：`ng update` 静默把 vitest 3 → 4（超 Phase 5 计划范围）
+
+`ng update @angular/core@21 @angular/cli@21` 顺带把 `vitest` 和 `@vitest/coverage-v8` 从 `^3.2.7` 拉到 `^4.1.11` —— 这是 Phase 5 的事，且触发了 3 个测试失败。
+
+- **诊断**：读 `node_modules/vitest/package.json`（version `4.1.11`）再读 `package.json`（显示 `^4.1.11`），确认是 ng update 写进去的，不是我手动改的
+- **处置**：经用户拍板「接受 vitest 4，就地修 3 个测试」。两个 fixture 修复（`page-fetcher.service.spec.ts` 的 `NgZone.run` 计数断言、`global-error-handler.spec.ts` 补 `afterEach(() => vi.restoreAllMocks())`）均以证据闭环，不削弱契约
+- **计划影响**：Phase 5 的 vitest-4 部分被本次提前消化，Phase 5 剩余项缩为「vitest 4 稳定后评估 5 / @angular/build:unit-test / zoneless」
+
+### F2：ng-zorro 21 删除 `NzInputNumberLegacyModule`，一处误删被编译器抓回
+
+ng-zorro 21 移除了 legacy input-number，改用重写的 `NzInputNumberModule`。`jump-chapter-dialog.component.ts` 直接换名即可。但 `book-source-test.component.ts` 一度被我误判为「死代码」删掉 import —— 因为我只 grep 了 `.ts`（其内联 SCSS 里有 `nz-input-number { width: 76px; }`），没看 `templateUrl` 指向的外部模板；该模板实际用了 3 处 `<nz-input-number>`。Angular 编译器报 `NG8002: Can't bind to 'nzMin'` 抓回。
+
+- **修复**：恢复 import 改用 `NzInputNumberModule`，并经编译产物 `ɵɵComponentDeclaration` 验证 `nzMin`/`nzMax`/`nzStep`/`nzPlaceHolder`/`nzStatus` 五个输入在新组件上全部存在，模板绑定无丢失
+- **教训**：判断组件 import 是否死代码，必须同时查 `.ts` 内联模板和 `templateUrl` 外部模板，不能只看一个
+
+### F3：TS 5.9 Buffer 泛型变体检查（13 个 electron 编译错误）
+
+TS 5.9 把 `Buffer<TArrayBufferLike>` 与 `Uint8Array<TArrayBuffer>` 的赋值检查收紧（`lib.es5.d.ts:2362` 硬编码 `slice(): Uint8Array<ArrayBuffer>`）。实测 5.8.3 = 0 错 / 5.9.3 = 13 错，且 lib 签名两版逐字一致 —— 是 5.9 的检查逻辑变严，不是 lib 改了。
+
+- **实证否决的方案**：`moduleResolution` node16/nodenext（仍 13 错）、`bundler`（2 错但与 `module: CommonJS` 冲突）、`lib: ES2024`、`node:buffer` 具名导入、`Buffer<ArrayBuffer>` 标注、`subarray`、`as unknown as`
+- **采用**：单层 `as Uint8Array` 宽化断言（子类→父类），零运行时成本且诚实 —— `Buffer` 运行时确实继承 `Uint8Array`。改 6 处（fetch-handler / safe-net / auto-import / cover-handler / encoding.spec ×3）
+
+### F4：schematic 删 `tsconfig.json` 的 `lib` —— 语义等价，非配置漂移
+
+`ng update` 把 `"lib": ["ES2022", "dom"]` 删了。验证：`lib.es2022.full.d.ts` 头部已 `/// <reference lib="dom" />`，target ES2022 下默认 lib 就是 `es2022.full`（含 dom）。**删除前后语义完全等价**，非外审担心的「strict 被关」。
+
+### F5：vitest 4 覆盖率阈值红门（branches 64.89% < 75%）—— 测量修正，非回归
+
+`npm run test:coverage` 在 vitest 4 下报 `ERROR: branches (64.89%) does not meet threshold (75%)`。
+
+- **根因（证据闭环）**：`vitest.config.ts` 与 HEAD 逐字一致、include 集合没变、75% 在 vitest 3 下是过的。vitest 4 用 AST 重映射（取代 v8-to-istanbul）把之前被合并的 `else`/默认分支真实计入分母（~1430 → 1655，+225 分支），64.89% 是**更准确的真值**。per-file 明细显示低分支全集中在配置注释早已声明「不可达」的 services（db.service 32.81% / chapter-loader 37.77% / source-test 21.1%），无任何文件丢失覆盖
+- **处置**：经用户拍板「阈值降到 60 并注明原因」。选 60 而非 65（64.89 贴边无缓冲），与 functions=60 同档、留 ~5pp 缓冲，并在注释写明根因 + `TODO(dep-upgrade Phase 5)` 收紧锚点
+
+### 本级验证门（全部 PASS）
+
+| 门 | 结果 |
+|---|---|
+| `npm run format:check` | ✅ |
+| `npm run lint` | ✅ |
+| `npm test` | ✅ **54 文件 / 700 用例**（vitest 4.1.11，F1 修复后恢复） |
+| `npm run test:coverage` | ✅ exit 0（F5 阈值校准后；All files 73.17 stmts / 64.89 branch / 70.78 funcs / 74.53 lines） |
+| `npm run build` | ✅ exit 0 |
+| `npm run build:electron` | ✅ exit 0（F3 修复后） |
+| `npx playwright test` | ✅ **19/19 真实浏览器通过**（跑前确认 4200 端口干净、无孤儿 ng serve，Playwright 自启 dev server） |
+| `npm ls --depth=0` | ✅ 无 missing/invalid/UNMET |
+
+### 外部审核
+
+**代码轮 Round 1 APPROVED（session `9ec28f0c`）→ 增量轮 Round 2 APPROVED（session `844e73d5`）。** Round 1 五项全认可（TS 5.9 断言、测试 fixture、nz-input-number、vitest 超范围、版本对齐），列 5 条非阻断建议；其中 5a（`</li>` 疑似在 `@for` 块外）经我打开实际文件证伪 —— 我送审的 diff 是手工拼接致缩进错位，真实文件闭合标签在块内。Round 2 针对 F5 的覆盖率阈值下调（75→60），认定为「有充分根因证据的测量基线校准，非质量退让」，4 条建议中已采纳「补可追踪收紧 TODO」（`TODO(dep-upgrade Phase 5)`）。详见 `docs/Task/REVIEW_LOG.md`。
+
+### ⚠️ 仍未闭环：effect() 时序（Phase 1 遗留，Phase 2/3 均未解决）
+
+Angular 19 引入的 effect() 调度变更**至今没有做人工目视复核**（本机无 GUI，e2e 的 reader 用例是 stub 路由 + 缺数据场景）。Angular 21 不解决此项，**不因本级通过而视为已验证**。建议在 Phase 4 之前手过一遍阅读页。
 
 ## Phase 4：Angular 21 → 22
 
@@ -380,7 +449,7 @@ Angular 19 引入的 effect() 调度变更**至今没有做人工目视复核**�
 
 ## Phase 5：收尾（Angular 22 稳定后，可拆独立任务）
 
-- [ ] vitest 3.2.7 → **4.1.11**（`V4` tag 当前最新；`5.0.0-rc.4` 已存在）：vite 已随 Angular 升级解封；升 4 注意 `coverage.all` 默认 true、`clearMocks` 默认 true、嵌套 `vi.mock` 抛错、未 await 的 `.resolves/.rejects` 判失败（本地 `test.sequential` 0 处，已确认）；**若考虑跳到 vitest 5，先核对其 vite 下限**（计划原文写「5 需 vite ≥6.4」，未复核）
+- [ ] ~~vitest 3.2.7 → **4.1.11**~~（**已于 Phase 3 被 `ng update` 提前完成**，见 Phase 3 F1；fixture 已就地修复，700/700 通过）。剩余：vitest 4 稳定后评估是否上 5（**若考虑跳到 vitest 5，先核对其 vite 下限**——计划原文写「5 需 vite ≥6.4」，未复核）；**补 services.spec.ts + worker mock 后将 branches 覆盖率从 60 收紧回 ~70**（见 Phase 3 F5 的 `TODO(dep-upgrade Phase 5)`）
 - [ ] 或评估切换 `@angular/build:unit-test`（Angular 21+ 官方 vitest builder，内部 pin vite/vitest 版本）
 - [ ] 可选 schematic：signal-input / output / inject 迁移
 - [ ] 可选：zoneless 评估（`provideZonelessChangeDetection`，ng-zorro 22 已兼容）

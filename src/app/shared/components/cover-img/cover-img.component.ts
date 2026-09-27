@@ -7,7 +7,7 @@ import {
   inject,
   type OnChanges,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { CoverService } from '../../../core/cover/cover.service';
 
 /**
@@ -36,7 +36,7 @@ declare global {
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-cover-img',
-  imports: [CommonModule],
+  imports: [],
   template: `
     <div
       class="cover-img"

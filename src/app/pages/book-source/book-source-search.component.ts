@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzButtonModule } from 'ng-zorro-antd/button';
@@ -27,7 +27,6 @@ import { ImportOnlineComponent } from '../../modals/import-online/import-online.
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-book-source-search',
   imports: [
-    CommonModule,
     FormsModule,
     NzInputModule,
     NzButtonModule,

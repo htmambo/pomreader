@@ -8,7 +8,7 @@
  *  4. 点"导入所选" → persistSelected → toast 结果 → 关闭弹窗 + 刷新父列表
  */
 import { Component, inject, signal, ChangeDetectionStrategy, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { NZ_MODAL_DATA, NzModalRef } from 'ng-zorro-antd/modal';
 import { NzInputModule } from 'ng-zorro-antd/input';
@@ -33,7 +33,6 @@ interface ModalData {
   selector: 'app-import-legado',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
     FormsModule,
     NzInputModule,
     NzButtonModule,
@@ -73,22 +72,24 @@ interface ModalData {
         </button>
       </div>
 
-      <textarea
-        *ngIf="mode() === 'json'"
-        nz-input
-        [(ngModel)]="textInput"
-        rows="6"
-        placeholder="粘贴 legado JSON 文本（单对象 / 数组 / base64）"
-        [disabled]="loading()"
-      ></textarea>
-      <input
-        *ngIf="mode() === 'url'"
-        nz-input
-        type="text"
-        [(ngModel)]="urlInput"
-        placeholder="https://example.com/legado-subscriptions.txt"
-        [disabled]="loading()"
-      />
+      @if (mode() === 'json') {
+        <textarea
+          nz-input
+          [(ngModel)]="textInput"
+          rows="6"
+          placeholder="粘贴 legado JSON 文本（单对象 / 数组 / base64）"
+          [disabled]="loading()"
+        ></textarea>
+      }
+      @if (mode() === 'url') {
+        <input
+          nz-input
+          type="text"
+          [(ngModel)]="urlInput"
+          placeholder="https://example.com/legado-subscriptions.txt"
+          [disabled]="loading()"
+        />
+      }
 
       <div class="actions">
         <button nz-button (click)="cancel()">取消</button>
@@ -123,15 +124,17 @@ interface ModalData {
                     (change)="toggle(it)"
                   />
                   <span class="source-name">{{ it.source.bookSourceName }}</span>
-                  <nz-tag class="tag-group" *ngIf="it.source.bookSourceGroup">
-                    {{ it.source.bookSourceGroup }}
-                  </nz-tag>
+                  @if (it.source.bookSourceGroup) {
+                    <nz-tag class="tag-group">
+                      {{ it.source.bookSourceGroup }}
+                    </nz-tag>
+                  }
                   <nz-tag class="tag-status" [nzColor]="it.isSkeleton ? 'orange' : 'green'">
                     {{ it.isSkeleton ? '⚠ 需手写（草稿）' : '✓ 可转换' }}
                   </nz-tag>
-                  <nz-tag class="tag-overwrite" *ngIf="it.overwritesExisting" nzColor="orange">
-                    覆盖现有
-                  </nz-tag>
+                  @if (it.overwritesExisting) {
+                    <nz-tag class="tag-overwrite" nzColor="orange"> 覆盖现有 </nz-tag>
+                  }
                 </label>
                 @if (it.translateError) {
                   <div class="source-error">{{ it.translateError }}</div>

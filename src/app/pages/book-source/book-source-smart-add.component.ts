@@ -6,7 +6,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { NzButtonModule } from 'ng-zorro-antd/button';
@@ -39,7 +39,6 @@ type PomSave = {
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-book-source-smart-add',
   imports: [
-    CommonModule,
     FormsModule,
     NzButtonModule,
     NzIconModule,

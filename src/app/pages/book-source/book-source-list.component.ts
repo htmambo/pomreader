@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { NzButtonModule } from 'ng-zorro-antd/button';
@@ -28,7 +28,6 @@ import { ImportLegadoComponent } from '../../modals/import-legado/import-legado.
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-book-source-list',
   imports: [
-    CommonModule,
     FormsModule,
     NzButtonModule,
     NzSwitchModule,

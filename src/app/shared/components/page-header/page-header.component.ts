@@ -1,12 +1,12 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { Router, NavigationEnd } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map, startWith } from 'rxjs/operators';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
-import { NzDropDownModule } from 'ng-zorro-antd/dropdown';
+import { NzDropdownModule } from 'ng-zorro-antd/dropdown';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { ImportOnlineComponent } from '../../../modals/import-online/import-online.component';
 import { ImportLocalTxtComponent } from '../../../modals/import-local-txt/import-local-txt.component';
@@ -22,7 +22,7 @@ import { PageHeaderService } from '../../../core/services/page-header.service';
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-page-header',
-  imports: [CommonModule, NzTagModule, NzButtonModule, NzIconModule, NzDropDownModule],
+  imports: [NzTagModule, NzButtonModule, NzIconModule, NzDropdownModule],
   template: `
     <div class="page-header">
       @if (header.title() || header.subtitle()) {

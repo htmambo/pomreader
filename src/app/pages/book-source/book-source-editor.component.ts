@@ -6,7 +6,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { NzButtonModule } from 'ng-zorro-antd/button';
@@ -44,14 +44,7 @@ function pomApi(): PomBooksourceEditor | null {
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-book-source-editor',
-  imports: [
-    CommonModule,
-    FormsModule,
-    NzButtonModule,
-    NzIconModule,
-    NzInputModule,
-    RulesPanelComponent,
-  ],
+  imports: [FormsModule, NzButtonModule, NzIconModule, NzInputModule, RulesPanelComponent],
   templateUrl: './book-source-editor.component.html',
   styleUrl: './book-source-editor.component.scss',
 })

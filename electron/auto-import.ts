@@ -142,7 +142,7 @@ export function registerAutoImport(
         }
       }
     } else if (bytes) {
-      fs.writeFileSync(dest, bytes);
+      fs.writeFileSync(dest, bytes as Uint8Array);
     }
     return dest;
   };

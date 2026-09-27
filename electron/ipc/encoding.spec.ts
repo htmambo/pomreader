@@ -82,7 +82,7 @@ describe('decodeBuffer — auto 模式', () => {
       Buffer.from('<html><head><meta charset="gbk"></head><body>', 'latin1'),
       iconv.encode('你好世界', 'gbk'),
       Buffer.from('</body></html>', 'latin1'),
-    ]);
+    ] as Uint8Array[]);
     const result2 = decodeBuffer(buf2, 'auto', { 'content-type': 'text/html' });
     expect(result2).toContain('你好世界');
   });
@@ -92,7 +92,7 @@ describe('decodeBuffer — auto 模式', () => {
       Buffer.from("<html><head><meta charset='gbk'></head><body>", 'latin1'),
       iconv.encode('你好', 'gbk'),
       Buffer.from('</body></html>', 'latin1'),
-    ]);
+    ] as Uint8Array[]);
     const result = decodeBuffer(buf, 'auto', { 'content-type': 'text/html' });
     expect(result).toContain('你好');
   });
@@ -102,7 +102,7 @@ describe('decodeBuffer — auto 模式', () => {
       Buffer.from('<html><head><meta charset="gbk"></head><body>', 'latin1'),
       Buffer.from('Hello', 'utf-8'),
       Buffer.from('</body></html>', 'latin1'),
-    ]);
+    ] as Uint8Array[]);
     // Content-Type 写 utf-8，但 HTML meta 写 gbk —— 应优先 Content-Type → utf-8 解码
     const result = decodeBuffer(buf, 'auto', {
       'content-type': 'text/html; charset=utf-8',

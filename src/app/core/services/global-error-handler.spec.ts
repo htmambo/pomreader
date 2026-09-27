@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { GlobalErrorHandler } from './global-error-handler';
 
 /**
@@ -24,6 +24,10 @@ describe('GlobalErrorHandler', () => {
 
     (handler as any).toast = { error: toastErrorSpy };
   });
+
+  // vitest 4 下对已 mock 的方法再次 spyOn 会复用同一 spy 并保留调用历史，
+  // 导致后续用例的 mock.calls[0] 取到首个用例的记录
+  afterEach(() => vi.restoreAllMocks());
 
   it('Error 实例应提取 message + stack', () => {
     const e = new Error('boom');

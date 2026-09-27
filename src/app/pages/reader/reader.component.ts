@@ -13,7 +13,7 @@ import {
   viewChild,
   ElementRef,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { NzIconModule } from 'ng-zorro-antd/icon';
@@ -65,7 +65,7 @@ interface ReaderViewSettings {
 @Component({
   selector: 'app-reader',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, NzIconModule, NzColorPickerModule],
+  imports: [FormsModule, NzIconModule, NzColorPickerModule],
   templateUrl: './reader.component.html',
   preserveWhitespaces: true,
 })

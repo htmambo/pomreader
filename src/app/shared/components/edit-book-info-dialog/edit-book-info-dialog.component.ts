@@ -1,5 +1,5 @@
 import { Component, inject, signal, ChangeDetectionStrategy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { NZ_MODAL_DATA } from 'ng-zorro-antd/modal';
 import { NzInputModule } from 'ng-zorro-antd/input';
@@ -25,7 +25,7 @@ export interface EditBookInfoResult {
 @Component({
   selector: 'app-edit-book-info-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, NzInputModule],
+  imports: [FormsModule, NzInputModule],
   template: `
     <div class="edit-book-form">
       <p style="margin: 0 0 8px; color: var(--pom-text-muted); font-size: 12px;">
