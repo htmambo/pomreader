@@ -5,8 +5,11 @@
 
 ## Active Tasks
 
-- 📋 [依赖大版本升级（Angular 18→22 + 测试工具链）](Active/POMREADER_DEP_MAJOR_UPGRADE_PLAN.md) — Draft 2026-09-27
+- 📋 [依赖大版本升级（Angular 18→22 + 测试工具链）](Active/POMREADER_DEP_MAJOR_UPGRADE_PLAN.md) — 🔄 In progress 2026-09-28
   - Phase 0：@types/node→24 / jsdom→30 / vitest→3.2 / puppeteer-core→25 / engines 收紧（不依赖 Angular）
+    - 已完成 P0-0（CI Node 20→24 + `.npmrc` engine-strict）/ P0-1（@types/node 24.19.0）/ P0-2（jsdom 30.1.1）/ P0-3（vitest 3.2.7 + 覆盖率新基线 74.96/81.91/83.14/74.96）
+    - 顺带修复 `worker-pool.spec.ts` 的既有 unhandled rejection（vitest 3 起会升级为失败）
+    - 待办 P0-4（puppeteer-core 25，ESM-only）/ P0-5（engines 字段）
   - Phase 1-4：Angular 逐级 18→19→20→21→22 + ng-zorro 跟随（TS pin ~6.0，严禁 7.x）
   - Phase 5：vitest 4/5 或 @angular/build:unit-test、zoneless 评估（收尾）
 

@@ -1,6 +1,7 @@
 # POMREADER 依赖大版本升级计划（Dep Major Upgrade Plan）
 
-> Status: Draft — 2026-09-27；2026-09-28 复核修订（见文末「复核记录」，含 2 个 blocker、1 个被证伪前提、1 道空跑验收门）
+> Status: 🔄 In progress — 2026-09-27 建档；2026-09-28 复核修订 + **Phase 0 执行 P0-0 ~ P0-3**（见下「Phase 0 实施结果」）
+> 分支：`chore/dep-major-upgrade`
 > 触发：`npm outdated` 梳理（2026-09-27），安全项已先行升级并提交（`0bee9ba`）。
 > 目标：Angular 18 → 22 逐级迁移 + 测试工具链升级，每级独立 commit、独立验证。
 
@@ -78,13 +79,47 @@ npm ci && npm run format:check && npm run lint && npm test && npm run build && n
 npx playwright test --reporter=list   # 配置已在仓库根（P-0-2 修好），无需 -c
 ```
 
-- [ ] **P0-0 CI Node 20 → 24 + `.npmrc` `engine-strict=true`**：两个 job（`lint-unit-build` / `e2e`）的 `node-version` 都锁在 `'20'`，与本地 24.15.0 对齐后统一提到 `24`。`engine-strict` 缺了的话 `engines` 只是文档、装错版本也不拦。**本项必须先于 P0-2 / P0-4 落地**，否则那两个「可立即做」的步骤会在合并当天打断 CI。
-- [ ] **P0-1 `@types/node` → ^24.15.0**：对齐 Electron 44 内置 Node 24.18.1。顺带验证 `npm run build:electron`。
-- [ ] **P0-2 jsdom → ^30.1.1**：回归重点——v27 起 `element.click()` 派发 PointerEvent、v29 CSSOM 重写影响 `getComputedStyle` 断言。
-- [ ] **P0-3 vitest + @vitest/coverage-v8 → ^3.2.7**（**只到 3.x，4.x 留到 Phase 5**）：原计划写的阻塞理由「Angular 18 内置 vite 5.4，vitest 过不了 3.x」**已被证伪**——vitest 3.2.4 依赖 `vite ^5.0.0 || ^6.0.0 || ^7.0.0-0`，与锁内 vite 5.4.21 兼容；真正要 vite 6+ 的是 vitest 4。迁移清单——`spy.mockReset()` 行为变化、`vi.useFakeTimers()` 默认 toFake 移除、错误相等性更严格（`cause`/原型比对）。本项目 `mockReset` 0 处、`useFakeTimers` 7 处、`vi.mock` 3 个文件；worker-pool / sandbox 4 个 spec（`sandbox.spec.ts` / `worker-pool.spec.ts` / `worker-pool.factory.spec.ts` / `sandbox.pool.spec.ts`）是高风险区。
+- [x] **P0-0 CI Node 20 → 24 + `.npmrc` `engine-strict=true`**：两个 job（`lint-unit-build` / `e2e`）的 `node-version` 都锁在 `'20'`，与本地 24.15.0 对齐后统一提到 `24`。`engine-strict` 缺了的话 `engines` 只是文档、装错版本也不拦。**本项必须先于 P0-2 / P0-4 落地**，否则那两个「可立即做」的步骤会在合并当天打断 CI。
+- [x] **P0-1 `@types/node` → ^24.15.0**：对齐 Electron 44 内置 Node 24.18.1。顺带验证 `npm run build:electron`。
+- [x] **P0-2 jsdom → ^30.1.1**：回归重点——v27 起 `element.click()` 派发 PointerEvent、v29 CSSOM 重写影响 `getComputedStyle` 断言。
+- [x] **P0-3 vitest + @vitest/coverage-v8 → ^3.2.7**（**只到 3.x，4.x 留到 Phase 5**）：原计划写的阻塞理由「Angular 18 内置 vite 5.4，vitest 过不了 3.x」**已被证伪**——vitest 3.2.4 依赖 `vite ^5.0.0 || ^6.0.0 || ^7.0.0-0`，与锁内 vite 5.4.21 兼容；真正要 vite 6+ 的是 vitest 4。迁移清单——`spy.mockReset()` 行为变化、`vi.useFakeTimers()` 默认 toFake 移除、错误相等性更严格（`cause`/原型比对）。本项目 `mockReset` 0 处、`useFakeTimers` 7 处、`vi.mock` 3 个文件；worker-pool / sandbox 4 个 spec（`sandbox.spec.ts` / `worker-pool.spec.ts` / `worker-pool.factory.spec.ts` / `sandbox.pool.spec.ts`）是高风险区。
   - 升完顺手重跑一次 `npm run test:coverage` 记新基线（`include` 只覆盖 `core/logic`、`core/book-source`、`core/services`、`core/db`，阈值 lines 50 / functions 60 / branches 75 / statements 50），别等到 vitest 4 才发现分母变化。
 - [ ] **P0-4 puppeteer-core → ^25.12.0**：升级后立即跑 `scripts/` 下 5 个 `.cjs`（e2e-cf-guard / e2e-import-local-txt / e2e-import-online / e2e-search / e2e-txt-preview，均为 `require('puppeteer-core')`）验证 `require(esm)`；失败则改 `await import('puppeteer-core')` 或重命名 `.mjs`。
 - [ ] **P0-5 package.json 加 `engines: { "node": "^22.22.3 || ^24.15.0 || ^26.0.0" }`**：jsdom 30 / Angular 22 的 Node 底线前置声明，避免协作者环境踩坑。与 P0-0 的 `.npmrc` 配套。
+
+## Phase 0 实施结果（2026-09-28，分支 `chore/dep-major-upgrade`）
+
+| 项 | 结果 |
+|---|---|
+| P0-0 | ✅ `.github/workflows/ci.yml` 两个 job `node-version: '20'` → `'24'`；新增 `.npmrc`（`engine-strict=true`）。`engine-strict` 开启后 `npm ci` 仍成功（无 EBADENGINE），`npm ls --depth=0` 无 missing/invalid |
+| P0-1 | ✅ `@types/node` `^20.14.0` → `^24.15.0`，实装 **24.19.0**。`npm run build:electron` exit=0（`electron/tsconfig.electron.json` 的 `types: ["node"]` 无报错） |
+| P0-2 | ✅ `jsdom` `^26.1.0` → `^30.1.1`，实装 30.1.1。700 用例全通过 —— 计划担心的 `element.click()` PointerEvent 与 CSSOM `getComputedStyle` 两处均未触发回归 |
+| P0-3 | ✅ `vitest` + `@vitest/coverage-v8` `^2.1.9` → `^3.2.7`，实装 3.2.7。**计划中列的三条迁移风险全部未命中**：`mockReset` 本就 0 处；7 处 `useFakeTimers` 无需改 `toFake`（该默认值在 vitest 2 已改过，2→3 无二次变更）；错误相等性未收紧到打破任何断言。`vi.mock` 的 3 个文件（`electron/window-state` / `electron/ipc/booksource-handler` / `electron/ipc/fetch-session`）全部通过 |
+| P0-3 覆盖率新基线 | ✅ All files **74.96 stmts / 81.91 branch / 83.14 funcs / 74.96 lines**（阈值 50/75/60/50 未触碰）。**比 P-0-1 旧基线（76.36 / 81.91 / 83.14 / 76.36）低 1.40 个点，branch 与 funcs 完全不变** —— 差异集中在 statements/lines，符合 vitest 3 的 v8 provider 把 `include` 外的被打到过的文件计入分母，Phase 5 升 vitest 4 时应再记一次 |
+| P0-3 顺带修复 | ✅ 修掉一处**既有测试污染**（详见下节） |
+
+### 顺带发现并修复：`worker-pool.spec.ts` 的 unhandled rejection（非本次升级引入）
+
+P0-1 全量验收时 vitest 汇总出现 `Errors 2 errors`，而 `Test Files 54 passed / Tests 700 passed` —— P-0-1 基线记录中无此项，属**非确定性泄漏**。
+
+- 复现与定位：`Unhandled Rejection: Error: WorkerPool timeout after 100ms`，来源 `worker-pool.spec.ts:102-103` —— 「超出 pendingCap 应抛 PoolFullError」用例里排队的两个 `pool.schedule()` **既不 `deliverResult` 也不挂 catch**；测试结束后 100ms 定时器仍存活，触发 `reject` 后无人接管。数量与 errors 数**完全对上（2 个）**，互相印证。
+- 危害：vitest 2 只记录不判失败，**vitest 3 之后这类 unhandled error 会升级为失败** —— 计划把 `worker-pool.spec.ts` 列为 P0-3 高风险区的原因正是它，此处得到实证。
+- 修复（`worker-pool.spec.ts`，两处）：① 上述两个孤儿 promise 补 `.catch(() => {})`；② `makePool` 登记 pool 到 `pools`，新增 `afterEach` 统一 `terminate()`（`terminate()` 内会 `clearTimeout` 所有 pending 条目并 reject，测试层保证收尾）。**未改动 `worker-pool.ts` 生产代码**。
+- 验证：该 spec 连跑 3 轮 `9 passed / 0 errors`；全量 54 文件 / 700 用例连跑 2 轮 `0 errors`。
+
+### 本轮验证门（全绿）
+
+`format:check` / `lint` / `test`（54 文件 700 用例 0 error）/ `build` / `build:electron` / `e2e --list`（19 tests in 5 files）。
+
+> ⚠️ 换机遗留的干扰记录：升级 vitest 的第一次 `npm test` 因 tinypool 瞬时残留（`utils-B--2TaWv.js` 引用 vitest 2 的 `dist/worker.js` 路径）崩盘，遗留 2 个 `node (vitest N)` worker 进程空转 22 分钟、占 96% CPU，load average 冲到 137，导致紧随其后的一轮 `npm test` 耗时从 ~30s 劣化到 **534.94s** 并出现 3 个用例超时失败。**这 3 个失败是资源争抢的假阳性**：`pkill` 清理后复跑，700/700 全绿。换机后若首轮测试异常缓慢或大批超时，先 `ps -A -o pid,pcpu,etime,comm | rg vitest` 排查残留 worker，勿误判为 vitest 3 的行为回归。
+
+### 外部审核状态（透明声明）
+
+本轮 **未经外部审核 MCP 审核**。`coding-bridge` 与 `codex` 两个 provider 均为 `Failed to connect — connection timed out after 30000ms`（`claude mcp list` 实测），按降级链「调 prompt 重试 → 切 fallback provider → 自主完成」逐级降级后由我自行验证。后续步骤恢复时需补审。
+
+### 下一步
+
+P0-4 puppeteer-core → `^25.12.0`（25 起 ESM-only，需验证 `scripts/` 下 5 个 `.cjs` 的 `require()`）+ P0-5 `engines` 字段（与 P0-0 的 `.npmrc` 配套落地）。
 
 ## Phase 1：Angular 18 → 19
 
