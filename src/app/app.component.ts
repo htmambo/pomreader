@@ -141,10 +141,13 @@ export class AppComponent {
       document.documentElement.dataset['pomTheme'] = String(theme);
     });
 
-    // 进入 /search 即标记已访问（一旦置 true 不再变回），外壳据此挂载常驻万能搜索组件
-    effect(() => {
-      if (this.isSearch()) this.searchVisited.set(true);
-    });
+    // 进入 /search 即标记已访问（一旦置 true 不再变回），外壳据此挂载常驻万能搜索组件。
+    // 注意不能用 effect(() => isSearch() && searchVisited.set(...))：effect 内写 signal 触发 NG0600
+    this.router.events
+      .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd))
+      .subscribe((e) => {
+        if (e.urlAfterRedirects.startsWith('/search')) this.searchVisited.set(true);
+      });
 
     // 路由变化 → 从最深层 activated route 的 data 中读取 title/subtitle，写入全局 header
     // 子路由会覆盖父路由(parent first → child 后写,Angular 标准合并顺序)
