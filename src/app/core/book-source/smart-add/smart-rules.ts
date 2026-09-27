@@ -108,9 +108,13 @@ export function stripTags(html: string): string {
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/<style[\s\S]*?<\/style>/gi, '')
     .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<div[^>]*>/gi, '\n')
     .replace(/<\/p>/gi, '\n')
     .replace(/<[^>]+>/g, '')
     .replace(/&nbsp;/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\n{2,}/g, '\n')
+    .replace(/\n\s+/g, '\n')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
@@ -436,6 +440,9 @@ function stripTags(html) {
     .replace(/<\\/p>/gi, '\\n')
     .replace(/<[^>]+>/g, '')
     .replace(/&nbsp;/g, ' ')
+    .replace(/\\s{2,}/g, ' ')
+    .replace(/\\n{2,}/g, '\\n')
+    .replace(/\\n\\s+/g, '\\n')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
@@ -516,10 +523,21 @@ async function extractAttr(rule, html, baseUrl, attr) {
 
 /** 把搜索参数键值对序列化为 form-urlencoded 字符串。
  *  - value 支持 {keyword} / {page} 占位符:运行时由 search() 替换后 encodeURIComponent
- *  - 空 key 跳过(避免生成 "&value" 这类无效段) */
+ *  - 空 key 跳过(避免生成 "&value" 这类无效段)
+ *  - 容错:接受 array-of-pairs（默认生成形态）、普通对象 {k:v}、Map；null/undefined → 空串 */
 function buildFormBody(params, key, page) {
   const parts = []
-  for (const [k, v] of params) {
+  let entries
+  if (Array.isArray(params)) {
+    entries = params
+  } else if (params instanceof Map) {
+    entries = Array.from(params.entries())
+  } else if (params && typeof params === 'object') {
+    entries = Object.entries(params)
+  } else {
+    entries = []
+  }
+  for (const [k, v] of entries) {
     if (!k) continue
     const replaced = String(v || '')
       .replace('{keyword}', key)
