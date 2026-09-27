@@ -1,6 +1,6 @@
 # POMREADER 依赖大版本升级计划（Dep Major Upgrade Plan）
 
-> Status: 🔄 In progress — 2026-09-27 建档；2026-09-28 复核修订 + **Phase 0 全部收口（P0-0 ~ P0-5）** + **Phase 1 完成（Angular 18 → 19）**。下一步：Phase 2 Angular 19 → 20（**起步前先手过一遍阅读页**，见 Phase 1 遗留的 effect() 时序风险）
+> Status: 🔄 In progress — 2026-09-27 建档；2026-09-28 复核修订 + **Phase 0 全部收口（P0-0 ~ P0-5）** + **Phase 1（18→19）** + **Phase 2（19→20）完成**。下一步：Phase 3 Angular 20 → 21（**起步前先手过一遍阅读页**，effect() 时序风险自 Phase 1 起未做人工目视复核）
 > 分支：`chore/dep-major-upgrade`
 > 触发：`npm outdated` 梳理（2026-09-27），安全项已先行升级并提交（`0bee9ba`）。
 > 目标：Angular 18 → 22 逐级迁移 + 测试工具链升级，每级独立 commit、独立验证。
@@ -269,12 +269,97 @@ Angular 19 改变了「CD 外触发的 effect」的调度时机。本项目 **12
 
 ## Phase 2：Angular 19 → 20
 
-- [ ] `@ant-design/icons-angular` → `^20.x`、`angular-eslint` → `^20.x`（lockstep）
-- [ ] TS → `~5.8.x`；Node 需 ≥20.19/22.12/24（已满足）
-- [ ] **构建器 `@angular-devkit/build-angular` → `@angular/build`**（webpack 传递依赖移除；本项目已是 `:application` esbuild 构建器，改动小）
-- [ ] `ngIf/ngFor` 标记 deprecated：清掉 3 个残留文件（`modals/import-online/import-online.component.html` / `modals/import-legado/import-legado.component.ts` / `shared/components/change-book-source-dialog/change-book-source-dialog.component.ts`）
-- [ ] `ng update ng-zorro-antd@20`：`nz-tabset`→`nz-tabs` 等重命名 —— **已扫描确认本项目未用，可直接结案**
-- [ ] 检查点：~~`ng-reflect-*` 不再输出，e2e/Playwright 选择器若依赖需改~~ —— **已扫描确认全仓 0 引用，不适用**；模板表达式 `void`/`in` 新语义
+- [x] `@ant-design/icons-angular` → `^20.0.0`、`angular-eslint` → `^20.7.0`（lockstep）
+- [x] TS `~5.5.2` → `~5.8.3`（**被强制**：compiler-cli@20 peer 为 `>=5.8 <6.0`）；Node 24.15.0 满足 `@angular/core@20` 的 `^20.19.0 || ^22.12.0 || >=24.0.0`
+- [x] **构建器 `@angular-devkit/build-angular` → `@angular/build`**：两个 builder 已切换，`@angular-devkit/build-angular` 已从 package.json 移除，**`npm ls webpack` 现为 `(empty)`**，lockfile 净减约 5400 行
+- [x] 删除 `angular.json` 中的 `extract-i18n` 死 target（用户拍板；全仓零调用方、无 options）
+- [ ] `ngIf/ngFor` deprecated 清理（3 文件 6 处）—— **本级刻意不做**，见下节 F3
+- [x] `ng update ng-zorro-antd@20`：迁移**零改动**；`nz-tabset`→`nz-tabs` 等重命名已确认本项目未用
+- [x] 检查点：`ng-reflect-*` 全仓 0 引用；模板表达式 `void`/`in` 新语义 —— 已审计，**`.html` 与内联模板中均为 0 处**（唯一 `void` 命中是 `src/typings/*.d.ts` 的 TS 返回类型标注，非模板表达式）
+
+## Phase 2 实施结果（2026-09-28，分支 `chore/dep-major-upgrade`）
+
+改动仅 **4 个文件**：`package.json` / `package-lock.json` / `angular.json` / `eslint.config.js`。**零源码、零模板、零测试文件改动。**
+
+| 项 | 结果 |
+|---|---|
+| Angular 全家桶 | ✅ 19.2.25 → **20.3.32**；`@angular/cli` → 20.3.37 |
+| 构建器 | ✅ **`@angular/build` 20.3.37**；`@angular-devkit/build-angular` 整行移除；webpack 从依赖树消失 |
+| ng-zorro-antd | ✅ `^19.3.1` → **^20.4.4**，schematic 迁移**零改动** |
+| @ant-design/icons-angular | ✅ `^19.0.0` → **^20.0.0**（如期再次出现双份，已显式修正为单份 deduped） |
+| angular-eslint | ✅ `^19.8.1` → **^20.7.0** |
+| typescript | ✅ `~5.5.2` → **~5.8.3**（被 peer 强制） |
+| zone.js | ✅ 保持 `~0.15.1` 未动（`@angular/core@20` peer `~0.15.0` 已满足） |
+| 顺带修复 | ✅ 显式声明 `events@^3.3.0`（见 F2）；关闭 `@angular-eslint/prefer-inject`（见 F3） |
+
+### F1：builder 迁移的 schematic **写入了跨主版本的 `@angular/build@^22.2.0`**
+
+执行 `ng update @angular/cli --name use-application-builder` 时输出：
+
+```
+The installed Angular CLI version is outdated.
+Installing a temporary Angular CLI versioned 22.2.0 to perform the update.
+```
+
+该 schematic 随后往 package.json 写入 `"@angular/build": "^22.2.0"`，而项目其余部分都是 Angular 20.3.32。
+
+- **差点漏过**：跑完 `ng ls --depth=0` 报的是**干净**的
+- **npm 察觉不到的原因**：`@angular/build` 虽声明了 `@angular/core: ^22.0.0` 作为 peer，但 `peerDependenciesMeta` 把它标为 `{ optional: true }`，npm 无法据此判错
+- 处置：钉回 `^20.3.37`（其 peer 为 `@angular/core: ^20.0.0` + `typescript: >=5.8 <6.0`，与本项目 5.8.3 相符）
+
+**教训**：`ng update` 子命令可能借用**临时安装的其他大版本 CLI** 来跑 schematic，其写入的依赖版本必须逐条复核，不能只看「Migration completed」。
+
+### F2：切构建器暴露了一个**既有的幽灵依赖**（非本次引入）
+
+切换后 `npm run build:electron` 失败（exit 1）：
+
+```
+Could not resolve "events"
+  node_modules/pouchdb-browser/lib/index.es.js:4  import EE from 'events';
+```
+
+沿 lockfile 追到根因，**这不是本次引入的**：
+
+- `pouchdb-browser@9.0.0` 的 dependencies 只有 `spark-md5` / `uuid` / `vuvuzela` —— **它根本没声明 `events`**，但其 ESM 构建在打包期 import 它。一直是个幽灵依赖
+- 它之所以能解析，是因为树里恰好有 `events@3.3.0`（标记 `"dev": true`），而这个包是被 **webpack** 顺带提升到根 `node_modules` 的 —— webpack 来自 `@angular-devkit/build-angular`
+- 换掉 webpack 工具链，幽灵依赖随之消失，`build:db-window` 的 esbuild 立刻暴露
+
+处置：`npm install -D events@^3.3.0` 显式声明。放 devDependencies 是因为它**只在打包期需要** —— esbuild 会把它内联进 `dist-electron/db-renderer.js`（该产物 301.7 kB → 302.2 kB，差值即内联的 polyfill），打包后的应用运行期不需要这个包。
+
+> 这条同时说明了 builder 迁移的必要性：webpack 传递依赖不只是体积问题，它还在**默默供养着一个本项目从未声明的依赖**。
+
+### F3：angular-eslint 20 新增 `@angular-eslint/prefer-inject`，与项目既定约定冲突
+
+该规则命中 2 处（`source-health.service.ts` / `multi-source-search.service.ts` 的构造器注入）。按规则提示改成 `inject()` 后，**13 个单测红了** —— 因为本项目的 spec 是直实例化：
+
+- `source-health.service.spec.ts:5` 写着「**不依赖 Angular TestBed（项目 vitest 直实例化模式）**」，spec 里是 `new SourceHealthService(stub)` / `new MultiSourceSearchService(registry)`
+- `inject()` 需要 injection context，直实例化拿不到
+
+而且该规则**覆盖还不一致**：`db.service.ts:95` 同样是 `constructor(private readonly request: DbBridgeRequest) {}`，却 lint 干净（另外 4 个带 `constructor(` 的 service 是无参构造，规则正确跳过）。
+
+**处置：回退两处 `inject()` 改写，在 `eslint.config.js` 中关闭该规则并写明原因。** 理由：这是风格偏好而非正确性问题；顺从它要么重写 2 个 spec 的 13 个用例，要么让项目改用 TestBed，都远超「版本升级」的范围；且因 `db.service.ts` 的缺口，順从了也不完整。
+
+> **`ngIf`/`ngFor` 的 deprecated 清理本级同样刻意不做**（3 文件 6 处，其中 2 处在 `.ts` 的内联模板字符串里）。v20 只是标记废弃不移除，仅产生告警。留给独立 commit，保持本级为纯版本升级。
+
+### 本级验证门（全部 PASS）
+
+| 门 | 结果 |
+|---|---|
+| `npm run format:check` | ✅（中途因我改写 angular.json 转红一次，`npm run format` 后复绿） |
+| `npm run lint` | ✅（F3 关闭规则后） |
+| `npm test` | ✅ **54 文件 / 700 用例**（回退 `inject()` 后 700/700 恢复） |
+| `npm run build:electron` | ✅ exit 0（F2 修复后） |
+| `npm run build` | ✅ exit 0；initial **1.87 MB**（Phase 1 末 1.82 MB / Angular 18 基线 1.77 MB），仍低于 2 MB error 线；1.5 MB warning 属既有问题 |
+| `npx playwright test` | ✅ **19/19 真实浏览器通过，首跑即绿**（跑前已按 Phase 1 教训排查 4200 端口与残留进程，无假警报） |
+| `npm ls --depth=0` | ✅ 无 missing/invalid/UNMET；`npm ls webpack` → `(empty)` |
+
+### 外部审核
+
+**需求轮 `NEEDS_CHANGES` → 计划轮 `APPROVED` → 代码轮 `APPROVED`（session `03a593ba`）。** 需求轮三条 risk：① extract-i18n 须显式删除而非依赖 ng update 行为 —— 已按此执行（用户在四选一中拍板删除并切 `@angular/build`）；② 模板 `void`/`in` 未审计 —— **已审计并以证据闭环**（模板中 0 处）；③ TS 5.8 可能冲击 electron tsc —— 已作为首要验证门优先执行。代码轮逐项认可 F1~F4 的处置，含 F2 放 devDependencies 的分层与 F3 关闭规则的判断。详见 `docs/Task/REVIEW_LOG.md`。
+
+### ⚠️ 仍未闭环：effect() 时序（Phase 1 遗留，Phase 2 未解决）
+
+Angular 19 引入的 effect() 调度变更**至今没有做人工目视复核**（本机无 GUI，e2e 的 reader 用例是 stub 路由 + 缺数据场景）。Angular 20 不解决此项，**不因本级通过而视为已验证**。建议在 Phase 3 之前手过一遍阅读页。
 
 ## Phase 3：Angular 20 → 21
 

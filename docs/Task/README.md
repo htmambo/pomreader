@@ -15,8 +15,13 @@
     - 版本：Angular 19.2.25 / ng-zorro 19.3.1 / icons-angular 19.0.0 / angular-eslint 19.8.1 / zone.js 0.15.1；TS 保持 5.5.2
     - 修正计划 3 处前提：① 顺序必须 Angular 核心先走（否则 ERESOLVE）；② 35 处 `<span nz-icon>` 的 schematic 迁移**根本不存在**，且经查证无需迁移（v19 属性形态与 inputs 均保留）；③ bundle 预算告警是既有问题（基线 1.77 MB → 现 1.82 MB）
     - icons-angular 必须显式升，否则装出双份导致图标静默失效
-  - Phase 2-4：Angular 逐级 19→20→21→22 + ng-zorro 跟随（TS pin ~6.0，严禁 7.x）
-    - ⚠️ **Phase 2 起步前先手过一遍阅读页**：Phase 1 遗留的 effect() 时序风险未做人工目视复核
+  - Phase 2：Angular 19 → 20 — ✅ **完成**，六门全绿 + e2e **19/19 首跑即绿**
+    - 版本：Angular 20.3.32 / ng-zorro 20.4.4 / icons-angular 20.0.0 / angular-eslint 20.7.0 / TS **5.8.3（被 compiler-cli@20 peer 强制）**
+    - 构建器切至 `@angular/build`，`@angular-devkit/build-angular` 已移除，**`npm ls webpack` 为 `(empty)`**，lockfile 净减约 5400 行；删除 `extract-i18n` 死 target（用户拍板）
+    - 抓出 3 件事：① builder 迁移的 schematic 借临时 CLI 22 写入了 `@angular/build@^22.2.0`，因 peer 标 `optional: true` 而 `npm ls` 漏报；② 切构建器暴露了 `pouchdb-browser` 未声明的**幽灵依赖 `events`**（一直由 webpack 顺带供养），已显式声明；③ angular-eslint 20 新增 `prefer-inject` 与项目 vitest 直实例化约定冲突，关闭该规则
+    - `ngIf`/`ngFor` deprecated 清理**刻意推迟**到独立 commit
+  - Phase 3-4：Angular 逐级 20→21→22 + ng-zorro 跟随（TS pin ~6.0，严禁 7.x）
+    - ⚠️ **Phase 3 起步前先手过一遍阅读页**：Phase 1 遗留的 effect() 时序风险至今未做人工目视复核，Phase 2 未解决
   - Phase 5：vitest 4/5 或 @angular/build:unit-test、zoneless 评估（收尾）
 
 ## Completed Tasks (Archive)

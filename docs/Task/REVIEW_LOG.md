@@ -318,3 +318,37 @@
 对 effect() 时序残余风险的判定：「在缺乏 GUI 环境下如实记录为未验证项、并依赖单 commit 可回滚兜底，**不构成本次提交的阻断理由**」。
 
 **Review Loop 状态：CLOSE（3 轮，末轮 APPROVED，未触发 5 轮上限）**
+
+---
+
+# Phase 2：Angular 19 → 20
+
+## Round 1/5 — 2026-09-28（需求分析轮，kind=plan）
+
+**Session:** `03a593ba-6f30-43f5-a7e2-b45f698274e9`
+**VERDICT:** ⚠️ **NEEDS_CHANGES**
+
+| # | 严重 | Finding | 处置 |
+|---|---|---|---|
+| 1 | 高 | extract-i18n 死 target 必须显式删除，不能依赖 ng update 自动处理 | ✅ **采纳**。用户被直接问及（四选一），拍板「切 @angular/build + 删 extract-i18n」。已按此顺序执行（先删 target 再跑 builder 迁移） |
+| 2 | 中 | 模板表达式 `void` / `in` 新语义未审计，可能导致 AOT 编译失败 | ✅ **已审计并以证据闭环**：`.html` 模板 0 处、内联模板 0 处；全仓唯一 `void` 命中是 `src/typings/{webview,electron-webview}.d.ts` 的 TS 返回类型标注，非模板表达式 |
+| 3 | 中 | TS 5.5 → 5.8 可能引发 electron tsc 严格类型报错 | ✅ **升为首要验证门**。事前确认工具链容得下：`@typescript-eslint/parser@8.70.1` peer `>=4.8.4 <6.1.0`、angular-eslint 20.7.0 peer `*`；`build:electron` 排在验证序列第一位 |
+
+补充事实修正：审核方推测「留在 build-angular 也有风险」，实测 `@angular-devkit/build-angular@20` **仍完整提供** application / dev-server / extract-i18n 三者，留在原处本可零风险。已如实记录该选项存在及未采纳的原因（用户选择），不作二次论证。
+
+## Round 2/5 — 2026-09-28（实施计划轮，kind=plan）
+
+**VERDICT:** ✅ **APPROVED** —— 逐条确认 S2 先删死配置、S3 TS 先行避免中途 ERESOLVE、S4→S5→S6 的 lockstep 顺序均正确，风险缓解到位
+
+## Round 3/5 — 2026-09-28（代码完成轮，kind=code）
+
+**VERDICT:** ✅ **APPROVED**
+
+逐项认可执行中的 4 处非预期情况处置：
+
+- **F1** 捕获 builder 迁移 schematic 写入的跨主版本 `@angular/build@^22.2.0`（临时 CLI 22.2.0 所致），并解释了 `npm ls` 漏报的原因（peer 被标 `optional: true`）
+- **F2** 认定 `events` 放 devDependencies 是「正确的分层与正确的 section」—— esbuild 已内联进产物，打包应用运行期不需要
+- **F3** 认定关闭 `@angular-eslint/prefer-inject` 是「站得住脚且正确」，理由为项目有文档化的 vitest 直实例化约定、规则属风格偏好、且因 `db.service.ts` 缺口导致顺从也不完整
+- **F4** 认定删除 `extract-i18n` 与工具注入的默认 `schematics` 块均正确，符合「do not create unless necessary」
+
+**Review Loop 状态：CLOSE（3 轮，末轮 APPROVED，未触发 5 轮上限）**
