@@ -36,6 +36,8 @@ npm run dev
 - Electron 44（桌面壳：抓取 / CF 过盾 / 封面缓存 / 自动导入）
 - SCSS + CSS variables（`data-pom-theme` 驱动多主题）
 - PouchDB（Book/Chapter 持久化）+ localStorage（设置）
+- valibot（IPC 入参 runtime schema 验证；fetch-handler 试点）
+- @angular/localize（i18n 机制就位；zh-Hans 默认）
 - Vitest（core/logic + core/book-source 单测 ≥ 90%）+ Playwright（E2E）
 
 ## 书源与扩展
@@ -60,6 +62,7 @@ src/
 │   │   │   ├── smart-add/ # 智能添加规则引擎
 │   │   │   └── source-test/ # 书源五步测试
 │   │   ├── data/         # 跨 book-source 子模块共享数据 (例: core/book-source/data/good-sites.ts)
+│   │   ├── db/           # PouchDB 工具（bulk-result 错误分类）
 │   │   └── cover/        # 封面缓存 / 程序生成封面
 │   ├── shared/components/# 8 个子目录: book-card / change-book-source-dialog / cover-generator-dialog / cover-img / edit-book-info-dialog / jump-chapter-dialog / page-header / rules-panel / sidebar
 │   ├── pages/            # Bookshelf / UniversalSearch / Reader / Disclaimer
@@ -96,6 +99,8 @@ src/
 - `src/app/core/book-source/js-source/sandbox.worker.ts` — JS 书源沙箱（屏蔽网络出口 + 冻结原型链）
 - `src/app/core/services/settings.service.ts` — 阅读设置持久化与校验；主题经 `app.component.ts` 打在 `<html data-pom-theme>`
 - `src/app/core/services/global-error-handler.ts` — 全局异常兜底 → ToastService
+- `src/app/core/db/bulk-result.ts` — PouchDB bulkDocs 错误分类工具（EVO-2）
+- `electron/ipc/schema.ts` — valibot IPC 入参 schema + safeHandle 工厂（EVO-4）
 - `src/styles/ng-zorro-overrides.scss` — ng-zorro 暗色主题覆盖（与原 vendor 一致）
 
 ## 与原 vendor 的差异
