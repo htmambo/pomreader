@@ -1,6 +1,6 @@
 # POMREADER 依赖大版本升级计划（Dep Major Upgrade Plan）
 
-> Status: 🔄 In progress — 2026-09-27 建档；2026-09-28 复核修订 + **Phase 0 全部收口（P0-0 ~ P0-5）** + **Phase 1（18→19）** + **Phase 2（19→20）** + **Phase 3（20→21）** + **Phase 4（21→22）完成**。**2026-09-28 分支已合并回 main（merge commit `36b4c27`），合并后六门在 main 上复验全绿**（format:check / lint / 700 用例 / build / build:electron / e2e 19 用例 exit=0）。下一步：Phase 5 收尾（vitest 5 评估 / branches 收紧回 ~70 / zoneless 评估；**effect() 时序风险自 Phase 1 起仍未做人工目视复核，建议先手过一遍阅读页**）
+> Status: 🔄 In progress — 2026-09-27 建档；2026-09-28 复核修订 + **Phase 0（P0-0 ~ P0-5）+ Phase 1（18→19）+ Phase 2（19→20）+ Phase 3（20→21）+ Phase 4（21→22）+ Phase 5 收尾全部完成**（vitest 5.0.2 / branches 收紧 60→80 实测 85.74% / unit-test builder 评估不切换 / zoneless spike 全绿但暂不采纳）。分支已合并回 main（`36b4c27`）并推送，远程分支已删。**全程仅剩 1 项未闭环：阅读页人工目视复核（effect 时序，需 GUI 环境）**；另有 spec 过程发现的 5 处疑似生产 bug 待评估（见 Phase 5 末节，其中 import-via-source `this` 丢失疑似真实线上 bug 建议优先修）
 > 分支：`chore/dep-major-upgrade`（已合并 main，可删）
 > 触发：`npm outdated` 梳理（2026-09-27），安全项已先行升级并提交（`0bee9ba`）。
 > 目标：Angular 18 → 22 逐级迁移 + 测试工具链升级，每级独立 commit、独立验证。
@@ -468,12 +468,22 @@ Angular 19 引入的 effect() 调度变更**至今没有做人工目视复核**�
 
 **遗留（沿 Phase 3，未收口）**：effect() 时序阅读页人工目视复核（无 GUI，e2e reader 用例是 stub 路由 + 缺数据，触不到翻页测量/简繁转换）；5 个 `scripts/*.cjs` 冒烟（需 Chrome）；3 处 `<nz-input-number>` UI 冒烟（ng-zorro 21 重写行为差异）。**不随 Phase 4 通过而视为已验证。**
 
-## Phase 5：收尾（Angular 22 稳定后，可拆独立任务）
+## Phase 5：收尾（2026-09-28 全部收口，剩 1 项人工复核 + 1 项可选 schematic）
 
-- [ ] ~~vitest 3.2.7 → **4.1.11**~~（**已于 Phase 3 被 `ng update` 提前完成**，见 Phase 3 F1；fixture 已就地修复，700/700 通过）。剩余：vitest 4 稳定后评估是否上 5（**若考虑跳到 vitest 5，先核对其 vite 下限**——计划原文写「5 需 vite ≥6.4」，未复核）；**补 services.spec.ts + worker mock 后将 branches 覆盖率从 60 收紧回 ~70**（见 Phase 3 F5 的 `TODO(dep-upgrade Phase 5)`）
-- [ ] 或评估切换 `@angular/build:unit-test`（Angular 21+ 官方 vitest builder，内部 pin vite/vitest 版本）
-- [ ] 可选 schematic：signal-input / output / inject 迁移
-- [ ] 可选：zoneless 评估（`provideZonelessChangeDetection`，ng-zorro 22 已兼容）
+- [x] **vitest → 5.0.2**（commit `e5512af`）：vite 下限实测 `^6.4 || ^7 || ^8`（计划原文「5 需 vite ≥6.4」复核准确），本地 vite 8.3.0（`@angular/build` 22）满足；迁移风险项全未命中（`.resolves/.rejects` 均有 await、`vi.mock` 全顶层、无 `test.sequential`）。891/891 通过
+- [x] **branches 覆盖率 60 → 80**（实测 85.74%，留 ~5pp 缓冲沿用既有约定）：5 路并行补 spec，700 → **891 用例**（58 文件）。新建 source-search-state / toast / book.service.facade / sandbox.worker 4 个 spec；`sandbox.worker.ts` 0% → 54.5%（fakeSelf 捕获 `defineProperty`，jsdom 直接跑 worker 启动段）；修正 page-fetcher 1 个既有假阳性用例
+- [x] **`@angular/build:unit-test` 评估 → 不切换**：builder 实测 peer `vitest ^4.0.8 || ^5.0.0`（与现装 5.0.2 兼容）、默认 Node+jsdom、支持 coverage thresholds——但它面向 application 构建图，本仓套件含 `electron/**/*.spec.ts` 主进程 Node 用例（import electron/fs/os，不在应用构建图内），切换需拆两个测试入口，而直连 vitest 单入口已全绿且版本本就在 Angular 接受区间内。迁移价值低、成本不为零，维持现状
+- [x] **zoneless 评估 → spike 通过但暂不采纳**：实测 `provideZonelessChangeDetection()` + polyfills 移除 `zone.js` 后 891 单测 + build + 19 e2e **全绿**（spike 已还原，未入库）。不采纳原因：阅读页人工目视复核（effect 时序，自 Phase 1 起欠账）未完成，zoneless 改变 CD/effect 交互，等于在未验证面上再叠一层变量。**采纳前置条件 = 阅读页人工复核通过**，此后作为独立任务重放 spike 即可（改动仅 `app.config.ts` 1 行 + `angular.json` polyfills 1 行）
+- [ ] 可选 schematic：signal-input / output / inject 迁移（未做，纯可选，随时可独立跑）
+- [ ] ⚠️ **阅读页人工目视复核**（翻页测量 / 简繁转换 effect 时序）：本计划全程唯一未闭环项，需有 GUI 的环境人工执行
+
+### Phase 5 顺带发现：5 处疑似生产 bug（spec 过程中记录，未修，待评估修复）
+
+1. **`import-via-source.service.ts:100-108`**：`adapter.search` 摘取后脱离实例调用（`this` 丢失），JS 书源走 `import-online` / `change-book-source-dialog` 路径会抛 TypeError —— **疑似真实线上 bug**，建议优先修（`searchFn.call(adapter, ...)` 或改为可选链方法调用）
+2. **`db.service.ts:252-257`**：`bookDelete` 注释声称 409 必须暴露，但 `classifyBulkResults` 在 `conflictAsConflict: true` 时把 409 归入 `conflicts` 而非 `fatal`，bookDelete 只查 `fatal` → 409 实际被静默吞掉，与注释意图矛盾
+3. **`db.service.ts:390`**：迁移正则已保证纯数字，`Number.isNaN` 检查为不可达死分支
+4. **`chapter-loader.ts:139`**：`updateChapter` 缓存 miss 时用单章数组覆盖整书缓存列表（注释声明有意，但若 db 有多章而内存缓存为空，`getChaptersSync` 只回 1 章，疑似隐患）
+5. **`sandbox.service.ts:540`**：`ready=否` 诊断分支不可达（`settleWorkerReady` 先 reject 后 resolve，reject 先生效）
 
 ## 全局风险与对策
 

@@ -29,12 +29,17 @@
     - 接受 schematic 的 `withXhr()`（Angular 22 默认改 FetchBackend，保守保留 XHR）+ `extendedDiagnostics` suppress 块（技术债）；**主动 revert 了 `provideNzDateFnsAdapter()`**（全仓无日期组件，date-fns 是未声明传递依赖）
     - 抓出 4 件事：⑥ **ng update 把 icons-angular 挪到 devDependencies，外审 P1 抓回**——`app.component.ts` 直接 import 图标传给 `provideNzIconsPatch`，属应用层依赖必须归位 dependencies；⑦ **angular-eslint 22 破坏式变更**——`@angular-eslint/eslint-plugin` 不再导出 `configs`，改从聚合包 `angular-eslint.configs.tsRecommended/templateRecommended` 提取规则；⑧ TS 6.0 拒 electron `moduleResolution:node`（TS5107/TS5110），改 Node16 后产物验证仍 CJS（`require("electron")` 保留）；⑨ Angular 22 新增 `allowSignalWrites` 废弃警告，删掉 `book-source-list` 的空操作 flag（零行为变更）
     - 外审 2 轮 APPROVED（session `3a9d0182`，Round 2 闭环 icons-angular 归位）
-  - Phase 5：vitest 4 稳定后评估 5 / @angular/build:unit-test、branches 覆盖率收紧回 ~70、zoneless 评估（收尾；vitest-4 部分已被 Phase 3 提前消化）
-    - ⚠️ **effect() 时序阅读页人工目视复核自 Phase 1 起未做，Phase 2/3/4 均未解决**（无 GUI，e2e reader 用例是 stub 路由 + 缺数据）
+  - Phase 5：✅ **全部收口**（2026-09-28，main 上直接执行）
+    - vitest 4.1 → **5.0.2**（`e5512af`；vite 下限 `^6.4||^7||^8` 复核准确，本地 vite 8.3.0 满足，迁移风险全未命中）
+    - **branches 覆盖率 60→80 收紧**（实测 85.74%）：5 路并行补 spec，700 → **891 用例**；新建 source-search-state / toast / book.service.facade / sandbox.worker 4 个 spec，`sandbox.worker.ts` 0%→54.5%
+    - `@angular/build:unit-test` 评估 → **不切换**（面向 application 构建图，装不下 `electron/**` 主进程 Node 用例；直连 vitest 版本本就在其 peer 接受区间）
+    - zoneless 评估 → **spike 全绿但暂不采纳**（891 单测 + build + 19 e2e 绿，已还原；采纳前置 = 阅读页人工复核通过，重放仅需 2 行改动）
+    - spec 过程发现 **5 处疑似生产 bug**（未修待评估，详见计划文档 Phase 5 末节；import-via-source `adapter.search` this 丢失疑似真实线上 bug，建议优先修）
+    - ⚠️ **effect() 时序阅读页人工目视复核自 Phase 1 起未做**——全程唯一未闭环项（无 GUI，e2e reader 用例是 stub 路由 + 缺数据）
   - **2026-09-28 分支 `chore/dep-major-upgrade` 已合并回 main**（merge commit `36b4c27` + 文档 commit `efd692a`）
     - 合并前核实：main 独有的 Phase 0 改动无任何文件超出分支范围（分支为严格超集），`-X theirs` 合并无信息丢失
     - 合并后 main 上六门复验全绿：`npm ci`（无 missing/invalid）/ format:check / lint / 700 用例 / build / build:electron / e2e exit=0
-    - 剩余：Phase 5 可选项（计划标注可拆独立任务）+ 阅读页人工目视复核；本地 main 待推送，远程分支可删
+    - **main 已推送（含 Phase 5），远程分支 `chore/dep-major-upgrade` 已删除**
 
 ## Completed Tasks (Archive)
 
