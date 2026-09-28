@@ -727,11 +727,14 @@ describe('SandboxService — ensureWorker / invalidate / storage 边界', () => 
     vi.stubGlobal('Worker', GlobalMockWorker);
     const svc = new SandboxService();
     const p = svc.load('gw', 'function search(){ return 7; }');
-    // ensureWorker 在 waitForReady 之后的 microtask 才执行（load 先 await 再建 worker）
+    // 修复后：ensureWorker 前置到 waitForReady 之前，worker 同步创建；
+    // 且 worker-ready 到达前不得发出 load 消息（步骤 1/3 不空转）
     await flushMs(0);
     expect(created).toHaveLength(1);
+    expect(created[0].postLog.filter((d) => d['type'] === 'load')).toHaveLength(0);
     created[0].emitReady();
     await flushMs(60);
+    expect(created[0].postLog.some((d) => d['type'] === 'load')).toBe(true);
     await p;
     expect(await svc.call<number>('gw', 'search', [])).toBe(7);
   });

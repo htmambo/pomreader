@@ -530,6 +530,9 @@ export class SandboxService implements OnDestroy {
     this.sourceCache.set(fileName, source);
     this.log(`⏳ 正在加载书源 ${fileName} (源码 ${source.length} 字节)...`);
     this.log(`⏳ 步骤 1/3: 等待 Worker ready 信号...`);
+    // 先建 worker（attach 会创建 workerReadyPromise）——否则首次 load 时 promise 为 null，
+    // waitForReady 直接返回，步骤 1/3 空转，load 消息在 worker-ready 之前就被发出
+    this.ensureWorker();
     await this.waitForReady();
     this.log(`✓ 步骤 1/3 完成: Worker ready,发送 load 消息`);
     this.ensureWorker().postMessage({ type: 'load', fileName, source });
