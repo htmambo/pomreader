@@ -5,45 +5,21 @@
 
 ## Active Tasks
 
-- 📋 [依赖大版本升级（Angular 18→22 + 测试工具链）](Active/POMREADER_DEP_MAJOR_UPGRADE_PLAN.md) — 🔄 In progress 2026-09-28
-  - Phase 0：@types/node→24 / jsdom→30 / vitest→3.2 / puppeteer-core→25 / engines 收紧（不依赖 Angular）—— ✅ **全部 6 项收口**
-    - P0-0 CI Node 20→24 + `.npmrc` engine-strict / P0-1 @types/node 24.19.0 / P0-2 jsdom 30.1.1 / P0-3 vitest 3.2.7（覆盖率新基线 74.96/81.91/83.14/74.96）/ P0-4 puppeteer-core 25.12.0（`require(esm)` 实测可用，`.cjs` 无需改写）/ P0-5 `engines` 字段
-    - 顺带修复 `worker-pool.spec.ts` 的既有 unhandled rejection（vitest 3 起会升级为失败）；4 个脚本 `headless: 'new'` → `true`（v25 类型契约变更，运行时等价）
-    - 外部审核 Round 1/5 NEEDS_CHANGES → Round 2/5 APPROVED（三条 risk 均以证据驳回，代码零改动）
-    - 遗留人工复核 2 项：reader 页 `.html` 重排后的渲染目视、5 个 `.cjs` 冒烟脚本在有 Chrome 的机器上实跑
-  - Phase 1：Angular 18 → 19 — ✅ **完成**，六门全绿 + **e2e 首次实跑 19/19**
-    - 版本：Angular 19.2.25 / ng-zorro 19.3.1 / icons-angular 19.0.0 / angular-eslint 19.8.1 / zone.js 0.15.1；TS 保持 5.5.2
-    - 修正计划 3 处前提：① 顺序必须 Angular 核心先走（否则 ERESOLVE）；② 35 处 `<span nz-icon>` 的 schematic 迁移**根本不存在**，且经查证无需迁移（v19 属性形态与 inputs 均保留）；③ bundle 预算告警是既有问题（基线 1.77 MB → 现 1.82 MB）
-    - icons-angular 必须显式升，否则装出双份导致图标静默失效
-  - Phase 2：Angular 19 → 20 — ✅ **完成**，六门全绿 + e2e **19/19 首跑即绿**
-    - 版本：Angular 20.3.32 / ng-zorro 20.4.4 / icons-angular 20.0.0 / angular-eslint 20.7.0 / TS **5.8.3（被 compiler-cli@20 peer 强制）**
-    - 构建器切至 `@angular/build`，`@angular-devkit/build-angular` 已移除，**`npm ls webpack` 为 `(empty)`**，lockfile 净减约 5400 行；删除 `extract-i18n` 死 target（用户拍板）
-    - 抓出 3 件事：① builder 迁移的 schematic 借临时 CLI 22 写入了 `@angular/build@^22.2.0`，因 peer 标 `optional: true` 而 `npm ls` 漏报；② 切构建器暴露了 `pouchdb-browser` 未声明的**幽灵依赖 `events`**（一直由 webpack 顺带供养），已显式声明；③ angular-eslint 20 新增 `prefer-inject` 与项目 vitest 直实例化约定冲突，关闭该规则
-    - `ngIf`/`ngFor` deprecated 清理**刻意推迟**到独立 commit
-  - Phase 3：Angular 20 → 21 — ✅ **完成**，七门全绿 + e2e **19/19**
-    - 版本：Angular 21.2.24 / ng-zorro 21.3.3 / icons-angular 21.0.0 / angular-eslint 21.4.0 / TS **5.9.3（被 compiler-cli@21 peer 强制）**
-    - `*ngIf`/`*ngFor` → `@if`/`@for` 由 schematic 自动迁移 20 个组件（原计划「刻意推迟」的项被 ng update 顺带完成）
-    - 抓出 5 件事：① **`ng update` 静默把 vitest 3→4**（超 Phase 5 范围，用户拍板接受并就地修 2 个 fixture）；② ng-zorro 21 删 `NzInputNumberLegacyModule`，一处误删被编译器 NG8002 抓回；③ TS 5.9 Buffer 泛型变体检查（13 个 electron 错误），单层 `as Uint8Array` 宽化断言解决；④ schematic 删 `tsconfig.lib` 属语义等价（`es2022.full` 含 dom）；⑤ vitest 4 AST 重映射致 branches 覆盖 75%→64.89%（测量修正非回归），阈值校准到 60 并加 `TODO(Phase 5)` 收紧锚点
-  - Phase 4：Angular 21 → 22 — ✅ **完成**，七门全绿 + e2e **19/19**
-    - 版本：Angular 22.2.0 / ng-zorro 22.1.1 / icons-angular 22.1.1 / angular-eslint 22.5.0 / TS **6.0.3（pin 死，严禁 7.x）**
-    - 接受 schematic 的 `withXhr()`（Angular 22 默认改 FetchBackend，保守保留 XHR）+ `extendedDiagnostics` suppress 块（技术债）；**主动 revert 了 `provideNzDateFnsAdapter()`**（全仓无日期组件，date-fns 是未声明传递依赖）
-    - 抓出 4 件事：⑥ **ng update 把 icons-angular 挪到 devDependencies，外审 P1 抓回**——`app.component.ts` 直接 import 图标传给 `provideNzIconsPatch`，属应用层依赖必须归位 dependencies；⑦ **angular-eslint 22 破坏式变更**——`@angular-eslint/eslint-plugin` 不再导出 `configs`，改从聚合包 `angular-eslint.configs.tsRecommended/templateRecommended` 提取规则；⑧ TS 6.0 拒 electron `moduleResolution:node`（TS5107/TS5110），改 Node16 后产物验证仍 CJS（`require("electron")` 保留）；⑨ Angular 22 新增 `allowSignalWrites` 废弃警告，删掉 `book-source-list` 的空操作 flag（零行为变更）
-    - 外审 2 轮 APPROVED（session `3a9d0182`，Round 2 闭环 icons-angular 归位）
-  - Phase 5：✅ **全部收口**（2026-09-28，main 上直接执行）
-    - vitest 4.1 → **5.0.2**（`e5512af`；vite 下限 `^6.4||^7||^8` 复核准确，本地 vite 8.3.0 满足，迁移风险全未命中）
-    - **branches 覆盖率 60→80 收紧**（实测 85.74%）：5 路并行补 spec，700 → **891 用例**；新建 source-search-state / toast / book.service.facade / sandbox.worker 4 个 spec，`sandbox.worker.ts` 0%→54.5%
-    - `@angular/build:unit-test` 评估 → **不切换**（面向 application 构建图，装不下 `electron/**` 主进程 Node 用例；直连 vitest 版本本就在其 peer 接受区间）
-    - zoneless 评估 → **spike 全绿但暂不采纳**（891 单测 + build + 19 e2e 绿，已还原；采纳前置 = 阅读页人工复核通过，重放仅需 2 行改动）
-    - spec 过程发现 **5 处疑似生产 bug**（未修待评估，详见计划文档 Phase 5 末节；import-via-source `adapter.search` this 丢失疑似真实线上 bug，建议优先修）
-    - ⚠️ **effect() 时序阅读页人工目视复核自 Phase 1 起未做**——全程唯一未闭环项（无 GUI，e2e reader 用例是 stub 路由 + 缺数据）
-  - **2026-09-28 分支 `chore/dep-major-upgrade` 已合并回 main**（merge commit `36b4c27` + 文档 commit `efd692a`）
-    - 合并前核实：main 独有的 Phase 0 改动无任何文件超出分支范围（分支为严格超集），`-X theirs` 合并无信息丢失
-    - 合并后 main 上六门复验全绿：`npm ci`（无 missing/invalid）/ format:check / lint / 700 用例 / build / build:electron / e2e exit=0
-    - **main 已推送（含 Phase 5），远程分支 `chore/dep-major-upgrade` 已删除**
+- （无）
 
 ## Completed Tasks (Archive)
 
 ### 2026-09（独立仓库阶段）
+
+#### 依赖大版本升级（Angular 18→22 + 测试工具链 + zoneless）
+
+- ✅ [依赖大版本升级（Angular 18→22 + 测试工具链）](Archive/2026-09/POMREADER_DEP_MAJOR_UPGRADE_PLAN.md) — Completed 2026-09-28
+  - Phase 0（工具链）：@types/node 24 / jsdom 30 / vitest 3.2 / puppeteer-core 25 / engines + `.npmrc` engine-strict / CI Node 24
+  - Phase 1–4：Angular 18→19→20→21→22 逐级迁移（ng-zorro/icons-angular/angular-eslint lockstep、构建器切 `@angular/build`、TS 5.5→6.0.3 pin 死）；分支 `chore/dep-major-upgrade` 合并回 main（`36b4c27`）后删除
+  - Phase 5：vitest 5.0.2 / branches 覆盖率 60→80（实测 85.74%，5 路并行补 spec，700→892 用例）/ `@angular/build:unit-test` 评估不切换 / **zoneless 正式采纳**（阅读页人工复核通过后重放 spike）
+  - spec 过程发现 5 处疑似生产 bug **全部修复**（import-via-source this 丢失 / db bookDelete 409 静默 / db 迁移死分支 / chapter-loader 部分缓存 / sandbox load 顺序），各带回归测试
+  - P-0 预检顺带修复：e2e 验收门长期空跑（playwright 配置移根）、format:check 166 文件红门、worker-pool unhandled rejection
+  - 最终状态：Angular 22.2.0 + ng-zorro 22.1.1 + TS 6.0.3 + vitest 5.0.2 + zoneless，892 用例 + e2e 全绿
 
 #### 基础设施硬化（P1 + P2）
 

@@ -1,7 +1,6 @@
 # POMREADER 依赖大版本升级计划（Dep Major Upgrade Plan）
 
-> Status: 🔄 In progress — 2026-09-27 建档；2026-09-28 复核修订 + **Phase 0（P0-0 ~ P0-5）+ Phase 1（18→19）+ Phase 2（19→20）+ Phase 3（20→21）+ Phase 4（21→22）+ Phase 5 收尾全部完成**（vitest 5.0.2 / branches 收紧 60→80 实测 85.74% / unit-test builder 评估不切换 / zoneless spike 全绿但暂不采纳）。分支已合并回 main（`36b4c27`）并推送，远程分支已删。**全程仅剩 1 项未闭环：阅读页人工目视复核（effect 时序，需 GUI 环境）**；另有 spec 过程发现的 5 处疑似生产 bug 待评估（见 Phase 5 末节，其中 import-via-source `this` 丢失疑似真实线上 bug 建议优先修）
-> 分支：`chore/dep-major-upgrade`（已合并 main，可删）
+> Status: ✅ **Completed（2026-09-28 全程收口）** — Phase 0（P0-0 ~ P0-5）→ Phase 1（18→19）→ Phase 2（19→20）→ Phase 3（20→21）→ Phase 4（21→22）→ Phase 5 收尾全部完成：vitest 5.0.2 / branches 收紧 60→80（实测 85.74%）/ unit-test builder 评估不切换 / **zoneless 正式采纳**（阅读页人工复核 2026-09-28 通过）/ **5 处疑似 bug 全部修复**（各带回归测试，见 Phase 5 末节）。分支 `chore/dep-major-upgrade` 已合并 main（`36b4c27`）、推送并删除。最终状态：Angular 22.2.0 + ng-zorro 22.1.1 + TS 6.0.3 + vitest 5.0.2 + zoneless，892 用例全绿。
 > 触发：`npm outdated` 梳理（2026-09-27），安全项已先行升级并提交（`0bee9ba`）。
 > 目标：Angular 18 → 22 逐级迁移 + 测试工具链升级，每级独立 commit、独立验证。
 
@@ -466,24 +465,24 @@ Angular 19 引入的 effect() 调度变更**至今没有做人工目视复核**�
 
 **主动 revert 的 schematic 注入**：`provideNzDateFnsAdapter()` —— ng-zorro schematic 注入全局 date adapter + 未声明传递依赖 `date-fns@4.4.0`，但全仓 `rg nz-date-picker|NzDatePicker|nz-range-picker|NzTimePicker|nz-calendar` **零命中**（无日期组件消费者），注入属 diff 噪声，删除后 lint/build/test/e2e 全绿。外审确认移除有据（adapter 仅日期组件实例化时经 DI 查询，非全局必需）。
 
-**遗留（沿 Phase 3，未收口）**：effect() 时序阅读页人工目视复核（无 GUI，e2e reader 用例是 stub 路由 + 缺数据，触不到翻页测量/简繁转换）；5 个 `scripts/*.cjs` 冒烟（需 Chrome）；3 处 `<nz-input-number>` UI 冒烟（ng-zorro 21 重写行为差异）。**不随 Phase 4 通过而视为已验证。**
+**遗留（沿 Phase 3）**：~~effect() 时序阅读页人工目视复核~~ **已于 2026-09-28 由用户人工复核通过收口**。剩余轻量冒烟（非阻塞）：5 个 `scripts/*.cjs` 冒烟（需 Chrome）；3 处 `<nz-input-number>` UI 冒烟（ng-zorro 21 重写行为差异）。
 
 ## Phase 5：收尾（2026-09-28 全部收口，剩 1 项人工复核 + 1 项可选 schematic）
 
 - [x] **vitest → 5.0.2**（commit `e5512af`）：vite 下限实测 `^6.4 || ^7 || ^8`（计划原文「5 需 vite ≥6.4」复核准确），本地 vite 8.3.0（`@angular/build` 22）满足；迁移风险项全未命中（`.resolves/.rejects` 均有 await、`vi.mock` 全顶层、无 `test.sequential`）。891/891 通过
 - [x] **branches 覆盖率 60 → 80**（实测 85.74%，留 ~5pp 缓冲沿用既有约定）：5 路并行补 spec，700 → **891 用例**（58 文件）。新建 source-search-state / toast / book.service.facade / sandbox.worker 4 个 spec；`sandbox.worker.ts` 0% → 54.5%（fakeSelf 捕获 `defineProperty`，jsdom 直接跑 worker 启动段）；修正 page-fetcher 1 个既有假阳性用例
 - [x] **`@angular/build:unit-test` 评估 → 不切换**：builder 实测 peer `vitest ^4.0.8 || ^5.0.0`（与现装 5.0.2 兼容）、默认 Node+jsdom、支持 coverage thresholds——但它面向 application 构建图，本仓套件含 `electron/**/*.spec.ts` 主进程 Node 用例（import electron/fs/os，不在应用构建图内），切换需拆两个测试入口，而直连 vitest 单入口已全绿且版本本就在 Angular 接受区间内。迁移价值低、成本不为零，维持现状
-- [x] **zoneless 评估 → spike 通过但暂不采纳**：实测 `provideZonelessChangeDetection()` + polyfills 移除 `zone.js` 后 891 单测 + build + 19 e2e **全绿**（spike 已还原，未入库）。不采纳原因：阅读页人工目视复核（effect 时序，自 Phase 1 起欠账）未完成，zoneless 改变 CD/effect 交互，等于在未验证面上再叠一层变量。**采纳前置条件 = 阅读页人工复核通过**，此后作为独立任务重放 spike 即可（改动仅 `app.config.ts` 1 行 + `angular.json` polyfills 1 行）
+- [x] **zoneless 评估 → 已正式采纳**（2026-09-28）：spike 证明 `provideZonelessChangeDetection()` + polyfills 移除 `zone.js` 后单测 + build + 19 e2e 全绿；**阅读页人工复核通过（用户确认）后重放采纳**。落地：`app.config.ts` 换 provider、`angular.json` polyfills 移除 `zone.js`、`zone.js` 移至 devDependencies（运行时零引用，仅 10 个 spec 自行 import）。892 单测 + build + build:electron + e2e exit=0 + format:check + lint 全绿
 - [ ] 可选 schematic：signal-input / output / inject 迁移（未做，纯可选，随时可独立跑）
-- [ ] ⚠️ **阅读页人工目视复核**（翻页测量 / 简繁转换 effect 时序）：本计划全程唯一未闭环项，需有 GUI 的环境人工执行
+- [x] ⚠️ **阅读页人工目视复核**（翻页测量 / 简繁转换 effect 时序）：**2026-09-28 用户确认通过**，本计划全部闭环
 
-### Phase 5 顺带发现：5 处疑似生产 bug（spec 过程中记录，未修，待评估修复）
+### Phase 5 顺带发现：5 处疑似生产 bug —— **已全部修复**（2026-09-28，各带回归测试，独立 commit）
 
-1. **`import-via-source.service.ts:100-108`**：`adapter.search` 摘取后脱离实例调用（`this` 丢失），JS 书源走 `import-online` / `change-book-source-dialog` 路径会抛 TypeError —— **疑似真实线上 bug**，建议优先修（`searchFn.call(adapter, ...)` 或改为可选链方法调用）
-2. **`db.service.ts:252-257`**：`bookDelete` 注释声称 409 必须暴露，但 `classifyBulkResults` 在 `conflictAsConflict: true` 时把 409 归入 `conflicts` 而非 `fatal`，bookDelete 只查 `fatal` → 409 实际被静默吞掉，与注释意图矛盾
-3. **`db.service.ts:390`**：迁移正则已保证纯数字，`Number.isNaN` 检查为不可达死分支
-4. **`chapter-loader.ts:139`**：`updateChapter` 缓存 miss 时用单章数组覆盖整书缓存列表（注释声明有意，但若 db 有多章而内存缓存为空，`getChaptersSync` 只回 1 章，疑似隐患）
-5. **`sandbox.service.ts:540`**：`ready=否` 诊断分支不可达（`settleWorkerReady` 先 reject 后 resolve，reject 先生效）
+1. **`import-via-source.service.ts:100-108`**：`adapter.search` 摘取后脱离实例调用（`this` 丢失），JS 书源走 `import-online` / `change-book-source-dialog` 路径会抛 TypeError —— ✅ 已修（`b30a77f`：改为同一对象引用上方法调用，刻画现状的 TypeError 用例改写为 this 保留回归测试）
+2. **`db.service.ts:252-257`**：`bookDelete` 注释声称 409 必须暴露，但 `classifyBulkResults` 在 `conflictAsConflict: true` 时把 409 归入 `conflicts` 而非 `fatal`，bookDelete 只查 `fatal` → 409 实际被静默吞掉 —— ✅ 已修（conflicts 并入待抛集合 + 409 回归用例）
+3. **`db.service.ts:390`**：迁移正则已保证纯数字，`Number.isNaN` 检查为不可达死分支 —— ✅ 已修（删除死分支）
+4. **`chapter-loader.ts:139`**：`updateChapter` 缓存 miss 时用单章数组覆盖整书缓存列表（db 有多章而内存缓存为空时 `getChaptersSync` 只回 1 章）—— ✅ 已修（缓存缺席则不写，维持「缓存要么缺席要么完整目录」不变式）
+5. **`sandbox.service.ts:540`**：`ready=否` 诊断 —— 深挖后发现真正缺陷是**顺序**：首次 `load()` 时 `workerReadyPromise` 未创建，`waitForReady()` 空转直接返回，load 消息在 worker-ready 前发出 —— ✅ 已修（`ensureWorker()` 前置到 `waitForReady()` 之前 + 顺序回归断言；`ready=否` 诊断保留，崩溃重建竞态下仍可达）
 
 ## 全局风险与对策
 
