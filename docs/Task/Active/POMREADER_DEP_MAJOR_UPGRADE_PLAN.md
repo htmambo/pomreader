@@ -1,7 +1,7 @@
 # POMREADER 依赖大版本升级计划（Dep Major Upgrade Plan）
 
-> Status: 🔄 In progress — 2026-09-27 建档；2026-09-28 复核修订 + **Phase 0 全部收口（P0-0 ~ P0-5）** + **Phase 1（18→19）** + **Phase 2（19→20）** + **Phase 3（20→21）** + **Phase 4（21→22）完成**。下一步：Phase 5 收尾（vitest 5 评估 / branches 收紧回 ~70 / zoneless 评估；**effect() 时序风险自 Phase 1 起仍未做人工目视复核，建议先手过一遍阅读页**）
-> 分支：`chore/dep-major-upgrade`
+> Status: 🔄 In progress — 2026-09-27 建档；2026-09-28 复核修订 + **Phase 0 全部收口（P0-0 ~ P0-5）** + **Phase 1（18→19）** + **Phase 2（19→20）** + **Phase 3（20→21）** + **Phase 4（21→22）完成**。**2026-09-28 分支已合并回 main（merge commit `36b4c27`），合并后六门在 main 上复验全绿**（format:check / lint / 700 用例 / build / build:electron / e2e 19 用例 exit=0）。下一步：Phase 5 收尾（vitest 5 评估 / branches 收紧回 ~70 / zoneless 评估；**effect() 时序风险自 Phase 1 起仍未做人工目视复核，建议先手过一遍阅读页**）
+> 分支：`chore/dep-major-upgrade`（已合并 main，可删）
 > 触发：`npm outdated` 梳理（2026-09-27），安全项已先行升级并提交（`0bee9ba`）。
 > 目标：Angular 18 → 22 逐级迁移 + 测试工具链升级，每级独立 commit、独立验证。
 
