@@ -16,28 +16,38 @@ const puppeteer = require('puppeteer-core');
 const DEBUG_PORT = 9333;
 const CF_TARGETS = process.env.CF_TARGETS
   ? process.env.CF_TARGETS.split(',')
-  : [
-      'https://www.scrapingcourse.com/cloudflare-challenge',
-      'https://nowsecure.nl/',
-    ];
+  : ['https://www.scrapingcourse.com/cloudflare-challenge', 'https://nowsecure.nl/'];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function getJson(url) {
   return new Promise((resolve, reject) => {
-    http.get(url, (res) => {
-      let data = '';
-      res.on('data', (c) => (data += c));
-      res.on('end', () => {
-        try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
-      });
-    }).on('error', reject);
+    http
+      .get(url, (res) => {
+        let data = '';
+        res.on('data', (c) => (data += c));
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(data));
+          } catch (e) {
+            reject(e);
+          }
+        });
+      })
+      .on('error', reject);
   });
 }
 
 (async () => {
   const electronBin = path.join(__dirname, '..', 'node_modules', '.bin', 'electron');
-  const app = spawn(electronBin, ['.', `--remote-debugging-port=${DEBUG_PORT}`], {
+  // ELECTRON_EXTRA_ARGS：透传额外启动参数（空格分隔）。
+  // 典型用途：已有应用实例在跑时，main.ts 的单实例锁会让本进程秒退 ——
+  // 传 --user-data-dir 指向独立 profile（锁按 userData 隔离，且避免 IndexedDB 争用）：
+  //   ELECTRON_EXTRA_ARGS="--user-data-dir=/tmp/pom-cf-smoke" node scripts/e2e-cf-guard.cjs
+  const extraArgs = process.env.ELECTRON_EXTRA_ARGS
+    ? process.env.ELECTRON_EXTRA_ARGS.split(' ').filter(Boolean)
+    : [];
+  const app = spawn(electronBin, ['.', `--remote-debugging-port=${DEBUG_PORT}`, ...extraArgs], {
     cwd: path.join(__dirname, '..'),
     env: { ...process.env },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -57,20 +67,27 @@ function getJson(url) {
       try {
         version = await getJson(`http://127.0.0.1:${DEBUG_PORT}/json/version`);
         break;
-      } catch { /* not ready */ }
+      } catch {
+        /* not ready */
+      }
     }
     if (!version) throw new Error('electron devtools 端口未就绪');
-    browser = await puppeteer.connect({ browserWSEndpoint: version.webSocketDebuggerUrl, defaultViewport: null });
+    browser = await puppeteer.connect({
+      browserWSEndpoint: version.webSocketDebuggerUrl,
+      defaultViewport: null,
+    });
 
     // 找应用主页面
     let page = null;
-    for (let i = 0; i < 20; i++) {
+    let lastSeenUrls = [];
+    for (let i = 0; i < 60; i++) {
       const pages = await browser.pages();
+      lastSeenUrls = pages.map((p) => p.url());
       page = pages.find((p) => p.url().includes('index.html'));
       if (page) break;
       await sleep(500);
     }
-    if (!page) throw new Error('未找到应用主页面');
+    if (!page) throw new Error(`未找到应用主页面（已见 targets: ${JSON.stringify(lastSeenUrls)}）`);
     await sleep(2000); // 等 Angular 起来 + preload 注入
 
     const hasApi = await page.evaluate(() => !!window.pomAPI?.fetchHtml);
@@ -79,7 +96,11 @@ function getJson(url) {
     // 1. sanity：普通站点
     const sanity = await page.evaluate(async () => {
       const r = await window.pomAPI.fetchHtml('https://example.com/');
-      return { error: r.error, ok: !!r.html && r.html.includes('Example Domain'), len: r.html?.length ?? 0 };
+      return {
+        error: r.error,
+        ok: !!r.html && r.html.includes('Example Domain'),
+        len: r.html?.length ?? 0,
+      };
     });
     console.log('sanity (example.com):', JSON.stringify(sanity));
     results.push({ name: 'sanity 普通站点', pass: sanity.ok });
@@ -93,14 +114,22 @@ function getJson(url) {
         return { error: r.error, len: r.html?.length ?? 0 };
       }, target);
       console.log(`fetchHtml ${target}:`, JSON.stringify(r1));
-      results.push({ name: `Tier1 fetchHtml ${target}`, pass: !r1.error && r1.len > 2000, inconclusive: r1.error === 'cf-challenge' });
+      results.push({
+        name: `Tier1 fetchHtml ${target}`,
+        pass: !r1.error && r1.len > 2000,
+        inconclusive: r1.error === 'cf-challenge',
+      });
 
       const r2 = await page.evaluate(async (url) => {
         const r = await window.pomAPI.booksourceHttpProxy({ url });
         return { status: r.status, cfChallenge: !!r.cfChallenge, len: r.body?.length ?? 0 };
       }, target);
       console.log(`proxy ${target}:`, JSON.stringify(r2));
-      results.push({ name: `Tier1 proxy ${target}`, pass: r2.status === 200 && !r2.cfChallenge && r2.len > 2000, inconclusive: r2.cfChallenge });
+      results.push({
+        name: `Tier1 proxy ${target}`,
+        pass: r2.status === 200 && !r2.cfChallenge && r2.len > 2000,
+        inconclusive: r2.cfChallenge,
+      });
     }
   } catch (e) {
     console.log('TEST ERROR:', e.message);
@@ -114,7 +143,9 @@ function getJson(url) {
 
   console.log('\n=== RESULT ===');
   for (const r of results) {
-    console.log(`${r.pass ? '✅ PASS' : r.inconclusive ? '⚠️  INCONCLUSIVE(需人工验证窗口)' : '❌ FAIL'}: ${r.name}`);
+    console.log(
+      `${r.pass ? '✅ PASS' : r.inconclusive ? '⚠️  INCONCLUSIVE(需人工验证窗口)' : '❌ FAIL'}: ${r.name}`,
+    );
   }
   if (!process.exitCode) process.exitCode = results.every((r) => r.pass) ? 0 : 1;
 })();
