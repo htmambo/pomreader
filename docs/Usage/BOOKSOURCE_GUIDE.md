@@ -48,7 +48,7 @@ pomreader 解析前 100 行内的 `// @key value` 注释，多值字段按出现
 
 | 函数 | 参数 | 返回值 |
 |---|---|---|
-| `search(keyword, page)` | 关键词（string）+ 页码（number） | `Array<{ name, author?, url, intro? }>` |
+| `search(keyword, page)` | 关键词（string）+ 页码（number） | `Array<{ name, author?, kind?, url, intro? }>`（`kind` = 分类/题材） |
 | `bookInfo(bookUrl)` | 书页 URL | `{ title, author, intro?, chapters: [{title, url}] }` |
 | `toc(bookUrl)` | 书页 URL | 同 `bookInfo().chapters`（仅返回章节数组） |
 | `chapterContent(chapterUrl)` | 章节 URL | string（纯文本，HTML 自行 strip） |
@@ -114,6 +114,8 @@ POST 模式可视化编辑示例（智能添加 / 编辑源页 UI 同步）：
 | `SEARCH_CONTENT_TYPE` | string | `POST` 模式的 Content-Type，默认 `application/x-www-form-urlencoded` |
 | `SEARCH_RAW_BODY` | string | 仅 `POST_RAW` 使用，模板原文替换后不 encode |
 | `SEARCH_ITEM_RULE` | string | 搜索结果条目提取规则 |
+| `SEARCH_AUTHOR_RULE` | string | **可选增强**：搜索结果条目内的作者规则，留空 = 不提取 |
+| `SEARCH_CATEGORY_RULE` | string | **可选增强**：搜索结果条目内的分类规则，留空 = 不提取 |
 | `BOOK_TITLE_RULE` | string | 书名提取规则 |
 | `BOOK_AUTHOR_RULE` | string | 作者提取规则 |
 | `CHAPTER_ITEM_RULE` | string | 章节链接提取规则 |
@@ -133,6 +135,41 @@ POST 模式可视化编辑示例（智能添加 / 编辑源页 UI 同步）：
 沙箱内没有 DOM，CSS 选择器经 `legado.query` 主线程 DOMParser 代理执行，正则直接走 `RegExp`。
 
 > ⚠️ **格式变更（破坏性）**：`SEARCH_BODY_PARAMS` 与 `CONTENT_REPLACE_RULES` 早期版本使用元组形态（`[["k","v"],...]` / `[["正则","替换"],...]`），现已统一为上表的对象数组，**只支持对象一种形态**。用智能添加重新生成，或在编辑源页重填保存，即可升级为新格式。
+
+### 搜索结果的作者 / 分类（可选增强规则）
+
+有些站点在搜索结果列表里就带作者、分类。`SEARCH_AUTHOR_RULE` /
+`SEARCH_CATEGORY_RULE` 就是为此准备的：**它们是补充，不是必需** —— 留空时
+`search()` 照常返回 `{ name, author: '', kind: '', bookUrl }`，搜索结果不受影响。
+
+作用域是**搜索结果条目内部**，不是整页：
+
+| `SEARCH_ITEM_RULE` 模式 | 增强规则的提取范围 |
+|---|---|
+| CSS 选择器 | 条目元素的 `innerHTML` |
+| 正则（组 1=URL，2=书名） | 本条匹配起点 → 下一条匹配起点之间的 HTML 片段 |
+
+因此条目规则要选到**含作者/分类的整块容器**（`dl.list dd`），只选书名链接
+（`dl.list dd a`）的作用域里没有作者/分类，增强规则就取不到值：
+
+```html
+<!-- dl.list dd 作为条目：作用域含 .author / .kind -->
+<dd><h4><a href="/book/5/index.html">庆余年</a></h4>
+    <span class="author">猫腻</span><span class="kind">历史穿越</span></dd>
+```
+
+```javascript
+const SEARCH_ITEM_RULE = "dl.list dd"
+const SEARCH_AUTHOR_RULE = "css:.author"       // → 猫腻
+const SEARCH_CATEGORY_RULE = "css:.kind"      // → 历史穿越（写入返回项的 kind）
+```
+
+命中后 `search()` 返回 `{ name, author: '猫腻', kind: '历史穿越', bookUrl }`；
+聚合搜索、去重、导入书籍（`Book.author` / `Book.kind`）沿用既有链路。
+
+> 智能添加页 / 编辑源页的「结果-作者 / 结果-分类」两个输入框 + 「测试搜索」
+> 会把命中条数显示在摘要里；规则填了却一条没命中时，摘要会提示作用域问题。
+> 老书源没有这两个常量也能正常加载运行（按「未配置」处理）。
 
 ## 7. 示例
 

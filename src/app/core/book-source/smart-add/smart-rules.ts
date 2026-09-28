@@ -74,6 +74,20 @@ export interface SourceRules {
   searchRawBody?: string;
   /** 搜索结果列表项规则（CSS 选择器，或正则：捕获组 1=书籍 URL，2=书名） */
   searchItemPattern: string;
+  /**
+   * 【可选增强】搜索结果条目内的作者规则（CSS 选择器，或正则：捕获组 1=作者）。
+   * 作用域是**条目内部**，不是整页：
+   *  - 条目规则为 CSS：作用于条目元素的 innerHTML（条目规则要选到含作者/分类的整块容器，如 `dl.list dd`）
+   *  - 条目规则为正则：作用于「本条匹配起点 → 下一条匹配起点」之间的 HTML 片段
+   * 留空（缺省）= 不提取，search() 返回的 author 为空串；这不是必需规则，配错不影响搜索命中。
+   */
+  searchAuthorPattern?: string;
+  /**
+   * 【可选增强】搜索结果条目内的分类规则，作用域同 searchAuthorPattern。
+   * 命中后写入 search() 返回项的 kind（对应项目 Book.kind「分类/题材」），用于封面生成器文案。
+   * 留空（缺省）= 不提取。
+   */
+  searchCategoryPattern?: string;
   /** 详情页标题规则（CSS 选择器，或正则：捕获组 1=标题） */
   bookTitlePattern: string;
   /** 详情页作者规则（CSS 选择器，或正则：捕获组 1=作者） */
@@ -192,36 +206,89 @@ export interface MatchedItem {
   url: string;
 }
 
-/** 链接项提取；CSS 模式见 matchLinkItemsCss，正则模式约定组 1=href，2=文本 */
+/** 条目 + 作用域 HTML（提取作者/分类增强字段用；对外只暴露 name/url） */
+interface MatchedItemWithContext extends MatchedItem {
+  /** 条目作用域的 HTML：CSS → 元素 innerHTML；正则 → 本条匹配起点到下一条匹配起点的片段 */
+  context: string;
+}
+
+/** 搜索结果条目的可选增强规则（留空 = 不提取） */
+export interface SearchExtraRules {
+  /** 作者规则：CSS 选择器或正则，作用于条目作用域内 */
+  authorRule?: string;
+  /** 分类规则：CSS 选择器或正则，作用于条目作用域内 */
+  categoryRule?: string;
+}
+
+/** 搜索结果条目（含可选的作者/分类增强字段） */
+export interface MatchedSearchItem extends MatchedItem {
+  /** 作者：增强规则未配置/未命中则缺省 */
+  author?: string;
+  /** 分类/题材：增强规则未配置/未命中则缺省（写入 search() 返回项的 kind） */
+  kind?: string;
+}
+
+/** 链接项提取；CSS 模式见 extractItemContextsCss，正则模式约定组 1=href，2=文本 */
 export function matchLinkItems(
   pattern: string,
   html: string,
   baseUrl: string,
   limit = 500,
 ): MatchedItem[] {
+  return extractItemContexts(pattern, html, baseUrl, limit).map(({ name, url }) => ({ name, url }));
+}
+
+/**
+ * 搜索结果条目 + 可选的作者/分类增强字段（与生成的 search() 同语义，供规则面板「测试搜索」用）
+ *
+ * 增强字段是**可选补充**，不是必需项：
+ *  - 两条增强规则都为空 → 不做任何额外提取，等价于 matchLinkItems
+ *  - 规则未命中 → 该字段缺省（不写入空串），调用方按缺省处理
+ */
+export function matchSearchItems(
+  pattern: string,
+  html: string,
+  baseUrl: string,
+  extras: SearchExtraRules = {},
+  limit = 500,
+): MatchedSearchItem[] {
+  const items = extractItemContexts(pattern, html, baseUrl, limit);
+  const authorRule = (extras.authorRule ?? '').trim();
+  const categoryRule = (extras.categoryRule ?? '').trim();
+  if (!authorRule && !categoryRule) {
+    return items.map(({ name, url }) => ({ name, url }));
+  }
+  return items.map(({ name, url, context }) => {
+    const author = authorRule ? stripTags(pickText(authorRule, context)) : '';
+    const kind = categoryRule ? stripTags(pickText(categoryRule, context)) : '';
+    return { name, url, ...(author ? { author } : {}), ...(kind ? { kind } : {}) };
+  });
+}
+
+/** 条目提取（带作用域 HTML）：按规则模式分派到 CSS / 正则实现 */
+function extractItemContexts(
+  pattern: string,
+  html: string,
+  baseUrl: string,
+  limit: number,
+): MatchedItemWithContext[] {
   if (cssRulesEnabled() && isCssRule(pattern)) {
-    return matchLinkItemsCss(ruleSelector(pattern), html, baseUrl, limit);
+    return extractItemContextsCss(ruleSelector(pattern), html, baseUrl, limit);
   }
-  const re = compile(pattern, 'gi');
-  const out: MatchedItem[] = [];
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(html)) !== null) {
-    out.push({ name: stripTags(m[2] ?? ''), url: absUrl(m[1] ?? '', baseUrl) });
-    if (out.length >= limit) break;
-  }
-  return out;
+  return extractItemContextsRegex(pattern, html, baseUrl, limit);
 }
 
 /**
  * CSS 模式链接提取：命中元素为 a 则取之，否则取其后代锚点；
- * 按绝对 URL 去重（同 URL 保留首个非空 name —— 同一书籍的 img 链接/书名链接/按钮链接收敛为一条）
+ * 按绝对 URL 去重（同 URL 保留首个非空 name —— 同一书籍的 img 链接/书名链接/按钮链接收敛为一条）；
+ * context 取条目元素 innerHTML，供作者/分类增强规则在条目作用域内提取
  */
-function matchLinkItemsCss(
+function extractItemContextsCss(
   selector: string,
   html: string,
   baseUrl: string,
   limit: number,
-): MatchedItem[] {
+): MatchedItemWithContext[] {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   let els: Element[];
   try {
@@ -229,19 +296,50 @@ function matchLinkItemsCss(
   } catch (e) {
     throw new Error(`选择器无效：${(e as Error).message}`);
   }
-  const byUrl = new Map<string, MatchedItem>();
+  const byUrl = new Map<string, MatchedItemWithContext>();
   for (const el of els) {
     const anchors = el.tagName === 'A' ? [el] : Array.from(el.querySelectorAll('a[href]'));
     for (const a of anchors) {
       const url = absUrl(a.getAttribute('href') ?? '', baseUrl);
       if (!url) continue;
       const name = (a.textContent ?? '').trim();
+      const context = el.innerHTML;
       const prev = byUrl.get(url);
-      if (!prev || (!prev.name && name)) byUrl.set(url, { name, url });
+      if (!prev) {
+        byUrl.set(url, { name, url, context });
+      } else {
+        if (!prev.name && name) prev.name = name;
+        if (!prev.context && context) prev.context = context;
+      }
     }
     if (byUrl.size >= limit) break;
   }
   return [...byUrl.values()];
+}
+
+/**
+ * 正则模式链接提取：组 1=href，2=文本（不去重，保持兼容）；
+ * context 取「本条匹配起点 → 下一条匹配起点」之间的片段 —— 正则条目规则通常只锚定书名链接，
+ * 作者/分类等增强信息跟在其后同一条目块内
+ */
+function extractItemContextsRegex(
+  pattern: string,
+  html: string,
+  baseUrl: string,
+  limit: number,
+): MatchedItemWithContext[] {
+  const re = compile(pattern, 'gi');
+  const matches: RegExpExecArray[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    matches.push(m);
+    if (matches.length >= limit) break;
+  }
+  return matches.map((match, i) => ({
+    name: stripTags(match[2] ?? ''),
+    url: absUrl(match[1] ?? '', baseUrl),
+    context: html.slice(match.index, matches[i + 1]?.index ?? html.length),
+  }));
 }
 
 // ── 启发式探测 ─────────────────────────────────────────────────────────────
@@ -342,6 +440,9 @@ export function buildRules(url: string, html: string): SourceRules {
     searchBodyParams: [],
     searchContentType: 'application/x-www-form-urlencoded',
     searchItemPattern: DEFAULT_PATTERNS.searchItemPattern,
+    // 作者/分类增强规则不做启发式猜测（猜错会污染搜索结果）→ 默认空串 = 不提取，用户在规则面板按站点实际结构填
+    searchAuthorPattern: '',
+    searchCategoryPattern: '',
     bookTitlePattern: DEFAULT_PATTERNS.bookTitlePattern,
     bookAuthorPattern: DEFAULT_PATTERNS.bookAuthorPattern,
     chapterItemPattern: DEFAULT_PATTERNS.chapterItemPattern,
@@ -360,7 +461,7 @@ export function buildRules(url: string, html: string): SourceRules {
  * 双模式(CSS/正则)判定在生成的代码运行时进行(与 isCssRule 同一套启发式)
  *
  * @param url 主站 origin（用于 absUrl 解析）
- * @param rules 可视化规则(列表/标题/作者/章节/正文/分类/封面 + 正文净化规则) + searchPath + 搜索方式(method/body)
+ * @param rules 可视化规则(列表/列表项内作者/列表项内分类/标题/作者/章节/正文/分类/封面 + 正文净化规则) + searchPath + 搜索方式(method/body)
  * @param options.headers 注入每个 HTTP 请求的自定义 header（legado JSON 导入用）
  */
 export function generateSourceCode(
@@ -391,7 +492,7 @@ export function generateSourceCode(
   // 正文净化规则 → JSON 对象数组 [{"rule":"正则","replace":"替换为"},...]
   const contentReplaceRulesJson = j(rules.contentReplaceRules ?? []);
   return `// @name        ${rules.siteName}
-// @version     1.1.0
+// @version     1.2.0
 // @author      智能添加
 // @url         ${u.origin}
 // @enabled     true
@@ -408,6 +509,8 @@ const SEARCH_BODY_PARAMS = ${bodyParamsJson}
 const SEARCH_CONTENT_TYPE = ${j(searchContentType)}
 const SEARCH_RAW_BODY = ${j(searchRawBody)}
 const SEARCH_ITEM_RULE = ${j(rules.searchItemPattern)}
+const SEARCH_AUTHOR_RULE = ${j(rules.searchAuthorPattern ?? '')}
+const SEARCH_CATEGORY_RULE = ${j(rules.searchCategoryPattern ?? '')}
 const BOOK_TITLE_RULE = ${j(rules.bookTitlePattern)}
 const BOOK_AUTHOR_RULE = ${j(rules.bookAuthorPattern)}
 const CHAPTER_ITEM_RULE = ${j(rules.chapterItemPattern)}
@@ -492,6 +595,45 @@ async function extractLinks(rule, html, baseUrl) {
     .map((m) => ({ name: stripTags(m[2]), url: absUrl(m[1], baseUrl) }))
 }
 
+/**
+ * 搜索条目提取(带作用域 HTML):与 extractLinks 同源,额外返回 context 供作者/分类增强规则在**条目内部**提取
+ *  - CSS:context = 条目元素 innerHTML(legado.query 的 el.links 已含 a 元素自身,与 extractLinks 同一套收敛逻辑)
+ *  - 正则:context = 本条匹配起点 → 下一条匹配起点之间的 HTML 片段(条目正则通常只锚定书名链接,作者/分类跟在其后)
+ */
+async function extractSearchItems(rule, html, baseUrl) {
+  if (isCssRule(rule)) {
+    const items = await legado.query(html, ruleSelector(rule), baseUrl)
+    const byUrl = new Map()
+    for (const el of items) {
+      for (const l of (el.links || [])) {
+        if (!l || !l.href) continue
+        const prev = byUrl.get(l.href)
+        if (!prev) byUrl.set(l.href, { name: l.text, url: l.href, context: el.html || '' })
+        else {
+          if (!prev.name && l.text) prev.name = l.text
+          if (!prev.context && el.html) prev.context = el.html
+        }
+      }
+      if (byUrl.size >= MAX_EXTRACT_LINKS) break
+    }
+    return [...byUrl.values()]
+  }
+  const matches = matchAll(new RegExp(rule, 'gi'), html)
+  return matches.map((m, i) => ({
+    name: stripTags(m[2]),
+    url: absUrl(m[1], baseUrl),
+    context: html.slice(m.index, i + 1 < matches.length ? matches[i + 1].index : html.length),
+  }))
+}
+
+/** 搜索结果增强规则(可选):作者 / 分类 —— 旧书源未声明这两个常量时按「未配置」处理(向后兼容) */
+function searchExtraRules() {
+  return {
+    author: typeof SEARCH_AUTHOR_RULE === 'undefined' ? '' : String(SEARCH_AUTHOR_RULE || ''),
+    kind: typeof SEARCH_CATEGORY_RULE === 'undefined' ? '' : String(SEARCH_CATEGORY_RULE || ''),
+  }
+}
+
 /** 单文本提取:CSS 取首个命中 textContent;空结果返回 '' 不抛异常 */
 async function extractText(rule, html, baseUrl) {
   if (isCssRule(rule)) {
@@ -543,10 +685,13 @@ function buildFormBody(params, keyword, page) {
   return parts.join('&');
 }
 
-/** 搜索 —— 返回搜索结果列表 [{name, author, bookUrl}]
+/** 搜索 —— 返回搜索结果列表 [{name, author, kind, bookUrl}]
  *  - GET(SEARCH_METHOD='GET'):searchPath 作为 URL 模板,走 legado.http.get
  *  - POST(SEARCH_METHOD='POST'):searchPath 作为 POST URL,body 由 SEARCH_BODY_PARAMS 拼 form-urlencoded
- *  - POST_RAW(SEARCH_METHOD='POST_RAW'):body 由 SEARCH_RAW_BODY 模板替换 {keyword}/{page} 后原文 POST */
+ *  - POST_RAW(SEARCH_METHOD='POST_RAW'):body 由 SEARCH_RAW_BODY 模板替换 {keyword}/{page} 后原文 POST
+ *  - author / kind 为**可选增强**:由 SEARCH_AUTHOR_RULE / SEARCH_CATEGORY_RULE 在条目作用域内提取,
+ *    两条规则都留空(默认)时不做任何额外提取,二者恒返回空串 —— 不影响 name/bookUrl 的搜索结果
+ */
 async function search(key, page) {
   let resp, pageUrl
   if (SEARCH_METHOD === 'POST') {
@@ -566,13 +711,18 @@ async function search(key, page) {
     pageUrl = absUrl(path, BASE_URL)
     resp = await legado.http.get(pageUrl, HEADERS)
   }
-  return (await extractLinks(SEARCH_ITEM_RULE, resp, pageUrl))
-    .map((it) => ({
-      name: it.name,
-      author: '',
-      bookUrl: it.url,
-    }))
-    .filter((it) => it.name && it.bookUrl)
+  const extra = searchExtraRules()
+  const items = await extractSearchItems(SEARCH_ITEM_RULE, resp, pageUrl)
+  const out = []
+  for (const it of items) {
+    if (!it.name || !it.url) continue
+    let author = ''
+    let kind = ''
+    if (extra.author) author = stripTags(await extractText(extra.author, it.context, pageUrl))
+    if (extra.kind) kind = stripTags(await extractText(extra.kind, it.context, pageUrl))
+    out.push({ name: it.name, author: author, kind: kind, bookUrl: it.url })
+  }
+  return out
 }
 
 /** 书籍详情 —— 返回书籍信息对象 {title, author, category, cover, chapters} */

@@ -6,6 +6,7 @@ import {
   pickHtml,
   pickAttr,
   matchLinkItems,
+  matchSearchItems,
   isCssRule,
   ruleSelector,
   detectSiteName,
@@ -314,7 +315,12 @@ describe('generateSourceCode — CSS 规则运行时（mock legado 模拟沙箱�
     const mod = compile(code);
     const res = await mod.search('庆余年', '1');
     expect(res).toEqual([
-      { name: '庆余年', author: '', bookUrl: 'https://www.example.com/book/5/index.html' },
+      {
+        name: '庆余年',
+        author: '',
+        kind: '',
+        bookUrl: 'https://www.example.com/book/5/index.html',
+      },
     ]);
   });
   it('正则规则生成代码 search() 行为与旧版一致(不走路径变化)', async () => {
@@ -326,7 +332,12 @@ describe('generateSourceCode — CSS 规则运行时（mock legado 模拟沙箱�
     const mod = compile(code);
     const res = await mod.search('x', '1');
     expect(res).toEqual([
-      { name: '庆余年', author: '', bookUrl: 'https://www.example.com/book/5/index.html' },
+      {
+        name: '庆余年',
+        author: '',
+        kind: '',
+        bookUrl: 'https://www.example.com/book/5/index.html',
+      },
     ]);
   });
 });
@@ -443,7 +454,12 @@ describe('generateSourceCode — POST 搜索分支', () => {
     const { mod, calls } = compile(code);
     const res = await mod.search('庆余年', '1');
     expect(res).toEqual([
-      { name: '庆余年', author: '', bookUrl: 'https://www.example.com/book/5/index.html' },
+      {
+        name: '庆余年',
+        author: '',
+        kind: '',
+        bookUrl: 'https://www.example.com/book/5/index.html',
+      },
     ]);
     expect(calls).toHaveLength(1);
     expect(calls[0].method).toBe('POST');
@@ -657,5 +673,247 @@ describe('正文净化规则', () => {
       http: { get: async () => '<div id="content">正文保留</div>' },
     }) as { chapterContent: (u: string) => Promise<string> };
     expect(await mod.chapterContent('https://www.test.com/c/1')).toBe('正文保留');
+  });
+});
+
+// ========== 搜索结果增强规则（SEARCH_AUTHOR_RULE / SEARCH_CATEGORY_RULE） ==========
+
+describe('matchSearchItems — 条目作用域内的作者/分类增强', () => {
+  const BASE = 'https://www.example.com/search?keyword=x';
+  /** 搜索页样例：每条 = 书名链接 + 作者 + 分类（与真实小说站结构一致） */
+  const HTML =
+    '<dl class="list">' +
+    '<dd><h4><a href="/book/5/index.html">庆余年</a></h4>' +
+    '<span class="author">猫腻</span><span class="kind">历史穿越</span></dd>' +
+    '<dd><h4><a href="/book/6/index.html">将夜</a></h4>' +
+    '<span class="author">猫腻</span><span class="kind">东方玄幻</span></dd>' +
+    '</dl>';
+
+  afterEach(() => localStorage.removeItem('pom.cssRules'));
+
+  it('未配置增强规则 → 与 matchLinkItems 等价（不产生 author/kind 字段）', () => {
+    expect(matchSearchItems('dl.list dd', HTML, BASE)).toEqual([
+      { name: '庆余年', url: 'https://www.example.com/book/5/index.html' },
+      { name: '将夜', url: 'https://www.example.com/book/6/index.html' },
+    ]);
+  });
+
+  it('CSS 条目规则：作者/分类取自条目元素内部', () => {
+    const items = matchSearchItems('dl.list dd', HTML, BASE, {
+      authorRule: 'css:.author',
+      categoryRule: 'css:.kind',
+    });
+    expect(items).toEqual([
+      {
+        name: '庆余年',
+        url: 'https://www.example.com/book/5/index.html',
+        author: '猫腻',
+        kind: '历史穿越',
+      },
+      {
+        name: '将夜',
+        url: 'https://www.example.com/book/6/index.html',
+        author: '猫腻',
+        kind: '东方玄幻',
+      },
+    ]);
+  });
+
+  it('条目规则只选中书名 <a> 时作用域不含作者 → 增强字段缺省（不是整页取值）', () => {
+    const items = matchSearchItems('dl.list dd h4 a', HTML, BASE, {
+      authorRule: 'css:.author',
+      categoryRule: 'css:.kind',
+    });
+    expect(items).toEqual([
+      { name: '庆余年', url: 'https://www.example.com/book/5/index.html' },
+      { name: '将夜', url: 'https://www.example.com/book/6/index.html' },
+    ]);
+  });
+
+  it('CSS 条目规则 + 正则增强规则：同一条目内命中即写入', () => {
+    const items = matchSearchItems('dl.list dd', HTML, BASE, {
+      authorRule: '<span class="author">([^<]+)</span>',
+    });
+    expect(items[0].author).toBe('猫腻');
+    expect(items[0].kind).toBeUndefined();
+  });
+
+  it('正则条目规则：作用域 = 本条匹配起点 → 下一条匹配起点', () => {
+    const HTML2 =
+      '<div class="item"><a href="/b/1.html">书一</a>' +
+      '<span class="author">作者甲</span><span class="kind">玄幻</span></div>' +
+      '<div class="item"><a href="/b/2.html">书二</a><span class="author">作者乙</span></div>';
+    const items = matchSearchItems('<a href="([^"]+)">([^<]+)</a>', HTML2, BASE, {
+      authorRule: '<span class="author">([^<]+)</span>',
+      categoryRule: '<span class="kind">([^<]+)</span>',
+    });
+    expect(items).toEqual([
+      { name: '书一', url: 'https://www.example.com/b/1.html', author: '作者甲', kind: '玄幻' },
+      { name: '书二', url: 'https://www.example.com/b/2.html', author: '作者乙' },
+    ]);
+  });
+
+  it('规则未命中 → 字段缺省而非空串（不污染下游 pickString 判定）', () => {
+    const items = matchSearchItems('dl.list dd', HTML, BASE, { authorRule: 'css:.not-exist' });
+    expect(items.every((it) => !('author' in it))).toBe(true);
+  });
+
+  it('非法增强规则沿用 pickText 的报错（选择器非法 / 正则非法）', () => {
+    expect(() => matchSearchItems('dl.list dd', HTML, BASE, { authorRule: 'css:###' })).toThrow(
+      '选择器无效',
+    );
+    expect(() => matchSearchItems('dl.list dd', HTML, BASE, { authorRule: '([' })).toThrow(
+      '正则无效',
+    );
+  });
+});
+
+describe('generateSourceCode — 搜索结果增强规则分支', () => {
+  const BASE = 'https://www.example.com';
+  const SEARCH_HTML =
+    '<dl class="list">' +
+    '<dd><h4><a href="/book/5/index.html">庆余年</a></h4>' +
+    '<span class="author">猫腻</span><span class="kind">历史穿越</span></dd>' +
+    '<dd><h4><a href="/book/6/index.html">将夜</a></h4>' +
+    '<span class="author">猫腻</span><span class="kind">东方玄幻</span></dd>' +
+    '</dl>';
+  const REGEX_SEARCH_HTML =
+    '<div class="item"><a href="/b/1.html">书一</a><span class="author">作者甲</span></div>' +
+    '<div class="item"><a href="/b/2.html">书二</a><span class="author">作者乙</span></div>';
+
+  /** 编译生成代码并注入 mock legado（query 用 DOMParser 模拟主线程代理语义） */
+  const compile = (code: string, html = SEARCH_HTML) => {
+    const legado = {
+      http: { get: async () => html },
+      query: async (h: string, selector: string, baseUrl: string) => {
+        const doc = new DOMParser().parseFromString(h, 'text/html');
+        const abs = (v: string | null) => (v ? new URL(v, baseUrl).href : '');
+        return Array.from(doc.querySelectorAll(selector)).map((el) => {
+          const isA = el.tagName === 'A';
+          const anchors = isA ? [el] : Array.from(el.querySelectorAll('a[href]'));
+          return {
+            tag: el.tagName.toLowerCase(),
+            text: (el.textContent ?? '').trim(),
+            html: el.innerHTML,
+            href: isA ? abs(el.getAttribute('href')) : '',
+            links: anchors
+              .map((a) => ({
+                href: abs(a.getAttribute('href')),
+                text: (a.textContent ?? '').trim(),
+              }))
+              .filter((l) => l.href),
+          };
+        });
+      },
+    };
+    const factory = new Function('legado', `${code}\n;return { search };`);
+    return factory(legado) as {
+      search: (
+        k: string,
+        p: string,
+      ) => Promise<Array<{ name: string; author: string; kind: string; bookUrl: string }>>;
+    };
+  };
+
+  const baseRules = {
+    ...buildRules(`${BASE}/`, '<title>样例站</title>'),
+    searchPath: '/search?keyword={keyword}',
+    searchItemPattern: 'dl.list dd',
+  };
+
+  it('发射 SEARCH_AUTHOR_RULE / SEARCH_CATEGORY_RULE 两个常量', () => {
+    const code = generateSourceCode(`${BASE}/`, {
+      ...baseRules,
+      searchAuthorPattern: 'css:.author',
+      searchCategoryPattern: 'css:.kind',
+    });
+    expect(code).toContain('const SEARCH_AUTHOR_RULE = "css:.author"');
+    expect(code).toContain('const SEARCH_CATEGORY_RULE = "css:.kind"');
+  });
+
+  it('search() 命中增强规则：返回项带 author / kind', async () => {
+    const code = generateSourceCode(`${BASE}/`, {
+      ...baseRules,
+      searchAuthorPattern: 'css:.author',
+      searchCategoryPattern: 'css:.kind',
+    });
+    const res = await compile(code).search('庆余年', '1');
+    expect(res).toEqual([
+      {
+        name: '庆余年',
+        author: '猫腻',
+        kind: '历史穿越',
+        bookUrl: 'https://www.example.com/book/5/index.html',
+      },
+      {
+        name: '将夜',
+        author: '猫腻',
+        kind: '东方玄幻',
+        bookUrl: 'https://www.example.com/book/6/index.html',
+      },
+    ]);
+  });
+
+  it('未配置增强规则：author / kind 恒为空串，name/bookUrl 不受影响', async () => {
+    const code = generateSourceCode(`${BASE}/`, baseRules);
+    const res = await compile(code).search('庆余年', '1');
+    expect(res).toEqual([
+      {
+        name: '庆余年',
+        author: '',
+        kind: '',
+        bookUrl: 'https://www.example.com/book/5/index.html',
+      },
+      { name: '将夜', author: '', kind: '', bookUrl: 'https://www.example.com/book/6/index.html' },
+    ]);
+  });
+
+  it('只配作者规则：分类留空串（两条规则互相独立）', async () => {
+    const code = generateSourceCode(`${BASE}/`, {
+      ...baseRules,
+      searchAuthorPattern: 'css:.author',
+    });
+    const res = await compile(code).search('庆余年', '1');
+    expect(res[0].author).toBe('猫腻');
+    expect(res[0].kind).toBe('');
+  });
+
+  it('正则条目规则 + 正则增强规则：窗口作用域取到作者', async () => {
+    const code = generateSourceCode(`${BASE}/`, {
+      ...baseRules,
+      searchItemPattern: '<a href="([^"]+)">([^<]+)</a>',
+      searchAuthorPattern: '<span class="author">([^<]+)</span>',
+    });
+    const res = await compile(code, REGEX_SEARCH_HTML).search('x', '1');
+    expect(res).toEqual([
+      { name: '书一', author: '作者甲', kind: '', bookUrl: 'https://www.example.com/b/1.html' },
+      { name: '书二', author: '作者乙', kind: '', bookUrl: 'https://www.example.com/b/2.html' },
+    ]);
+  });
+
+  it('旧书源（未声明两个常量）仍可运行：typeof 守卫 → 按未配置处理', async () => {
+    const code = generateSourceCode(`${BASE}/`, {
+      ...baseRules,
+      searchAuthorPattern: 'css:.author',
+    });
+    const legacyCode = code.replace(/^const SEARCH_(AUTHOR|CATEGORY)_RULE = .*$/gm, '');
+    expect(legacyCode).not.toMatch(/^const SEARCH_AUTHOR_RULE = /m);
+    expect(legacyCode).not.toMatch(/^const SEARCH_CATEGORY_RULE = /m);
+    const res = await compile(legacyCode).search('庆余年', '1');
+    expect(res).toEqual([
+      {
+        name: '庆余年',
+        author: '',
+        kind: '',
+        bookUrl: 'https://www.example.com/book/5/index.html',
+      },
+      { name: '将夜', author: '', kind: '', bookUrl: 'https://www.example.com/book/6/index.html' },
+    ]);
+  });
+
+  it('buildRules 默认不猜作者/分类规则（空串 = 不提取）', () => {
+    const rules = buildRules(`${BASE}/`, '<title>t</title>');
+    expect(rules.searchAuthorPattern).toBe('');
+    expect(rules.searchCategoryPattern).toBe('');
   });
 });

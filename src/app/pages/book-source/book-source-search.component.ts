@@ -90,7 +90,10 @@ import { ImportOnlineComponent } from '../../modals/import-online/import-online.
             <div class="result-main">
               <div class="result-line-1">
                 <span class="book-name">{{ r.name || '（无书名）' }}</span>
-                <nz-tag nzColor="blue">{{ r.author || '未知作者' }}</nz-tag>
+                <!-- 作者/分类是书源的可选增强规则：配了且解析出内容才显示，否则整块不渲染 -->
+                @if (r.author) {
+                  <nz-tag nzColor="blue">{{ r.author }}</nz-tag>
+                }
                 @if (r.kind) {
                   <nz-tag nzColor="cyan">{{ r.kind }}</nz-tag>
                 }

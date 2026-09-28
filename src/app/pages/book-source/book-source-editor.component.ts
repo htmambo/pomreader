@@ -37,7 +37,7 @@ function pomApi(): PomBooksourceEditor | null {
 /**
  * 书源编辑器(实施计划 T-005)
  * - 路由 /edit/:fileName 编辑现有书源
- * - 上方:RulesPanelComponent —— 加载源后从 const 行解析 13 规则回填,提供可视化编辑 + 4 阶段真实命中测试
+ * - 上方:RulesPanelComponent —— 加载源后从 const 行解析 15 规则回填,提供可视化编辑 + 4 阶段真实命中测试
  * - 下方:左侧源码 textarea;右侧实时解析预览
  * - 「应用规则到源码」:仅替换规则常量(保留 explore 等用户自定义代码;源里没有的常量行如 CONTENT_REPLACE_RULES 不会新增)
  * - 「从规则生成代码」:用 generateSourceCode 覆盖整个源码(谨慎,自定义代码会丢失)
@@ -115,7 +115,7 @@ export class BookSourceEditorComponent {
     }
   }
 
-  /** 从源码中解析 13 个规则常量 + BASE_URL → 回填到 RulesPanel */
+  /** 从源码中解析 15 个规则常量 + BASE_URL → 回填到 RulesPanel */
   private parseRulesFromSource(content: string): void {
     const extract = (name: string): string => {
       const m = new RegExp(`(?:const|let|var)\\s+${name}\\s*=\\s*(.+?)\\s*$`, 'm').exec(content);
@@ -167,6 +167,9 @@ export class BookSourceEditorComponent {
       searchContentType: extract('SEARCH_CONTENT_TYPE') || 'application/x-www-form-urlencoded',
       searchRawBody: extract('SEARCH_RAW_BODY'),
       searchItemPattern: extract('SEARCH_ITEM_RULE'),
+      // 可选增强规则：源里没写这两个常量时 extract 返回 ''，等价于「不提取」
+      searchAuthorPattern: extract('SEARCH_AUTHOR_RULE'),
+      searchCategoryPattern: extract('SEARCH_CATEGORY_RULE'),
       bookTitlePattern: extract('BOOK_TITLE_RULE'),
       coverUrlPattern: extract('COVER_RULE'),
       bookAuthorPattern: extract('BOOK_AUTHOR_RULE'),
@@ -178,7 +181,7 @@ export class BookSourceEditorComponent {
     this.ruleBaseUrl.set(extract('BASE_URL'));
   }
 
-  /** 应用规则到源码 —— 仅替换 13 个规则常量(保留 explore 等用户自定义代码) */
+  /** 应用规则到源码 —— 仅替换 15 个规则常量(保留 explore 等用户自定义代码) */
   applyRulesToSource(): void {
     const p = this.panel();
     if (!p) return;
@@ -200,6 +203,8 @@ export class BookSourceEditorComponent {
       SEARCH_CONTENT_TYPE: rules.searchContentType ?? 'application/x-www-form-urlencoded',
       SEARCH_RAW_BODY: rules.searchRawBody ?? '',
       SEARCH_ITEM_RULE: rules.searchItemPattern,
+      SEARCH_AUTHOR_RULE: rules.searchAuthorPattern ?? '',
+      SEARCH_CATEGORY_RULE: rules.searchCategoryPattern ?? '',
       BOOK_TITLE_RULE: rules.bookTitlePattern,
       COVER_RULE: rules.coverUrlPattern ?? 'css:img',
       BOOK_AUTHOR_RULE: rules.bookAuthorPattern,

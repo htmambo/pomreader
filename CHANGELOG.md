@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **sidebar**: 侧栏改为图标轨（默认 64px 仅图标）+ hover 悬浮展开 200px（主内容不位移），「书源管理」子菜单默认收起；展开/收起时图标列位置不变，面板自右侧收回
 - **bookshelf**: 书架新增分类（legado 分组语义：多分类 + `Book.groupIds`）与阅读状态筛选（全部 / 未读 / 正在读 / 已读完，带计数、两行互为分面）；分类通过 `group:{id}` PouchDB 文档持久化，入口为书卡右键「分类…」/ 批量栏「分类」/ chips 行「管理分类」
+- **book-source**: 搜索结果新增两条**可选增强规则** `SEARCH_AUTHOR_RULE` / `SEARCH_CATEGORY_RULE`（规则模型 `searchAuthorPattern` / `searchCategoryPattern`）—— 作用域是搜索结果条目内部（CSS 条目规则取元素 `innerHTML`；正则条目规则取「本条匹配起点 → 下一条匹配起点」片段），填了才提取，命中后由 `search()` 返回 `{ name, author, kind, bookUrl }` 并在书源搜索页以标签展示；留空返回空串且不影响 name/bookUrl，老书源无此常量亦可运行。规则面板（智能添加页 / 编辑源页）新增「结果-作者 / 结果-分类」输入框与测试搜索命中提示，legado 导入自动映射 `ruleSearch.author` / `ruleSearch.kind`
 
 ### Bug Fixes
 

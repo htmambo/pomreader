@@ -1,0 +1,10 @@
+/* 内部双列网格 —— 搜索/详情/目录/正文 各占一格,跟编辑书源页保持一致布局 */
+.panel-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+.panel-grid--2 {
+  grid-template-columns: 1fr 1fr;
+}
+/* POST 表单参数编辑区样式见 src/styles/rules-panel.scss(全局共享) */

@@ -44,7 +44,7 @@ npm run dev
 - **PouchDB** IndexedDB（Book/Chapter 持久化）+ **localStorage**（设置）
 - **valibot 1.5**（IPC 入参 runtime schema 验证；`safeHandle` 工厂统一校验）
 - **@angular/localize**（i18n 机制就位；zh-Hans 默认）
-- **Vitest 5.0 + jsdom**（`src/` 与 `electron/` 两侧共测，v8 coverage：**92.88% 行 / 85.1% 分支 / 90.55% 函数** 总计；964 tests across 63 files）+ **Playwright 1.63**（E2E，5 spec / 19 tests；Chromium only）
+- **Vitest 5.0 + jsdom**（`src/` 与 `electron/` 两侧共测，v8 coverage：**92.88% 行 / 85.1% 分支 / 90.55% 函数** 总计；978 tests across 63 files）+ **Playwright 1.63**（E2E，5 spec / 19 tests；Chromium only）
 - **ESLint 9.39 + angular-eslint 22.5 + typescript-eslint 8.70**（`npm run lint`；flat config；0 errors / 0 warnings baseline）
 - **esbuild**（`build:worker` 打包 `sandbox.worker.ts` → `src/assets/sandbox.worker.js`）
 
@@ -170,7 +170,7 @@ docs/
 ## 演进记录（2026-09）
 
 - **EVO-1 ~ EVO-16**：架构演进 16 项（IPC 拆模块 + safeHandle / 沙箱硬化 v2 / DbWorker pool / 4 进程模型 / 测试覆盖 / 文档对齐等）；详见 [`docs/Task/Archive/2026-09/POMREADER_ARCH_EVOLUTION_PLAN.md`](docs/Task/Archive/2026-09/POMREADER_ARCH_EVOLUTION_PLAN.md) 与 `.omc/fullauto/pomreader-arch-evo/`
-- 累计 964 tests passing（63 files，src/ + electron/ 两侧）；外部审核 Round 9 APPROVED
+- 累计 978 tests passing（63 files，src/ + electron/ 两侧）；外部审核 Round 9 APPROVED
 - 主要 commit 锚点（详见 CHANGELOG §"Architecture Evolution"）：
   - EVO-1 `1765d00` BookRepository 拆出 → `d9979b1` 章节方法委托 ChapterLoader → `4af4c00` Loader/Updater 抽出 → `6a37fbe` BookUpdater 改用 BookRepositoryPort
   - EVO-2 `9628160` bulk-result helper

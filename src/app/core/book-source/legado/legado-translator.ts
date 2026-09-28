@@ -78,6 +78,10 @@ export function translateLegadoToJs(src: LegadoSource): TranslateResult {
 
   // 4. 构造 SourceRules
   const url = deriveBaseUrl(src);
+  // ruleSearch.author / ruleSearch.kind 在 legado 里同样是「bookList 条目内部」的规则 → 直接映射为
+  // 搜索结果增强规则(可选;源没写就不给值,不用启发式猜测,避免污染搜索结果)
+  const searchAuthorRule = pickCssOrRegex(parsedSearch.map['author']);
+  const searchCategoryRule = pickCssOrRegex(parsedSearch.map['kind']);
   const rules: SourceRules = {
     siteName: src.bookSourceName || 'legado-imported',
     searchPath: deriveSearchPath(src, url),
@@ -85,6 +89,8 @@ export function translateLegadoToJs(src: LegadoSource): TranslateResult {
       pickCssOrRegex(parsedSearch.map['bookList']) ||
       pickCssOrRegex(parsedSearch.map['name']) ||
       'css:a[href]',
+    ...(searchAuthorRule ? { searchAuthorPattern: searchAuthorRule } : {}),
+    ...(searchCategoryRule ? { searchCategoryPattern: searchCategoryRule } : {}),
     bookTitlePattern:
       pickCssOrRegex(parsedBookInfo.map['name']) ||
       pickCssOrRegex(parsedBookInfo.map['init']) ||
