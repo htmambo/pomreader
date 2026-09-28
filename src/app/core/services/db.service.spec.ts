@@ -359,6 +359,21 @@ describe('DbService', () => {
       });
       await expect(svc.bookDelete('b1')).rejects.toThrow(/bookDelete partial failure/);
     });
+
+    it('bulkDocs 返回 409（_rev 过期 = 未删除）时同样应抛，不得静默', async () => {
+      await svc.bookPut(makeBook({ id: 'b1' }));
+      await svc.chapterPutMany([makeChapter('b1', 0)]);
+      bridge.dbRequest.mockImplementation(async (op: string, args: unknown[]) => {
+        if (op === 'bulkDocs') {
+          return {
+            ok: true,
+            result: [{ error: true, status: 409, name: 'conflict', message: 'x', id: 'book:b1' }],
+          };
+        }
+        return defaultImpl(op, args);
+      });
+      await expect(svc.bookDelete('b1')).rejects.toThrow(/bookDelete partial failure/);
+    });
   });
 
   describe('chapterGet 错误路径', () => {

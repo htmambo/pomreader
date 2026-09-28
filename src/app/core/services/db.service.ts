@@ -248,11 +248,13 @@ export class DbService {
       removeDocs as unknown as PouchDB.Core.PutDocument<BookDoc | ChapterDoc>[],
     );
     // 删除操作：409 = _rev 过期 = 文档未被删除——必须暴露，不能静默（Round 5）
-    // 与 chapterPutMany（创建操作，409=幂等成功）语义不同；用 conflictAsConflict=true 保留 409
+    // 与 chapterPutMany（创建操作，409=幂等成功）语义不同；用 conflictAsConflict=true 保留 409，
+    // 并把 conflicts 并入待抛集合（仅查 fatal 会让 409 被静默吞掉，与上行注释矛盾）
     const classified = classifyBulkResults(results, { conflictAsConflict: true });
-    if (classified.fatal.length > 0) {
+    const merged = { ...classified, fatal: [...classified.fatal, ...classified.conflicts] };
+    if (merged.fatal.length > 0) {
       throw new Error(
-        `bookDelete partial failure: ${formatBulkFatalMessage('bookDelete', classified)}`,
+        `bookDelete partial failure: ${formatBulkFatalMessage('bookDelete', merged)}`,
       );
     }
   }
