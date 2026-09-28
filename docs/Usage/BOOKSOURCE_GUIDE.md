@@ -98,7 +98,43 @@ POST 模式可视化编辑示例（智能添加 / 编辑源页 UI 同步）：
 
 生成的 `search()` 函数会根据 `SEARCH_METHOD` 分支走对应逻辑（GET / POST / POST_RAW 互不影响）。
 
-## 6. 示例
+## 6. 规则常量（智能添加 / 编辑源可视化）
+
+生成的书源顶部有一组 `const` 规则常量，智能添加页与编辑源页的面板直接读写它们，**也是「应用规则到源码」唯一替换的内容**（`explore` 等自定义代码保留）。
+
+除下表两项为对象数组外，其余均为字符串：
+
+| 常量 | 格式 | 说明 |
+|---|---|---|
+| `BASE_URL` | string | 站点根地址（`@url` 去掉尾部路径），测试时的解析基址 |
+| `HEADERS` | object | 附加 HTTP header（来自 legado 导入时可带自定义头） |
+| `SEARCH_PATH` | string | 搜索路径模板，支持 `{keyword}` / `{page}` 占位符 |
+| `SEARCH_METHOD` | string | `GET` / `POST` / `POST_RAW`，见 §5 |
+| **`SEARCH_BODY_PARAMS`** | **对象数组** `[{"key":"q","value":"{keyword}"},...]` | 仅 `POST` 表单模式使用，value 支持 `{keyword}` / `{page}` |
+| `SEARCH_CONTENT_TYPE` | string | `POST` 模式的 Content-Type，默认 `application/x-www-form-urlencoded` |
+| `SEARCH_RAW_BODY` | string | 仅 `POST_RAW` 使用，模板原文替换后不 encode |
+| `SEARCH_ITEM_RULE` | string | 搜索结果条目提取规则 |
+| `BOOK_TITLE_RULE` | string | 书名提取规则 |
+| `BOOK_AUTHOR_RULE` | string | 作者提取规则 |
+| `CHAPTER_ITEM_RULE` | string | 章节链接提取规则 |
+| `CONTENT_RULE` | string | 正文提取规则 |
+| **`CONTENT_REPLACE_RULES`** | **对象数组** `[{"rule":"正则","replace":"替换为"},...]` | 按数组顺序对正文做 g 模式全局替换；`replace` 留空即删除命中；非法正则跳过不中断后续 |
+| `BOOK_CATEGORY_RULE` | string | 分类提取规则 |
+| `COVER_RULE` | string | 封面提取规则，缺省 `css:img` |
+
+### 规则值：CSS 选择器或正则
+
+`*_RULE` 的值按以下顺序判定（见生成代码里的 `isCssRule()`）：
+
+1. 以 `css:` 前缀开头 → 强制按 **CSS 选择器**（前缀被去掉）
+2. 含 ``\ ( ) { } ? | ^ $ * +`` 中任一字符 → 按 **正则**
+3. 兜底 → 按 **CSS 选择器**
+
+沙箱内没有 DOM，CSS 选择器经 `legado.query` 主线程 DOMParser 代理执行，正则直接走 `RegExp`。
+
+> ⚠️ **格式变更（破坏性）**：`SEARCH_BODY_PARAMS` 与 `CONTENT_REPLACE_RULES` 早期版本使用元组形态（`[["k","v"],...]` / `[["正则","替换"],...]`），现已统一为上表的对象数组，**只支持对象一种形态**。用智能添加重新生成，或在编辑源页重填保存，即可升级为新格式。
+
+## 7. 示例
 
 ```javascript
 // @name          示例书源
@@ -131,7 +167,7 @@ function chapterContent(chapterUrl) {
 }
 ```
 
-## 7. 安装与调试
+## 8. 安装与调试
 
 1. 把书源 `.js` 文件保存到 `<userData>/booksources/`
 2. 启动应用 → 打开「书源管理」页（`/book-sources`）
@@ -139,7 +175,7 @@ function chapterContent(chapterUrl) {
 4. 点击「编辑」修改源码，「保存」即时生效（IPC 触发 `invalidate`）
 5. 「删除」前有二次确认
 
-## 8. 故障排查
+## 9. 故障排查
 
 | 现象 | 可能原因 | 排查方式 |
 |---|---|---|
