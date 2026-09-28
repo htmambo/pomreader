@@ -453,6 +453,26 @@ describe('generateSourceCode — POST 搜索分支', () => {
     expect(headers['Content-Type']).toBe('application/x-www-form-urlencoded');
   });
 
+  it('SEARCH_BODY_PARAMS 盘上格式：只发射对象数组，不发射元组', () => {
+    const code = generateSourceCode('https://www.example.com/', {
+      ...baseRules,
+      searchMethod: 'POST' as const,
+      searchBodyParams: [
+        { key: 'q', value: '{keyword}' },
+        { key: 'page', value: '{page}' },
+      ],
+    });
+    const line = code.match(/^const SEARCH_BODY_PARAMS = (.+)$/m)?.[1];
+    expect(line).toBeDefined();
+    // 单一格式契约：对象数组。与 rules-panel 内存态、编辑器读写三处一致。
+    expect(JSON.parse(line!)).toEqual([
+      { key: 'q', value: '{keyword}' },
+      { key: 'page', value: '{page}' },
+    ]);
+    // 回归防线：曾经的元组形态 [["q","{keyword}"]] 必须不再出现
+    expect(line).not.toMatch(/\[\s*\[/);
+  });
+
   it('POST_RAW 模式：body 不做 encode，原文模板替换', async () => {
     const rules = {
       ...baseRules,
@@ -614,6 +634,19 @@ describe('正文净化规则', () => {
       http: { get: async () => '<div id="content">正文广告一\n正文广告二</div>' },
     }) as { chapterContent: (u: string) => Promise<string> };
     expect(await mod.chapterContent('https://www.test.com/c/1')).toBe('正文(净化)\n正文(净化)');
+  });
+
+  it('CONTENT_REPLACE_RULES 盘上格式：只发射对象数组，不发射元组', () => {
+    const code = generateSourceCode('https://www.test.com/', {
+      ...buildRules('https://www.test.com/', '<title>t</title><div id="content">x</div>'),
+      contentReplaceRules: [{ rule: '广告', replace: '(净化)' }],
+    });
+    const line = code.match(/^const CONTENT_REPLACE_RULES = (.+)$/m)?.[1];
+    expect(line).toBeDefined();
+    // 单一格式契约：对象数组。与 rules-panel 内存态、编辑器读写三处一致。
+    expect(JSON.parse(line!)).toEqual([{ rule: '广告', replace: '(净化)' }]);
+    // 回归防线：曾经的元组形态 [["广告","(净化)"]] 必须不再出现
+    expect(line).not.toMatch(/\[\s*\[/);
   });
 
   it('净化规则缺省时 chapterContent 行为与旧版一致', async () => {

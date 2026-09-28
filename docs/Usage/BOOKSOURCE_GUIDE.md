@@ -87,7 +87,7 @@ const resp = legado.http.request({                   // 完整请求
 | 方式 | `SEARCH_METHOD` | 说明 |
 |---|---|---|
 | **GET**（默认） | `'GET'` | `searchPath` 作为 URL 模板（`{keyword}` 自动 `encodeURIComponent`），走 `legado.http.get` |
-| **POST — 表单** | `'POST'` | `searchPath` 为 POST URL；body 由 `SEARCH_BODY_PARAMS`（`[["k","v"],...]`）按 form-urlencoded 拼接，value 支持 `{keyword}` / `{page}` 占位符 |
+| **POST — 表单** | `'POST'` | `searchPath` 为 POST URL；body 由 `SEARCH_BODY_PARAMS`（`[{"key":"q","value":"{keyword}"},...]`）按 form-urlencoded 拼接，value 支持 `{keyword}` / `{page}` 占位符 |
 | **POST — 原始 body** | `'POST_RAW'` | `searchPath` 为 POST URL；body 用 `SEARCH_RAW_BODY` 模板原文替换 `{keyword}` / `{page}`（不自动 encode，由用户自管） |
 
 POST 模式可视化编辑示例（智能添加 / 编辑源页 UI 同步）：

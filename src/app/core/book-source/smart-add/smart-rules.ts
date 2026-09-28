@@ -322,7 +322,7 @@ export function applyContentReplaceRules(
 ): string {
   let out = text;
   for (const r of rules ?? []) {
-    if (!r.rule) continue;
+    if (!r || typeof r !== 'object' || !r.rule) continue;
     try {
       out = out.replace(new RegExp(r.rule, 'g'), r.replace ?? '');
     } catch {
@@ -385,12 +385,11 @@ export function generateSourceCode(
   const searchRawBody = rules.searchRawBody ?? '';
   // 封面规则：缺省走 DEFAULT_PATTERNS.coverUrlPattern('css:img')
   const coverRule = rules.coverUrlPattern ?? DEFAULT_PATTERNS.coverUrlPattern;
-  // searchBodyParams → JSON 数组 [["k","v"],...]
-  const bodyParamsJson = j(searchBodyParams.map((p) => [p.key, p.value]));
-  // 正文净化规则 → JSON 数组 [["正则","替换为"],...]
-  const contentReplaceRulesJson = j(
-    (rules.contentReplaceRules ?? []).map((r) => [r.rule, r.replace ?? '']),
-  );
+  // searchBodyParams → JSON 对象数组 [{"key":"q","value":"{keyword}"},...]
+  // 盘上格式与 UI 层形态统一为对象（见 SearchBodyParam / ContentReplaceRule）
+  const bodyParamsJson = j(searchBodyParams);
+  // 正文净化规则 → JSON 对象数组 [{"rule":"正则","replace":"替换为"},...]
+  const contentReplaceRulesJson = j(rules.contentReplaceRules ?? []);
   return `// @name        ${rules.siteName}
 // @version     1.1.0
 // @author      智能添加
@@ -528,29 +527,20 @@ async function extractAttr(rule, html, baseUrl, attr) {
 }
 
 /** 把搜索参数键值对序列化为 form-urlencoded 字符串。
+ *  - 形态:对象数组 [{"key":"q","value":"{keyword}"},...]（与 UI 层 rules-panel 内存态一致）
  *  - value 支持 {keyword} / {page} 占位符:运行时由 search() 替换后 encodeURIComponent
  *  - 空 key 跳过(避免生成 "&value" 这类无效段)
- *  - 容错:接受 array-of-pairs（默认生成形态）、普通对象 {k:v}、Map；null/undefined → 空串 */
-function buildFormBody(params, key, page) {
-  const parts = []
-  let entries
-  if (Array.isArray(params)) {
-    entries = params
-  } else if (params instanceof Map) {
-    entries = Array.from(params.entries())
-  } else if (params && typeof params === 'object') {
-    entries = Object.entries(params)
-  } else {
-    entries = []
+ *  - null/undefined → 空串 */
+function buildFormBody(params, keyword, page) {
+  const parts = [];
+  for (const p of params ?? []) {
+    if (!p || typeof p !== 'object' || !p.key) continue;
+    const replaced = String(p.value ?? '')
+      .replace('{keyword}', keyword)
+      .replace('{page}', String(page));
+    parts.push(encodeURIComponent(p.key) + '=' + encodeURIComponent(replaced));
   }
-  for (const [k, v] of entries) {
-    if (!k) continue
-    const replaced = String(v || '')
-      .replace('{keyword}', key)
-      .replace('{page}', String(page))
-    parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(replaced))
-  }
-  return parts.join('&')
+  return parts.join('&');
 }
 
 /** 搜索 —— 返回搜索结果列表 [{name, author, bookUrl}]
@@ -608,10 +598,9 @@ async function chapterList(bookUrl) {
 async function chapterContent(chapterUrl) {
   const resp = await legado.http.get(chapterUrl, HEADERS)
   let text = stripTags(await extractHtml(CONTENT_RULE, resp, chapterUrl))
-  for (const pair of CONTENT_REPLACE_RULES) {
-    const rule = pair[0]
-    if (!rule) continue
-    try { text = text.replace(new RegExp(rule, 'g'), pair[1] || '') } catch (e) { /* 非法正则跳过,不中断后续规则 */ }
+  for (const r of CONTENT_REPLACE_RULES ?? []) {
+    if (!r || typeof r !== 'object' || !r.rule) continue
+    try { text = text.replace(new RegExp(r.rule, 'g'), r.replace || '') } catch (e) { /* 非法正则跳过,不中断后续规则 */ }
   }
   return text
 }

@@ -19,6 +19,8 @@ import { parseHeaderMeta } from '../../core/book-source/js-source/header-parser'
 import {
   generateSourceCode,
   type SearchMethod,
+  type SearchBodyParam,
+  type ContentReplaceRule,
 } from '../../core/book-source/smart-add/smart-rules';
 
 /** PomAPI 子集(全局 Window.pomAPI 在 page-fetcher.service.ts 声明)。 */
@@ -134,25 +136,17 @@ export class BookSourceEditorComponent {
       }
       return raw;
     };
-    /** 提取并求值 JS 数组字面量(如 SEARCH_BODY_PARAMS = [["q","{keyword}"]])—— 仅解析受限语法 */
-    const extractArray = (name: string): Array<{ key: string; value: string }> => {
+    /** 解析对象数组常量（SEARCH_BODY_PARAMS / CONTENT_REPLACE_RULES）
+     *  - 盘上格式统一为对象数组：[{"key":"q","value":"{keyword}"},...] /
+     *    [{"rule":"正则","replace":"替换为"},...]
+     *  - 缺省或解析失败一律回退 []：单个常量写坏不应让整个规则面板空白
+     *    （此前直接 JSON.parse 会抛，被 loadExisting 的 catch 吞成「读取失败」）*/
+    const extractObjArray = <T>(name: string): T[] => {
       const raw = extract(name);
-      if (!raw || !raw.startsWith('[')) return [];
+      if (!raw) return [];
       try {
-        const arr = new Function(`return (${raw});`)() as unknown;
-        if (!Array.isArray(arr)) return [];
-        const out: Array<{ key: string; value: string }> = [];
-        for (const it of arr) {
-          if (
-            Array.isArray(it) &&
-            it.length >= 2 &&
-            typeof it[0] === 'string' &&
-            typeof it[1] === 'string'
-          ) {
-            out.push({ key: it[0], value: it[1] });
-          }
-        }
-        return out;
+        const arr = JSON.parse(raw) as unknown;
+        return Array.isArray(arr) ? (arr as T[]) : [];
       } catch {
         return [];
       }
@@ -169,7 +163,7 @@ export class BookSourceEditorComponent {
       siteName,
       searchPath: extract('SEARCH_PATH'),
       searchMethod: method,
-      searchBodyParams: extractArray('SEARCH_BODY_PARAMS'),
+      searchBodyParams: extractObjArray<SearchBodyParam>('SEARCH_BODY_PARAMS'),
       searchContentType: extract('SEARCH_CONTENT_TYPE') || 'application/x-www-form-urlencoded',
       searchRawBody: extract('SEARCH_RAW_BODY'),
       searchItemPattern: extract('SEARCH_ITEM_RULE'),
@@ -178,10 +172,7 @@ export class BookSourceEditorComponent {
       bookAuthorPattern: extract('BOOK_AUTHOR_RULE'),
       chapterItemPattern: extract('CHAPTER_ITEM_RULE'),
       contentPattern: extract('CONTENT_RULE'),
-      contentReplaceRules: extractArray('CONTENT_REPLACE_RULES').map((p) => ({
-        rule: p.key,
-        replace: p.value,
-      })),
+      contentReplaceRules: extractObjArray<ContentReplaceRule>('CONTENT_REPLACE_RULES'),
       bookCategoryPattern: extract('BOOK_CATEGORY_RULE'),
     });
     this.ruleBaseUrl.set(extract('BASE_URL'));
@@ -214,9 +205,7 @@ export class BookSourceEditorComponent {
       BOOK_AUTHOR_RULE: rules.bookAuthorPattern,
       CHAPTER_ITEM_RULE: rules.chapterItemPattern,
       CONTENT_RULE: rules.contentPattern,
-      CONTENT_REPLACE_RULES: {
-        literal: JSON.stringify((rules.contentReplaceRules ?? []).map((r) => [r.rule, r.replace])),
-      },
+      CONTENT_REPLACE_RULES: { literal: JSON.stringify(rules.contentReplaceRules ?? []) },
       BOOK_CATEGORY_RULE: rules.bookCategoryPattern ?? '',
     };
   }
