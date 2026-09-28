@@ -25,8 +25,8 @@
 每步独立 commit，跑 `npm test`（698+ 用例）验证。
 
 - [x] **P0-1 `@types/node` → ^24.15.0**：对齐 Electron 44 内置 Node 24.18.1。顺带验证 `npm run build:electron`。（commit `429cebf`，前置修复 `11a7e57`）
-- [ ] **P0-2 jsdom → ^30.1.1**：回归重点——v27 起 `element.click()` 派发 PointerEvent、v29 CSSOM 重写影响 `getComputedStyle` 断言。
-- [ ] **P0-3 vitest + @vitest/coverage-v8 → ^3.2.x**：迁移清单——`spy.mockReset()` 行为变化、`vi.useFakeTimers()` 默认 toFake 移除、错误相等性更严格（`cause`/原型比对）。worker-pool / sandbox 相关 spec 是高风险区。
+- [x] **P0-2 jsdom → ^30.1.1**：回归重点——v27 起 `element.click()` 派发 PointerEvent、v29 CSSOM 重写影响 `getComputedStyle` 断言。（commit `cb3f305`，700/700 全绿）
+- [x] **P0-3 vitest + @vitest/coverage-v8 → ^3.2.x**：迁移清单——`spy.mockReset()` 行为变化、`vi.useFakeTimers()` 默认 toFake 移除、错误相等性更严格（`cause`/原型比对）。worker-pool / sandbox 相关 spec 是高风险区。（commit `30ab9f3`，700/700 + build + build:electron 三绿）
 - [ ] **P0-4 puppeteer-core → ^25.12.0**：升级后立即跑 `scripts/` 下 5 个 `.cjs` 脚本（e2e-cf-guard / e2e-import-local-txt / e2e-import-online / e2e-search / e2e-txt-preview）验证 `require(esm)`；失败则改 `await import('puppeteer-core')` 或重命名 `.mjs`。
 - [ ] **P0-5 package.json 加 `engines: { "node": "^22.22.3 || ^24.15.0 || ^26.0.0" }`**：jsdom 30 / Angular 22 的 Node 底线前置声明，避免协作者环境踩坑。
 
