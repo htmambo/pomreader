@@ -14,7 +14,7 @@
 | zone.js | 0.14.10 | 0.15.x（19 起）→ 可选 0.16（21 起） | Angular 19 peer 要求 `~0.15.0` |
 | vitest + coverage-v8 | 2.1.9 | **3.2.x（当前上限）** | Angular 18 的 build-angular 内置 vite 5.4；vitest 4 需 vite 6+、5 需 vite ≥6.4。**Angular 升完前 vitest 过不了 3.x** |
 | jsdom | 26.1.0 | 30.1.1 | 要求 Node ^22.22.2 \|\| ^24.15.0 \|\| ≥26（本机 v24.15.0 恰好踩线） |
-| puppeteer-core | 23.11.1 | 25.12.0 | **25 起 ESM-only**，`scripts/*.cjs` 的 `require()` 需验证或改 `.mjs` |
+| puppeteer-core | 23.11.1 | 25.12.0 | 实测 Node 24 `require(esm)` 可用，`.cjs` 脚本零改动（见 P0-4 结论） |
 | @types/node | 20.19.43 | **^24（不是 26）** | Electron 44 内置 Node 24.18.1；装 26 会暴露运行时没有的 API 类型 |
 | Node.js（开发/CI） | 24.15.0 | ≥ 24.15 | Angular 22 要求 ^22.22.3 \|\| ^24.15.0 \|\| ^26.0.0；建议 package.json 加 `engines` 收紧 |
 
@@ -27,8 +27,8 @@
 - [x] **P0-1 `@types/node` → ^24.15.0**：对齐 Electron 44 内置 Node 24.18.1。顺带验证 `npm run build:electron`。（commit `429cebf`，前置修复 `11a7e57`）
 - [x] **P0-2 jsdom → ^30.1.1**：回归重点——v27 起 `element.click()` 派发 PointerEvent、v29 CSSOM 重写影响 `getComputedStyle` 断言。（commit `cb3f305`，700/700 全绿）
 - [x] **P0-3 vitest + @vitest/coverage-v8 → ^3.2.x**：迁移清单——`spy.mockReset()` 行为变化、`vi.useFakeTimers()` 默认 toFake 移除、错误相等性更严格（`cause`/原型比对）。worker-pool / sandbox 相关 spec 是高风险区。（commit `30ab9f3`，700/700 + build + build:electron 三绿）
-- [ ] **P0-4 puppeteer-core → ^25.12.0**：升级后立即跑 `scripts/` 下 5 个 `.cjs` 脚本（e2e-cf-guard / e2e-import-local-txt / e2e-import-online / e2e-search / e2e-txt-preview）验证 `require(esm)`；失败则改 `await import('puppeteer-core')` 或重命名 `.mjs`。
-- [ ] **P0-5 package.json 加 `engines: { "node": "^22.22.3 || ^24.15.0 || ^26.0.0" }`**：jsdom 30 / Angular 22 的 Node 底线前置声明，避免协作者环境踩坑。
+- [x] **P0-4 puppeteer-core → ^25.12.0**（`engines: node >=22.12.0`）：**实测零代码改动**——25.12.0 虽 `type: module`，但 exports 保留 `require` 条件，且 Node ≥22.12 原生支持 `require(esm)`。实测 `require('puppeteer-core').launch` 为 function，5 个 `.cjs`（e2e-cf-guard / e2e-import-local-txt / e2e-import-online / e2e-search / e2e-txt-preview）语法与加载均正常。
+- [x] **P0-5 package.json 加 `engines: { "node": "^22.22.3 || ^24.15.0 || ^26.0.0" }`**：jsdom 30 / Angular 22 的 Node 底线前置声明，避免协作者环境踩坑。
 
 ## Phase 1：Angular 18 → 19
 
@@ -74,6 +74,7 @@
 3. **TS 版本 pin 死**：各级区间 5.5（19）/ 5.8（20）/ 5.9（21）/ ~6.0（22），`~` 前缀防 npm 装到 7.x。
 4. **覆盖配置变化**：vitest 4 起 `coverage.all` 默认 true，本项目阈值（lines 50 / functions 60 / branches 75）可能因分母变大而失败，到时收紧 `include` 或调阈值。
 5. **回滚策略**：每级独立 commit，升级失败直接 revert 该 commit；升级期间冻结其他依赖变动。
+6. **版本号必须先核实**：本计划的具体版本号系凭记忆记录，Phase 0 已出现过 `npm install -D puppeteer-core@^25.12.0` 报 no matches（精确版本 `25.12.0` 实测可装，判定为 range 解析/转义问题而非版本缺失）。**Phase 1–5 每步执行前必须先 `npm view <pkg>@<version> version engines` 确认版本存在且 Node 约束满足**，尤其 Phase 4 的 `typescript@~6.0.2`（Angular 22 硬约束，写错直接卡死主线）。
 
 ## 参考来源
 
