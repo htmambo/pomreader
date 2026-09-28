@@ -388,8 +388,8 @@ export class DbService {
           const m = doc._id.match(/^chapter:(.+):(\d+)$/);
           if (!m) return null;
           const [, bookId, idxStr] = m;
+          // 正则 (\d+) 已保证纯数字，parseInt 不可能 NaN（原 Number.isNaN 检查为不可达死分支）
           const idx = parseInt(idxStr, 10);
-          if (Number.isNaN(idx)) return null;
           // 剥离旧 _rev：新 _id 文档不应携带旧 _rev，否则 PouchDB 当 update 处理 → 409 (P2)
           const { _rev: _oldRev, ...rest } = doc;
           return { ...rest, _id: CHAPTER_PREFIX + bookId + CHAPTER_SEP + idx };
