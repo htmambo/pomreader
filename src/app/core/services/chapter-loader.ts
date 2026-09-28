@@ -134,10 +134,14 @@ export class ChapterLoader {
     await this.db.chapterPut(updated);
     this._chaptersCache.update((m) => {
       const list = m.get(bookId);
-      // 缓存 miss 路径：直接把单章写进新数组（覆盖写）
+      // 缓存未加载时不写入：单章数组会被 getChapters/getChaptersSync 当成完整目录
+      // （缓存命中即跳过 db）。db 已在上面 chapterPut，下次读取懒加载全量列表
+      if (!list) return m;
       const next = new Map(m);
-      const newList = list ? list.map((c) => (c.index === index ? updated : c)) : [updated];
-      next.set(bookId, newList);
+      next.set(
+        bookId,
+        list.map((c) => (c.index === index ? updated : c)),
+      );
       return next;
     });
     this.chaptersVersion.update((v) => v + 1);

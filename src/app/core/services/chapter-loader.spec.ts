@@ -276,13 +276,20 @@ describe('ChapterLoader', () => {
   });
 
   describe('updateChapter', () => {
-    it('应能合并 patch 并更新缓存 + version', async () => {
+    it('缓存未加载时只写 db、不写入单章部分缓存（防止被当成完整目录）', async () => {
       const ch = makeChapter({ title: 'old' });
-      loader.db = { ...db, chapterGet: async () => ch };
+      loader.db = {
+        ...db,
+        chapterGet: async () => ch,
+        chapterAll: async () => [{ ...ch, title: 'new' }],
+      };
       await loader.updateChapter('book-1', 0, { title: 'new' });
-      const cached = loader.getChaptersSync('book-1');
-      expect(cached?.[0].title).toBe('new');
+      // 缓存保持缺席（不污染），version 照常 bump 通知 reader 刷新
+      expect(loader.getChaptersSync('book-1')).toBeUndefined();
       expect(loader.chaptersVersion()).toBe(1);
+      // 下次读取从 db 懒加载全量列表（含更新）
+      const list = await loader.getChapters('book-1');
+      expect(list[0].title).toBe('new');
     });
 
     it('缺章节时静默返回', async () => {
