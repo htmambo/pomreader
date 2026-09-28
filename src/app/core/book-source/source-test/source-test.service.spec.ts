@@ -200,7 +200,6 @@ describe('SourceTestService.runTest', () => {
       const r2 = await makeService(
         makeSandbox(['search'], {
           search: () => {
-             
             throw '字符串错误';
           },
         }),

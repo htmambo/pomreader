@@ -242,7 +242,6 @@ describe('LegadoImportService', () => {
 
     it('error 无 message 时用 String(e) 兜底收集', async () => {
       const saveMock = vi.fn(async () => {
-         
         throw 'string failure';
       });
       const { svc } = setupTestBed({ booksourceSave: saveMock });
