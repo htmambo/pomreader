@@ -189,6 +189,107 @@ describe('WorkerPoolImpl', () => {
     });
   });
 
+  describe('消息处理边界', () => {
+    it('无 pending 时收到 result 静默忽略（不抛错）', () => {
+      const pool = makePool();
+      expect(pool).toBeDefined();
+      expect(() => mocks[0].deliverResult('ghost', { ok: true })).not.toThrow();
+    });
+
+    it('worker 返回 ok:false → reject Error(msg.error)', async () => {
+      const pool = makePool();
+      const promise = pool.schedule({ type: 'load', fileName: 'a', source: '', reqId: 'r1' });
+      mocks[0].deliverResult('r1', { ok: false, error: 'compile-fail' });
+      await expect(promise).rejects.toThrow('compile-fail');
+    });
+
+    it('worker 返回 ok:false 且无 error 字段 → reject Error(unknown)', async () => {
+      const pool = makePool();
+      const promise = pool.schedule({ type: 'load', fileName: 'a', source: '', reqId: 'r1' });
+      mocks[0].deliverResult('r1', { ok: false });
+      await expect(promise).rejects.toThrow('unknown');
+    });
+
+    it('前一个任务完成后自动派发同 worker 队列里的下一个任务', async () => {
+      const pool = makePool({ size: 1 });
+      const t1: WorkerTask = { type: 'load', fileName: 'a', source: '', reqId: 'r1' };
+      const t2: WorkerTask = { type: 'load', fileName: 'b', source: '', reqId: 'r2' };
+      const p1 = pool.schedule(t1);
+      const p2 = pool.schedule(t2);
+      // 第二个任务排队中，未派发
+      expect(mocks[0].worker.postMessage).toHaveBeenCalledTimes(1);
+      mocks[0].deliverResult('r1', { ok: true });
+      await p1;
+      // r1 完成后 r2 被自动派发
+      expect(mocks[0].worker.postMessage).toHaveBeenCalledTimes(2);
+      expect(mocks[0].worker.postMessage).toHaveBeenLastCalledWith(t2);
+      mocks[0].deliverResult('r2', { ok: true });
+      await p2;
+    });
+  });
+
+  describe('负载均衡', () => {
+    it('各 worker 队列等长时新任务派到首个 worker（len < minLen 不成立）', async () => {
+      const pool = makePool({ size: 2, pendingCap: 8 });
+      const p1 = pool.schedule({ type: 'load', fileName: 'a', source: '', reqId: 'r1' });
+      const p2 = pool.schedule({ type: 'load', fileName: 'b', source: '', reqId: 'r2' });
+      // w0 队列长度 1，w1 队列长度 1 → 第三个任务 len(1) < minLen(1) 为 false → 留在 w0
+      const p3 = pool.schedule({ type: 'load', fileName: 'c', source: '', reqId: 'r3' });
+      p3.catch(() => {});
+      expect(mocks[0].worker.postMessage).toHaveBeenCalledTimes(1);
+      expect(mocks[1].worker.postMessage).toHaveBeenCalledTimes(1);
+      // r1 完成后 r3 在 w0 上被派发
+      mocks[0].deliverResult('r1', { ok: true });
+      await p1;
+      expect(mocks[0].worker.postMessage).toHaveBeenCalledTimes(2);
+      mocks[0].deliverResult('r3', { ok: true });
+      await p3;
+      mocks[1].deliverResult('r2', { ok: true });
+      await p2;
+    });
+  });
+
+  describe('worker crash 边界', () => {
+    it('worker.onmessageerror 同样触发 crash + refill', async () => {
+      const pool = makePool({ size: 1 });
+      const promise = pool.schedule({ type: 'load', fileName: 'a', source: '', reqId: 'r1' });
+      const w = mocks[0].worker;
+      w.onmessageerror?.(new Error('bad-msg'));
+      await expect(promise).rejects.toBeInstanceOf(WorkerCrashedError);
+      expect(mocks[0].isTerminated()).toBe(true);
+      expect(mocks.length).toBeGreaterThan(1);
+    });
+
+    it('crash 事件无 message → WorkerCrashedError(unknown)', async () => {
+      const pool = makePool({ size: 1 });
+      const promise = pool.schedule({ type: 'load', fileName: 'a', source: '', reqId: 'r1' });
+      mocks[0].deliverError({});
+      await expect(promise).rejects.toThrow(/Worker crashed: unknown/);
+    });
+
+    it('terminate 后迟到的 error 事件：不 respawn、不抛错', () => {
+      const pool = makePool({ size: 1 });
+      const lateHandler = mocks[0].worker.onerror;
+      pool.terminate();
+      expect(() => lateHandler?.(new Error('late'))).not.toThrow();
+      // terminated → 不 refill
+      expect(mocks.length).toBe(1);
+    });
+  });
+
+  describe('LRU 边界', () => {
+    it('cacheModule 同 key 覆盖旧值并移到末尾', () => {
+      const pool = makePool({ lruMax: 2 });
+      pool.cacheModule('a', 1);
+      pool.cacheModule('b', 2);
+      pool.cacheModule('a', 10); // 覆盖 + 移到末尾
+      pool.cacheModule('c', 3); // 淘汰 b（a 刚被刷新）
+      expect(pool.getCachedModule('a')).toBe(10);
+      expect(pool.getCachedModule('b')).toBeUndefined();
+      expect(pool.getCachedModule('c')).toBe(3);
+    });
+  });
+
   describe('terminate 关闭', () => {
     it('terminate 应拒绝所有 pending tasks', async () => {
       const pool = makePool();

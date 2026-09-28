@@ -71,6 +71,7 @@ class MockWorker {
   private readonly modules = new Map<string, ModFns>();
   private harden = false;
   private suspendLoad = false;
+  private suspendCall = false;
   private autoReadyEnabled = true;
   private readySent = false;
   enableHardening(): void {
@@ -79,6 +80,10 @@ class MockWorker {
   /** 测试用：收到 load 消息不自动回 loaded（让 init-error/onerror 先到达主线程） */
   suspendLoadReply(): void {
     this.suspendLoad = true;
+  }
+  /** 测试用：收到 call 消息不自动回 result（让主线程手动回消息验证 handleMessage 分支） */
+  suspendCallReply(): void {
+    this.suspendCall = true;
   }
   /** 测试用：不自动发 worker-ready（模拟硬化段抛错或 worker 整体未启动） */
   disableAutoReady(): void {
@@ -143,6 +148,7 @@ class MockWorker {
     }
   }
   private handleCall(data: Record<string, unknown>): void {
+    if (this.suspendCall) return; // 测试用：等待主线程手动回 result
     if (this.harden) applyHardening();
     const fn = this.modules.get(data['fileName'] as string)?.[data['fn'] as string] as
       ((...a: unknown[]) => unknown) | undefined;
@@ -468,5 +474,413 @@ describe('SandboxService — invalidate / 超时 / pool', () => {
     expect(worker.postLog.filter((m) => m['type'] === 'call').length).toBe(6);
     await flushMs(300);
     expect(await Promise.all(promises)).toEqual(Array(7).fill('d'));
+  });
+});
+
+describe('SandboxService — 进度日志（log / clearProgress / worker-log）', () => {
+  it('worker-log 消息按级别推入 progress；无 msg 的消息被忽略', () => {
+    const { svc, worker } = makeService();
+    worker.onmessage?.({ data: { type: 'worker-log', msg: '硬化完成' } });
+    worker.onmessage?.({ data: { type: 'worker-log', msg: '警告x', level: 'warn' } });
+    worker.onmessage?.({ data: { type: 'worker-log', msg: '错误y', level: 'error' } });
+    worker.onmessage?.({ data: { type: 'worker-log' } }); // 无 msg → 不推入
+    const lines = svc.progress();
+    expect(lines).toHaveLength(3);
+    expect(lines.some((l) => l.includes('硬化完成'))).toBe(true);
+    expect(lines.some((l) => l.includes('警告x'))).toBe(true);
+    expect(lines.some((l) => l.includes('错误y'))).toBe(true);
+  });
+  it('toLocaleTimeString 抛错时日志降级为 [??:??:??] 前缀（不递归抛错）', () => {
+    const spy = vi.spyOn(Date.prototype, 'toLocaleTimeString').mockImplementation(() => {
+      throw new Error('no-locale');
+    });
+    try {
+      const { svc, worker } = makeService();
+      worker.onmessage?.({ data: { type: 'worker-log', msg: '降级日志' } });
+      expect(svc.progress()[0]).toMatch(/^\[\?\?:\?\?:\?\?\] 降级日志/);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+  it('clearProgress 清空进度日志', () => {
+    const { svc, worker } = makeService();
+    worker.onmessage?.({ data: { type: 'worker-log', msg: 'x' } });
+    expect(svc.progress()).toHaveLength(1);
+    svc.clearProgress();
+    expect(svc.progress()).toEqual([]);
+  });
+});
+
+describe('SandboxService — handleMessage 边界分支', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+  /** 取最后一条 call 消息的 reqId（suspendCallReply 模式下手动回 result 用） */
+  const lastCallReqId = (worker: InstanceType<typeof MockWorker>): string => {
+    const msg = [...worker.postLog].reverse().find((m) => m['type'] === 'call');
+    return msg?.['reqId'] as string;
+  };
+
+  it('init-error 无 error 字段 → reject 「未知错误」', async () => {
+    const { svc, worker } = makeService();
+    setupReady(worker);
+    worker.suspendLoadReply();
+    const p = svc.load('x', 'function search(){}');
+    await flushMs(60);
+    worker.onmessage?.({ data: { type: 'init-error' } });
+    await expect(p).rejects.toThrow(/Worker 启动失败：未知错误/);
+  });
+  it('init-error 在无 pendingLoads 时幂等（failAllPendingLoads 空守卫）', () => {
+    const { svc, worker } = makeService();
+    // init-error 会 reject workerReadyPromise —— 本用例无 load 等待它，手动挂 catch 防 unhandled
+    (svc as unknown as { workerReadyPromise: Promise<void> }).workerReadyPromise.catch(() => {});
+    expect(() => worker.onmessage?.({ data: { type: 'init-error', error: 'boom' } })).not.toThrow();
+  });
+  it('loaded 携带 error → load reject 「书源编译失败」（不缓存空模块）', async () => {
+    const { svc, worker } = makeService();
+    setupReady(worker);
+    worker.suspendLoadReply();
+    const p = svc.load('bad', 'function search(){');
+    await flushMs(60);
+    worker.onmessage?.({ data: { type: 'loaded', fileName: 'bad', error: 'Unexpected token' } });
+    await expect(p).rejects.toThrow(/书源编译失败：Unexpected token/);
+  });
+  it('loaded 无 fns 字段 → 按空函数表缓存；缓存命中日志显示 (无)', async () => {
+    const { svc, worker } = makeService();
+    setupReady(worker);
+    worker.suspendLoadReply();
+    const p = svc.load('nofns', 'const x = 1;');
+    await flushMs(60);
+    worker.onmessage?.({ data: { type: 'loaded', fileName: 'nofns' } });
+    expect((await p).fns).toEqual([]);
+    const before = worker.postLog.filter((m) => m['type'] === 'load').length;
+    const cached = await svc.load('nofns', 'const x = 1;');
+    expect(cached.fns).toEqual([]);
+    expect(worker.postLog.filter((m) => m['type'] === 'load').length).toBe(before);
+    expect(svc.progress().some((l) => l.includes('(无)'))).toBe(true);
+  });
+  it('loaded 对应不到 pendingLoad → 静默忽略', () => {
+    const { worker } = makeService();
+    expect(() =>
+      worker.onmessage?.({ data: { type: 'loaded', fileName: 'ghost', fns: [] } }),
+    ).not.toThrow();
+  });
+  it('result reqId 未知 → 静默忽略', () => {
+    const { worker } = makeService();
+    expect(() =>
+      worker.onmessage?.({ data: { type: 'result', reqId: 'ghost', ok: true, value: 1 } }),
+    ).not.toThrow();
+  });
+  it('同一 reqId 重复 result：第二次被忽略（pool 不重复释放）', async () => {
+    const { svc, worker } = makeService();
+    setupReady(worker);
+    worker.suspendCallReply();
+    const p = svc.call<string>('m', 'search', []);
+    await flushMs(0);
+    const reqId = lastCallReqId(worker);
+    worker.onmessage?.({ data: { type: 'result', reqId, ok: true, value: 'first' } });
+    await expect(p).resolves.toBe('first');
+    // 第二次同 reqId → entry 已删，提前 return，不再次 poolRelease
+    worker.onmessage?.({ data: { type: 'result', reqId, ok: true, value: 'second' } });
+    expect((svc as unknown as { poolActive: number }).poolActive).toBe(0);
+  });
+  it('result ok:false 无 errorName/error → 默认 Error + 「沙箱调用失败」', async () => {
+    const { svc, worker } = makeService();
+    setupReady(worker);
+    worker.suspendCallReply();
+    const p = svc.call('m', 'search', []);
+    await flushMs(0);
+    worker.onmessage?.({ data: { type: 'result', reqId: lastCallReqId(worker), ok: false } });
+    await expect(p).rejects.toMatchObject({ name: 'Error', message: '沙箱调用失败' });
+  });
+  it('result ok:false errorName 非白名单 → 降级为 Error（防注入非 Error 构造器）', async () => {
+    const { svc, worker } = makeService();
+    setupReady(worker);
+    worker.suspendCallReply();
+    const p = svc.call('m', 'search', []);
+    await flushMs(0);
+    worker.onmessage?.({
+      data: {
+        type: 'result',
+        reqId: lastCallReqId(worker),
+        ok: false,
+        errorName: 'EvalError',
+        error: 'nope',
+      },
+    });
+    const err = (await p.catch((e) => e)) as Error;
+    expect(err).toBeInstanceOf(Error);
+    expect(err.name).toBe('Error');
+    expect(err.message).toBe('nope');
+  });
+  it('result ok:false errorName=RangeError → 重建 RangeError 实例', async () => {
+    const { svc, worker } = makeService();
+    setupReady(worker);
+    worker.suspendCallReply();
+    const p = svc.call('m', 'search', []);
+    await flushMs(0);
+    worker.onmessage?.({
+      data: {
+        type: 'result',
+        reqId: lastCallReqId(worker),
+        ok: false,
+        errorName: 'RangeError',
+        error: '超出范围',
+      },
+    });
+    await expect(p).rejects.toBeInstanceOf(RangeError);
+  });
+  it('result ok:true 无 value → resolve undefined（日志记 0 字节）', async () => {
+    const { svc, worker } = makeService();
+    setupReady(worker);
+    worker.suspendCallReply();
+    const p = svc.call('m', 'search', []);
+    await flushMs(0);
+    worker.onmessage?.({ data: { type: 'result', reqId: lastCallReqId(worker), ok: true } });
+    await expect(p).resolves.toBeUndefined();
+    expect(svc.progress().some((l) => l.includes('返回 (0 字节)'))).toBe(true);
+  });
+  it('call 参数日志：长字符串截断 + 非字符串 JSON 序列化', async () => {
+    const { svc, worker } = makeService();
+    setupReady(worker);
+    const pl = svc.load(
+      'args',
+      'function search(a, b) { return String(a).length + JSON.stringify(b).length; }',
+    );
+    await flushMs(60);
+    await pl;
+    const r = await svc.call<number>('args', 'search', ['x'.repeat(100), { k: 1 }]);
+    expect(r).toBe(100 + 7);
+    expect(svc.progress().some((l) => l.includes('...') && l.includes('{"k":1}'))).toBe(true);
+  });
+});
+
+describe('SandboxService — onerror / onmessageerror 变体', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+  it('onerror 携带完整 error 对象 → reject 含真实 message + filename:lineno', async () => {
+    const { svc, worker } = makeService();
+    setupReady(worker);
+    worker.suspendLoadReply();
+    const p = svc.load('e1', 'function search(){}');
+    await flushMs(60);
+    const ev = {
+      error: new TypeError('cannot redefine'),
+      message: 'uncaught',
+      filename: 'sandbox.worker.js',
+      lineno: 7,
+      colno: 3,
+    } as unknown as ErrorEvent;
+    worker.onerror?.(ev);
+    await expect(p).rejects.toThrow(/Worker 错误：cannot redefine（sandbox\.worker\.js:7）/);
+  });
+  it('onerror 无 error 对象且无 message → reject 「未知」', async () => {
+    const { svc, worker } = makeService();
+    setupReady(worker);
+    worker.suspendLoadReply();
+    const p = svc.load('e2', 'function search(){}');
+    await flushMs(60);
+    worker.onerror?.({} as ErrorEvent);
+    await expect(p).rejects.toThrow(/Worker 错误：未知/);
+  });
+  it('onerror 的 error.stack getter 抛错 → 兜底链仍 reject pendingLoads', async () => {
+    const { svc, worker } = makeService();
+    setupReady(worker);
+    worker.suspendLoadReply();
+    const p = svc.load('e3', 'function search(){}');
+    await flushMs(60);
+    const evil = {
+      name: 'Error',
+      message: 'x',
+      get stack(): string {
+        throw new Error('stack-boom');
+      },
+    };
+    worker.onerror?.({ error: evil, message: 'm' } as unknown as ErrorEvent);
+    await expect(p).rejects.toThrow(/Worker 错误：未知/);
+  });
+  it('onmessageerror 无 data → reason 记 unknown', async () => {
+    const { svc, worker } = makeService();
+    setupReady(worker);
+    worker.suspendLoadReply();
+    const p = svc.load('e4', 'function search(){}');
+    await flushMs(60);
+    worker.onmessageerror?.({} as MessageEvent);
+    await expect(p).rejects.toThrow(/Worker 消息反序列化失败：unknown/);
+  });
+});
+
+describe('SandboxService — ensureWorker / invalidate / storage 边界', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    localStorage.removeItem('evo3.v1.workerPool.forceOff');
+  });
+  it('未 attach 时 load 触发 ensureWorker：经全局 Worker 构造并跑通 load+call', async () => {
+    const created: InstanceType<typeof MockWorker>[] = [];
+    class GlobalMockWorker extends MockWorker {
+      constructor(_url: string) {
+        super();
+        created.push(this);
+      }
+    }
+    vi.stubGlobal('Worker', GlobalMockWorker);
+    const svc = new SandboxService();
+    const p = svc.load('gw', 'function search(){ return 7; }');
+    // ensureWorker 在 waitForReady 之后的 microtask 才执行（load 先 await 再建 worker）
+    await flushMs(0);
+    expect(created).toHaveLength(1);
+    created[0].emitReady();
+    await flushMs(60);
+    await p;
+    expect(await svc.call<number>('gw', 'search', [])).toBe(7);
+  });
+  it('invalidate 在 worker 未创建时只清本地缓存（不抛错）', () => {
+    const svc = new SandboxService();
+    expect(() => svc.invalidate('ghost')).not.toThrow();
+  });
+  it('storage 事件 key 不匹配 kill-switch → 忽略（forceOff 不变）', () => {
+    const svc = new SandboxService();
+    const handler = SandboxService.__test_getStorageHandler();
+    expect(handler).not.toBeNull();
+    expect(() =>
+      handler?.(new StorageEvent('storage', { key: 'unrelated.key', newValue: '1' })),
+    ).not.toThrow();
+    expect((svc as unknown as { forceOff: boolean }).forceOff).toBe(false);
+  });
+});
+
+describe('SandboxService — legado.http 主线程代理', () => {
+  type PomWindow = { pomAPI?: { booksourceHttpProxy?: (req: unknown) => Promise<unknown> } };
+  const flushMicro = () => new Promise<void>((r) => setTimeout(r, 0));
+  const sendHttp = (worker: InstanceType<typeof MockWorker>, request: Record<string, unknown>) =>
+    worker.onmessage?.({ data: { type: 'http', reqId: 'h1', request } });
+  const lastHttpResult = (worker: InstanceType<typeof MockWorker>) =>
+    [...worker.postLog].reverse().find((m) => m['type'] === 'http-result');
+
+  afterEach(() => {
+    delete (window as unknown as PomWindow).pomAPI;
+    vi.unstubAllGlobals();
+    SandboxService.cfChallengeHook = null;
+  });
+
+  it('pomAPI 代理成功 → http-result 回传 status/headers/body', async () => {
+    const proxy = vi.fn().mockResolvedValue({ status: 200, headers: { 'x-a': '1' }, body: 'html' });
+    (window as unknown as PomWindow).pomAPI = { booksourceHttpProxy: proxy };
+    const { worker } = makeService();
+    const request = { url: 'https://a.test/x' };
+    sendHttp(worker, request);
+    await flushMicro();
+    expect(proxy).toHaveBeenCalledWith(request);
+    expect(lastHttpResult(worker)).toMatchObject({
+      reqId: 'h1',
+      status: 200,
+      headers: { 'x-a': '1' },
+      body: 'html',
+    });
+  });
+  it('pomAPI 返回 cfChallenge → 触发 cfChallengeHook(url)', async () => {
+    const hook = vi.fn();
+    SandboxService.cfChallengeHook = hook;
+    (window as unknown as PomWindow).pomAPI = {
+      booksourceHttpProxy: vi
+        .fn()
+        .mockResolvedValue({ status: 403, headers: {}, body: '', cfChallenge: true }),
+    };
+    const { worker } = makeService();
+    sendHttp(worker, { url: 'https://cf.test/' });
+    await flushMicro();
+    expect(hook).toHaveBeenCalledWith('https://cf.test/');
+    expect(lastHttpResult(worker)).toMatchObject({ status: 403 });
+  });
+  it('pomAPI 代理抛错 → http-result status 599 + 错误日志', async () => {
+    (window as unknown as PomWindow).pomAPI = {
+      booksourceHttpProxy: vi.fn().mockRejectedValue(new Error('proxy-down')),
+    };
+    const { svc, worker } = makeService();
+    sendHttp(worker, { url: 'https://a.test/x' });
+    await flushMicro();
+    expect(lastHttpResult(worker)).toMatchObject({ reqId: 'h1', status: 599, body: '' });
+    expect(svc.progress().some((l) => l.includes('主进程代理失败: proxy-down'))).toBe(true);
+  });
+  it('无 pomAPI → renderer fetch 降级成功（method/headers/body 走默认值）', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      status: 201,
+      headers: {
+        forEach: (cb: (v: string, k: string) => void) => cb('text/html', 'content-type'),
+      },
+      text: () => Promise.resolve('<p>ok</p>'),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { worker } = makeService();
+    sendHttp(worker, { url: 'https://a.test/x' });
+    await flushMicro();
+    expect(fetchMock).toHaveBeenCalledWith('https://a.test/x', {
+      method: 'GET',
+      headers: {},
+      body: undefined,
+    });
+    expect(lastHttpResult(worker)).toMatchObject({
+      status: 201,
+      headers: { 'content-type': 'text/html' },
+      body: '<p>ok</p>',
+    });
+  });
+  it('fetch 失败（Failed to fetch）→ 599 + 网络/CORS/DNS 提示日志', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+    const { svc, worker } = makeService();
+    sendHttp(worker, { url: 'https://a.test/x' });
+    await flushMicro();
+    expect(lastHttpResult(worker)).toMatchObject({ status: 599 });
+    expect(svc.progress().some((l) => l.includes('网络/CORS/DNS 失败'))).toBe(true);
+  });
+  it('fetch 失败（其它错误）→ 599 且无网络提示', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('boom')));
+    const { svc, worker } = makeService();
+    sendHttp(worker, { url: 'https://a.test/x' });
+    await flushMicro();
+    expect(lastHttpResult(worker)).toMatchObject({ status: 599 });
+    expect(svc.progress().some((l) => l.includes('网络/CORS/DNS 失败'))).toBe(false);
+    expect(svc.progress().some((l) => l.includes('legado.http fetch 失败: boom'))).toBe(true);
+  });
+});
+
+describe('SandboxService — legado.query 边界分支', () => {
+  const queryRaw = (data: Record<string, unknown>) => {
+    const { worker } = makeService();
+    worker.onmessage?.({ data: { type: 'query', reqId: 'q9', ...data } });
+    return worker.postLog.find((m) => m['type'] === 'query-result');
+  };
+
+  it('空白选择器 → ok:false 带书源规则提示', () => {
+    const res = queryRaw({ html: '<a>t</a>', selector: '   ', baseUrl: '' });
+    expect(res?.['ok']).toBe(false);
+    expect(String(res?.['error'])).toContain('选择器为空');
+  });
+  it('query 消息缺 html/selector/baseUrl 字段 → 按空串处理（选择器为空）', () => {
+    const res = queryRaw({});
+    expect(res?.['ok']).toBe(false);
+    expect(String(res?.['error'])).toContain('选择器为空');
+  });
+  it('无 href 的锚点 → href 为空串且 links 为空', () => {
+    const res = queryRaw({ html: '<a>纯文本</a>', selector: 'a', baseUrl: 'https://x.test/' });
+    expect(res?.['ok']).toBe(true);
+    const items = res?.['items'] as Array<{ href: string; links: unknown[] }>;
+    expect(items[0].href).toBe('');
+    expect(items[0].links).toEqual([]);
+  });
+  it('后代锚点 href 全部不可解析 → links 被过滤为空；attrs 收集元素属性（小写 key）', () => {
+    const res = queryRaw({
+      html: '<dd data-x="1"><a href="">空</a><a href="/ok">好</a></dd>',
+      selector: 'dd',
+      baseUrl: '',
+    });
+    expect(res?.['ok']).toBe(true);
+    const items = res?.['items'] as Array<{
+      links: unknown[];
+      attrs: Record<string, string>;
+    }>;
+    expect(items[0].links).toEqual([]);
+    expect(items[0].attrs).toEqual({ 'data-x': '1' });
   });
 });

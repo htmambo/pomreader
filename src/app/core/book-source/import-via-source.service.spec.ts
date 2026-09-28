@@ -146,4 +146,97 @@ describe('ImportViaSourceService · importByUrl bookSourceUuid 锚定', () => {
     const result = await svc.importByUrl('https://example.com/book/', 'empty-uuid');
     expect(result.bookSourceUuid).toBe(UNIVERSAL_BOOK_SOURCE_UUID);
   });
+
+  it('match 成功但 PageFetcher 不可用（forTest 传 null）→ 抛 source-unavailable', async () => {
+    const reg = BookSourceRegistry.forTest(emptyFetcher());
+    reg.register(new StubAdapter('stub'));
+    const svc = ImportViaSourceService.forTest(reg, null as unknown as PageFetcher);
+    await expect(svc.importByUrl('https://example.com/book/', 'stub')).rejects.toMatchObject({
+      code: 'source-unavailable',
+      message: 'PageFetcher 不可用（仅 in-browser / Electron 环境）',
+    });
+  });
+});
+
+/** 带 search() 的 adapter（duck-typed，BookSourceAdapter 接口本身不含 search）。
+ *  注意：服务侧以 `adapter.search` 摘取后脱离实例调用，mock 用实例字段（闭包）而非原型方法 */
+class SearchAdapter extends StubAdapter {
+  readonly search: (kw: string, p: number) => Promise<unknown>;
+  constructor(name: string, impl: (kw: string, p: number) => Promise<unknown>) {
+    super(name);
+    this.search = impl;
+  }
+}
+
+describe('ImportViaSourceService · searchAndSelect / supportedSources', () => {
+  it('书源不存在 → 抛 FetchError(unsupported-source)', async () => {
+    const reg = BookSourceRegistry.forTest(emptyFetcher());
+    const svc = ImportViaSourceService.forTest(reg, emptyFetcher());
+    await expect(svc.searchAndSelect('kw', '不存在的源')).rejects.toMatchObject({
+      code: 'unsupported-source',
+      message: '书源不存在: 不存在的源',
+    });
+  });
+
+  it('adapter 未实现 search() → 抛 FetchError(unsupported-source)', async () => {
+    const reg = BookSourceRegistry.forTest(emptyFetcher());
+    reg.register(new StubAdapter('no-search'));
+    const svc = ImportViaSourceService.forTest(reg, emptyFetcher());
+    await expect(svc.searchAndSelect('kw', 'no-search')).rejects.toMatchObject({
+      code: 'unsupported-source',
+      message: '书源 no-search 不支持 search()',
+    });
+  });
+
+  it('search() 返回非数组 → 归一化为空列表', async () => {
+    const reg = BookSourceRegistry.forTest(emptyFetcher());
+    reg.register(new SearchAdapter('weird', async () => null));
+    const svc = ImportViaSourceService.forTest(reg, emptyFetcher());
+    await expect(svc.searchAndSelect('kw', 'weird')).resolves.toEqual([]);
+  });
+
+  it('search() 结果归一化：过滤无 url 项，title/bookUrl/description 回退并 trim', async () => {
+    const reg = BookSourceRegistry.forTest(emptyFetcher());
+    const searchArgs: Array<[string, number]> = [];
+    reg.register(
+      new SearchAdapter('src', async (kw, p) => {
+        searchArgs.push([kw, p]);
+        return [
+          { name: ' 书甲 ', author: '作者甲', url: ' https://a/b/1 ', intro: '简介甲' },
+          { title: '书乙', bookUrl: 'https://a/b/2', description: '简介乙' },
+          { name: '无链接项' },
+          null,
+        ];
+      }),
+    );
+    const svc = ImportViaSourceService.forTest(reg, emptyFetcher());
+    const hits = await svc.searchAndSelect('庆余年', 'src', 2);
+    expect(searchArgs).toEqual([['庆余年', 2]]);
+    expect(hits).toEqual([
+      { name: '书甲', author: '作者甲', url: 'https://a/b/1', intro: '简介甲' },
+      { name: '书乙', author: undefined, url: 'https://a/b/2', intro: '简介乙' },
+    ]);
+  });
+
+  it('supportedSources() 透传 registry 中的书源名列表', () => {
+    const reg = BookSourceRegistry.forTest(emptyFetcher());
+    reg.register(new StubAdapter('src-a'));
+    reg.register(new StubAdapter('src-b'));
+    const svc = ImportViaSourceService.forTest(reg, emptyFetcher());
+    expect(svc.supportedSources()).toEqual(['src-a', 'src-b']);
+  });
+
+  // 疑似 bug 留痕（不修生产代码，仅刻画现状）：服务侧 `adapter.search` 摘取后脱离实例调用，
+  // search 若是依赖 this 的原型方法（如 JsSourceAdapter.search）会因 this 丢失抛 TypeError
+  it('刻画现状：search 为依赖 this 的原型方法 → 调用时 this 丢失抛 TypeError', async () => {
+    const reg = BookSourceRegistry.forTest(emptyFetcher());
+    class PrototypeSearchAdapter extends StubAdapter {
+      async search(): Promise<unknown> {
+        return this.name; // 依赖 this，模拟 JsSourceAdapter.search 的写法
+      }
+    }
+    reg.register(new PrototypeSearchAdapter('proto-search'));
+    const svc = ImportViaSourceService.forTest(reg, emptyFetcher());
+    await expect(svc.searchAndSelect('kw', 'proto-search')).rejects.toBeInstanceOf(TypeError);
+  });
 });

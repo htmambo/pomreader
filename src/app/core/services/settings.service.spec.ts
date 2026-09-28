@@ -12,8 +12,15 @@
  * 为避免在测试里挂起完整 Angular，本 spec 直接走 static 校验路径，
  * 与项目其他 spec 直实例化纯函数的风格一致（见 cache-settings.component.spec）。
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, beforeAll, afterEach, vi } from 'vitest';
+import 'zone.js';
+import { TestBed } from '@angular/core/testing';
+import {
+  BrowserDynamicTestingModule,
+  platformBrowserDynamicTesting,
+} from '@angular/platform-browser-dynamic/testing';
 import { SettingsService } from './settings.service';
+import { DEFAULT_SETTINGS } from '../models/settings.model';
 
 const STORAGE_KEY = 'pom.settings';
 
@@ -128,5 +135,92 @@ describe('SettingsService 新增排版字段', () => {
       const v2 = SettingsService.mergeValidated({ paragraphSpacing: Number.POSITIVE_INFINITY });
       expect(v2.paragraphSpacing).toBe(0.2);
     });
+  });
+});
+
+/**
+ * 实例行为：构造时 effect 持久化 + UA 推送 + update/resetToDefault
+ * 构造函数内 effect() 需要 DI 上下文，走 TestBed（同 auto-import.service.spec 模式）
+ */
+describe('SettingsService 实例行为', () => {
+  beforeAll(() => {
+    TestBed.initTestEnvironment(BrowserDynamicTestingModule, platformBrowserDynamicTesting());
+  });
+
+  beforeEach(() => {
+    localStorage.clear();
+    TestBed.configureTestingModule({ providers: [SettingsService] });
+  });
+
+  afterEach(() => {
+    delete (window as any).pomAPI;
+  });
+
+  it('初始 settings 为默认值（localStorage 无值）', () => {
+    const svc = TestBed.inject(SettingsService);
+    expect(svc.settings()).toEqual(DEFAULT_SETTINGS);
+  });
+
+  it('update() 应更新 signal 并经 effect 落盘到 localStorage', () => {
+    const svc = TestBed.inject(SettingsService);
+    svc.update('fontSize', 24);
+    expect(svc.settings().fontSize).toBe(24);
+
+    TestBed.tick(); // flush effect → persist
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)!);
+    expect(stored.fontSize).toBe(24);
+  });
+
+  it('resetToDefault() 应恢复默认并落盘', () => {
+    const svc = TestBed.inject(SettingsService);
+    svc.update('theme', 5);
+    svc.resetToDefault();
+    expect(svc.settings()).toEqual(DEFAULT_SETTINGS);
+
+    TestBed.tick();
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)!);
+    expect(stored.theme).toBe(DEFAULT_SETTINGS.theme);
+  });
+
+  it('构造时 fetchUa 非空应推送 setFetchUA 到主进程', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ fetchUa: 'MyUA/1.0' }));
+    const setFetchUA = vi.fn(async () => undefined);
+    (window as any).pomAPI = { setFetchUA };
+
+    TestBed.inject(SettingsService);
+    expect(setFetchUA).toHaveBeenCalledWith('MyUA/1.0');
+  });
+
+  it('fetchUa 为空（默认）时不应调用 setFetchUA', () => {
+    const setFetchUA = vi.fn(async () => undefined);
+    (window as any).pomAPI = { setFetchUA };
+
+    TestBed.inject(SettingsService);
+    expect(setFetchUA).not.toHaveBeenCalled();
+  });
+
+  it('pomAPI 缺失或 setFetchUA 缺失时不应抛错', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ fetchUa: 'MyUA/1.0' }));
+
+    (window as any).pomAPI = undefined;
+    expect(() => TestBed.inject(SettingsService)).not.toThrow();
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ providers: [SettingsService] });
+    (window as any).pomAPI = {}; // 无 setFetchUA 方法
+    expect(() => TestBed.inject(SettingsService)).not.toThrow();
+  });
+
+  it('setFetchUA reject 时应静默吞掉（不产生 unhandled rejection）', async () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ fetchUa: 'MyUA/1.0' }));
+    const setFetchUA = vi.fn(async () => {
+      throw new Error('ipc down');
+    });
+    (window as any).pomAPI = { setFetchUA };
+
+    TestBed.inject(SettingsService);
+    expect(setFetchUA).toHaveBeenCalledWith('MyUA/1.0');
+    // 等待 microtask 队列清空：若 .catch 缺失此处会触发 unhandled rejection 使整轮失败
+    await new Promise((r) => setTimeout(r, 0));
   });
 });

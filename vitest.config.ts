@@ -18,17 +18,17 @@ export default defineConfig({
         'src/app/core/services/**/*.ts',
         'src/app/core/db/**/*.ts',
       ],
-      // 阈值下调：现有 spec 不覆盖 services 大块（BookService facade 模式 + jsdom worker mock 缺失）
-      // spec §3.5 IMPL-R1 已说明 facade 80% 不可达。
-      // progressive：当前阈值作为 baseline；下次接力补 services.spec.ts + worker mock 后再收紧。
-      // branches 75→60：vitest 4 起 coverage 改用 AST 重映射（替代 v8-to-istanbul），
-      // 之前被合并的 else/默认分支现被真实计入分母（分支总数 ~1430→1655），
-      // 64.89% 是更准确的真值而非覆盖丢失；取 60 与 lines/statements=50、functions=60 的渐进基线一致。
-      // TODO(dep-upgrade Phase 5): 补 services.spec.ts + worker mock 后将 branches 收紧回 ~70。
+      // 阈值说明（2026-09-28 Phase 5 收紧后）：
+      // services 覆盖短板已补齐（db/book facade/chapter-loader/import-via-source/
+      // source-test/source-search-state/settings/toast/sandbox/worker-pool 专项 spec），
+      // 实测 branches 85.74%。历史背景：vitest 4 起 coverage 改 AST 重映射，
+      // else/默认分支真实计入分母（分支总数 ~1430→1655）。
+      // branches=80：实测 85.74% 留 ~5pp 缓冲（沿用既有"贴边无缓冲"教训）。
+      // lines/statements=50、functions=60 维持渐进基线，后续可另行收紧。
       thresholds: {
         lines: 50,
         functions: 60,
-        branches: 60,
+        branches: 80,
         statements: 50,
       },
     },
