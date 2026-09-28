@@ -30,6 +30,12 @@ export interface Book {
    * - 未填：历史数据 / 本地导入
    */
   bookSourceUuid?: string;
+  /**
+   * 所属书架分类 id 列表（可为空 / 多选，见 BookshelfGroup）
+   * - 未填：历史数据或未归类（旧文档无此字段，读侧按 [] 兜底）
+   * - 该字段随 Book 文档整体写入（bookPut 走 ...rest），无需单独迁移
+   */
+  groupIds?: string[];
   /** 阅读进度（嵌入 Book 文档） */
   progress?: BookProgress;
 }

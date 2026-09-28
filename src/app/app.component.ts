@@ -52,6 +52,8 @@ import {
   ExperimentOutline,
   ReadOutline,
   DatabaseOutline,
+  SlidersOutline,
+  TagsOutline,
 } from '@ant-design/icons-angular/icons';
 import { PageHeaderComponent } from './shared/components/page-header/page-header.component';
 import { PageHeaderService } from './core/services/page-header.service';
@@ -113,12 +115,16 @@ import { UniversalSearchComponent } from './pages/universal-search/universal-sea
       ExperimentOutline,
       ReadOutline,
       DatabaseOutline,
+      SlidersOutline, // 书架「管理分类」按钮
+      TagsOutline, // 书卡右键 / 批量栏「分类」
     ]),
   ],
   template: `
     <nz-layout class="app-layout">
       @if (!isReader()) {
-        <nz-sider nzWidth="200px">
+        <!-- 侧栏恒占 64px（图标轨）；展开态由 SidebarComponent 悬浮覆盖 nz-content，
+             因此这里必须 overflow: visible + 背景交给 rail 自身铺满展开宽度 -->
+        <nz-sider nzWidth="64px">
           <app-sidebar></app-sidebar>
         </nz-sider>
       }
@@ -153,6 +159,8 @@ import { UniversalSearchComponent } from './pages/universal-search/universal-sea
       }
       nz-sider {
         background: var(--pom-fg);
+        /* 图标轨 hover 时展开面板浮在内容之上：ant 默认 overflow 可见，这里显式声明以免被覆盖 */
+        overflow: visible;
       }
       nz-header {
         padding: 16px;

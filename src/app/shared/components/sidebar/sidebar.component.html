@@ -1,0 +1,75 @@
+<!-- 图标轨（默认 64px）→ hover 悬浮展开为 200px；nz-sider 占位恒为 64px，主内容不位移 -->
+<div class="rail" [class.expanded]="expanded()" (mouseenter)="onMouseEnter()" (mouseleave)="onMouseLeave()">
+  <div class="brand">
+    <span class="brand-icon"><span nz-icon nzType="read"></span></span>
+    <span class="brand-name">白虎阅读</span>
+  </div>
+
+  <ul class="list" role="menubar">
+    @for (item of primaryItems; track item.path) {
+    <li>
+      <a
+        class="item"
+        [routerLink]="item.path"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ exact: item.exact ?? false }"
+        [title]="expanded() ? null : item.label"
+        (click)="closePanel()"
+      >
+        <span class="icon"><span nz-icon [nzType]="item.icon"></span></span>
+        <span class="label">{{ item.label }}</span>
+      </a>
+    </li>
+    }
+
+    <!-- 书源管理：默认收起；折叠态点击先展开面板再展开子菜单 -->
+    <li>
+      <button
+        type="button"
+        class="item"
+        [class.active]="sourcesOpen()"
+        [attr.aria-expanded]="sourcesOpen()"
+        [title]="expanded() ? null : '书源管理'"
+        (click)="toggleSources()"
+      >
+        <span class="icon"><span nz-icon nzType="database"></span></span>
+        <span class="label">书源管理</span>
+        <span class="caret" [class.open]="sourcesOpen()" nz-icon nzType="arrow-right"></span>
+      </button>
+      @if (sourcesOpen()) {
+      <ul>
+        @for (item of bookSourceItems; track item.path) {
+        <li>
+          <a
+            class="item subitem"
+            [routerLink]="item.path"
+            routerLinkActive="active"
+            [routerLinkActiveOptions]="{ exact: item.exact ?? false }"
+            (click)="closePanel()"
+          >
+            <span class="icon"><span nz-icon [nzType]="item.icon"></span></span>
+            <span class="label">{{ item.label }}</span>
+          </a>
+        </li>
+        }
+      </ul>
+      }
+    </li>
+
+    @for (item of secondaryItems; track item.path) {
+    <li>
+      <a
+        class="item"
+        [routerLink]="item.path"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ exact: item.exact ?? false }"
+        [title]="expanded() ? null : item.label"
+        (click)="closePanel()"
+      >
+        <span class="icon"><span nz-icon [nzType]="item.icon"></span></span>
+        <span class="label">{{ item.label }}</span>
+      </a>
+    </li>
+    }
+  </ul>
+</div>

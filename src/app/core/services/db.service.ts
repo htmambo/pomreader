@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import PouchDB from 'pouchdb-browser';
 import { type Book } from '../models/book.model';
 import { type Chapter } from '../models/chapter.model';
+import { type BookshelfGroup } from '../models/bookshelf-group.model';
 import { classifyBulkResults, formatBulkFatalMessage } from '../db/bulk-result';
 
 /** Book PouchDB 文档（含嵌入的阅读进度）
@@ -25,12 +26,23 @@ export interface BookDoc {
   sourceUrl?: string;
   /** 锚定具体书源（legado meta.uuid 全局唯一）；详见 Book.bookSourceUuid */
   bookSourceUuid?: string;
+  /** 所属书架分类 id 列表（多分类）；历史文档无此字段，读侧兜底为 [] */
+  groupIds?: string[];
   /** 阅读进度（嵌入，与 bookId 强耦合） */
   progress?: {
     chapterIndex: number;
     scrollOffset?: number;
     updatedAt: string;
   };
+}
+
+/** BookshelfGroup PouchDB 文档（书架分类，独立于 Book 文档） */
+export interface GroupDoc {
+  _id: string; // group:{uuid}
+  type: 'group';
+  id: string;
+  name: string;
+  createdAt: string;
 }
 
 /** Chapter PouchDB 文档（含正文） */
@@ -48,10 +60,12 @@ export interface ChapterDoc {
 /** 已存文档：必有 _rev（PouchDB get/allDocs 返回类型） */
 type StoredBookDoc = BookDoc & PouchDB.Core.RevisionIdMeta;
 type StoredChapterDoc = ChapterDoc & PouchDB.Core.RevisionIdMeta;
+type StoredGroupDoc = GroupDoc & PouchDB.Core.RevisionIdMeta;
 
 const DB_NAME = 'pomreader';
 const BOOK_PREFIX = 'book:';
 const CHAPTER_PREFIX = 'chapter:';
+const GROUP_PREFIX = 'group:';
 /** bookId 与 chapter idx 之间的不可见分隔符。
  *  选 ASCII Unit Separator (0x1F)：不会出现在合法 bookId（UUID / 在线时间戳）中，
  *  避免类似 `bookA` / `bookA-extra` 在 `_id` 前缀上撞车。 */
@@ -146,8 +160,9 @@ function createBackend(): PouchBackend {
 /**
  * DbService — PouchDB 单例封装
  * 单一数据库 `pomreader`，按 _id 前缀分表：
- *   book:{uuid}                    → BookDoc（含阅读进度）
+ *   book:{uuid}                    → BookDoc（含阅读进度 + 分类归属 groupIds）
  *   chapter:{bookId}{idx}   → ChapterDoc（含正文）
+ *   group:{uuid}                    → GroupDoc（书架分类）
  *
  * 后端双实现（见 PouchBackend）：
  * - Electron：经 pomAPI.dbRequest 委托给隐藏 DB 窗口（file:// origin 的 IndexedDB），
@@ -256,6 +271,50 @@ export class DbService {
       throw new Error(
         `bookDelete partial failure: ${formatBulkFatalMessage('bookDelete', merged)}`,
       );
+    }
+  }
+
+  // ============ Group 操作（书架分类）============
+
+  /** 全部分类，按创建时间升序（新建排末尾；同刻创建用 name 兜底保证稳定） */
+  async groupAll(): Promise<BookshelfGroup[]> {
+    const res = await this.db.allDocs<GroupDoc>({
+      include_docs: true,
+      startkey: GROUP_PREFIX,
+      endkey: GROUP_PREFIX + HIGH_CHAR,
+    });
+    return res.rows
+      .map((r) => r.doc)
+      .filter((d): d is StoredGroupDoc => !!d && d.type === 'group')
+      .map((d) => this.groupDocToGroup(d))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.name.localeCompare(b.name));
+  }
+
+  /** 新建 / 覆盖分类（id 相同即更新），遇 409 冲突重试一次 */
+  async groupPut(group: BookshelfGroup): Promise<void> {
+    const baseDoc: GroupDoc = {
+      _id: GROUP_PREFIX + group.id,
+      type: 'group',
+      id: group.id,
+      name: group.name,
+      createdAt: group.createdAt,
+    };
+    await this.groupPutWithRetry(baseDoc);
+  }
+
+  /** 删除分类文档；不存在视为已删除（幂等） */
+  async groupDelete(id: string): Promise<void> {
+    const _id = GROUP_PREFIX + id;
+    try {
+      const doc = (await this.db.get<GroupDoc>(_id)) as StoredGroupDoc;
+      // PouchDB 类型系统无法表达删除文档，需显式 _deleted: true（见 bookDelete 同款注释）
+      await this.db.put({
+        _id,
+        _rev: doc._rev,
+        _deleted: true,
+      } as unknown as PouchDB.Core.PutDocument<GroupDoc>);
+    } catch (e: unknown) {
+      if (!this.isNotFound(e)) throw e;
     }
   }
 
@@ -529,6 +588,26 @@ export class DbService {
     }
   }
 
+  /** Group 写入，遇 409 冲突重试一次 */
+  private async groupPutWithRetry(baseDoc: GroupDoc): Promise<void> {
+    const tryWrite = async (): Promise<void> => {
+      const doc: GroupDoc & { _rev?: string } = { ...baseDoc };
+      try {
+        const existing = (await this.db.get<GroupDoc>(baseDoc._id)) as StoredGroupDoc;
+        doc._rev = existing._rev;
+      } catch (e: unknown) {
+        if (!this.isNotFound(e)) throw e;
+      }
+      await this.db.put(doc as PouchDB.Core.PutDocument<GroupDoc>);
+    };
+    try {
+      await tryWrite();
+    } catch (e: unknown) {
+      if (!this.isConflict(e)) throw e;
+      await tryWrite(); // 冲突：重试一次拿最新 _rev
+    }
+  }
+
   private bookDocToBook(doc: StoredBookDoc): Book {
     // 主动 strip coverColor：老 PouchDB 数据若残留此字段，...rest 会带进返回的 Book
     const {
@@ -539,6 +618,11 @@ export class DbService {
       ...rest
     } = doc as StoredBookDoc & { coverColor?: string };
     return rest as Book;
+  }
+
+  private groupDocToGroup(doc: StoredGroupDoc): BookshelfGroup {
+    const { _id, _rev, type, ...rest } = doc;
+    return rest as BookshelfGroup;
   }
 
   private chapterDocToChapter(doc: StoredChapterDoc): Chapter {

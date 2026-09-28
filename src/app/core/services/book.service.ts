@@ -119,6 +119,22 @@ export class BookService {
   }
 
   /**
+   * 更新一本书的分类归属（书架分类是多选：groupIds 去重后整体覆盖）。
+   * 走 addBook(book, []) —— 与「编辑书籍信息」同款元数据局部更新：
+   * 保留 progress 与章节缓存，不触发任何网络请求。
+   * 集合未变化时直接返回（避免无意义的 PouchDB 写 + 409 重试）。
+   */
+  async updateBookGroups(bookId: string, groupIds: readonly string[]): Promise<void> {
+    const book = this.getById(bookId);
+    if (!book) throw new FetchError('source-unavailable', `书不存在: ${bookId}`);
+    const next = [...new Set(groupIds)];
+    const current = book.groupIds ?? [];
+    const unchanged = current.length === next.length && current.every((id, i) => id === next[i]);
+    if (unchanged) return;
+    await this.addBook({ ...book, groupIds: next }, []);
+  }
+
+  /**
    * ## HT-1 DEFERRED — Facade 委托未完成（review_code R6-2 / Phase 4 收口）
    *
    * **BookService half-migrated state**:

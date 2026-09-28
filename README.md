@@ -60,9 +60,9 @@ npm run dev
 src/
 ├── app/
 │   ├── core/
-│   │   ├── logic/         # 纯函数：chapter-split / text-format / bookshelf-sort / auto-import-url / convert-chinese / settings-store
-│   │   ├── models/        # Book / Chapter / Settings
-│   │   ├── services/      # BookService / DbService (PouchDB) / ReaderService / SettingsService 等
+│   │   ├── logic/         # 纯函数：chapter-split / text-format / bookshelf-sort / bookshelf-filter / bookshelf-group-name / auto-import-url / convert-chinese / settings-store
+│   │   ├── models/        # Book / Chapter / Settings / BookshelfGroup
+│   │   ├── services/      # BookService / BookshelfGroupService / DbService (PouchDB) / ReaderService / SettingsService 等
 │   │   ├── book-source/   # 书源体系：适配器注册表 + JS 书源沙箱 + legado 订阅源导入
 │   │   │   ├── adapters/  # 专用站（笔趣阁）/ 启发式密度算法兜底
 │   │   │   ├── js-source/ # sandbox.worker（网络出口屏蔽 + 原型冻结）+ 健康检查/多镜像
@@ -72,7 +72,7 @@ src/
 │   │   ├── data/          # 跨 book-source 子模块共享数据（good-sites 等）
 │   │   ├── db/            # PouchDB 工具（bulk-result 错误分类、IpcPouchBackend 抽象）
 │   │   └── cover/         # 封面缓存 / generators（程序生成封面）
-│   ├── shared/components/ # 9 个子目录: book-card / change-book-source-dialog / cover-generator-dialog / cover-img / edit-book-info-dialog / jump-chapter-dialog / page-header / rules-panel / sidebar
+│   ├── shared/components/ # 11 个子目录: book-card / book-group-dialog / bookshelf-group-dialog / change-book-source-dialog / cover-generator-dialog / cover-img / edit-book-info-dialog / jump-chapter-dialog / page-header / rules-panel / sidebar
 │   ├── pages/             # bookshelf / universal-search / reader / disclaimer
 │   │   ├── book-source/   # 书源管理 6 子页: list / search / smart-add / debug / test / editor
 │   │   └── settings/      # 缓存管理

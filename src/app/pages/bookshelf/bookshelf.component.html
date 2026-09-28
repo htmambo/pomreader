@@ -1,6 +1,40 @@
-@if (sortedBooks().length > 0) {
+<!-- ── 分类 chips 行（横向滚动，末尾是新建 / 管理入口）── -->
+<div class="shelf-bar">
+  <div class="chips">
+    <button
+      type="button"
+      class="chip chip--all"
+      [class.chip--on]="activeGroupId() === null"
+      (click)="selectGroup(null)"
+    >
+      全部书籍<span class="chip-count">{{ statusFiltered().length }}</span>
+    </button>
+    @for (g of groups(); track g.id) {
+    <button type="button" class="chip" [class.chip--on]="activeGroupId() === g.id" (click)="selectGroup(g.id)">
+      {{ g.name }}<span class="chip-count">{{ groupCounts()[g.id] ?? 0 }}</span>
+    </button>
+    }
+
+    <span class="chips-sep"></span>
+
+    <button type="button" class="chip chip--icon" title="管理分类" (click)="openGroupManager()">
+      <span nz-icon nzType="sliders"></span>
+    </button>
+  </div>
+
+  <!-- ── 阅读状态 tab（计数按当前分类统计）── -->
+  <nav class="tabs">
+    @for (tab of statusTabs; track tab.id) {
+    <button type="button" class="tab" [class.tab--on]="status() === tab.id" (click)="status.set(tab.id)">
+      {{ tab.label }}<span class="tab-count">{{ statusCounts()[tab.id] }}</span>
+    </button>
+    }
+  </nav>
+</div>
+
+@if (visibleBooks().length > 0) {
 <div nz-row [nzGutter]="[16, 16]">
-  @for (book of sortedBooks(); track book.id) {
+  @for (book of visibleBooks(); track book.id) {
   <div nz-col nzXs="12" nzSm="8" nzMd="6" nzLg="4" nzXl="3">
     <app-book-card
       [book]="book"
@@ -11,6 +45,7 @@
       (editInfo)="onEditInfo(book)"
       (changeSource)="onChangeSource(book)"
       (refreshChapters)="onRefreshChapters(book)"
+      (assignGroup)="openGroupAssign([book])"
       (longPress)="onCardLongPress(book)"
       (selectionToggle)="toggleSelect(book)"
     ></app-book-card>
@@ -18,7 +53,7 @@
   }
 </div>
 } @else {
-<nz-empty nzNotFoundContent="书架暂无书籍"></nz-empty>
+<nz-empty [nzNotFoundContent]="emptyHint()"></nz-empty>
 }
 
 <!-- 多选模式底部浮动操作栏：长按封面进入，平时不渲染 -->
@@ -27,6 +62,7 @@
   <span class="batch-count">已选 {{ selectedCount() }} 本</span>
   <button nz-button nzSize="small" (click)="selectAll()">{{ allSelected() ? '全不选' : '全选' }}</button>
   <button nz-button nzSize="small" (click)="invertSelection()">反选</button>
+  <button nz-button nzSize="small" (click)="batchAssignGroups()"><span nz-icon nzType="tags"></span> 分类</button>
   <button
     nz-button
     nzSize="small"

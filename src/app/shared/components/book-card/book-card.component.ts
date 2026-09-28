@@ -86,6 +86,9 @@ import { LongPressDirective } from '../../directives/long-press.directive';
         <li nz-menu-item (click)="editInfo.emit(book); closeMenu()">
           <span nz-icon nzType="edit"></span> 编辑书籍信息
         </li>
+        <li nz-menu-item (click)="assignGroup.emit(book); closeMenu()">
+          <span nz-icon nzType="tags"></span> 分类…
+        </li>
         @if (book.source === 'online') {
           <li nz-menu-item (click)="changeSource.emit(book); closeMenu()">
             <span nz-icon nzType="swap"></span> 换源
@@ -220,6 +223,8 @@ export class BookCardComponent implements OnDestroy {
   readonly generateCover = output<Book>();
   /** 通知父组件打开「编辑书籍信息」对话框 */
   readonly editInfo = output<Book>();
+  /** 通知父组件打开「归类」对话框（书架分类，多选） */
+  readonly assignGroup = output<Book>();
   /** 通知父组件打开「换源」对话框（仅 online 来源） */
   readonly changeSource = output<Book>();
   /** 通知父组件刷新最新章节（仅 online 来源） */

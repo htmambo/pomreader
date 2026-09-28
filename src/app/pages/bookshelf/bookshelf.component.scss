@@ -1,0 +1,139 @@
+/* ── 分类 chips 行 + 阅读状态 tab ────────────────────────────────────────
+   两行筛选互为分面：分类角标按当前状态统计，状态角标按当前分类统计 */
+
+.shelf-bar {
+  margin-bottom: 16px;
+}
+
+.chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+.chips::-webkit-scrollbar {
+  display: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--pom-border);
+  border-radius: 16px;
+  background: transparent;
+  color: var(--pom-text-muted);
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease,
+    background 120ms ease;
+}
+.chip:hover {
+  color: var(--pom-text);
+  border-color: var(--pom-accent);
+}
+.chip--on {
+  color: var(--pom-accent);
+  border-color: var(--pom-accent);
+  background: var(--pom-card);
+  font-weight: 600;
+}
+.chip--icon {
+  width: 32px;
+  padding: 0;
+  justify-content: center;
+  border-style: dashed;
+}
+.chip-count {
+  font-size: 12px;
+  opacity: 0.75;
+}
+.chips-sep {
+  flex: 1;
+  min-width: 8px;
+}
+/* ── 阅读状态 tab ─────────────────────────────────────────────────────── */
+
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 12px;
+  border-bottom: 1px solid var(--pom-border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+.tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border: none;
+  background: none;
+  color: var(--pom-text-muted);
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tab::after {
+  content: '';
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--pom-accent);
+  transform: scaleX(0);
+  transition: transform 120ms ease;
+}
+.tab--on {
+  color: var(--pom-accent);
+  font-weight: 600;
+}
+.tab--on::after {
+  transform: scaleX(1);
+}
+.tab-count {
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+/* ── 多选模式底部浮动操作栏 ───────────────────────────────────────────── */
+
+.batch-bar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: var(--pom-card);
+  border: 1px solid var(--pom-border);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+  white-space: nowrap;
+}
+.batch-count {
+  font-size: 13px;
+  color: var(--pom-text-muted);
+  margin-right: 4px;
+}

@@ -17,15 +17,27 @@ import { BookService } from '../../core/services/book.service';
 import { SettingsService } from '../../core/services/settings.service';
 import { ToastService } from '../../core/services/toast.service';
 import { CoverService } from '../../core/cover/cover.service';
+import { BookshelfGroupService } from '../../core/services/bookshelf-group.service';
 import { BookCardComponent } from '../../shared/components/book-card/book-card.component';
 import { type Book } from '../../core/models/book.model';
 import { sortBooks } from '../../core/logic/bookshelf-sort';
+import {
+  STATUS_TABS,
+  booksInGroup,
+  countByGroup,
+  countByStatus,
+  filterBooks,
+  filterByStatus,
+  type ReadStatusFilter,
+} from '../../core/logic/bookshelf-filter';
 import { CoverGeneratorDialogComponent } from '../../shared/components/cover-generator-dialog/cover-generator-dialog.component';
 import {
   EditBookInfoDialogComponent,
   type EditBookInfoResult,
 } from '../../shared/components/edit-book-info-dialog/edit-book-info-dialog.component';
 import { ChangeBookSourceDialogComponent } from '../../shared/components/change-book-source-dialog/change-book-source-dialog.component';
+import { BookGroupDialogComponent } from '../../shared/components/book-group-dialog/book-group-dialog.component';
+import { BookshelfGroupDialogComponent } from '../../shared/components/bookshelf-group-dialog/bookshelf-group-dialog.component';
 
 @Component({
   selector: 'app-bookshelf',
@@ -33,31 +45,7 @@ import { ChangeBookSourceDialogComponent } from '../../shared/components/change-
   imports: [NzGridModule, NzEmptyModule, NzButtonModule, NzIconModule, BookCardComponent],
   templateUrl: './bookshelf.component.html',
   preserveWhitespaces: true,
-  styles: [
-    `
-      .batch-bar {
-        position: fixed;
-        bottom: 24px;
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 1000;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 10px 16px;
-        border-radius: 8px;
-        background: var(--pom-card);
-        border: 1px solid var(--pom-border);
-        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
-        white-space: nowrap;
-      }
-      .batch-count {
-        font-size: 13px;
-        color: var(--pom-text-muted);
-        margin-right: 4px;
-      }
-    `,
-  ],
+  styleUrls: ['./bookshelf.component.scss'],
 })
 export class BookshelfComponent implements OnInit {
   private readonly bookService = inject(BookService);
@@ -65,21 +53,63 @@ export class BookshelfComponent implements OnInit {
   private readonly modal = inject(NzModalService);
   private readonly toast = inject(ToastService);
   private readonly cover = inject(CoverService);
+  private readonly groupService = inject(BookshelfGroupService);
   /** 直接使用 NzMessageService 的 loading toast（可关闭）；ToastService 仅封装了 void 方法 */
   private readonly nzMessage = inject(NzMessageService);
   readonly books = this.bookService.books;
+  readonly groups = this.groupService.groups;
 
-  /** 按设置页的 bookshelfSort 规则排序后的展示列表（纯函数，响应设置/书籍双 signal） */
-  readonly sortedBooks = computed(() =>
-    sortBooks(this.books(), this.settings.settings().bookshelfSort),
+  // ============ 两行筛选：分类 chips × 阅读状态 tab ============
+  // 两行互为分面：分类角标按「当前状态」统计，状态角标按「当前分类」统计。
+
+  /** 分类筛选原始值；null = 全部书籍 */
+  private readonly activeGroupRaw = signal<string | null>(null);
+  /** 当前分类；被删除（manage 弹窗）时自动回落 null，避免停留在不存在的分类上 */
+  readonly activeGroupId = computed(() => {
+    const id = this.activeGroupRaw();
+    if (id === null) return null;
+    return this.groups().some((g) => g.id === id) ? id : null;
+  });
+  /** 阅读状态筛选 */
+  readonly status = signal<ReadStatusFilter>('all');
+  readonly statusTabs = STATUS_TABS;
+
+  /** 当前状态筛选后的全部书（分类 chips 计数的来源） */
+  readonly statusFiltered = computed(() => filterByStatus(this.books(), this.status()));
+  readonly groupCounts = computed(() =>
+    countByGroup(this.statusFiltered(), this.groupService.groupIds()),
   );
+  /** 当前分类下的全部书（状态 tab 计数的来源） */
+  private readonly groupScoped = computed(() => booksInGroup(this.books(), this.activeGroupId()));
+  readonly statusCounts = computed(() => countByStatus(this.groupScoped()));
+
+  /**
+   * 展示列表 = 分类 ∩ 状态，再按设置页 bookshelfSort 排序。
+   * 全选 / 反选 / 批量操作都以此为作用域；切换分类会先 exitSelectMode()，
+   * 因此不会出现「已选 N 本」但其中几本已被筛掉的情况。
+   */
+  readonly visibleBooks = computed(() =>
+    sortBooks(
+      filterBooks(this.books(), this.activeGroupId(), this.status()),
+      this.settings.settings().bookshelfSort,
+    ),
+  );
+
+  /** 分类为空但书架非空时的空态文案 */
+  readonly emptyHint = computed(() => {
+    if (this.books().length === 0) return '书架暂无书籍';
+    const group = this.groups().find((g) => g.id === this.activeGroupId());
+    const tab = STATUS_TABS.find((t) => t.id === this.status());
+    const scope = [group?.name, this.status() === 'all' ? null : tab?.label].filter(Boolean);
+    return `「${scope.join(' · ')}」下暂无书籍`;
+  });
 
   /** 多选模式：长按封面进入，底部浮动操作栏随之显示 */
   readonly selectMode = signal(false);
   readonly selectedIds = signal<Set<string>>(new Set());
   readonly selectedCount = computed(() => this.selectedIds().size);
   readonly allSelected = computed(
-    () => this.sortedBooks().length > 0 && this.selectedCount() === this.sortedBooks().length,
+    () => this.visibleBooks().length > 0 && this.selectedCount() === this.visibleBooks().length,
   );
   /** 批量任务进行中：禁用操作按钮，防止重复触发 */
   readonly batchRunning = signal(false);
@@ -88,6 +118,44 @@ export class BookshelfComponent implements OnInit {
     if (this.books().length === 0) {
       this.bookService.load();
     }
+    // 分类与书籍是两份独立文档，各自按需加载；失败不阻断书架渲染（角标显示 0）
+    void this.groupService.load().catch((e: unknown) => {
+      console.warn('[BookshelfComponent] 分类加载失败', e);
+    });
+  }
+
+  // ============ 分类筛选 ============
+
+  selectGroup(groupId: string | null): void {
+    this.activeGroupRaw.set(groupId);
+    this.exitSelectMode();
+  }
+
+  /** chips 行齿轮：管理分类（新建 / 重命名 / 删除，唯一入口） */
+  openGroupManager(): void {
+    this.modal.create({
+      nzTitle: '管理书架分类',
+      nzContent: BookshelfGroupDialogComponent,
+      nzOkText: '完成',
+      nzCancelText: null,
+      nzWidth: 460,
+      nzMaskClosable: false,
+      nzOnOk: (instance: BookshelfGroupDialogComponent) => instance.confirm(),
+    });
+  }
+
+  /** 书卡右键「分类…」/ 批量栏「分类」：打开归类弹窗 */
+  openGroupAssign(books: Book[]): void {
+    if (books.length === 0) return;
+    this.modal.create({
+      nzTitle: books.length === 1 ? '书籍分类' : `批量归类（${books.length} 本）`,
+      nzContent: BookGroupDialogComponent,
+      nzData: { books },
+      nzOkText: '保存',
+      nzCancelText: '取消',
+      nzWidth: 420,
+      nzOnOk: (instance: BookGroupDialogComponent) => instance.confirm(),
+    });
   }
 
   /** BookCard 长按事件 → 进入多选模式并选中该书 */
@@ -113,21 +181,21 @@ export class BookshelfComponent implements OnInit {
     }
   }
 
-  /** 全选；已全选时切换为全不选 */
+  /** 全选；已全选时切换为全不选（作用域 = 当前筛选后的展示列表） */
   selectAll(): void {
     if (this.allSelected()) {
       this.selectedIds.set(new Set());
     } else {
-      this.selectedIds.set(new Set(this.sortedBooks().map((b) => b.id)));
+      this.selectedIds.set(new Set(this.visibleBooks().map((b) => b.id)));
     }
   }
 
-  /** 反选 */
+  /** 反选（作用域 = 当前筛选后的展示列表） */
   invertSelection(): void {
     const current = this.selectedIds();
     this.selectedIds.set(
       new Set(
-        this.sortedBooks()
+        this.visibleBooks()
           .filter((b) => !current.has(b.id))
           .map((b) => b.id),
       ),
@@ -139,10 +207,15 @@ export class BookshelfComponent implements OnInit {
     this.selectMode.set(false);
   }
 
-  /** 当前选中的书（按书架顺序） */
+  /** 当前选中的书（按展示顺序） */
   private selectedBooks(): Book[] {
     const ids = this.selectedIds();
-    return this.sortedBooks().filter((b) => ids.has(b.id));
+    return this.visibleBooks().filter((b) => ids.has(b.id));
+  }
+
+  /** 批量栏「分类」：对当前选中项打开归类弹窗 */
+  batchAssignGroups(): void {
+    this.openGroupAssign(this.selectedBooks());
   }
 
   /** 批量删除：一次确认框（含数量），确认后逐本删除 */
