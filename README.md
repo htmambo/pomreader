@@ -37,15 +37,15 @@ npm run dev
 
 ## 技术栈
 
-- **Angular 18.2**（standalone + signals，OnPush 全量；无 NgModule，无 RxJS）
-- **ng-zorro-antd 18.2**（与原 vendor 同源；`styles/ng-zorro-overrides.scss` 暗色覆盖）
+- **Angular 22.2**（standalone + signals，zoneless（运行时无 zone.js）；OnPush 全量；无 NgModule，无 RxJS）
+- **ng-zorro-antd 22.1**（与原 vendor 同源；`styles/ng-zorro-overrides.scss` 暗色覆盖）
 - **Electron 44.4**（主进程 + renderer + 隐藏 DB 窗口 三进程；file:// 加载）
 - **SCSS + CSS variables**（`data-pom-theme` 驱动多主题，打在 `<html>` 避免弹窗闪烁）
 - **PouchDB** IndexedDB（Book/Chapter 持久化）+ **localStorage**（设置）
 - **valibot 1.5**（IPC 入参 runtime schema 验证；`safeHandle` 工厂统一校验）
 - **@angular/localize**（i18n 机制就位；zh-Hans 默认）
-- **Vitest 2.1 + jsdom**（`src/` 与 `electron/` 两侧共测，v8 coverage：**74.68% 行 / 81.84% 分支 / 80.66% 函数** 总计；`core/logic` 96.83% 行最高；698 tests across 54 files）+ **Playwright 1.63**（E2E，5 spec / 19 tests；Chromium only）
-- **ESLint 9.39 + angular-eslint 18.4 + typescript-eslint 8.70**（`npm run lint`；flat config；41 errors / 7 warnings baseline — 待 v0.2.0 渐进收紧 `no-explicit-any` 与 `no-unused-vars`）
+- **Vitest 5.0 + jsdom**（`src/` 与 `electron/` 两侧共测，v8 coverage：**92.88% 行 / 85.1% 分支 / 90.55% 函数** 总计；964 tests across 63 files）+ **Playwright 1.63**（E2E，5 spec / 19 tests；Chromium only）
+- **ESLint 9.39 + angular-eslint 22.5 + typescript-eslint 8.70**（`npm run lint`；flat config；0 errors / 0 warnings baseline）
 - **esbuild**（`build:worker` 打包 `sandbox.worker.ts` → `src/assets/sandbox.worker.js`）
 
 ## 书源与扩展
@@ -91,7 +91,7 @@ src/
 │   ├── rules-panel.scss
 │   └── reader.scss
 ├── typings/               # 全局 .d.ts
-└── test-setup.ts          # Vitest 初始化（Zone.js + 浏览器 polyfill）
+└── test-setup.ts          # Vitest 初始化（@angular/compiler JIT）
 
 electron/
 ├── main.ts                # 主进程入口（BrowserWindow 生命周期 + 单实例锁）
@@ -161,7 +161,7 @@ docs/
 
 | 项 | 原 vendor | 本项目 |
 |---|---|---|
-| 源码 | 仅打包产物 | Angular 18 TypeScript |
+| 源码 | 仅打包产物 | Angular 22 TypeScript |
 | 外部源 | 硬编码接入 | 书源适配器体系（专用 / 启发式 / JS 沙箱 / Legado 导入） |
 | 主题切换 | `<body>` 上打标 | `<html>` 上打 `data-pom-theme`（避免弹窗背景闪烁） |
 | 路由参数 | `/:bookId` | `/:bookId/:chapterId` |
@@ -170,7 +170,7 @@ docs/
 ## 演进记录（2026-09）
 
 - **EVO-1 ~ EVO-16**：架构演进 16 项（IPC 拆模块 + safeHandle / 沙箱硬化 v2 / DbWorker pool / 4 进程模型 / 测试覆盖 / 文档对齐等）；详见 [`docs/Task/Archive/2026-09/POMREADER_ARCH_EVOLUTION_PLAN.md`](docs/Task/Archive/2026-09/POMREADER_ARCH_EVOLUTION_PLAN.md) 与 `.omc/fullauto/pomreader-arch-evo/`
-- 累计 691+ tests passing（src/ + electron/ 两侧）；外部审核 Round 9 APPROVED
+- 累计 964 tests passing（63 files，src/ + electron/ 两侧）；外部审核 Round 9 APPROVED
 - 主要 commit 锚点（详见 CHANGELOG §"Architecture Evolution"）：
   - EVO-1 `1765d00` BookRepository 拆出 → `d9979b1` 章节方法委托 ChapterLoader → `4af4c00` Loader/Updater 抽出 → `6a37fbe` BookUpdater 改用 BookRepositoryPort
   - EVO-2 `9628160` bulk-result helper
@@ -181,6 +181,7 @@ docs/
   - EVO-11 `d3221f5` $localize wired (zh-Hans default)
   - EVO-12 `1e98637` / `d2affe9` reader / settings 拆纯逻辑 + service facade
   - EVO-16 集成在 EVO-1~8 commit 中：dev stale chunk 修复 + outputHashing:none + 懒加载自动重试
+- **依赖大版本升级（2026-09-28）**：Angular 18→22 逐级迁移（ng-zorro / icons / angular-eslint lockstep）+ TS 6.0.3 + vitest 5.0 + zoneless；详见 [`docs/Task/Archive/2026-09/POMREADER_DEP_MAJOR_UPGRADE_PLAN.md`](docs/Task/Archive/2026-09/POMREADER_DEP_MAJOR_UPGRADE_PLAN.md)
 
 ## 下一步
 
@@ -196,7 +197,7 @@ docs/
 | 启动报 `libva error: i965_drv_video.so init failed` / `vaInitialize failed` | Chromium 尝试 VA-API 视频硬解，系统只有旧 i965 驱动，在 Comet Lake+ / 混合显卡上初始化失败。**无害警告**，会自动退回软件解码 | 装新驱动即可消除：`sudo pacman -S intel-media-driver`（可用 `libva-utils` 的 `vainfo` 验证） |
 | 打包 `pacman` 目标失败：`libcrypt.so.1: cannot open shared object file` | electron-builder 内置的 fpm(ruby) 需要 `libcrypt.so.1` | `sudo pacman -S libxcrypt-compat` |
 | 打包警告 `desktopName is not set in package.json` | 窗口 WM_CLASS 与 .desktop 文件不匹配，任务栏/启动器无法关联窗口 | `desktopName` 放 package.json **根级**（非 `build` 内），并在 `build.linux` 设 `syncDesktopName: true` |
-| Angular 18 + Electron `file://` 报 `Failed to fetch dynamically imported module` | Angular 默认 `<base href="/">` + esbuild chunk hash 双重根因（base href 解析 + 陈旧 chunk） | 详见 `memory/angular-electron-file-base-href.md` 与 `memory/angular-electron-stale-chunk-hash.md`（同时改 `<base href="./">` + Angular `useHash=true` + 启动前清缓存） |
+| Angular + Electron `file://` 报 `Failed to fetch dynamically imported module` | Angular 默认 `<base href="/">` + esbuild chunk hash 双重根因（base href 解析 + 陈旧 chunk） | 详见 `memory/angular-electron-file-base-href.md` 与 `memory/angular-electron-stale-chunk-hash.md`（同时改 `<base href="./">` + Angular `useHash=true` + 启动前清缓存） |
 | `dist-electron/` 出现在仓库根目录 | `npm run build:electron` 产物未声明在 `.gitignore`（已修复）；构建过程中生成 | `.gitignore` 已配置忽略；无需清理仓库内残留（首次 `npm run dist` 后自然消失） |
 
 ## 相关文档
@@ -212,8 +213,8 @@ docs/
 
 ### 任务归档
 - [`docs/Task/README.md`](docs/Task/README.md) — 任务索引（active + archive 总览）
-- [`docs/Task/Active/POMREADER_P1_P2_HARDENING_PLAN.md`](docs/Task/Active/POMREADER_P1_P2_HARDENING_PLAN.md) — 当前 active（P1+P2 基础设施硬化）
+- [`docs/Task/Archive/2026-09/POMREADER_P1_P2_HARDENING_PLAN.md`](docs/Task/Archive/2026-09/POMREADER_P1_P2_HARDENING_PLAN.md) — P1+P2 基础设施硬化（已 completed）
 - [`docs/Task/Archive/2026-09/POMREADER_ARCH_EVOLUTION_PLAN.md`](docs/Task/Archive/2026-09/POMREADER_ARCH_EVOLUTION_PLAN.md) — EVO-1 ~ EVO-16 演进计划（已 completed）
-- [`docs/Task/Archive/2026-09/`](docs/Task/Archive/2026-09/) — 历史任务归档（10 项已完成计划）
+- [`docs/Task/Archive/2026-09/`](docs/Task/Archive/2026-09/) — 历史任务归档（13 项已完成计划）
 
 > 历史 fullauto 审计记录保留在 `.omc/fullauto/` 下（`pomreader-arch-evo/`、`pomreader-arch-evo-2/`、`convention-normalize/`、`legado-migration/`）。

@@ -66,7 +66,7 @@ Not-tested: ...
 ```bash
 git checkout -b feat/your-feature
 # ... 改动 + tests ...
-npm test                    # 必须 691+ tests passing
+npm test                    # 必须 964+ tests passing
 git status                  # 确认无 throwaway scratch
 git diff --staged --stat    # review staged
 git add -A

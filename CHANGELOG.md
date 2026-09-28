@@ -28,10 +28,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **data**: 移除内置示例书 seed（`src/assets/data/books.json` + 15 章 JSON）；`DbService.seedIfEmpty()` 简化为 no-op（保留接口兼容 `BookRepository.load()`）
 
+### Dependencies
+
+- **deps**: 大版本升级（Angular 18→22 逐级迁移）—— `@angular/* ^22.2.0`、`ng-zorro-antd` / `@ant-design/icons-angular` ^22.1.1、`angular-eslint` ^22.5.0 lockstep；TypeScript pin `~6.0.3`（严禁 7.x）；vitest 5.0；运行时 zoneless（`provideZonelessChangeDetection()`，zone.js 仅测试用）；构建器切 `@angular/build`；`engines.node` 提升为 `^22.22.3 || ^24.15.0 || ^26.0.0`，CI Node 20→24；详见 [`docs/Task/Archive/2026-09/POMREADER_DEP_MAJOR_UPGRADE_PLAN.md`](docs/Task/Archive/2026-09/POMREADER_DEP_MAJOR_UPGRADE_PLAN.md)
+
 ### Documentation
 
 - **README**: 198 行重写对齐项目当前状态（build 输出路径 / 路由表 / 关键文件 / 演进记录 / 排错条目）
 - **README**: 新增"演进记录（2026-09）"小节 + `file://` 懒加载失败排错条目
+- **README / AGENTS.md / docs/CONVENTIONS.md / CONTRIBUTING.md**: 版本信息同步至 Angular 22.2 / ng-zorro 22.1 / Vitest 5.0 / angular-eslint 22.5，覆盖率与用例数刷新为实跑值（964 tests / 63 files），修复 README 指向已归档 P1+P2 计划的失效链接
 
 ## [0.1.0] - 2026-09-27
 

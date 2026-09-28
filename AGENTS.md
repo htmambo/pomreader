@@ -5,7 +5,7 @@
 
 ## 一句话定位
 
-Angular 18 standalone + signals + ng-zorro-antd 18 + PouchDB + Electron 44。
+Angular 22 standalone + signals（zoneless）+ ng-zorro-antd 22 + PouchDB + Electron 44。
 src/ 是 Angular；electron/ 是 Node 主进程；test 用 Vitest；e2e 用 Playwright。
 
 ## 硬规则（must）
