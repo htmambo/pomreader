@@ -69,7 +69,7 @@
     "electron": "^44.4.5",
     "electron-builder": "^26.16.1",
     "eslint": "^9.39.5",
-    "jsdom": "^26.1.0",
+    "jsdom": "^30.1.1",
     "prettier": "^3.4.0",
     "puppeteer-core": "^23.11.1",
     "typescript": "~5.5.2",

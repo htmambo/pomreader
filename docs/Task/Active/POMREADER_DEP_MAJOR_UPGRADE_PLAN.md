@@ -1,6 +1,6 @@
 # POMREADER 依赖大版本升级计划（Dep Major Upgrade Plan）
 
-> Status: Draft — 2026-09-27
+> Status: 🔄 In progress (start: 2026-09-28)
 > 触发：`npm outdated` 梳理（2026-09-27），安全项已先行升级并提交（`0bee9ba`）。
 > 目标：Angular 18 → 22 逐级迁移 + 测试工具链升级，每级独立 commit、独立验证。
 
@@ -24,7 +24,7 @@
 
 每步独立 commit，跑 `npm test`（698+ 用例）验证。
 
-- [ ] **P0-1 `@types/node` → ^24.15.0**：对齐 Electron 44 内置 Node 24.18.1。顺带验证 `npm run build:electron`。
+- [x] **P0-1 `@types/node` → ^24.15.0**：对齐 Electron 44 内置 Node 24.18.1。顺带验证 `npm run build:electron`。（commit `429cebf`，前置修复 `11a7e57`）
 - [ ] **P0-2 jsdom → ^30.1.1**：回归重点——v27 起 `element.click()` 派发 PointerEvent、v29 CSSOM 重写影响 `getComputedStyle` 断言。
 - [ ] **P0-3 vitest + @vitest/coverage-v8 → ^3.2.x**：迁移清单——`spy.mockReset()` 行为变化、`vi.useFakeTimers()` 默认 toFake 移除、错误相等性更严格（`cause`/原型比对）。worker-pool / sandbox 相关 spec 是高风险区。
 - [ ] **P0-4 puppeteer-core → ^25.12.0**：升级后立即跑 `scripts/` 下 5 个 `.cjs` 脚本（e2e-cf-guard / e2e-import-local-txt / e2e-import-online / e2e-search / e2e-txt-preview）验证 `require(esm)`；失败则改 `await import('puppeteer-core')` 或重命名 `.mjs`。
