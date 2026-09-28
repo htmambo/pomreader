@@ -158,8 +158,7 @@ describe('ImportViaSourceService · importByUrl bookSourceUuid 锚定', () => {
   });
 });
 
-/** 带 search() 的 adapter（duck-typed，BookSourceAdapter 接口本身不含 search）。
- *  注意：服务侧以 `adapter.search` 摘取后脱离实例调用，mock 用实例字段（闭包）而非原型方法 */
+/** 带 search() 的 adapter（duck-typed，BookSourceAdapter 接口本身不含 search）。 */
 class SearchAdapter extends StubAdapter {
   readonly search: (kw: string, p: number) => Promise<unknown>;
   constructor(name: string, impl: (kw: string, p: number) => Promise<unknown>) {
@@ -226,17 +225,19 @@ describe('ImportViaSourceService · searchAndSelect / supportedSources', () => {
     expect(svc.supportedSources()).toEqual(['src-a', 'src-b']);
   });
 
-  // 疑似 bug 留痕（不修生产代码，仅刻画现状）：服务侧 `adapter.search` 摘取后脱离实例调用，
-  // search 若是依赖 this 的原型方法（如 JsSourceAdapter.search）会因 this 丢失抛 TypeError
-  it('刻画现状：search 为依赖 this 的原型方法 → 调用时 this 丢失抛 TypeError', async () => {
+  // 回归（历史 bug 已修）：服务侧曾在摘取 `adapter.search` 后脱离实例裸调导致 this 丢失；
+  // search 为依赖 this 的原型方法（JsSourceAdapter.search 的写法）时必须正常拿到实例
+  it('search 为依赖 this 的原型方法 → this 保留，正常返回结果', async () => {
     const reg = BookSourceRegistry.forTest(emptyFetcher());
     class PrototypeSearchAdapter extends StubAdapter {
       async search(): Promise<unknown> {
-        return this.name; // 依赖 this，模拟 JsSourceAdapter.search 的写法
+        return [{ name: `${this.name}的书`, url: 'https://a/b/1' }]; // 依赖 this
       }
     }
     reg.register(new PrototypeSearchAdapter('proto-search'));
     const svc = ImportViaSourceService.forTest(reg, emptyFetcher());
-    await expect(svc.searchAndSelect('kw', 'proto-search')).rejects.toBeInstanceOf(TypeError);
+    await expect(svc.searchAndSelect('kw', 'proto-search')).resolves.toEqual([
+      { name: 'proto-search的书', author: undefined, url: 'https://a/b/1', intro: undefined },
+    ]);
   });
 });

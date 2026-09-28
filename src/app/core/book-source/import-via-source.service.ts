@@ -97,15 +97,16 @@ export class ImportViaSourceService {
     if (!adapter) {
       throw new FetchError('unsupported-source', `书源不存在: ${sourceName}`);
     }
-    const searchFn = (
-      adapter as unknown as {
-        search?: (kw: string, p: number) => Promise<RawSearchItem[]>;
-      }
-    ).search;
-    if (typeof searchFn !== 'function') {
+    // 不能摘取方法后裸调（`const fn = adapter.search; fn(...)` 会丢 this，
+    // JsSourceAdapter.search 依赖 this.ensureLoaded()/this.sandbox）——在转型后的
+    // 同一对象引用上调用，this 仍是 adapter 本身
+    const searcher = adapter as unknown as {
+      search?: (kw: string, p: number) => Promise<RawSearchItem[]>;
+    };
+    if (typeof searcher.search !== 'function') {
       throw new FetchError('unsupported-source', `书源 ${sourceName} 不支持 search()`);
     }
-    const raw = await searchFn(keyword, page);
+    const raw = await searcher.search(keyword, page);
     if (!Array.isArray(raw)) return [];
     return raw
       .filter((r) => r && (r.url || r.bookUrl))
