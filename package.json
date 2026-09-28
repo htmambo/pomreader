@@ -59,7 +59,7 @@
     "@angular/compiler-cli": "^18.2.0",
     "@playwright/test": "^1.63.0",
     "@types/adm-zip": "^0.5.8",
-    "@types/node": "^20.14.0",
+    "@types/node": "^24.19.0",
     "@typescript-eslint/eslint-plugin": "^8.70.1",
     "@typescript-eslint/parser": "^8.70.1",
     "@vitest/coverage-v8": "^2.1.9",
