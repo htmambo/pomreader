@@ -1,6 +1,6 @@
 import {
   type ApplicationConfig,
-  provideZoneChangeDetection,
+  provideZonelessChangeDetection,
   ErrorHandler,
   APP_INITIALIZER,
 } from '@angular/core';
@@ -48,7 +48,7 @@ function initBookSources(
 
 export const appConfig: ApplicationConfig = {
   providers: [
-    provideZoneChangeDetection({ eventCoalescing: true }),
+    provideZonelessChangeDetection(),
     provideRouter(routes, withComponentInputBinding(), withHashLocation()),
     provideHttpClient(withXhr()),
     provideAnimations(),
