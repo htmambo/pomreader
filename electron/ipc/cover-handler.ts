@@ -28,13 +28,20 @@ function urlKey(url: string): string {
 function extFromMime(mime: string): string {
   const main = mime.split(';')[0].trim().toLowerCase();
   switch (main) {
-    case 'image/png': return 'png';
-    case 'image/gif': return 'gif';
-    case 'image/webp': return 'webp';
-    case 'image/svg+xml': return 'svg';
-    case 'image/avif': return 'avif';
-    case 'image/bmp': return 'bmp';
-    default: return 'jpg';
+    case 'image/png':
+      return 'png';
+    case 'image/gif':
+      return 'gif';
+    case 'image/webp':
+      return 'webp';
+    case 'image/svg+xml':
+      return 'svg';
+    case 'image/avif':
+      return 'avif';
+    case 'image/bmp':
+      return 'bmp';
+    default:
+      return 'jpg';
   }
 }
 
@@ -92,7 +99,7 @@ function decodeDataUrl(url: string): { mime: string; bytes: Buffer } {
 function writeCache(dir: string, key: string, bytes: Buffer, mime: string): string {
   fs.mkdirSync(dir, { recursive: true });
   const target = path.join(dir, `${key}.${extFromMime(mime)}`);
-  fs.writeFileSync(target, bytes);
+  fs.writeFileSync(target, bytes as Uint8Array);
   return target;
 }
 
@@ -116,7 +123,11 @@ function dirSize(p: string): number {
     const child = path.join(p, entry.name);
     if (entry.isDirectory()) total += dirSize(child);
     else {
-      try { total += fs.statSync(child).size; } catch { /* noop */ }
+      try {
+        total += fs.statSync(child).size;
+      } catch {
+        /* noop */
+      }
     }
   }
   return total;
@@ -127,10 +138,7 @@ export function registerCoverHandler(ipcMain: IpcMain, userData: string): void {
 
   ipcMain.handle(
     'pom:cover-resolve-cache',
-    async (
-      _e,
-      request: { url: string; referer?: string; headers?: Record<string, string> }
-    ) => {
+    async (_e, request: { url: string; referer?: string; headers?: Record<string, string> }) => {
       const dir = coversDir(userData);
       const key = urlKey(request.url);
 
@@ -167,7 +175,7 @@ export function registerCoverHandler(ipcMain: IpcMain, userData: string): void {
       const mime = result.headers['content-type'] ?? 'image/jpeg';
       const filePath = writeCache(dir, key, result.bytes, mime);
       return { localPath: filePath, localRef: 'local://' + filePath };
-    }
+    },
   );
 
   ipcMain.handle('pom:cover-cache-size', () => {

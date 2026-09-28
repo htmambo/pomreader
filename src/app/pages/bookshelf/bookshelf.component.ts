@@ -1,5 +1,12 @@
-import { Component, ChangeDetectionStrategy, computed, inject, type OnInit, signal } from '@angular/core'
-import { CommonModule } from '@angular/common';
+import {
+  Component,
+  ChangeDetectionStrategy,
+  computed,
+  inject,
+  type OnInit,
+  signal,
+} from '@angular/core';
+
 import { NzGridModule } from 'ng-zorro-antd/grid';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzButtonModule } from 'ng-zorro-antd/button';
@@ -11,17 +18,19 @@ import { SettingsService } from '../../core/services/settings.service';
 import { ToastService } from '../../core/services/toast.service';
 import { CoverService } from '../../core/cover/cover.service';
 import { BookCardComponent } from '../../shared/components/book-card/book-card.component';
-import { type Book } from '../../core/models/book.model'
+import { type Book } from '../../core/models/book.model';
 import { sortBooks } from '../../core/logic/bookshelf-sort';
 import { CoverGeneratorDialogComponent } from '../../shared/components/cover-generator-dialog/cover-generator-dialog.component';
-import { EditBookInfoDialogComponent, type EditBookInfoResult } from '../../shared/components/edit-book-info-dialog/edit-book-info-dialog.component'
+import {
+  EditBookInfoDialogComponent,
+  type EditBookInfoResult,
+} from '../../shared/components/edit-book-info-dialog/edit-book-info-dialog.component';
 import { ChangeBookSourceDialogComponent } from '../../shared/components/change-book-source-dialog/change-book-source-dialog.component';
 
 @Component({
   selector: 'app-bookshelf',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, NzGridModule, NzEmptyModule, NzButtonModule, NzIconModule, BookCardComponent],
+  imports: [NzGridModule, NzEmptyModule, NzButtonModule, NzIconModule, BookCardComponent],
   templateUrl: './bookshelf.component.html',
   preserveWhitespaces: true,
   styles: [
@@ -117,7 +126,11 @@ export class BookshelfComponent implements OnInit {
   invertSelection(): void {
     const current = this.selectedIds();
     this.selectedIds.set(
-      new Set(this.sortedBooks().filter((b) => !current.has(b.id)).map((b) => b.id)),
+      new Set(
+        this.sortedBooks()
+          .filter((b) => !current.has(b.id))
+          .map((b) => b.id),
+      ),
     );
   }
 

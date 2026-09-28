@@ -1,4 +1,4 @@
-import { type Routes } from '@angular/router'
+import { type Routes } from '@angular/router';
 
 /**
  * Settings 子路由(实施计划 T-019)
@@ -11,6 +11,6 @@ export const SETTINGS_ROUTES: Routes = [
   {
     path: 'cache',
     data: { subtitle: '书架排序与封面缓存管理' },
-    loadComponent: () => import('./cache-settings.component').then(m => m.CacheSettingsComponent),
+    loadComponent: () => import('./cache-settings.component').then((m) => m.CacheSettingsComponent),
   },
 ];

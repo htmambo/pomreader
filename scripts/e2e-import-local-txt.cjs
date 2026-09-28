@@ -6,7 +6,7 @@ const CHROME_PATH = process.env.CHROME_PATH || '/usr/bin/google-chrome';
   const browser = await puppeteer.launch({
     executablePath: CHROME_PATH,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    headless: 'new',
+    headless: true,
   });
   const page = await browser.newPage();
   await page.setViewport({ width: 1280, height: 800 });

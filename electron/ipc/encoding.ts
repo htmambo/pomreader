@@ -9,7 +9,7 @@ export type EncodingMode = 'auto' | 'utf-8' | 'gbk';
 export function decodeBuffer(
   buf: Buffer,
   mode: EncodingMode,
-  headers: Record<string, string | string[] | undefined>
+  headers: Record<string, string | string[] | undefined>,
 ): string {
   if (mode === 'utf-8') return iconv.decode(buf, 'utf-8');
   if (mode === 'gbk') return iconv.decode(buf, 'gb18030'); // gb18030 是 GBK 超集，含繁体/日元
@@ -25,7 +25,7 @@ export function decodeBuffer(
 }
 
 function parseCharsetFromHeaders(
-  headers: Record<string, string | string[] | undefined>
+  headers: Record<string, string | string[] | undefined>,
 ): string | null {
   const ct = headers['content-type'];
   if (!ct) return null;

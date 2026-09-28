@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { NzButtonModule } from 'ng-zorro-antd/button';
@@ -11,7 +11,7 @@ import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { PageHeaderService } from '../../core/services/page-header.service';
 import { ToastService } from '../../core/services/toast.service';
-import { type BookSourceMeta } from '../../core/book-source/js-source/source-meta.types'
+import { type BookSourceMeta } from '../../core/book-source/js-source/source-meta.types';
 import { BookSourceListStateService } from '../../core/book-source/book-source-list-state.service';
 import { ImportLegadoComponent } from '../../modals/import-legado/import-legado.component';
 
@@ -27,9 +27,7 @@ import { ImportLegadoComponent } from '../../modals/import-legado/import-legado.
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-book-source-list',
-  standalone: true,
   imports: [
-    CommonModule,
     FormsModule,
     NzButtonModule,
     NzSwitchModule,
@@ -72,10 +70,11 @@ export class BookSourceListComponent {
       void this.refresh(true);
     }
     // 副标题随 sources 数量变化 —— 「共 N 个书源」由本组件单独维护
-    // allowSignalWrites:这是 effect 写 signal 的明确逃生口 —— 两个 signal 不同源,不会形成循环
+    // 两个 signal 不同源，不会形成循环；Angular 22 起 effect 写 signal 默认允许
+    // （allowSignalWrites flag 已废弃为空操作，故不再传）
     effect(() => {
       this.pageHeader.subtitle.set(`共 ${this.state.sources().length} 个书源`);
-    }, { allowSignalWrites: true });
+    });
   }
 
   /** 拉取全量书源元数据（showLoading=false 时走后台静默刷新，不阻塞 UI） */

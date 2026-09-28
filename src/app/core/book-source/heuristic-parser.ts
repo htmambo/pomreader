@@ -63,7 +63,10 @@ export interface ParsedCatalog {
 /**
  * 解析目录页（复刻 hS：链接密度评分找目录容器）
  */
-export function parseCatalog(doc: Document, baseUrl: string): { title: string; author: string; chapters: { title: string; url: string }[] } {
+export function parseCatalog(
+  doc: Document,
+  baseUrl: string,
+): { title: string; author: string; chapters: { title: string; url: string }[] } {
   // 1. og:novel:* meta 优先
   const title = getMeta(doc, 'og:novel:book_name') || doc.title || '未知书名';
   const author = getMeta(doc, 'og:novel:author') || '未知';
@@ -150,7 +153,7 @@ export function parseChapterContent(doc: Document): string {
     if (node.nodeType !== 1) continue;
     const text = (node as Element).textContent;
     // 密度 = 中文字符数 + 10 * 中文标点数
-    const density = cjkCharCount(text) + 10 * ((text?.match(CJK_PUNCT)?.length ?? 0));
+    const density = cjkCharCount(text) + 10 * (text?.match(CJK_PUNCT)?.length ?? 0);
     scores.set(node, density);
   }
 

@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzButtonModule } from 'ng-zorro-antd/button';
@@ -9,7 +9,7 @@ import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzModalService } from 'ng-zorro-antd/modal';
-import { type SearchResultItem } from '../../core/book-source/multi-source-search.service'
+import { type SearchResultItem } from '../../core/book-source/multi-source-search.service';
 import { SourceSearchStateService } from '../../core/book-source/source-search-state.service';
 import { ToastService } from '../../core/services/toast.service';
 import { ImportOnlineComponent } from '../../modals/import-online/import-online.component';
@@ -26,9 +26,7 @@ import { ImportOnlineComponent } from '../../modals/import-online/import-online.
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-book-source-search',
-  standalone: true,
   imports: [
-    CommonModule,
     FormsModule,
     NzInputModule,
     NzButtonModule,
@@ -63,10 +61,16 @@ import { ImportOnlineComponent } from '../../modals/import-online/import-online.
       <div class="state-block">
         <nz-spin nzSimple></nz-spin>
         @if (state.progress().phase === 'preparing') {
-          <p>正在准备搜索{{ state.progress().total > 0 ? '（共 ' + state.progress().total + ' 个书源）' : '' }}</p>
+          <p>
+            正在准备搜索{{
+              state.progress().total > 0 ? '（共 ' + state.progress().total + ' 个书源）' : ''
+            }}
+          </p>
         } @else if (state.progress().phase === 'searching') {
           <p>正在搜索: {{ state.progress().current }}</p>
-          <p class="progress-detail">已完成 {{ state.progress().done }} / 共 {{ state.progress().total }}</p>
+          <p class="progress-detail">
+            已完成 {{ state.progress().done }} / 共 {{ state.progress().total }}
+          </p>
         } @else if (state.progress().phase === 'finalizing') {
           <p>正在合并结果...</p>
         }
@@ -79,9 +83,7 @@ import { ImportOnlineComponent } from '../../modals/import-online/import-online.
         nzShowIcon
       ></nz-alert>
     } @else if (state.results().length > 0) {
-      <div class="result-meta">
-        命中 {{ state.results().length }} 条，去重后展示
-      </div>
+      <div class="result-meta">命中 {{ state.results().length }} 条，去重后展示</div>
       <ul nz-list nzBordered>
         @for (r of state.results(); track r.url + r.source) {
           <li nz-list-item class="result-item">
@@ -196,12 +198,24 @@ import { ImportOnlineComponent } from '../../modals/import-online/import-online.
         text-decoration: underline;
       }
       /* 暗色主题适配：提升文字对比度、保留 muted 弱化但不刺眼 */
-      :host-context([data-pom-theme='6']) .book-name { color: #f0f0f0; }
-      :host-context([data-pom-theme='6']) .intro { color: #9a9a9a; }
-      :host-context([data-pom-theme='6']) .url { color: #6a8fb5; }
-      :host-context([data-pom-theme='6']) .url:hover { color: #8fb5d9; }
-      :host-context([data-pom-theme='6']) .latency { color: #6a6a6a; }
-      :host-context([data-pom-theme='6']) .result-meta { color: #888; }
+      :host-context([data-pom-theme='6']) .book-name {
+        color: #f0f0f0;
+      }
+      :host-context([data-pom-theme='6']) .intro {
+        color: #9a9a9a;
+      }
+      :host-context([data-pom-theme='6']) .url {
+        color: #6a8fb5;
+      }
+      :host-context([data-pom-theme='6']) .url:hover {
+        color: #8fb5d9;
+      }
+      :host-context([data-pom-theme='6']) .latency {
+        color: #6a6a6a;
+      }
+      :host-context([data-pom-theme='6']) .result-meta {
+        color: #888;
+      }
     `,
   ],
 })

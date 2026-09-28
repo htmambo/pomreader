@@ -40,8 +40,8 @@
   min-height: 100vh;
   color: var(--r-text);
   background: var(--r-body-bg) var(--r-body-img) repeat;
-  font-family: PingFangSC-Regular, HelveticaNeue-Light, 'Helvetica Neue Light',
-    'Microsoft YaHei', sans-serif;
+  font-family:
+    PingFangSC-Regular, HelveticaNeue-Light, 'Helvetica Neue Light', 'Microsoft YaHei', sans-serif;
 }
 
 /* ---------- 主题配色 ---------- */
@@ -103,14 +103,27 @@
 }
 
 /* ---------- 页面宽度 ---------- */
-.reader-page.w640 { --r-page-w: 640px; }
-.reader-page.w800 { --r-page-w: 800px; }
-.reader-page.w900 { --r-page-w: 900px; }
-.reader-page.w1280 { --r-page-w: 1280px; }
-.reader-page.w1440 { --r-page-w: 1440px; }
-.reader-page.w1680 { --r-page-w: 1680px; }
-.reader-page.w1840 { --r-page-w: 1840px; }
-
+.reader-page.w640 {
+  --r-page-w: 640px;
+}
+.reader-page.w800 {
+  --r-page-w: 800px;
+}
+.reader-page.w900 {
+  --r-page-w: 900px;
+}
+.reader-page.w1280 {
+  --r-page-w: 1280px;
+}
+.reader-page.w1440 {
+  --r-page-w: 1440px;
+}
+.reader-page.w1680 {
+  --r-page-w: 1680px;
+}
+.reader-page.w1840 {
+  --r-page-w: 1840px;
+}
 
 /* ---------- 顶部栏 ---------- */
 .reader-page .read-header {
@@ -198,20 +211,25 @@
  *  雅黑 ff-1：Linux 用 Noto Sans CJK SC + 加粗（Black weight）模拟黑体感
  */
 .reader-page .read-main-wrap.ff-1 {
-  font-family: 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB',
-    'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Micro Hei',
-    sans-serif;
+  font-family:
+    'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans CJK SC', 'Source Han Sans SC',
+    'WenQuanYi Micro Hei', sans-serif;
   /* Linux 上 Noto Sans CJK SC 偏瘦；黑体感靠 800 weight（系统提供）模拟 */
   font-weight: 500;
 }
 .reader-page .read-main-wrap.ff-2 {
-  font-family: SimSun, 'Songti SC', 'STSong', 'Noto Serif CJK SC',
-    'Source Han Serif SC', serif;
+  font-family: SimSun, 'Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC', serif;
 }
 .reader-page .read-main-wrap.ff-3 {
-  font-family: KaiTi, 'Kaiti SC', 'STKaiti', '楷体',
-    'AppKai', /* 内嵌 AR PL UKai CN，Linux 兜底 */
-    'Noto Serif CJK SC', 'Source Han Serif SC', serif;
+  font-family:
+    KaiTi,
+    'Kaiti SC',
+    'STKaiti',
+    '楷体',
+    'AppKai',
+    /* 内嵌 AR PL UKai CN，Linux 兜底 */ 'Noto Serif CJK SC',
+    'Source Han Serif SC',
+    serif;
 }
 .reader-page .text-wrap {
   min-height: 600px;
@@ -566,8 +584,10 @@
   height: 14px;
   margin-left: auto;
   background-color: var(--r-muted, rgba(0, 0, 0, 0.4));
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black'%3E%3Cpath d='M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z'/%3E%3C/svg%3E") center / contain no-repeat;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black'%3E%3Cpath d='M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z'/%3E%3C/svg%3E") center / contain no-repeat;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black'%3E%3Cpath d='M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black'%3E%3Cpath d='M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
 }
 
 /* ---------- 设置面板 ---------- */
@@ -613,13 +633,27 @@
 .reader-page .theme-list .swatch.act {
   border: 1px solid var(--r-accent);
 }
-.reader-page .theme-list .swatch.theme-0 { background: #faf5eb; }
-.reader-page .theme-list .swatch.theme-1 { background: #f5eacc; }
-.reader-page .theme-list .swatch.theme-2 { background: #e6f2e6; }
-.reader-page .theme-list .swatch.theme-3 { background: #e4f1f5; }
-.reader-page .theme-list .swatch.theme-4 { background: #f5e4e4; }
-.reader-page .theme-list .swatch.theme-5 { background: #e0e0e0; }
-.reader-page .theme-list .swatch.theme-6 { background: #191b1c; }
+.reader-page .theme-list .swatch.theme-0 {
+  background: #faf5eb;
+}
+.reader-page .theme-list .swatch.theme-1 {
+  background: #f5eacc;
+}
+.reader-page .theme-list .swatch.theme-2 {
+  background: #e6f2e6;
+}
+.reader-page .theme-list .swatch.theme-3 {
+  background: #e4f1f5;
+}
+.reader-page .theme-list .swatch.theme-4 {
+  background: #f5e4e4;
+}
+.reader-page .theme-list .swatch.theme-5 {
+  background: #e0e0e0;
+}
+.reader-page .theme-list .swatch.theme-6 {
+  background: #191b1c;
+}
 
 /* 正文字体 / 阅读模式 / 简繁转换按钮 */
 .reader-page .font-family .ff-btn,

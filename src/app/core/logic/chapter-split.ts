@@ -41,10 +41,7 @@ export function defaultChapterPattern(): RegExp {
  * @param opts 自定义 pattern
  * @returns ImportedChapter[]（含兜底单章）
  */
-export function splitChapters(
-  text: string,
-  opts?: SplitOptions
-): ImportedChapter[] {
+export function splitChapters(text: string, opts?: SplitOptions): ImportedChapter[] {
   const pattern = opts?.pattern ?? defaultChapterPattern();
   const lines = text.split(/\r?\n/);
   const chapters: ImportedChapter[] = [];
@@ -59,9 +56,7 @@ export function splitChapters(
         let title: string;
         if (currentTitle === PREAMBLE) {
           // 序章：用 preamble 段第一行非空文本作标题
-          const firstNonEmpty = lines
-            .slice(currentStart, i)
-            .find((l) => l.trim().length > 0);
+          const firstNonEmpty = lines.slice(currentStart, i).find((l) => l.trim().length > 0);
           title = firstNonEmpty?.trim() ?? '__preamble__';
         } else {
           title = currentTitle;
@@ -81,9 +76,7 @@ export function splitChapters(
     });
   } else if (currentStart < lines.length) {
     // 全文兜底前的 preamble（如果有内容未匹配任何章节）
-    const firstNonEmpty = lines
-      .slice(currentStart)
-      .find((l) => l.trim().length > 0);
+    const firstNonEmpty = lines.slice(currentStart).find((l) => l.trim().length > 0);
     chapters.push({
       title: firstNonEmpty?.trim() ?? '__preamble__',
       startLine: currentStart,
@@ -103,7 +96,7 @@ export function splitChapters(
 export function toChapters(
   bookId: string,
   imported: ImportedChapter[],
-  fullText: string
+  fullText: string,
 ): { bookId: string; index: number; title: string; content: string }[] {
   const lines = fullText.split(/\r?\n/);
   return imported.map((ic, i) => ({

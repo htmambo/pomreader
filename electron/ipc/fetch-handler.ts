@@ -44,7 +44,11 @@ function doFetch(rawUrl: string, mode: EncodingMode): Promise<FetchResult> {
     // 类浏览器请求头 + Referer 留痕（模拟站内导航，非凭空深链请求）
     const req = net.request({ url: rawUrl, redirect: 'follow', session: getFetchSession() });
     for (const [k, v] of Object.entries(browserHeaders(rawUrl, { navigation: true }))) {
-      try { req.setHeader(k, v); } catch { /* 个别受限 header 跳过 */ }
+      try {
+        req.setHeader(k, v);
+      } catch {
+        /* 个别受限 header 跳过 */
+      }
     }
 
     const chunks: Buffer[] = [];
@@ -61,7 +65,11 @@ function doFetch(rawUrl: string, mode: EncodingMode): Promise<FetchResult> {
       resp.on('data', (c: Buffer) => {
         size += c.length;
         if (size > MAX_BYTES) {
-          try { req.abort(); } catch { /* noop */ }
+          try {
+            req.abort();
+          } catch {
+            /* noop */
+          }
           done({ error: 'parse-failed' });
           return;
         }
@@ -69,7 +77,7 @@ function doFetch(rawUrl: string, mode: EncodingMode): Promise<FetchResult> {
       });
       resp.on('end', () => {
         try {
-          const buf = Buffer.concat(chunks);
+          const buf = Buffer.concat(chunks as Uint8Array[]);
           const html = decodeBuffer(buf, mode, resp.headers);
           if (isCfChallenge(status, headers, html.slice(0, 4096))) {
             done({ error: 'cf-challenge' });
@@ -118,7 +126,7 @@ export function registerFetchHandler(ipcMain: IpcMain): void {
         if (html) return { html };
       }
       return res;
-    }
+    },
   );
 
   // 抓取 UA 设置（设置页）：读取当前生效值 + 默认值
@@ -127,7 +135,7 @@ export function registerFetchHandler(ipcMain: IpcMain): void {
     'pom:get-fetch-ua',
     'GetFetchUaArgsSchema',
     GetFetchUaArgsSchema,
-    () => ({ ua: getUA(), defaultUa: defaultUA() })
+    () => ({ ua: getUA(), defaultUa: defaultUA() }),
   );
 
   // 抓取 UA 设置：自定义 UA（null/空 = 恢复默认）
@@ -147,7 +155,7 @@ export function registerFetchHandler(ipcMain: IpcMain): void {
         setFetchUA(null);
       }
       return { ua: getUA() };
-    }
+    },
   );
 
   // webview 编码切换：给指定 session 重写 Content-Type charset
@@ -164,7 +172,10 @@ export function registerFetchHandler(ipcMain: IpcMain): void {
       if (ses.webRequest.onHeadersReceived) {
         ses.webRequest.onHeadersReceived(
           { urls: ['*://*/*'] },
-          (details: { responseHeaders?: Record<string, string[]> }, callback: (r: { responseHeaders?: Record<string, string[]> }) => void) => {
+          (
+            details: { responseHeaders?: Record<string, string[]> },
+            callback: (r: { responseHeaders?: Record<string, string[]> }) => void,
+          ) => {
             if (mode === 'auto') {
               callback({});
               return;
@@ -172,9 +183,9 @@ export function registerFetchHandler(ipcMain: IpcMain): void {
             const respHeaders = { ...details.responseHeaders };
             respHeaders['content-type'] = [`text/html; charset=${mode}`];
             callback({ responseHeaders: respHeaders });
-          }
+          },
         );
       }
-    }
+    },
   );
 }

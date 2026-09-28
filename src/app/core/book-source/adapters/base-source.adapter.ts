@@ -1,4 +1,10 @@
-import { type BookSourceAdapter, type BookSourceConfig, type CatalogEntry, type PageFetcher, type ResolvedBook } from '../book-source.adapter'
+import {
+  type BookSourceAdapter,
+  type BookSourceConfig,
+  type CatalogEntry,
+  type PageFetcher,
+  type ResolvedBook,
+} from '../book-source.adapter';
 import { finalizeChapterContent } from '../../logic/text-format';
 
 /**
@@ -65,8 +71,6 @@ export abstract class BaseSourceAdapter implements BookSourceAdapter {
     // 移除脚本/样式/广告
     node.querySelectorAll('script, style, ins, .adsbygoogle').forEach((n) => n.remove());
     const text = node.textContent ?? '';
-    return finalizeChapterContent(
-      text.replace(/\s+\n/g, '\n').replace(/\n{3,}/g, '\n\n')
-    );
+    return finalizeChapterContent(text.replace(/\s+\n/g, '\n').replace(/\n{3,}/g, '\n\n'));
   }
 }

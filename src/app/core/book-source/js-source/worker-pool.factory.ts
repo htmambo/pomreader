@@ -60,11 +60,9 @@ export class SynchronousWorkerAdapter implements WorkerLike {
  */
 export function createWorkerPool(_sandbox?: SandboxService): WorkerLike {
   const killSwitch =
-    typeof localStorage !== 'undefined' &&
-    localStorage.getItem('pom.workerPool') === 'false';
+    typeof localStorage !== 'undefined' && localStorage.getItem('pom.workerPool') === 'false';
 
   if (killSwitch) {
-     
     console.warn('[pom] WorkerPool disabled via kill-switch, using sync adapter');
   }
   return new SynchronousWorkerAdapter();

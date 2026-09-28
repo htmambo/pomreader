@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { BookSourceRegistry } from './book-source.registry';
-import { type PageFetcher, type ResolvedBook, extractMetaUuid } from './book-source.adapter'
+import { type PageFetcher, type ResolvedBook, extractMetaUuid } from './book-source.adapter';
 import { FetchError } from './fetch-error';
 import { PageFetcherService } from './page-fetcher.service';
 import { UNIVERSAL_BOOK_SOURCE_UUID } from './book-source.constants';
@@ -76,10 +76,7 @@ export class ImportViaSourceService {
         throw new FetchError('unsupported-source', `书源 "${sourceName}" 不存在或未启用`);
       }
       if (!adapter.match(url)) {
-        throw new FetchError(
-          'unsupported-source',
-          `书源 "${sourceName}" 不支持该 URL：${url}`,
-        );
+        throw new FetchError('unsupported-source', `书源 "${sourceName}" 不支持该 URL：${url}`);
       }
       const fetcher = this.requireFetcher();
       const book = await adapter.fetchCatalog(url, fetcher);
@@ -95,23 +92,18 @@ export class ImportViaSourceService {
    * 在指定书源内搜索关键词 → 书页 URL 列表
    * 用户选择某条后通常调 importByUrl 导入
    */
-  async searchAndSelect(
-    keyword: string,
-    sourceName: string,
-    page = 1,
-  ): Promise<SourceSearchHit[]> {
+  async searchAndSelect(keyword: string, sourceName: string, page = 1): Promise<SourceSearchHit[]> {
     const adapter = this.registry.get(sourceName);
     if (!adapter) {
       throw new FetchError('unsupported-source', `书源不存在: ${sourceName}`);
     }
-    const searchFn = (adapter as unknown as {
-      search?: (kw: string, p: number) => Promise<RawSearchItem[]>;
-    }).search;
+    const searchFn = (
+      adapter as unknown as {
+        search?: (kw: string, p: number) => Promise<RawSearchItem[]>;
+      }
+    ).search;
     if (typeof searchFn !== 'function') {
-      throw new FetchError(
-        'unsupported-source',
-        `书源 ${sourceName} 不支持 search()`,
-      );
+      throw new FetchError('unsupported-source', `书源 ${sourceName} 不支持 search()`);
     }
     const raw = await searchFn(keyword, page);
     if (!Array.isArray(raw)) return [];
@@ -134,7 +126,7 @@ export class ImportViaSourceService {
    * 测试入口：手动注入依赖（绕开 Angular DI 上下文 NG0203）。
    * 与 BookSourceRegistry.forTest 同模式：生产用 Angular 注入，测试用静态工厂。
    */
-   
+
   static forTest(registry: BookSourceRegistry, fetcher: PageFetcher): ImportViaSourceService {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const svc: any = Object.create(ImportViaSourceService.prototype);

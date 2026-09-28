@@ -155,7 +155,7 @@ export function looksLikeChallenge(marker: string): boolean {
 
 async function pageMarker(win: BrowserWindow): Promise<string> {
   return (await win.webContents.executeJavaScript(
-    `(document.title || '') + '|' + (document.body ? document.body.innerHTML.slice(0, 4096) : '')`
+    `(document.title || '') + '|' + (document.body ? document.body.innerHTML.slice(0, 4096) : '')`,
   )) as string;
 }
 
@@ -163,10 +163,7 @@ async function pageMarker(win: BrowserWindow): Promise<string> {
  * 等窗口里的页面不再是挑战页（轮询 title/body 标记）。
  * 真实浏览器导航通常无感通过 managed challenge；交互式 Turnstile 则一直保持挑战页。
  */
-export async function waitForPageCleared(
-  win: BrowserWindow,
-  timeoutMs: number
-): Promise<boolean> {
+export async function waitForPageCleared(win: BrowserWindow, timeoutMs: number): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     await sleep(CF_PASS_POLL_MS);
@@ -186,7 +183,7 @@ export async function waitForPageCleared(
 export async function extractRenderedHtml(win: BrowserWindow): Promise<string | null> {
   try {
     const html = (await win.webContents.executeJavaScript(
-      'document.documentElement.outerHTML'
+      'document.documentElement.outerHTML',
     )) as string;
     return html && html.length > 0 ? html : null;
   } catch {

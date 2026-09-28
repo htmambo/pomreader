@@ -33,7 +33,7 @@ function isValidFetchUrl(rawUrl: string): boolean {
 export function isCfChallenge(
   status: number,
   headers: Record<string, string>,
-  bodySnippet: string
+  bodySnippet: string,
 ): boolean {
   if ((headers['cf-mitigated'] ?? '').toLowerCase() === 'challenge') return true;
   if (status !== 403 && status !== 503) return false;
@@ -92,7 +92,9 @@ export async function cfPassManual(rawUrl: string, parent: BrowserWindow): Promi
       try {
         await Promise.race([
           win.loadURL(rawUrl, { userAgent: getUA() }),
-          new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), LOAD_TIMEOUT_MS)),
+          new Promise<never>((_, rej) =>
+            setTimeout(() => rej(new Error('timeout')), LOAD_TIMEOUT_MS),
+          ),
         ]);
       } catch {
         done(null);
@@ -100,7 +102,10 @@ export async function cfPassManual(rawUrl: string, parent: BrowserWindow): Promi
       }
       try {
         const cleared = await waitForPageCleared(win, MANUAL_PASS_TIMEOUT_MS);
-        if (!cleared) { done(null); return; }
+        if (!cleared) {
+          done(null);
+          return;
+        }
         done(await extractRenderedHtml(win));
       } catch {
         done(null);
@@ -113,7 +118,7 @@ export async function cfPassManual(rawUrl: string, parent: BrowserWindow): Promi
 
 export function registerCfGuardHandler(
   ipcMain: IpcMain,
-  getMainWindow: () => BrowserWindow | null
+  getMainWindow: () => BrowserWindow | null,
 ): void {
   ipcMain.handle('pom:cf-pass-manual', async (_e, rawUrl: string) => {
     const parent = getMainWindow();

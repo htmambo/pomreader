@@ -17,7 +17,7 @@ function makeMeta(overrides: Partial<BookSourceMeta> = {}): BookSourceMeta {
 
 describe('BookSourceListStateService', () => {
   let svc: BookSourceListStateService;
-   
+
   let pomApiMock: any;
 
   beforeEach(() => {
@@ -26,7 +26,7 @@ describe('BookSourceListStateService', () => {
       booksourceToggle: vi.fn(async () => undefined),
       booksourceDelete: vi.fn(async () => undefined),
     };
-     
+
     (globalThis as any).window = { pomAPI: pomApiMock };
     svc = new BookSourceListStateService();
   });
@@ -56,9 +56,8 @@ describe('BookSourceListStateService', () => {
     });
 
     it('IPC 不可用时应抛 Error("IPC 不可用")', async () => {
-       
       (globalThis as any).window = {};
-       
+
       const fresh = new (BookSourceListStateService as any)();
       await expect(fresh.refresh(true)).rejects.toThrow('IPC 不可用');
     });
@@ -82,9 +81,8 @@ describe('BookSourceListStateService', () => {
     });
 
     it('IPC 不可用时应抛 Error', async () => {
-       
       (globalThis as any).window = {};
-       
+
       const fresh = new (BookSourceListStateService as any)();
       fresh.sources.set([makeMeta()]);
       await expect(fresh.toggle(makeMeta(), false)).rejects.toThrow('IPC 不可用');
@@ -93,10 +91,7 @@ describe('BookSourceListStateService', () => {
 
   describe('remove', () => {
     it('成功删除后应从 sources 中移除', async () => {
-      svc.sources.set([
-        makeMeta({ fileName: 'a.js' }),
-        makeMeta({ fileName: 'b.js' }),
-      ]);
+      svc.sources.set([makeMeta({ fileName: 'a.js' }), makeMeta({ fileName: 'b.js' })]);
       await svc.remove(makeMeta({ fileName: 'a.js' }));
       expect(svc.sources().map((s) => s.fileName)).toEqual(['b.js']);
       expect(pomApiMock.booksourceDelete).toHaveBeenCalledWith('a.js', undefined);
@@ -110,9 +105,8 @@ describe('BookSourceListStateService', () => {
     });
 
     it('IPC 不可用时应抛 Error', async () => {
-       
       (globalThis as any).window = {};
-       
+
       const fresh = new (BookSourceListStateService as any)();
       await expect(fresh.remove(makeMeta())).rejects.toThrow('IPC 不可用');
     });

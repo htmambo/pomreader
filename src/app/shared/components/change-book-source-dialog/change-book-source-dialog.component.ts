@@ -1,5 +1,5 @@
 import { Component, inject, signal, ChangeDetectionStrategy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { NZ_MODAL_DATA } from 'ng-zorro-antd/modal';
 import { NzInputModule } from 'ng-zorro-antd/input';
@@ -9,11 +9,17 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
-import { type Book } from '../../../core/models/book.model'
+import { type Book } from '../../../core/models/book.model';
 import { BookSourceRegistry } from '../../../core/book-source/book-source.registry';
-import { ImportViaSourceService, type SourceSearchHit } from '../../../core/book-source/import-via-source.service'
+import {
+  ImportViaSourceService,
+  type SourceSearchHit,
+} from '../../../core/book-source/import-via-source.service';
 import { FetchError, FETCH_ERROR_MESSAGES } from '../../../core/book-source/fetch-error';
-import { type BookSourceAdapter, type ResolvedBook } from '../../../core/book-source/book-source.adapter'
+import {
+  type BookSourceAdapter,
+  type ResolvedBook,
+} from '../../../core/book-source/book-source.adapter';
 import { BookService } from '../../../core/services/book.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { UNIVERSAL_BOOK_SOURCE_UUID } from '../../../core/book-source/book-source.constants';
@@ -56,10 +62,8 @@ export function resolveCurrentSourceAdapter(
  */
 @Component({
   selector: 'app-change-book-source-dialog',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
     FormsModule,
     NzInputModule,
     NzButtonModule,
@@ -95,11 +99,9 @@ export function resolveCurrentSourceAdapter(
           style="min-width: 180px;"
           nzPlaceHolder="选择书源"
         >
-          <nz-option
-            *ngFor="let s of sources()"
-            [nzValue]="s"
-            [nzLabel]="s"
-          ></nz-option>
+          @for (s of sources(); track s) {
+            <nz-option [nzValue]="s" [nzLabel]="s"></nz-option>
+          }
         </nz-select>
       </div>
 
@@ -110,7 +112,9 @@ export function resolveCurrentSourceAdapter(
           nzSize="small"
           [nzType]="mode() === 'url' ? 'primary' : 'default'"
           (click)="setMode('url')"
-        >URL 换源</button>
+        >
+          URL 换源
+        </button>
         <button
           type="button"
           nz-button
@@ -118,7 +122,9 @@ export function resolveCurrentSourceAdapter(
           [nzType]="mode() === 'keyword' ? 'primary' : 'default'"
           (click)="setMode('keyword')"
           [disabled]="!selectedSource()"
-        >关键词搜索</button>
+        >
+          关键词搜索
+        </button>
       </div>
 
       @if (mode() === 'url') {
@@ -175,11 +181,7 @@ export function resolveCurrentSourceAdapter(
         <p class="hint">命中 {{ searchResults().length }} 条，点击进入 URL 解析：</p>
         <ul nz-list nzSize="small" nzBordered class="modal-list-scrollable">
           @for (r of searchResults(); track r.url) {
-            <li
-              nz-list-item
-              class="search-hit"
-              (click)="selectSearchResult(r)"
-            >
+            <li nz-list-item class="search-hit" (click)="selectSearchResult(r)">
               <span class="hit-name">{{ r.name || '（无书名）' }}</span>
               @if (r.author) {
                 <span class="hit-author">— {{ r.author }}</span>
@@ -189,7 +191,9 @@ export function resolveCurrentSourceAdapter(
           }
         </ul>
       } @else if (resolved()) {
-        <h4>{{ resolved()!.title }} <small>({{ resolved()!.author }})</small></h4>
+        <h4>
+          {{ resolved()!.title }} <small>({{ resolved()!.author }})</small>
+        </h4>
         <p class="hint">
           共 {{ resolved()!.chapters.length }} 章
           @if (chapterDiff() !== 0) {
@@ -403,9 +407,10 @@ export class ChangeBookSourceDialogComponent {
         this.toast.info('该书源无搜索结果');
       }
     } catch (e) {
-      const msg = e instanceof FetchError
-        ? FETCH_ERROR_MESSAGES[e.code]
-        : `搜索失败：${(e as Error).message}`;
+      const msg =
+        e instanceof FetchError
+          ? FETCH_ERROR_MESSAGES[e.code]
+          : `搜索失败：${(e as Error).message}`;
       this.errorMsg.set(msg);
       this.toast.error(msg);
       this.searchResults.set([]);
@@ -434,9 +439,10 @@ export class ChangeBookSourceDialogComponent {
       const { book } = await this.importViaSource.importByUrl(this.url, src);
       this.resolved.set(book);
     } catch (e) {
-      const msg = e instanceof FetchError
-        ? FETCH_ERROR_MESSAGES[e.code]
-        : `解析失败：${(e as Error).message}`;
+      const msg =
+        e instanceof FetchError
+          ? FETCH_ERROR_MESSAGES[e.code]
+          : `解析失败：${(e as Error).message}`;
       this.errorMsg.set(msg);
       this.toast.error(msg);
     } finally {
@@ -464,9 +470,10 @@ export class ChangeBookSourceDialogComponent {
       this.toast.success(`换源完成：${r.title}`);
       return true;
     } catch (e) {
-      const msg = e instanceof FetchError
-        ? FETCH_ERROR_MESSAGES[e.code]
-        : `换源失败：${(e as Error).message}`;
+      const msg =
+        e instanceof FetchError
+          ? FETCH_ERROR_MESSAGES[e.code]
+          : `换源失败：${(e as Error).message}`;
       this.toast.error(msg);
       this.errorMsg.set(msg);
       return false;

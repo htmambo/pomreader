@@ -6,7 +6,9 @@ import { isImportableUrl } from '../logic/auto-import-url';
 export { isImportableUrl };
 
 interface AutoImportApi {
-  onAutoImport?: (cb: (payload: { fileName: string; txtName?: string; error?: string }) => void) => () => void;
+  onAutoImport?: (
+    cb: (payload: { fileName: string; txtName?: string; error?: string }) => void,
+  ) => () => void;
   autoImportFromUrl?: (url: string) => Promise<{ fileName: string; txtName: string }>;
   autoImportReadText?: (txtName: string) => Promise<string>;
 }
@@ -49,7 +51,11 @@ export class AutoImportService {
     return true;
   }
 
-  private async onDetected(p: { fileName: string; txtName?: string; error?: string }): Promise<void> {
+  private async onDetected(p: {
+    fileName: string;
+    txtName?: string;
+    error?: string;
+  }): Promise<void> {
     if (p.error || !p.txtName) {
       this.toast.error(`自动导入失败：${p.fileName} —— ${p.error ?? '未知错误'}`);
       return;
@@ -64,7 +70,11 @@ export class AutoImportService {
         return;
       }
       const text = await a.autoImportReadText(p.txtName);
-      const { book, chapters, singleChapter } = await this.importer.importText(p.fileName, text, 'auto-import');
+      const { book, chapters, singleChapter } = await this.importer.importText(
+        p.fileName,
+        text,
+        'auto-import',
+      );
       this.toast.success(
         `已自动导入：${book.title}（${chapters.length} 章）${singleChapter ? '，未识别章节按单章导入' : ''}`,
       );

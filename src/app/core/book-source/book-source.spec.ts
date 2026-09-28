@@ -84,10 +84,7 @@ describe('XbiqugeAdapter', () => {
 
   it('fetchChapter 提取正文纯文本（去 script/广告）', async () => {
     const fetcher = mockFetcher({ [chUrl]: loadFixture('xbiquge-chapter.html') });
-    const text = await adapter.fetchChapter(
-      { title: '第一章', url: chUrl },
-      fetcher
-    );
+    const text = await adapter.fetchChapter({ title: '第一章', url: chUrl }, fetcher);
     expect(text).toContain('风起云涌');
     expect(text).not.toContain('广告');
     expect(text).not.toContain('adsbygoogle');
@@ -174,7 +171,9 @@ describe('HeuristicAdapter 渲染兜底', () => {
   const chUrl = 'https://www.unknown-site.com/book/123/1.html';
 
   it('静态结果可疑时调用 fetchRendered 并采用渲染结果', async () => {
-    const rendered = '范慎很困难地撑着上眼皮，看着指头算自己这辈子做过些什么有意义的事情。'.repeat(200);
+    const rendered = '范慎很困难地撑着上眼皮，看着指头算自己这辈子做过些什么有意义的事情。'.repeat(
+      200,
+    );
     const fetcher: PageFetcher = {
       fetchHtml: vi.fn(async () => loadFixture('hetushu-chapter.html')),
       fetchRendered: vi.fn(async () => rendered),
@@ -238,7 +237,7 @@ function makeMockJsAdapter(name: string, uuid: string, mainUrl: string): JsSourc
     load: async () => ({ fileName: meta.fileName, fns: [] }),
     call: async () => null,
   };
-   
+
   return new JsSourceAdapter(meta, sandbox as any);
 }
 
@@ -288,7 +287,9 @@ describe('BookSourceRegistry · getByUuid / findJsSourceAdapterByUrl', () => {
     const reg = BookSourceRegistry.forTest(mockFetcher({}));
     const a = makeMockJsAdapter('hetushu', 'uuid-hetushu-001', 'https://www.hetushu.com');
     reg.registerJsAdapter(a);
-    expect(reg.findJsSourceAdapterByUrl('https://www.hetushu.com/book/5763/')?.name).toBe('hetushu');
+    expect(reg.findJsSourceAdapterByUrl('https://www.hetushu.com/book/5763/')?.name).toBe(
+      'hetushu',
+    );
     expect(reg.findJsSourceAdapterByUrl('https://other.com/book/')).toBeUndefined();
   });
 

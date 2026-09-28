@@ -1,5 +1,5 @@
-import { Injectable, type Signal, effect } from '@angular/core'
-import { type Settings } from '../models/settings.model'
+import { Injectable, type Signal, effect } from '@angular/core';
+import { type Settings } from '../models/settings.model';
 import { createSettingsStore, SettingsStore } from '../logic/settings-store';
 
 /**

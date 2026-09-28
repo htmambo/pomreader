@@ -24,7 +24,9 @@ function installPomApi(): void {
   const w = window as unknown as {
     pomAPI?: { booksourceRead: (fn: string) => Promise<string> };
   };
-  w.pomAPI = { booksourceRead: vi.fn(async (fn: string) => `// @name ${fn}\nfunction search(){return "";}`) };
+  w.pomAPI = {
+    booksourceRead: vi.fn(async (fn: string) => `// @name ${fn}\nfunction search(){return "";}`),
+  };
 }
 
 function makeMeta(i: number): BookSourceMeta {
@@ -55,7 +57,9 @@ describe('SourceHealthService', () => {
     for (let i = 0; i < 12; i++) {
       sandbox.results.set(`s${i}.js`, { fileName: `s${i}.js`, fns: ['search', 'bookInfo'] });
     }
-    const svc = new SourceHealthService(sandbox as unknown as ConstructorParameters<typeof SourceHealthService>[0]);
+    const svc = new SourceHealthService(
+      sandbox as unknown as ConstructorParameters<typeof SourceHealthService>[0],
+    );
     const metas = Array.from({ length: 12 }, (_, i) => makeMeta(i));
     const reports = await svc.detectBatch(metas);
     expect(reports.size).toBe(12);
@@ -67,7 +71,9 @@ describe('SourceHealthService', () => {
     sandbox.results.set('s0.js', { fileName: 's0.js', fns: ['search'] });
     sandbox.results.set('s1.js', { fileName: 's1.js', fns: ['bookInfo'] });
     // s2 不注入 → sandbox.load 抛错
-    const svc = new SourceHealthService(sandbox as unknown as ConstructorParameters<typeof SourceHealthService>[0]);
+    const svc = new SourceHealthService(
+      sandbox as unknown as ConstructorParameters<typeof SourceHealthService>[0],
+    );
     const metas = [makeMeta(0), makeMeta(1), makeMeta(2)];
     const reports = await svc.detectBatch(metas);
     expect(reports.size).toBe(3);
@@ -80,13 +86,17 @@ describe('SourceHealthService', () => {
   it('detectCapabilities 缺失 booksourceRead 返回空数组', async () => {
     (window as unknown as { pomAPI?: unknown }).pomAPI = {};
     const sandbox = new MockSandbox();
-    const svc = new SourceHealthService(sandbox as unknown as ConstructorParameters<typeof SourceHealthService>[0]);
+    const svc = new SourceHealthService(
+      sandbox as unknown as ConstructorParameters<typeof SourceHealthService>[0],
+    );
     const caps = await svc.detectCapabilities('x.js');
     expect(caps).toEqual([]);
   });
 
   it('sampleTest 不触发网络（v1 占位）', async () => {
-    const svc = new SourceHealthService(new MockSandbox() as unknown as ConstructorParameters<typeof SourceHealthService>[0]);
+    const svc = new SourceHealthService(
+      new MockSandbox() as unknown as ConstructorParameters<typeof SourceHealthService>[0],
+    );
     const r = await svc.sampleTest(makeMeta(0));
     expect(r.ok).toBe(true);
     expect(r.durationMs).toBe(0);

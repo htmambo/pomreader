@@ -1,10 +1,17 @@
 import { Injectable, inject } from '@angular/core';
-import { type BookSourceAdapter, type CatalogEntry, type PageFetcher, type ResolvedBook, extractMetaUuid, hasMetaUuid } from './book-source.adapter'
+import {
+  type BookSourceAdapter,
+  type CatalogEntry,
+  type PageFetcher,
+  type ResolvedBook,
+  extractMetaUuid,
+  hasMetaUuid,
+} from './book-source.adapter';
 import { PageFetcherService } from './page-fetcher.service';
 import { FetchError } from './fetch-error';
 import { JsSourceAdapter } from './js-source/js-source.adapter';
 import { SandboxService } from './js-source/sandbox.service';
-import { type BookSourceMeta } from './js-source/source-meta.types'
+import { type BookSourceMeta } from './js-source/source-meta.types';
 import { BOOK_SOURCE_FEATURE_FLAGS } from './feature-flag';
 import { UNIVERSAL_BOOK_SOURCE_UUID } from './book-source.constants';
 
@@ -58,14 +65,23 @@ export class BookSourceRegistry {
    */
   async loadAllJsAdapters(externalSandbox?: SandboxService): Promise<void> {
     if (!BOOK_SOURCE_FEATURE_FLAGS.enableJsSource) {
-      console.warn('[registry] loadAllJsAdapters 早返回：BOOK_SOURCE_FEATURE_FLAGS.enableJsSource = false');
+      console.warn(
+        '[registry] loadAllJsAdapters 早返回：BOOK_SOURCE_FEATURE_FLAGS.enableJsSource = false',
+      );
       return;
     }
-    const pom = typeof window !== 'undefined' ? (window as unknown as {
-      pomAPI?: { booksourceList?: () => Promise<BookSourceMeta[]> };
-    }).pomAPI : undefined;
+    const pom =
+      typeof window !== 'undefined'
+        ? (
+            window as unknown as {
+              pomAPI?: { booksourceList?: () => Promise<BookSourceMeta[]> };
+            }
+          ).pomAPI
+        : undefined;
     if (!pom?.booksourceList) {
-      console.warn('[registry] loadAllJsAdapters 早返回：window.pomAPI.booksourceList 不存在（preload 未注册 / 非 Electron 环境）');
+      console.warn(
+        '[registry] loadAllJsAdapters 早返回：window.pomAPI.booksourceList 不存在（preload 未注册 / 非 Electron 环境）',
+      );
       return;
     }
     let sandbox: SandboxService | undefined = externalSandbox;
@@ -73,7 +89,10 @@ export class BookSourceRegistry {
       try {
         sandbox = inject(SandboxService);
       } catch (e) {
-        console.warn('[registry] loadAllJsAdapters 早返回：inject(SandboxService) 失败（无 Angular 注入上下文）', e);
+        console.warn(
+          '[registry] loadAllJsAdapters 早返回：inject(SandboxService) 失败（无 Angular 注入上下文）',
+          e,
+        );
         return;
       }
     }
@@ -92,7 +111,10 @@ export class BookSourceRegistry {
           console.warn(`[registry] 加载书源 ${meta.fileName} 失败:`, err);
         }
       }
-      console.info(`[registry] ✓ loadAllJsAdapters 完成：注册 ${registered} 个 JS 书源`, registeredNames);
+      console.info(
+        `[registry] ✓ loadAllJsAdapters 完成：注册 ${registered} 个 JS 书源`,
+        registeredNames,
+      );
     } catch (err) {
       console.warn('[registry] 拉取书源列表失败:', err);
     }

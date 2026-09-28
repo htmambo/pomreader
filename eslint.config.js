@@ -8,7 +8,21 @@ const tseslint = require('typescript-eslint');
 const angular = require('@angular-eslint/eslint-plugin');
 const angularTemplate = require('@angular-eslint/eslint-plugin-template');
 const templateParser = require('@angular-eslint/template-parser');
+// angular-eslint 22 起 @angular-eslint/eslint-plugin 不再导出 configs（flat config
+// 迁移到聚合包）；recommended 规则集改从 angular-eslint.configs.tsRecommended /
+// templateRecommended 取。tsPlugin / templatePlugin 与上面两个 require 是同一对象。
+const angularEslint = require('angular-eslint');
 const globals = require('globals');
+
+// 提取 tsRecommended 的规则子块（数组 [语言配置, 规则块]，取含 rules 者）
+const angularTsRecommendedRules = Object.assign(
+  {},
+  ...angularEslint.configs.tsRecommended.map((c) => c.rules || {}),
+);
+const angularTemplateRecommendedRules = Object.assign(
+  {},
+  ...angularEslint.configs.templateRecommended.map((c) => c.rules || {}),
+);
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const globalsPatch = {
@@ -59,7 +73,7 @@ module.exports = tseslint.config(
     rules: {
       ...eslint.configs.recommended.rules,
       ...tseslint.configs.recommended.rules,
-      ...angular.configs.recommended.rules,
+      ...angularTsRecommendedRules,
 
       '@angular-eslint/component-selector': [
         'error',
@@ -69,6 +83,9 @@ module.exports = tseslint.config(
         'error',
         { type: 'attribute', prefix: 'app', style: 'camelCase' },
       ],
+      // angular-eslint 20 新增。仓库的 spec 一律用 vitest 直实例化（不用 TestBed），
+      // 构造器注入是这些 spec 能 `new Svc(stub)` 的前提；改 inject() 会连带重写测试。
+      '@angular-eslint/prefer-inject': 'off',
 
       '@typescript-eslint/no-unused-vars': [
         'error',
@@ -162,6 +179,6 @@ module.exports = tseslint.config(
     files: ['**/*.html'],
     plugins: { '@angular-eslint/template': angularTemplate },
     languageOptions: { parser: templateParser },
-    rules: { ...angularTemplate.configs.recommended.rules },
+    rules: { ...angularTemplateRecommendedRules },
   },
 );

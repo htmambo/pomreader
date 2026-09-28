@@ -56,7 +56,10 @@ describe('parseHeaderMeta / 标量字段', () => {
   it('@description 多条 → 换行拼接', () => {
     const meta = parseHeaderMeta(
       src(['// @description 第一段', '// @description 第二段', '// @description 第三段']),
-      FIX.fileName, FIX.sourceDir, FIX.fileSize, FIX.modifiedAt,
+      FIX.fileName,
+      FIX.sourceDir,
+      FIX.fileSize,
+      FIX.modifiedAt,
     );
     expect(meta.description).toBe('第一段\n第二段\n第三段');
   });
@@ -64,15 +67,25 @@ describe('parseHeaderMeta / 标量字段', () => {
   it('@description 含换行符原样保留', () => {
     const meta = parseHeaderMeta(
       src(['// @description 段落A\\n段落B']),
-      FIX.fileName, FIX.sourceDir, FIX.fileSize, FIX.modifiedAt,
+      FIX.fileName,
+      FIX.sourceDir,
+      FIX.fileSize,
+      FIX.modifiedAt,
     );
     expect(meta.description).toBe('段落A\\n段落B');
   });
 
   it('@url 多条 → urls[] 按声明顺序，主 url 取首条', () => {
     const meta = parseHeaderMeta(
-      src(['// @url https://a.example.com/', '// @url https://b.example.com/', '// @url https://c.example.com/']),
-      FIX.fileName, FIX.sourceDir, FIX.fileSize, FIX.modifiedAt,
+      src([
+        '// @url https://a.example.com/',
+        '// @url https://b.example.com/',
+        '// @url https://c.example.com/',
+      ]),
+      FIX.fileName,
+      FIX.sourceDir,
+      FIX.fileSize,
+      FIX.modifiedAt,
     );
     expect(meta.urls).toEqual([
       'https://a.example.com/',
@@ -85,7 +98,10 @@ describe('parseHeaderMeta / 标量字段', () => {
   it('@name 重复只取首条', () => {
     const meta = parseHeaderMeta(
       src(['// @name 第一名', '// @name 第二名']),
-      FIX.fileName, FIX.sourceDir, FIX.fileSize, FIX.modifiedAt,
+      FIX.fileName,
+      FIX.sourceDir,
+      FIX.fileSize,
+      FIX.modifiedAt,
     );
     expect(meta.name).toBe('第一名');
   });
@@ -93,18 +109,36 @@ describe('parseHeaderMeta / 标量字段', () => {
 
 describe('parseHeaderMeta / 回退与默认', () => {
   it('缺 @uuid → 回退 fileName', () => {
-    const meta = parseHeaderMeta(src([]), FIX.fileName, FIX.sourceDir, FIX.fileSize, FIX.modifiedAt);
+    const meta = parseHeaderMeta(
+      src([]),
+      FIX.fileName,
+      FIX.sourceDir,
+      FIX.fileSize,
+      FIX.modifiedAt,
+    );
     expect(meta.uuid).toBe('demo.js');
     expect(meta.sourceKey).toBe('demo.js');
   });
 
   it('缺 @name → 回退 fileName 去 .js 后缀', () => {
-    const meta = parseHeaderMeta(src([]), FIX.fileName, FIX.sourceDir, FIX.fileSize, FIX.modifiedAt);
+    const meta = parseHeaderMeta(
+      src([]),
+      FIX.fileName,
+      FIX.sourceDir,
+      FIX.fileSize,
+      FIX.modifiedAt,
+    );
     expect(meta.name).toBe('demo');
   });
 
   it('缺 @enabled → 默认 true', () => {
-    const meta = parseHeaderMeta(src([]), FIX.fileName, FIX.sourceDir, FIX.fileSize, FIX.modifiedAt);
+    const meta = parseHeaderMeta(
+      src([]),
+      FIX.fileName,
+      FIX.sourceDir,
+      FIX.fileSize,
+      FIX.modifiedAt,
+    );
     expect(meta.enabled).toBe(true);
   });
 
@@ -112,21 +146,33 @@ describe('parseHeaderMeta / 回退与默认', () => {
     for (const v of ['false', '0', 'no', 'FALSE']) {
       const meta = parseHeaderMeta(
         src([`// @enabled ${v}`]),
-        FIX.fileName, FIX.sourceDir, FIX.fileSize, FIX.modifiedAt,
+        FIX.fileName,
+        FIX.sourceDir,
+        FIX.fileSize,
+        FIX.modifiedAt,
       );
       expect(meta.enabled).toBe(false);
     }
   });
 
   it('缺 @type → 默认 novel', () => {
-    const meta = parseHeaderMeta(src([]), FIX.fileName, FIX.sourceDir, FIX.fileSize, FIX.modifiedAt);
+    const meta = parseHeaderMeta(
+      src([]),
+      FIX.fileName,
+      FIX.sourceDir,
+      FIX.fileSize,
+      FIX.modifiedAt,
+    );
     expect(meta.sourceType).toBe('novel');
   });
 
   it('@type 非法 → 降级 novel', () => {
     const meta = parseHeaderMeta(
       src(['// @type audiobook']),
-      FIX.fileName, FIX.sourceDir, FIX.fileSize, FIX.modifiedAt,
+      FIX.fileName,
+      FIX.sourceDir,
+      FIX.fileSize,
+      FIX.modifiedAt,
     );
     expect(meta.sourceType).toBe('novel');
   });
@@ -135,7 +181,10 @@ describe('parseHeaderMeta / 回退与默认', () => {
     for (const t of ['novel', 'comic', 'video', 'music', 'webpage']) {
       const meta = parseHeaderMeta(
         src([`// @type ${t}`]),
-        FIX.fileName, FIX.sourceDir, FIX.fileSize, FIX.modifiedAt,
+        FIX.fileName,
+        FIX.sourceDir,
+        FIX.fileSize,
+        FIX.modifiedAt,
       );
       expect(meta.sourceType).toBe(t);
     }
@@ -146,7 +195,10 @@ describe('parseHeaderMeta / tags 解析', () => {
   it('@tags 中英逗号混合拆分 + 去重保序', () => {
     const meta = parseHeaderMeta(
       src(['// @tags 玄幻，修幻,仙侠，修仙']),
-      FIX.fileName, FIX.sourceDir, FIX.fileSize, FIX.modifiedAt,
+      FIX.fileName,
+      FIX.sourceDir,
+      FIX.fileSize,
+      FIX.modifiedAt,
     );
     expect(meta.tags).toEqual(['玄幻', '修幻', '仙侠', '修仙']);
   });
@@ -154,7 +206,10 @@ describe('parseHeaderMeta / tags 解析', () => {
   it('@tags 大小写敏感（不同大小写视为不同）', () => {
     const meta = parseHeaderMeta(
       src(['// @tags Novel,novel,NOVEL']),
-      FIX.fileName, FIX.sourceDir, FIX.fileSize, FIX.modifiedAt,
+      FIX.fileName,
+      FIX.sourceDir,
+      FIX.fileSize,
+      FIX.modifiedAt,
     );
     expect(meta.tags).toEqual(['Novel', 'novel', 'NOVEL']);
   });
@@ -162,7 +217,10 @@ describe('parseHeaderMeta / tags 解析', () => {
   it('@tags 空段（连续逗号 / 首尾逗号）忽略', () => {
     const meta = parseHeaderMeta(
       src(['// @tags ,,玄幻,，修真,,']),
-      FIX.fileName, FIX.sourceDir, FIX.fileSize, FIX.modifiedAt,
+      FIX.fileName,
+      FIX.sourceDir,
+      FIX.fileSize,
+      FIX.modifiedAt,
     );
     expect(meta.tags).toEqual(['玄幻', '修真']);
   });
@@ -172,7 +230,10 @@ describe('parseHeaderMeta / enabled 优先级（marker > 头部）', () => {
   it('marker 文件 false → 覆盖头部 @enabled true', () => {
     const meta = parseHeaderMeta(
       src(['// @enabled true']),
-      FIX.fileName, FIX.sourceDir, FIX.fileSize, FIX.modifiedAt,
+      FIX.fileName,
+      FIX.sourceDir,
+      FIX.fileSize,
+      FIX.modifiedAt,
       false,
     );
     expect(meta.enabled).toBe(false);
@@ -181,7 +242,10 @@ describe('parseHeaderMeta / enabled 优先级（marker > 头部）', () => {
   it('marker 文件 true → 覆盖头部 @enabled false', () => {
     const meta = parseHeaderMeta(
       src(['// @enabled false']),
-      FIX.fileName, FIX.sourceDir, FIX.fileSize, FIX.modifiedAt,
+      FIX.fileName,
+      FIX.sourceDir,
+      FIX.fileSize,
+      FIX.modifiedAt,
       true,
     );
     expect(meta.enabled).toBe(true);
@@ -190,12 +254,20 @@ describe('parseHeaderMeta / enabled 优先级（marker > 头部）', () => {
   it('marker 文件 null/undefined → 走头部 @enabled 或默认', () => {
     const meta1 = parseHeaderMeta(
       src(['// @enabled false']),
-      FIX.fileName, FIX.sourceDir, FIX.fileSize, FIX.modifiedAt, null,
+      FIX.fileName,
+      FIX.sourceDir,
+      FIX.fileSize,
+      FIX.modifiedAt,
+      null,
     );
     expect(meta1.enabled).toBe(false);
     const meta2 = parseHeaderMeta(
       src([]),
-      FIX.fileName, FIX.sourceDir, FIX.fileSize, FIX.modifiedAt, undefined,
+      FIX.fileName,
+      FIX.sourceDir,
+      FIX.fileSize,
+      FIX.modifiedAt,
+      undefined,
     );
     expect(meta2.enabled).toBe(true);
   });
@@ -205,11 +277,17 @@ describe('parseHeaderMeta / 边界行为', () => {
   it('@minDelayMs 与 @minDelay 等价', () => {
     const a = parseHeaderMeta(
       src(['// @minDelayMs 800']),
-      FIX.fileName, FIX.sourceDir, FIX.fileSize, FIX.modifiedAt,
+      FIX.fileName,
+      FIX.sourceDir,
+      FIX.fileSize,
+      FIX.modifiedAt,
     );
     const b = parseHeaderMeta(
       src(['// @minDelay 800']),
-      FIX.fileName, FIX.sourceDir, FIX.fileSize, FIX.modifiedAt,
+      FIX.fileName,
+      FIX.sourceDir,
+      FIX.fileSize,
+      FIX.modifiedAt,
     );
     expect(a.minDelayMs).toBe(800);
     expect(b.minDelayMs).toBe(800);
@@ -218,7 +296,10 @@ describe('parseHeaderMeta / 边界行为', () => {
   it('@minDelayMs 非法数字 → 保持默认值 0', () => {
     const meta = parseHeaderMeta(
       src(['// @minDelayMs notanumber']),
-      FIX.fileName, FIX.sourceDir, FIX.fileSize, FIX.modifiedAt,
+      FIX.fileName,
+      FIX.sourceDir,
+      FIX.fileSize,
+      FIX.modifiedAt,
     );
     expect(meta.minDelayMs).toBe(0);
   });
@@ -228,7 +309,10 @@ describe('parseHeaderMeta / 边界行为', () => {
     const filler = Array.from({ length: 99 }, () => '// padding');
     const meta = parseHeaderMeta(
       src([...filler, '// @author 实际作者', '// @name 应被忽略']),
-      FIX.fileName, FIX.sourceDir, FIX.fileSize, FIX.modifiedAt,
+      FIX.fileName,
+      FIX.sourceDir,
+      FIX.fileSize,
+      FIX.modifiedAt,
     );
     expect(meta.name).toBe(FIX.fileName.replace(/\.js$/, ''));
     expect(meta.author).toBe('实际作者');
@@ -237,7 +321,10 @@ describe('parseHeaderMeta / 边界行为', () => {
   it('未知 @key 忽略（不抛错）', () => {
     const meta = parseHeaderMeta(
       src(['// @unknownKey hello', '// @name OK']),
-      FIX.fileName, FIX.sourceDir, FIX.fileSize, FIX.modifiedAt,
+      FIX.fileName,
+      FIX.sourceDir,
+      FIX.fileSize,
+      FIX.modifiedAt,
     );
     expect(meta.name).toBe('OK');
   });
@@ -259,7 +346,10 @@ describe('parseHeaderMeta / 边界行为', () => {
   it('@url 空值不入 urls[]，主 url 回退空字符串', () => {
     const meta = parseHeaderMeta(
       src(['// @url', '// @url https://a.example.com/']),
-      FIX.fileName, FIX.sourceDir, FIX.fileSize, FIX.modifiedAt,
+      FIX.fileName,
+      FIX.sourceDir,
+      FIX.fileSize,
+      FIX.modifiedAt,
     );
     expect(meta.urls).toEqual(['https://a.example.com/']);
     expect(meta.url).toBe('https://a.example.com/');

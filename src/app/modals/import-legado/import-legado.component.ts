@@ -7,19 +7,10 @@
  *  3. 列表勾选要导入的项（默认全选；翻译失败的项强制跳过）
  *  4. 点"导入所选" → persistSelected → toast 结果 → 关闭弹窗 + 刷新父列表
  */
-import {
-  Component,
-  inject,
-  signal,
-  ChangeDetectionStrategy,
-  computed,
-} from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, inject, signal, ChangeDetectionStrategy, computed } from '@angular/core';
+
 import { FormsModule } from '@angular/forms';
-import {
-  NZ_MODAL_DATA,
-  NzModalRef,
-} from 'ng-zorro-antd/modal';
+import { NZ_MODAL_DATA, NzModalRef } from 'ng-zorro-antd/modal';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
@@ -27,10 +18,8 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
-import {
-  LegadoImportService,
-} from '../../core/book-source/legado/legado-import.service';
-import { type LegadoImportItem } from '../../core/book-source/legado/legado-types'
+import { LegadoImportService } from '../../core/book-source/legado/legado-import.service';
+import { type LegadoImportItem } from '../../core/book-source/legado/legado-types';
 import { ToastService } from '../../core/services/toast.service';
 
 type Mode = 'url' | 'json';
@@ -42,10 +31,8 @@ interface ModalData {
 
 @Component({
   selector: 'app-import-legado',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
     FormsModule,
     NzInputModule,
     NzButtonModule,
@@ -58,9 +45,10 @@ interface ModalData {
   template: `
     <div class="import-legado">
       <p class="hint">
-        阅读(Legado) 订阅源支持两种格式：JSON 对象（单源）或 JSON 数组（订阅列表），
-        也支持 base64 编码的上述任一种。pomreader 会自动嗅探并转换其中
-        <strong>纯 CSS / 正则规则</strong> 的源；含 java.* / source.* 桥接的源会被跳过（提示用户走智能添加）。
+        阅读(Legado) 订阅源支持两种格式：JSON 对象（单源）或 JSON 数组（订阅列表）， 也支持 base64
+        编码的上述任一种。pomreader 会自动嗅探并转换其中
+        <strong>纯 CSS / 正则规则</strong> 的源；含 java.* / source.*
+        桥接的源会被跳过（提示用户走智能添加）。
       </p>
 
       <div class="mode-tabs">
@@ -70,32 +58,38 @@ interface ModalData {
           nzSize="small"
           [nzType]="mode() === 'url' ? 'primary' : 'default'"
           (click)="setMode('url')"
-        >订阅 URL</button>
+        >
+          订阅 URL
+        </button>
         <button
           type="button"
           nz-button
           nzSize="small"
           [nzType]="mode() === 'json' ? 'primary' : 'default'"
           (click)="setMode('json')"
-        >粘贴 JSON</button>
+        >
+          粘贴 JSON
+        </button>
       </div>
 
-      <textarea
-        *ngIf="mode() === 'json'"
-        nz-input
-        [(ngModel)]="textInput"
-        rows="6"
-        placeholder="粘贴 legado JSON 文本（单对象 / 数组 / base64）"
-        [disabled]="loading()"
-      ></textarea>
-      <input
-        *ngIf="mode() === 'url'"
-        nz-input
-        type="text"
-        [(ngModel)]="urlInput"
-        placeholder="https://example.com/legado-subscriptions.txt"
-        [disabled]="loading()"
-      />
+      @if (mode() === 'json') {
+        <textarea
+          nz-input
+          [(ngModel)]="textInput"
+          rows="6"
+          placeholder="粘贴 legado JSON 文本（单对象 / 数组 / base64）"
+          [disabled]="loading()"
+        ></textarea>
+      }
+      @if (mode() === 'url') {
+        <input
+          nz-input
+          type="text"
+          [(ngModel)]="urlInput"
+          placeholder="https://example.com/legado-subscriptions.txt"
+          [disabled]="loading()"
+        />
+      }
 
       <div class="actions">
         <button nz-button (click)="cancel()">取消</button>
@@ -105,7 +99,9 @@ interface ModalData {
           [disabled]="!canParse()"
           [nzLoading]="loading()"
           (click)="parse()"
-        >解析</button>
+        >
+          解析
+        </button>
       </div>
 
       <nz-spin [nzSpinning]="loading()">
@@ -128,15 +124,17 @@ interface ModalData {
                     (change)="toggle(it)"
                   />
                   <span class="source-name">{{ it.source.bookSourceName }}</span>
-                  <nz-tag class="tag-group" *ngIf="it.source.bookSourceGroup">
-                    {{ it.source.bookSourceGroup }}
-                  </nz-tag>
+                  @if (it.source.bookSourceGroup) {
+                    <nz-tag class="tag-group">
+                      {{ it.source.bookSourceGroup }}
+                    </nz-tag>
+                  }
                   <nz-tag class="tag-status" [nzColor]="it.isSkeleton ? 'orange' : 'green'">
                     {{ it.isSkeleton ? '⚠ 需手写（草稿）' : '✓ 可转换' }}
                   </nz-tag>
-                  <nz-tag class="tag-overwrite" *ngIf="it.overwritesExisting" nzColor="orange">
-                    覆盖现有
-                  </nz-tag>
+                  @if (it.overwritesExisting) {
+                    <nz-tag class="tag-overwrite" nzColor="orange"> 覆盖现有 </nz-tag>
+                  }
                 </label>
                 @if (it.translateError) {
                   <div class="source-error">{{ it.translateError }}</div>
@@ -154,7 +152,9 @@ interface ModalData {
               [disabled]="selectedCount() === 0"
               [nzLoading]="writing()"
               (click)="commit()"
-            >导入所选</button>
+            >
+              导入所选
+            </button>
           </div>
         }
       </nz-spin>
@@ -162,19 +162,71 @@ interface ModalData {
   `,
   styles: [
     `
-      .import-legado { display: flex; flex-direction: column; gap: 12px; min-width: 520px; max-height: 70vh; }
-      .hint { color: var(--pom-text-muted); font-size: 12px; margin: 0; }
-      .mode-tabs { display: flex; gap: 8px; }
-      textarea { font-family: ui-monospace, monospace; font-size: 12px; }
-      .actions { display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
-      .select-hint { margin-right: auto; color: var(--pom-text-muted); font-size: 12px; }
-      .source-list { list-style: none; padding: 0; margin: 0; overflow: auto; max-height: 40vh; border: 1px solid var(--pom-border-soft); border-radius: 4px; }
-      .source-item { padding: 8px 12px; border-bottom: 1px solid var(--pom-border-soft); }
-      .source-item:last-child { border-bottom: none; }
-      .source-item.disabled { opacity: 0.6; }
-      .source-row { display: flex; gap: 8px; align-items: center; }
-      .source-name { font-weight: 500; flex: 1; }
-      .source-error { color: #cf1322; font-size: 12px; margin-top: 4px; margin-left: 24px; }
+      .import-legado {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        min-width: 520px;
+        max-height: 70vh;
+      }
+      .hint {
+        color: var(--pom-text-muted);
+        font-size: 12px;
+        margin: 0;
+      }
+      .mode-tabs {
+        display: flex;
+        gap: 8px;
+      }
+      textarea {
+        font-family: ui-monospace, monospace;
+        font-size: 12px;
+      }
+      .actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        align-items: center;
+      }
+      .select-hint {
+        margin-right: auto;
+        color: var(--pom-text-muted);
+        font-size: 12px;
+      }
+      .source-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        overflow: auto;
+        max-height: 40vh;
+        border: 1px solid var(--pom-border-soft);
+        border-radius: 4px;
+      }
+      .source-item {
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--pom-border-soft);
+      }
+      .source-item:last-child {
+        border-bottom: none;
+      }
+      .source-item.disabled {
+        opacity: 0.6;
+      }
+      .source-row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .source-name {
+        font-weight: 500;
+        flex: 1;
+      }
+      .source-error {
+        color: #cf1322;
+        font-size: 12px;
+        margin-top: 4px;
+        margin-left: 24px;
+      }
     `,
   ],
 })
@@ -209,7 +261,9 @@ export class ImportLegadoComponent {
   }
 
   protected canParse(): boolean {
-    return this.mode() === 'url' ? this.urlInput.trim().length > 0 : this.textInput.trim().length > 0;
+    return this.mode() === 'url'
+      ? this.urlInput.trim().length > 0
+      : this.textInput.trim().length > 0;
   }
 
   protected async parse(): Promise<void> {

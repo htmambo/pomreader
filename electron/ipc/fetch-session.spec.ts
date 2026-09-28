@@ -5,7 +5,10 @@ vi.mock('electron', () => ({
   app: { userAgentFallback: '' },
   session: {
     defaultSession: { setUserAgent: vi.fn() },
-    fromPartition: vi.fn(() => ({ setUserAgent: vi.fn(), cookies: { get: vi.fn(), set: vi.fn() } })),
+    fromPartition: vi.fn(() => ({
+      setUserAgent: vi.fn(),
+      cookies: { get: vi.fn(), set: vi.fn() },
+    })),
   },
 }));
 

@@ -7,7 +7,10 @@ export type FetchErrorCode =
   | 'cf-challenge';
 
 export class FetchError extends Error {
-  constructor(public readonly code: FetchErrorCode, message?: string) {
+  constructor(
+    public readonly code: FetchErrorCode,
+    message?: string,
+  ) {
     super(message ?? code);
     this.name = 'FetchError';
   }

@@ -17,7 +17,10 @@
 
 export type LegadoSourceType = 0 | 1 | 2 | 3 | 4 | number;
 /** legado sourceType：0=小说 1=听书 2=视频 3=漫画 4=文件；其他容错为 novel */
-export const LEGADO_SOURCE_TYPE_MAP: Record<number, 'novel' | 'comic' | 'video' | 'music' | 'webpage'> = {
+export const LEGADO_SOURCE_TYPE_MAP: Record<
+  number,
+  'novel' | 'comic' | 'video' | 'music' | 'webpage'
+> = {
   0: 'novel',
   1: 'music',
   2: 'video',

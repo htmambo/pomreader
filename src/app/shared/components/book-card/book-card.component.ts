@@ -1,11 +1,19 @@
-import { ChangeDetectionStrategy, Component, Input, inject, output, ViewChild, type OnDestroy } from '@angular/core'
-import { CommonModule } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  Input,
+  inject,
+  output,
+  ViewChild,
+  type OnDestroy,
+} from '@angular/core';
+
 import { RouterLink } from '@angular/router';
 import { NzDropdownMenuComponent } from 'ng-zorro-antd/dropdown';
 import { NzContextMenuService } from 'ng-zorro-antd/dropdown';
 import { NzMenuModule } from 'ng-zorro-antd/menu';
 import { NzIconModule } from 'ng-zorro-antd/icon';
-import { type Book } from '../../../core/models/book.model'
+import { type Book } from '../../../core/models/book.model';
 import { ToastService } from '../../../core/services/toast.service';
 import { CoverService } from '../../../core/cover/cover.service';
 import { CoverImgComponent } from '../cover-img/cover-img.component';
@@ -19,8 +27,14 @@ import { LongPressDirective } from '../../directives/long-press.directive';
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-book-card',
-  standalone: true,
-  imports: [CommonModule, RouterLink, NzDropdownMenuComponent, NzMenuModule, NzIconModule, CoverImgComponent, LongPressDirective],
+  imports: [
+    RouterLink,
+    NzDropdownMenuComponent,
+    NzMenuModule,
+    NzIconModule,
+    CoverImgComponent,
+    LongPressDirective,
+  ],
   template: `
     <a
       class="book-card"
@@ -80,7 +94,12 @@ import { LongPressDirective } from '../../directives/long-press.directive';
             <span nz-icon nzType="cloud-download"></span> 更新最新章节
           </li>
         }
-        <li nz-menu-item [routerLink]="['/book-sources/search']" [queryParams]="{ keyword: book.title }" (click)="closeMenu()">
+        <li
+          nz-menu-item
+          [routerLink]="['/book-sources/search']"
+          [queryParams]="{ keyword: book.title }"
+          (click)="closeMenu()"
+        >
           <span nz-icon nzType="search"></span> 用此书名重新搜索
         </li>
         @if (book.coverImageUrl) {
@@ -175,7 +194,9 @@ import { LongPressDirective } from '../../directives/long-press.directive';
         color: var(--pom-text);
         margin-top: 2px;
       }
-      :host { display: block; }
+      :host {
+        display: block;
+      }
     `,
   ],
 })

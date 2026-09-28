@@ -8,24 +8,54 @@ const SAVED = new Map<string, PropertyDescriptor | undefined>();
 function applyHardening(): void {
   for (const k of FORBIDDEN) {
     SAVED.set(k, Object.getOwnPropertyDescriptor(globalThis, k));
-    try { delete (globalThis as Record<string, unknown>)[k]; } catch { /* ignore */ }
+    try {
+      delete (globalThis as Record<string, unknown>)[k];
+    } catch {
+      /* ignore */
+    }
     if (k === 'localStorage') {
-      try { Object.defineProperty(globalThis, k, {
-        get() { throw new ReferenceError(`${k} is not defined`); },
-        set() { /* ignore */ }, configurable: true,
-      }); } catch { /* ignore */ }
+      try {
+        Object.defineProperty(globalThis, k, {
+          get() {
+            throw new ReferenceError(`${k} is not defined`);
+          },
+          set() {
+            /* ignore */
+          },
+          configurable: true,
+        });
+      } catch {
+        /* ignore */
+      }
     } else {
-      try { Object.defineProperty(globalThis, k,
-        { value: undefined, configurable: true, writable: false }); } catch { /* ignore */ }
+      try {
+        Object.defineProperty(globalThis, k, {
+          value: undefined,
+          configurable: true,
+          writable: false,
+        });
+      } catch {
+        /* ignore */
+      }
     }
   }
   // 注：prototype 冻结会破坏 Vite source-map 等，真实 worker 由启动段强制冻结
 }
 function restoreHardening(): void {
   for (const k of FORBIDDEN) {
-    try { delete (globalThis as Record<string, unknown>)[k]; } catch { /* ignore */ }
+    try {
+      delete (globalThis as Record<string, unknown>)[k];
+    } catch {
+      /* ignore */
+    }
     const d = SAVED.get(k);
-    if (d) { try { Object.defineProperty(globalThis, k, d); } catch { /* ignore */ } }
+    if (d) {
+      try {
+        Object.defineProperty(globalThis, k, d);
+      } catch {
+        /* ignore */
+      }
+    }
   }
 }
 
@@ -43,11 +73,17 @@ class MockWorker {
   private suspendLoad = false;
   private autoReadyEnabled = true;
   private readySent = false;
-  enableHardening(): void { this.harden = true; }
+  enableHardening(): void {
+    this.harden = true;
+  }
   /** 测试用：收到 load 消息不自动回 loaded（让 init-error/onerror 先到达主线程） */
-  suspendLoadReply(): void { this.suspendLoad = true; }
+  suspendLoadReply(): void {
+    this.suspendLoad = true;
+  }
   /** 测试用：不自动发 worker-ready（模拟硬化段抛错或 worker 整体未启动） */
-  disableAutoReady(): void { this.autoReadyEnabled = false; }
+  disableAutoReady(): void {
+    this.autoReadyEnabled = false;
+  }
   /** 触发自动发 worker-ready（由 makeService 在 attach 后显式调用,模拟真实 worker 行为） */
   emitReady(): void {
     if (this.terminated || !this.autoReadyEnabled || this.readySent) return;
@@ -63,45 +99,79 @@ class MockWorker {
       else if (d['type'] === 'invalidate') this.modules.delete(d['fileName'] as string);
     });
   }
-  terminate(): void { this.terminated = true; }
-  addEventListener(): void { /* no-op */ }
-  removeEventListener(): void { /* no-op */ }
-  dispatchEvent(): boolean { return true; }
+  terminate(): void {
+    this.terminated = true;
+  }
+  addEventListener(): void {
+    /* no-op */
+  }
+  removeEventListener(): void {
+    /* no-op */
+  }
+  dispatchEvent(): boolean {
+    return true;
+  }
   private reply(data: Record<string, unknown>): void {
-    queueMicrotask(() => { if (!this.terminated) this.onmessage?.({ data }); });
+    queueMicrotask(() => {
+      if (!this.terminated) this.onmessage?.({ data });
+    });
   }
   private handleLoad(fileName: string, source: string): void {
     if (this.suspendLoad) return; // 测试用：等待主线程主动发 init-error/onerror
     if (this.harden) applyHardening();
     try {
-      const mod = new Function('legado',
+      const mod = new Function(
+        'legado',
         `${source}\n;return { search: typeof search === "function" ? search : undefined,` +
-        ` bookInfo: typeof bookInfo === "function" ? bookInfo : undefined,` +
-        ` toc: typeof toc === "function" ? toc : undefined,` +
-        ` chapterList: typeof chapterList === "function" ? chapterList : undefined,` +
-        ` content: typeof content === "function" ? content : undefined,` +
-        ` chapterContent: typeof chapterContent === "function" ? chapterContent : undefined,` +
-        ` explore: typeof explore === "function" ? explore : undefined };`,
+          ` bookInfo: typeof bookInfo === "function" ? bookInfo : undefined,` +
+          ` toc: typeof toc === "function" ? toc : undefined,` +
+          ` chapterList: typeof chapterList === "function" ? chapterList : undefined,` +
+          ` content: typeof content === "function" ? content : undefined,` +
+          ` chapterContent: typeof chapterContent === "function" ? chapterContent : undefined,` +
+          ` explore: typeof explore === "function" ? explore : undefined };`,
       )({ http: { get: () => '', post: () => '', request: () => '' } }) as ModFns;
       this.modules.set(fileName, mod);
-      this.reply({ type: 'loaded', fileName, fns: Object.entries(mod).filter(([, v]) => typeof v === 'function').map(([k]) => k) });
-    } finally { if (this.harden) restoreHardening(); }
+      this.reply({
+        type: 'loaded',
+        fileName,
+        fns: Object.entries(mod)
+          .filter(([, v]) => typeof v === 'function')
+          .map(([k]) => k),
+      });
+    } finally {
+      if (this.harden) restoreHardening();
+    }
   }
   private handleCall(data: Record<string, unknown>): void {
     if (this.harden) applyHardening();
-    const fn = this.modules.get(data['fileName'] as string)?.[data['fn'] as string] as ((...a: unknown[]) => unknown) | undefined;
+    const fn = this.modules.get(data['fileName'] as string)?.[data['fn'] as string] as
+      ((...a: unknown[]) => unknown) | undefined;
     if (typeof fn !== 'function') {
-      this.reply({ type: 'result', reqId: data['reqId'], ok: false, errorName: 'Error', error: 'fn 缺失' });
+      this.reply({
+        type: 'result',
+        reqId: data['reqId'],
+        ok: false,
+        errorName: 'Error',
+        error: 'fn 缺失',
+      });
       return;
     }
-    Promise.resolve().then(() => fn(...(data['args'] as unknown[]))).then(
-      (v) => this.reply({ type: 'result', reqId: data['reqId'], ok: true, value: v ?? null }),
-      (err: unknown) => this.reply({
-        type: 'result', reqId: data['reqId'], ok: false,
-        errorName: (err as Error)?.name ?? 'Error',
-        error: String((err as Error)?.stack ?? (err as Error)?.message ?? err),
-      }),
-    ).finally(() => { if (this.harden) restoreHardening(); });
+    Promise.resolve()
+      .then(() => fn(...(data['args'] as unknown[])))
+      .then(
+        (v) => this.reply({ type: 'result', reqId: data['reqId'], ok: true, value: v ?? null }),
+        (err: unknown) =>
+          this.reply({
+            type: 'result',
+            reqId: data['reqId'],
+            ok: false,
+            errorName: (err as Error)?.name ?? 'Error',
+            error: String((err as Error)?.stack ?? (err as Error)?.message ?? err),
+          }),
+      )
+      .finally(() => {
+        if (this.harden) restoreHardening();
+      });
   }
 }
 
@@ -120,14 +190,16 @@ describe('SandboxService — 模块加载 + 调用', () => {
     const { svc, worker } = makeService();
     setupReady(worker);
     const p = svc.load('ok', 'function search() { return "ok"; }');
-    await flushMs(60); await p;
+    await flushMs(60);
+    await p;
     expect(await svc.call<string>('ok', 'search', [])).toBe('ok');
   });
   it('已加载模块 cache 命中(同源码不重新发 load)', async () => {
     const { svc, worker } = makeService();
     setupReady(worker);
     const p1 = svc.load('cache', 'function search() { return 1; }');
-    await flushMs(60); await p1;
+    await flushMs(60);
+    await p1;
     await svc.call('cache', 'search', []);
     const before = worker.postLog.filter((m) => m['type'] === 'load').length;
     // 同源码再次 load —— 命中缓存
@@ -138,11 +210,13 @@ describe('SandboxService — 模块加载 + 调用', () => {
     const { svc, worker } = makeService();
     setupReady(worker);
     const p1 = svc.load('cache', 'function search() { return 1; }');
-    await flushMs(60); await p1;
+    await flushMs(60);
+    await p1;
     const before = worker.postLog.filter((m) => m['type'] === 'load').length;
     // 不同源码 —— 缓存失效,重新发 load
     const p2 = svc.load('cache', 'function search() { return 2; }');
-    await flushMs(60); await p2;
+    await flushMs(60);
+    await p2;
     expect(worker.postLog.filter((m) => m['type'] === 'load').length).toBe(before + 1);
   });
 });
@@ -151,24 +225,30 @@ describe('SandboxService — 沙箱隔离（NFR-2）', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
   it('localStorage.getItem 抛 ReferenceError', async () => {
-    const { svc, worker } = makeService(); worker.enableHardening();
+    const { svc, worker } = makeService();
+    worker.enableHardening();
     setupReady(worker);
     const p = svc.load('m1', 'function search() { return localStorage.getItem("x"); }');
-    await flushMs(60); await p;
+    await flushMs(60);
+    await p;
     await expect(svc.call('m1', 'search', [])).rejects.toBeInstanceOf(ReferenceError);
   });
   it('window.parent 抛 TypeError', async () => {
-    const { svc, worker } = makeService(); worker.enableHardening();
+    const { svc, worker } = makeService();
+    worker.enableHardening();
     setupReady(worker);
     const p = svc.load('m2', 'function search() { return window.parent.location; }');
-    await flushMs(60); await p;
+    await flushMs(60);
+    await p;
     await expect(svc.call('m2', 'search', [])).rejects.toBeInstanceOf(TypeError);
   });
   it('globalThis.localStorage 抛 ReferenceError', async () => {
-    const { svc, worker } = makeService(); worker.enableHardening();
+    const { svc, worker } = makeService();
+    worker.enableHardening();
     setupReady(worker);
     const p = svc.load('m3', 'function search() { return globalThis.localStorage.getItem("x"); }');
-    await flushMs(60); await p;
+    await flushMs(60);
+    await p;
     await expect(svc.call('m3', 'search', [])).rejects.toBeInstanceOf(ReferenceError);
   });
 });
@@ -202,7 +282,10 @@ describe('SandboxService — legado.query 主线程代理', () => {
   });
   it('容器选择器：links 收集后代锚点并绝对化', () => {
     const res = query(SEARCH_HTML, 'dl.list dd');
-    const items = res?.['items'] as Array<{ tag: string; links: Array<{ href: string; text: string }> }>;
+    const items = res?.['items'] as Array<{
+      tag: string;
+      links: Array<{ href: string; text: string }>;
+    }>;
     expect(items).toHaveLength(1);
     expect(items[0].tag).toBe('dd');
     expect(items[0].links.map((l) => l.text)).toEqual(['', '庆余年', '免费阅读']);
@@ -243,7 +326,13 @@ describe('SandboxService — Worker 启动失败立即反馈（init-error / oner
     const p = svc.load('crash', 'function search(){}');
     await flushMs(60);
     // 模拟 worker 启动段硬化代码抛错后主动 postMessage init-error
-    worker.onmessage?.({ data: { type: 'init-error', error: 'Navigator.prototype.sendBeacon is read-only', stack: '...' } });
+    worker.onmessage?.({
+      data: {
+        type: 'init-error',
+        error: 'Navigator.prototype.sendBeacon is read-only',
+        stack: '...',
+      },
+    });
     await expect(p).rejects.toThrow(/Worker 启动失败.*Navigator\.prototype/);
   });
   it('Worker onerror 时,load 立即 reject 而非等 5s 超时', async () => {
@@ -252,7 +341,11 @@ describe('SandboxService — Worker 启动失败立即反馈（init-error / oner
     worker.suspendLoadReply();
     const p = svc.load('err', 'function search(){}');
     await flushMs(60);
-    const errEvt = { message: 'Script error.', filename: 'sandbox.worker.ts', lineno: 42 } as ErrorEvent;
+    const errEvt = {
+      message: 'Script error.',
+      filename: 'sandbox.worker.ts',
+      lineno: 42,
+    } as ErrorEvent;
     worker.onerror?.(errEvt);
     await expect(p).rejects.toThrow(/Worker 错误.*Script error\./);
   });
@@ -335,29 +428,41 @@ describe('SandboxService — invalidate / 超时 / pool', () => {
     const { svc, worker } = makeService();
     setupReady(worker);
     const p1 = svc.load('src', 'function search() { return "v1"; }');
-    await flushMs(60); await p1;
+    await flushMs(60);
+    await p1;
     expect(await svc.call('src', 'search', [])).toBe('v1');
-    svc.invalidate('src'); await flushMs(60);
+    svc.invalidate('src');
+    await flushMs(60);
     const p2 = svc.load('src', 'function search() { return "v2"; }');
-    await flushMs(60); await p2;
+    await flushMs(60);
+    await p2;
     expect(await svc.call('src', 'search', [])).toBe('v2');
   });
   it('15s 未返回 → reject FetchError("timeout")（FR-1.3.2）', async () => {
     const { svc, worker } = makeService();
     setupReady(worker);
-    const pl = svc.load('slow', 'function search() { return new Promise(r => setTimeout(() => r("x"), 16000)); }');
-    await flushMs(60); await pl;
+    const pl = svc.load(
+      'slow',
+      'function search() { return new Promise(r => setTimeout(() => r("x"), 16000)); }',
+    );
+    await flushMs(60);
+    await pl;
     const p = svc.call('slow', 'search', []);
     const check = expect(p).rejects.toBeInstanceOf(FetchError);
-    await flushMs(14_999); await flushMs(2);
+    await flushMs(14_999);
+    await flushMs(2);
     await check;
     await expect(p).rejects.toMatchObject({ code: 'timeout' });
   });
   it('7 并发：前 6 个发出，第 7 个排队（DM-2）', async () => {
     const { svc, worker } = makeService();
     setupReady(worker);
-    const pl = svc.load('pool', 'function search() { return new Promise(r => setTimeout(() => r("d"), 100)); }');
-    await flushMs(60); await pl;
+    const pl = svc.load(
+      'pool',
+      'function search() { return new Promise(r => setTimeout(() => r("d"), 100)); }',
+    );
+    await flushMs(60);
+    await pl;
     const promises = Array.from({ length: 7 }, () => svc.call('pool', 'search', []));
     await flushMs(0); // microtask：6 个 call 已发，第 7 排队
     expect(worker.postLog.filter((m) => m['type'] === 'call').length).toBe(6);

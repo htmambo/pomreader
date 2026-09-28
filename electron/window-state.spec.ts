@@ -24,7 +24,6 @@ import { loadWindowState } from './window-state';
  */
 
 describe('loadWindowState', () => {
-   
   let tmpDir: any;
 
   beforeEach(() => {

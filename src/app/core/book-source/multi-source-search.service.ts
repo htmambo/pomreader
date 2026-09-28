@@ -1,6 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import { BookSourceRegistry } from './book-source.registry';
-import { type RawSearchItem } from './book-source.adapter'
+import { type RawSearchItem } from './book-source.adapter';
 
 /**
  * 重新导出 RawSearchItem 以保留既有调用方 import 路径（多源聚合搜索服务对外契约），
@@ -111,8 +111,8 @@ export class MultiSourceSearchService {
       const withSearch = sources.length;
       console.warn(
         `[multi-source-search] 0 个源参与搜索：registry 共注册 ${totalRegistered} 个适配器，` +
-        `${withSearch} 个实现 search()。可能原因：① 启动时未调用 registry.loadAllJsAdapters()；` +
-        `② 用户未装书源；③ 所有书源都未实现 search() 函数。`,
+          `${withSearch} 个实现 search()。可能原因：① 启动时未调用 registry.loadAllJsAdapters()；` +
+          `② 用户未装书源；③ 所有书源都未实现 search() 函数。`,
       );
       this.progress.set({ phase: 'done', done: 0, total: 0, current: '' });
       return [];
@@ -154,7 +154,12 @@ export class MultiSourceSearchService {
         this.progress.update((p) => ({ ...p, done: p.done + 1 }));
       }
     }
-    this.progress.set({ phase: 'done', done: filtered.length, total: filtered.length, current: '' });
+    this.progress.set({
+      phase: 'done',
+      done: filtered.length,
+      total: filtered.length,
+      current: '',
+    });
     return results;
   }
 
@@ -178,14 +183,16 @@ export class MultiSourceSearchService {
         latencyMs: Date.now() - start,
       }));
     } catch (e) {
-      return [{
-        source: src.name,
-        sourceName: src.name,
-        name: '',
-        url: '',
-        latencyMs: Date.now() - start,
-        error: (e as Error).message,
-      }];
+      return [
+        {
+          source: src.name,
+          sourceName: src.name,
+          name: '',
+          url: '',
+          latencyMs: Date.now() - start,
+          error: (e as Error).message,
+        },
+      ];
     }
   }
 

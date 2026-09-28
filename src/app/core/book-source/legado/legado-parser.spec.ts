@@ -40,7 +40,11 @@ describe('parseLegadoText', () => {
   });
 
   it('base64 编码的 JSON 字符串 → 解码 + 解析', () => {
-    const inner = JSON.stringify({ bookSourceName: 'B64', bookSourceUrl: 'https://x.com', bookSourceType: 0 });
+    const inner = JSON.stringify({
+      bookSourceName: 'B64',
+      bookSourceUrl: 'https://x.com',
+      bookSourceType: 0,
+    });
     const b64 = btoa(unescape(encodeURIComponent(inner)));
     const out = parseLegadoText(b64);
     expect(out).toHaveLength(1);
@@ -48,7 +52,11 @@ describe('parseLegadoText', () => {
   });
 
   it('dataURL 前缀的 base64 → 剥前缀 + 解码', () => {
-    const inner = JSON.stringify({ bookSourceName: 'D', bookSourceUrl: 'https://d.com', bookSourceType: 0 });
+    const inner = JSON.stringify({
+      bookSourceName: 'D',
+      bookSourceUrl: 'https://d.com',
+      bookSourceType: 0,
+    });
     const b64 = btoa(unescape(encodeURIComponent(inner)));
     const out = parseLegadoText(`data:application/json;base64,${b64}`);
     expect(out).toHaveLength(1);

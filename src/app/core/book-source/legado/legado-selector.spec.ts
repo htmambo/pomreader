@@ -4,11 +4,7 @@
  * 覆盖 5 种语法 + untranslatable bridge 检测 + 空串/纯文本兜底
  */
 import { describe, it, expect } from 'vitest';
-import {
-  parseSelector,
-  isCssOrRegexKind,
-  toRulePattern,
-} from './legado-selector';
+import { parseSelector, isCssOrRegexKind, toRulePattern } from './legado-selector';
 
 describe('parseSelector', () => {
   it('<js>...</js> 块 → js kind + jsCode', () => {

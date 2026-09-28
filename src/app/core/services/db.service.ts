@@ -1,13 +1,13 @@
 import { Injectable } from '@angular/core';
 import PouchDB from 'pouchdb-browser';
-import { type Book } from '../models/book.model'
-import { type Chapter } from '../models/chapter.model'
+import { type Book } from '../models/book.model';
+import { type Chapter } from '../models/chapter.model';
 import { classifyBulkResults, formatBulkFatalMessage } from '../db/bulk-result';
 
 /** Book PouchDB 文档（含嵌入的阅读进度）
  *  `_rev` 不显式声明——PouchDB 类型系统区分 `NewDocument`/`ExistingDocument` 自动扩展 */
 export interface BookDoc {
-  _id: string;            // book:{uuid}
+  _id: string; // book:{uuid}
   type: 'book';
   id: string;
   title: string;
@@ -35,7 +35,7 @@ export interface BookDoc {
 
 /** Chapter PouchDB 文档（含正文） */
 export interface ChapterDoc {
-  _id: string;            // chapter:{bookId}{idx} —— 见 CHAPTER_SEP 注释
+  _id: string; // chapter:{bookId}{idx} —— 见 CHAPTER_SEP 注释
   type: 'chapter';
   bookId: string;
   index: number;
@@ -281,9 +281,7 @@ export class DbService {
   async chapterGet(bookId: string, idx: number): Promise<Chapter | null> {
     await this.ensureMigrated();
     try {
-      const doc = await this.db.get<ChapterDoc>(
-        CHAPTER_PREFIX + bookId + CHAPTER_SEP + idx,
-      );
+      const doc = await this.db.get<ChapterDoc>(CHAPTER_PREFIX + bookId + CHAPTER_SEP + idx);
       return this.chapterDocToChapter(doc);
     } catch (e: unknown) {
       if (this.isNotFound(e)) return null;
@@ -333,9 +331,7 @@ export class DbService {
     // 显式联合类型：替代双重 as unknown as 断言（与 migrateLegacyChapterIds 同模式）
     type BatchItem = ChapterDoc | RemoveDoc;
     const batch: BatchItem[] = [...newDocs, ...orphans];
-    const res = await this.db.bulkDocs(
-      batch as unknown as PouchDB.Core.PutDocument<ChapterDoc>[],
-    );
+    const res = await this.db.bulkDocs(batch as unknown as PouchDB.Core.PutDocument<ChapterDoc>[]);
     // 错误语义：
     // - 创建 409 = 文档已存在 = 幂等成功（首次导入场景适用）
     // - 删除 409 = _rev 过期 = 实际未删除；仅记录警告，下次 chapterPutMany 会自然清理
@@ -348,10 +344,9 @@ export class DbService {
     if (orphans.length > 0) {
       // orphan 删除阶段的 409 单独统计（默认 classifyBulkResults 已将其归入幂等成功）
       // 这里用 conflictAsConflict=true 单独过滤查看真实冲突
-      const deleteClassified = classifyBulkResults(
-        res.slice(newDocs.length),
-        { conflictAsConflict: true },
-      );
+      const deleteClassified = classifyBulkResults(res.slice(newDocs.length), {
+        conflictAsConflict: true,
+      });
       if (deleteClassified.conflicts.length > 0) {
         console.warn(
           `[chapterPutMany] ${deleteClassified.conflicts.length}/${orphans.length} orphan deletes lost _rev race; will retry on next put`,
@@ -409,12 +404,9 @@ export class DbService {
       // PouchDB bulkDocs 类型签名只接受 PutDocument[]，但删除需要传
       // { _deleted: true } 文档，类型系统无法表达 put+remove 混合语义，cast 必要
       type MigrationBatch =
-        | (ChapterDoc & { _rev?: string })
-        | { _id: string; _rev: string; _deleted: true };
+        (ChapterDoc & { _rev?: string }) | { _id: string; _rev: string; _deleted: true };
       const batch: MigrationBatch[] = [...tombstones, ...migrated];
-      const results = await this.db.bulkDocs(
-        batch as PouchDB.Core.PutDocument<ChapterDoc>[],
-      );
+      const results = await this.db.bulkDocs(batch as PouchDB.Core.PutDocument<ChapterDoc>[]);
 
       // 仅记录非 409 失败（409 是并发冲突，下次启动会再尝试旧 _id → 幂等）
       const classified = classifyBulkResults(results);
@@ -475,7 +467,10 @@ export class DbService {
    * Book 写入（含 progress 保留），遇 409 冲突重试一次。
    * newProgress 来自外部 book 对象；已有 progress 时优先保留（避免编辑覆盖自动保存的阅读进度）。
    */
-  private async bookPutWithRetry(baseDoc: BookDoc, newProgress?: BookDoc['progress']): Promise<void> {
+  private async bookPutWithRetry(
+    baseDoc: BookDoc,
+    newProgress?: BookDoc['progress'],
+  ): Promise<void> {
     const tryWrite = async (): Promise<void> => {
       const doc: BookDoc & { _rev?: string } = { ...baseDoc };
       try {
@@ -533,14 +528,18 @@ export class DbService {
   }
 
   private bookDocToBook(doc: StoredBookDoc): Book {
-     
     // 主动 strip coverColor：老 PouchDB 数据若残留此字段，...rest 会带进返回的 Book
-    const { _id, _rev, type, coverColor: _cc, ...rest } = doc as StoredBookDoc & { coverColor?: string };
+    const {
+      _id,
+      _rev,
+      type,
+      coverColor: _cc,
+      ...rest
+    } = doc as StoredBookDoc & { coverColor?: string };
     return rest as Book;
   }
 
   private chapterDocToChapter(doc: StoredChapterDoc): Chapter {
-     
     const { _id, _rev, type, ...rest } = doc;
     return rest as Chapter;
   }

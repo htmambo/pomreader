@@ -12,16 +12,11 @@
  *  - legado `header` JSON 字符串注入到 `const HEADERS = ...`
  *  - 文件头加 @uuid / @tags / @type / @url 让 BookSourceMeta 解析正确
  */
-import { type LegadoSource, mapLegadoSourceType } from './legado-parser'
-import { parseSelector, type ParsedSelector, toRulePattern } from './legado-selector'
-import { generateSourceCode, type SourceRules } from '../smart-add/smart-rules'
+import { type LegadoSource, mapLegadoSourceType } from './legado-parser';
+import { parseSelector, type ParsedSelector, toRulePattern } from './legado-selector';
+import { generateSourceCode, type SourceRules } from '../smart-add/smart-rules';
 
-const UNSUPPORTED_FEATURES = [
-  'jsLib',
-  'loginUrl',
-  'loginUi',
-  'eventListener',
-] as const;
+const UNSUPPORTED_FEATURES = ['jsLib', 'loginUrl', 'loginUi', 'eventListener'] as const;
 
 export interface TranslateResult {
   /** 始终返回 JS 字符串：成功=可执行的 search/bookInfo/chapterContent；失败=骨架 JS（含原始 JSON + 空 stub） */
@@ -137,7 +132,7 @@ function makeSkeleton(src: LegadoSource, error: string): TranslateResult {
     '// ── 留空待用户手写：编辑此文件实现 search / bookInfo / chapterContent ──────────',
     '//   参考：src/app/core/book-source/js-source/js-source.adapter.ts',
     '//        src/app/core/book-source/smart-add/smart-rules.ts',
-    "//   或从「智能添加」生成规则后粘贴到下面。",
+    '//   或从「智能添加」生成规则后粘贴到下面。',
     '',
     `async function search(keyword, page) {`,
     `  throw new Error('此源由 legado 导入，需手写 search() — ${error}')`,

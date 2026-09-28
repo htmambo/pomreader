@@ -34,7 +34,8 @@ export interface ParsedSelector {
   usesUntranslatableBridge: boolean;
 }
 
-const UNTRANSLATABLE_RE = /\b(java\.|source\.|book\.|cookie\.|Packages\.|getArguments\b|setArguments\b)/;
+const UNTRANSLATABLE_RE =
+  /\b(java\.|source\.|book\.|cookie\.|Packages\.|getArguments\b|setArguments\b)/;
 
 /** 规则字符串 → ParsedSelector；空串返回 literal css=null 的占位（让 translator 报错）。 */
 export function parseSelector(rule: string): ParsedSelector {

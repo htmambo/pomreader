@@ -1,11 +1,11 @@
 import { Injectable, inject } from '@angular/core';
-import { type Book } from '../models/book.model'
-import { type Chapter } from '../models/chapter.model'
+import { type Book } from '../models/book.model';
+import { type Chapter } from '../models/chapter.model';
 import { BookSourceRegistry } from '../book-source/book-source.registry';
-import { type CatalogEntry } from '../book-source/book-source.adapter'
+import { type CatalogEntry } from '../book-source/book-source.adapter';
 import { ImportViaSourceService } from '../book-source/import-via-source.service';
 import { FetchError } from '../book-source/fetch-error';
-import { BookRepository, type BookRepositoryPort } from './book.repository'
+import { BookRepository, type BookRepositoryPort } from './book.repository';
 import { ChapterLoader } from './chapter-loader';
 import { DbService } from './db.service';
 
@@ -255,7 +255,7 @@ export class BookUpdater {
   /**
    * 测试入口：手动注入依赖（绕开 Angular DI 上下文 NG0203）。
    */
-   
+
   static forTest(
     repo: BookRepositoryPort,
     loader: ChapterLoader,

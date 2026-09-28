@@ -1,89 +1,103 @@
+<div class="toolbar">
+  <button nz-button nzType="primary" (click)="runAll()" [disabled]="running() || enabledSources().length === 0">
+    <span nz-icon [nzType]="running() ? 'loading' : 'play-circle'"></span>
+    {{ running() ? '测试中...' : '全部测试' }}
+  </button>
+  @if (running()) {
+  <span class="progress-text">{{ progress().current }} / {{ progress().total }}</span>
+  } @else if (hasResult()) {
+  <span class="progress-text">✅ {{ passCount() }} ❌ {{ failCount() }}</span>
+  }
 
-    <div class="toolbar">
-      <button nz-button nzType="primary" (click)="runAll()" [disabled]="running() || enabledSources().length === 0">
-        <span nz-icon [nzType]="running() ? 'loading' : 'play-circle'"></span>
-        {{ running() ? '测试中...' : '全部测试' }}
-      </button>
-      @if (running()) {
-        <span class="progress-text">{{ progress().current }} / {{ progress().total }}</span>
-      } @else if (hasResult()) {
-        <span class="progress-text">✅ {{ passCount() }} ❌ {{ failCount() }}</span>
+  <div class="settings">
+    <span class="settings-label">关键词</span>
+    <input nz-input [(ngModel)]="keyword" class="keyword-input" [disabled]="running()" />
+    <span class="settings-label">并发</span>
+    <nz-input-number
+      [(ngModel)]="concurrency"
+      [nzMin]="1"
+      [nzMax]="20"
+      nzSize="small"
+      [disabled]="running()"
+    ></nz-input-number>
+    <span class="settings-label">单项超时</span>
+    <nz-input-number
+      [(ngModel)]="itemTimeoutSecs"
+      [nzMin]="5"
+      [nzMax]="600"
+      nzSize="small"
+      [disabled]="running()"
+    ></nz-input-number>
+    <span class="settings-label">s</span>
+    <span class="settings-label">总超时</span>
+    <nz-input-number
+      [(ngModel)]="totalTimeoutSecs"
+      [nzMin]="0"
+      [nzMax]="3600"
+      nzSize="small"
+      [disabled]="running()"
+      nzPlaceHolder="0=无限"
+    ></nz-input-number>
+    <span class="settings-label">s</span>
+  </div>
+</div>
+
+@if (enabledSources().length === 0 && !loading()) {
+<nz-empty nzNotFoundContent="暂无已启用的书源"></nz-empty>
+} @else {
+<div class="body">
+  <!-- 左侧：书源列表 -->
+  <div class="list">
+    @for (src of enabledSources(); track src.fileName) {
+    <div
+      class="item"
+      [class.item--running]="stateOf(src.fileName)?.status === 'running'"
+      [class.item--pass]="stateOf(src.fileName)?.allPassed === true"
+      [class.item--fail]="stateOf(src.fileName)?.allPassed === false"
+    >
+      <div class="item-header">
+        <span class="item-name" [title]="src.fileName">{{ src.name || src.fileName }}</span>
+        <button nz-button nzType="text" nzSize="small" [disabled]="running()" (click)="runSingle(src)">测试</button>
+      </div>
+      @if (stateOf(src.fileName); as st) {
+      <div class="steps">
+        @for (step of st.steps; track step.step) {
+        <span class="step" [class.step--pass]="step.passed" [class.step--fail]="!step.passed" [title]="step.message"
+          >{{ step.passed ? '✓' : '✗' }} {{ stepLabel(step.step) }}</span
+        >
+        } @if (st.status === 'running') {
+        <nz-spin nzSimple [nzSize]="'small'"></nz-spin>
+        }
+      </div>
       }
-
-      <div class="settings">
-        <span class="settings-label">关键词</span>
-        <input nz-input [(ngModel)]="keyword" class="keyword-input" [disabled]="running()" />
-        <span class="settings-label">并发</span>
-        <nz-input-number [(ngModel)]="concurrency" [nzMin]="1" [nzMax]="20" nzSize="small" [disabled]="running()"></nz-input-number>
-        <span class="settings-label">单项超时</span>
-        <nz-input-number [(ngModel)]="itemTimeoutSecs" [nzMin]="5" [nzMax]="600" nzSize="small" [disabled]="running()"></nz-input-number>
-        <span class="settings-label">s</span>
-        <span class="settings-label">总超时</span>
-        <nz-input-number [(ngModel)]="totalTimeoutSecs" [nzMin]="0" [nzMax]="3600" nzSize="small" [disabled]="running()" nzPlaceHolder="0=无限"></nz-input-number>
-        <span class="settings-label">s</span>
-      </div>
     </div>
-
-    @if (enabledSources().length === 0 && !loading()) {
-      <nz-empty nzNotFoundContent="暂无已启用的书源"></nz-empty>
-    } @else {
-      <div class="body">
-        <!-- 左侧：书源列表 -->
-        <div class="list">
-          @for (src of enabledSources(); track src.fileName) {
-            <div
-              class="item"
-              [class.item--running]="stateOf(src.fileName)?.status === 'running'"
-              [class.item--pass]="stateOf(src.fileName)?.allPassed === true"
-              [class.item--fail]="stateOf(src.fileName)?.allPassed === false"
-            >
-              <div class="item-header">
-                <span class="item-name" [title]="src.fileName">{{ src.name || src.fileName }}</span>
-                <button nz-button nzType="text" nzSize="small" [disabled]="running()" (click)="runSingle(src)">测试</button>
-              </div>
-              @if (stateOf(src.fileName); as st) {
-                <div class="steps">
-                  @for (step of st.steps; track step.step) {
-                    <span
-                      class="step"
-                      [class.step--pass]="step.passed"
-                      [class.step--fail]="!step.passed"
-                      [title]="step.message"
-                    >{{ step.passed ? '✓' : '✗' }} {{ stepLabel(step.step) }}</span>
-                  }
-                  @if (st.status === 'running') {
-                    <nz-spin nzSimple [nzSize]="'small'"></nz-spin>
-                  }
-                </div>
-              }
-            </div>
-          }
-        </div>
-
-        <!-- 右侧：日志面板 -->
-        <div class="log">
-          <div class="log-header">
-            <nz-radio-group [ngModel]="logFilter()" (ngModelChange)="logFilter.set($event)" nzSize="small">
-              <label nz-radio-button nzValue="all">全部</label>
-              <label nz-radio-button nzValue="pass">成功 ({{ passCount() }})</label>
-              <label nz-radio-button nzValue="fail">失败 ({{ failCount() }})</label>
-            </nz-radio-group>
-            <button nz-button nzType="text" nzSize="small" (click)="clearLogs()">清空</button>
-          </div>
-          <div class="log-body" #logBody>
-            @if (filteredLogs().length === 0) {
-              <div class="log-empty">暂无日志，点击「全部测试」开始</div>
-            }
-            @for (line of filteredLogs(); track $index) {
-              <div
-                class="log-line"
-                [class.log-line--pass]="isPassLine(line)"
-                [class.log-line--fail]="isFailLine(line)"
-                [class.log-line--banner]="line.includes('═══')"
-              >{{ line }}</div>
-            }
-          </div>
-        </div>
-      </div>
     }
-  
+  </div>
+
+  <!-- 右侧：日志面板 -->
+  <div class="log">
+    <div class="log-header">
+      <nz-radio-group [ngModel]="logFilter()" (ngModelChange)="logFilter.set($event)" nzSize="small">
+        <label nz-radio-button nzValue="all">全部</label>
+        <label nz-radio-button nzValue="pass">成功 ({{ passCount() }})</label>
+        <label nz-radio-button nzValue="fail">失败 ({{ failCount() }})</label>
+      </nz-radio-group>
+      <button nz-button nzType="text" nzSize="small" (click)="clearLogs()">清空</button>
+    </div>
+    <div class="log-body" #logBody>
+      @if (filteredLogs().length === 0) {
+      <div class="log-empty">暂无日志，点击「全部测试」开始</div>
+      } @for (line of filteredLogs(); track $index) {
+      <div
+        class="log-line"
+        [class.log-line--pass]="isPassLine(line)"
+        [class.log-line--fail]="isFailLine(line)"
+        [class.log-line--banner]="line.includes('═══')"
+      >
+        {{ line }}
+      </div>
+      }
+    </div>
+  </div>
+</div>
+}

@@ -5,6 +5,8 @@ package-lock.json
 node_modules/
 electron/www/
 src/assets/data/chapters/
+# 测试夹具是抓取来的第三方原始字节，格式化会改掉被测输入本身
+**/__fixtures__/
 *.md
 !docs/CONVENTIONS.md
 !AGENTS.md

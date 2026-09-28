@@ -49,17 +49,17 @@ describe('LocalTxtImportService', () => {
     registry.register(new StubAdapter('stub'));
     const importViaSource = Object.create(ImportViaSourceService.prototype);
     importViaSource.importByUrl = async () => ({ book: { chapters: [] } });
-     
+
     booksSvc = BookService.forTest(fakeDb as any, registry, importViaSource as any);
     // spy addBook
-     
+
     (booksSvc as any).addBook = async (book: Book, chapters: Chapter[]) => {
       addBookCalls.push({ book, chapters });
     };
     // Object.create 不跑 class field initializer；手动注入 books
-     
+
     svc = Object.create(LocalTxtImportService.prototype) as any;
-     
+
     (svc as any).books = booksSvc;
   });
 
@@ -80,16 +80,11 @@ describe('LocalTxtImportService', () => {
 
   describe('hasBook', () => {
     it('书架有同名书应返回 true', () => {
-       
-      (booksSvc as any)._books.set([
-         
-        { id: 'b1', title: '天龙八部', source: 'local-txt' } as any,
-      ]);
+      (booksSvc as any)._books.set([{ id: 'b1', title: '天龙八部', source: 'local-txt' } as any]);
       expect(svc.hasBook('天龙八部.txt')).toBe(true);
     });
 
     it('书架无同名书应返回 false', () => {
-       
       (booksSvc as any)._books.set([]);
       expect(svc.hasBook('天龙八部.txt')).toBe(false);
     });
@@ -97,13 +92,7 @@ describe('LocalTxtImportService', () => {
 
   describe('importText', () => {
     it('应拆分章节 + 写 BookService + 返回 singleChapter=false（多章）', async () => {
-      const text = [
-        '第一章 落花',
-        '执剑问天道。',
-        '',
-        '第二章 流云',
-        '剑光起西北。',
-      ].join('\n');
+      const text = ['第一章 落花', '执剑问天道。', '', '第二章 流云', '剑光起西北。'].join('\n');
       const result = await svc.importText('mybook.txt', text);
       expect(result.chapters.length).toBeGreaterThan(1);
       expect(result.singleChapter).toBe(false);

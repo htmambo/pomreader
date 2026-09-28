@@ -1,6 +1,11 @@
-import { type ApplicationConfig, provideZoneChangeDetection, ErrorHandler, APP_INITIALIZER } from '@angular/core'
+import {
+  type ApplicationConfig,
+  provideZoneChangeDetection,
+  ErrorHandler,
+  APP_INITIALIZER,
+} from '@angular/core';
 import { provideRouter, withComponentInputBinding, withHashLocation } from '@angular/router';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withXhr } from '@angular/common/http';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideNzI18n, zh_CN } from 'ng-zorro-antd/i18n';
 import { NzModalService } from 'ng-zorro-antd/modal';
@@ -24,7 +29,11 @@ function initBooks(books: BookService) {
   return () => books.load();
 }
 
-function initBookSources(registry: BookSourceRegistry, sandbox: SandboxService, _cfPrompt: CfPromptService) {
+function initBookSources(
+  registry: BookSourceRegistry,
+  sandbox: SandboxService,
+  _cfPrompt: CfPromptService,
+) {
   // _cfPrompt 仅用于启动时实例化（构造函数向 SandboxService 注册 cfChallengeHook）
   return async () => {
     registry.register(new XbiqugeAdapter());
@@ -41,7 +50,7 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes, withComponentInputBinding(), withHashLocation()),
-    provideHttpClient(),
+    provideHttpClient(withXhr()),
     provideAnimations(),
     provideNzI18n(zh_CN),
     importProvidersFrom(FormsModule),

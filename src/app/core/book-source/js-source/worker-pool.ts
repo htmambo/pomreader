@@ -14,7 +14,7 @@
  * 不直接用本类（factory 负责 kill-switch 决策）。
  */
 
-import { type WorkerLike } from './worker-pool.factory'
+import { type WorkerLike } from './worker-pool.factory';
 
 /** PoolFullError：pending queue cap 已满，调用方应 backoff 或放弃 */
 export class PoolFullError extends Error {
@@ -80,7 +80,6 @@ interface PendingEntry {
 // P3 sprint 待接入 sandbox：当前工厂返回 SynchronousWorkerAdapter，
 // WorkerPoolImpl 仅保留 + tests 覆盖；故不强约束 implements WorkerLike
 export class WorkerPoolImpl {
-   
   private _workerLikeMarker: WorkerLike | undefined = undefined;
   private workers: WorkerLikeInternal[] = [];
   /** modules: fileName → 内部缓存（LRU） */

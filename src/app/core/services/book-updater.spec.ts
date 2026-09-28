@@ -24,11 +24,34 @@ function makeBook(overrides = {}) {
 
 describe('BookUpdater', () => {
   let updater: BookUpdater;
-  let repo: { getById: (id: string) => unknown; persistBook: (b: unknown) => Promise<void>; persistChapters: (cs: unknown) => Promise<void>; books: () => unknown[]; loadState: () => string };
-  let loader: { loadChapterContent: (id: string, idx: number) => Promise<void>; getChaptersSync: (id: string) => unknown[] | undefined };
+  let repo: {
+    getById: (id: string) => unknown;
+    persistBook: (b: unknown) => Promise<void>;
+    persistChapters: (cs: unknown) => Promise<void>;
+    books: () => unknown[];
+    loadState: () => string;
+  };
+  let loader: {
+    loadChapterContent: (id: string, idx: number) => Promise<void>;
+    getChaptersSync: (id: string) => unknown[] | undefined;
+  };
   let db: { chapterAll: (id: string) => Promise<unknown[]> };
   let sources: { getByUuid: (uuid: string) => { name: string } | undefined };
-  let importViaSource: { importByUrl: (url: string, name?: string) => Promise<{ book: { title?: string; author?: string; kind?: string; coverImageUrl?: string; chapters?: { url: string; title: string }[] }; bookSourceUuid?: string }> };
+  let importViaSource: {
+    importByUrl: (
+      url: string,
+      name?: string,
+    ) => Promise<{
+      book: {
+        title?: string;
+        author?: string;
+        kind?: string;
+        coverImageUrl?: string;
+        chapters?: { url: string; title: string }[];
+      };
+      bookSourceUuid?: string;
+    }>;
+  };
 
   beforeEach(() => {
     repo = {
@@ -47,30 +70,34 @@ describe('BookUpdater', () => {
     importViaSource = {
       importByUrl: async () => ({ book: { chapters: [] }, bookSourceUuid: 'uuid' }),
     };
-     
-    updater = BookUpdater.forTest(repo as any, loader as any, db as any, sources as any, importViaSource as any);
+
+    updater = BookUpdater.forTest(
+      repo as any,
+      loader as any,
+      db as any,
+      sources as any,
+      importViaSource as any,
+    );
   });
 
   describe('changeBookSource', () => {
     it('书不存在应抛 source-unavailable', async () => {
-      await expect(
-        updater.changeBookSource('missing', 'http://new'),
-      ).rejects.toThrow(FetchError);
+      await expect(updater.changeBookSource('missing', 'http://new')).rejects.toThrow(FetchError);
     });
 
     it('非 online 来源应抛 unsupported-source', async () => {
       repo.getById = () => makeBook({ source: 'local-txt' });
-      await expect(
-        updater.changeBookSource('b1', 'http://new'),
-      ).rejects.toMatchObject({ code: 'unsupported-source' });
+      await expect(updater.changeBookSource('b1', 'http://new')).rejects.toMatchObject({
+        code: 'unsupported-source',
+      });
     });
 
     it('新源解析空目录应抛 parse-failed', async () => {
       repo.getById = () => makeBook();
       importViaSource.importByUrl = async () => ({ book: { chapters: [] } });
-      await expect(
-        updater.changeBookSource('b1', 'http://new'),
-      ).rejects.toMatchObject({ code: 'parse-failed' });
+      await expect(updater.changeBookSource('b1', 'http://new')).rejects.toMatchObject({
+        code: 'parse-failed',
+      });
     });
 
     it('成功应合并 Book 字段并 persist', async () => {
@@ -84,12 +111,15 @@ describe('BookUpdater', () => {
         book: {
           title: 'New Title',
           author: 'New Author',
-          chapters: [{ url: 'http://c1', title: 'c1' }, { url: 'http://c2', title: 'c2' }],
+          chapters: [
+            { url: 'http://c1', title: 'c1' },
+            { url: 'http://c2', title: 'c2' },
+          ],
         },
         bookSourceUuid: 'new-uuid',
       });
       await updater.changeBookSource('b1', 'http://new');
-       
+
       const merged = persisted as any;
       expect(merged.title).toBe('New Title');
       expect(merged.author).toBe('New Author');
@@ -162,10 +192,7 @@ describe('BookUpdater', () => {
 
     it('全部重复 URL 应返回 {added:0, skipped, total}', async () => {
       repo.getById = () => makeBook();
-      loader.getChaptersSync = () => [
-        { sourceUrl: 'http://c1' },
-        { sourceUrl: 'http://c2' },
-      ];
+      loader.getChaptersSync = () => [{ sourceUrl: 'http://c1' }, { sourceUrl: 'http://c2' }];
       importViaSource.importByUrl = async () => ({
         book: {
           chapters: [
@@ -201,7 +228,7 @@ describe('BookUpdater', () => {
         book: { title: 'Updated', author: 'New Author', kind: 'new-kind' },
       });
       const merged = await updater.refreshBookInfo('b1');
-       
+
       const m = (merged ?? persisted) as any;
       expect(m.title).toBe('Updated');
       expect(m.author).toBe('New Author');
@@ -223,7 +250,7 @@ describe('BookUpdater', () => {
         persisted = b;
       };
       await updater.updateProgress('b1', 5);
-       
+
       const m = persisted as any;
       expect(m.progress.chapterIndex).toBe(5);
       expect(m.lastReadAt).toBeDefined();

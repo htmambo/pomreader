@@ -71,7 +71,9 @@ function shouldBypassProxy(rawUrl: string, bypass?: string[]): boolean {
  */
 const proxySessionCache = new Map<string, ReturnType<typeof electronSession.fromPartition>>();
 
-async function getProxySession(proxyUrl: string): Promise<ReturnType<typeof electronSession.fromPartition>> {
+async function getProxySession(
+  proxyUrl: string,
+): Promise<ReturnType<typeof electronSession.fromPartition>> {
   if (proxySessionCache.has(proxyUrl)) return proxySessionCache.get(proxyUrl)!;
   const partition = `safe-net-proxy-${encodeURIComponent(proxyUrl)}`;
   const session = electronSession.fromPartition(partition);
@@ -114,7 +116,7 @@ function toProxyRules(proxyUrl: string): string {
 /** 通用 SSRF-safe HTTP 请求（书源代理 / 封面 / 市场共用） */
 export async function safeNetRequest(
   rawUrl: string,
-  options: SafeNetOptions = {}
+  options: SafeNetOptions = {},
 ): Promise<SafeNetResult> {
   // Round 2 hardening: 手动跟踪重定向，每次 isPrivateHost 校验
   return followRedirect(rawUrl, options, 0);
@@ -123,7 +125,7 @@ export async function safeNetRequest(
 async function followRedirect(
   rawUrl: string,
   options: SafeNetOptions,
-  depth: number
+  depth: number,
 ): Promise<SafeNetResult> {
   let u: URL;
   try {
@@ -143,7 +145,7 @@ async function followRedirect(
   const method = (options.method || 'GET').toUpperCase();
 
   // eslint-disable-next-line no-async-promise-executor
-return new Promise(async (resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     let settled = false;
     /** Round 3 hardening: 联合类型显式判别（避免正常响应对象误判含 'error' 字段） */
     type FollowResult = { ok: true; resp: SafeNetResult } | { ok: false; error: string };
@@ -155,8 +157,13 @@ return new Promise(async (resolve, reject) => {
     };
 
     // 直连走抓取共享 session（persist:fetch，CF cookie 互通）；代理 session 在顶层 await（executor 标 async 后可 await）
-    let requestSession: ReturnType<typeof electronSession.fromPartition> | undefined = getFetchSession();
-    if (options.proxy?.enabled && options.proxy.url && !shouldBypassProxy(rawUrl, options.proxy.bypass)) {
+    let requestSession: ReturnType<typeof electronSession.fromPartition> | undefined =
+      getFetchSession();
+    if (
+      options.proxy?.enabled &&
+      options.proxy.url &&
+      !shouldBypassProxy(rawUrl, options.proxy.bypass)
+    ) {
       try {
         requestSession = await getProxySession(options.proxy.url);
       } catch (e) {
@@ -169,14 +176,24 @@ return new Promise(async (resolve, reject) => {
     const req = net.request({ url: rawUrl, method, redirect: 'manual', session: requestSession });
     // 类浏览器默认头（sec-ch-ua / Referer 留痕：缺省站点首页 Referer，模拟站内导航）；
     // HTML 文档请求带 Sec-Fetch-* 导航语义；调用方 accept / headers 覆盖默认值
-    const defaults = browserHeaders(rawUrl, { navigation: (options.accept ?? '').includes('text/html') });
+    const defaults = browserHeaders(rawUrl, {
+      navigation: (options.accept ?? '').includes('text/html'),
+    });
     if (options.accept) defaults['Accept'] = options.accept;
     for (const [k, v] of Object.entries(defaults)) {
-      try { req.setHeader(k, v); } catch { /* 个别受限 header 跳过 */ }
+      try {
+        req.setHeader(k, v);
+      } catch {
+        /* 个别受限 header 跳过 */
+      }
     }
     if (options.headers) {
       for (const [k, v] of Object.entries(options.headers)) {
-        try { req.setHeader(k, v); } catch { /* noop */ }
+        try {
+          req.setHeader(k, v);
+        } catch {
+          /* noop */
+        }
       }
     }
     if (method !== 'GET' && method !== 'HEAD' && options.body) {
@@ -189,18 +206,30 @@ return new Promise(async (resolve, reject) => {
       // 处理 3xx 重定向：手动跟踪，递归前 isPrivateHost 校验
       if (status >= 300 && status < 400) {
         aborted = true; // 标记主动 abort,避免 error 事件误报
-        try { req.abort(); } catch { /* noop */ }
+        try {
+          req.abort();
+        } catch {
+          /* noop */
+        }
         if (depth >= MAX_REDIRECTS) {
           done({ ok: false, error: 'redirect-loop' });
           return;
         }
-        const location = (resp.headers.location || resp.headers.Location) as string | string[] | undefined;
+        const location = (resp.headers.location || resp.headers.Location) as
+          string | string[] | undefined;
         const nextUrl = Array.isArray(location) ? location[0] : location;
-        if (!nextUrl) { done({ ok: false, error: 'redirect-missing-location' }); return; }
+        if (!nextUrl) {
+          done({ ok: false, error: 'redirect-missing-location' });
+          return;
+        }
         // 解析相对 URL（location 可能为相对路径）
         let resolved: string;
-        try { resolved = new URL(nextUrl, rawUrl).toString(); }
-        catch { done({ ok: false, error: 'redirect-invalid-url' }); return; }
+        try {
+          resolved = new URL(nextUrl, rawUrl).toString();
+        } catch {
+          done({ ok: false, error: 'redirect-invalid-url' });
+          return;
+        }
         // 递归前不重新校验超时（沿用原 timeoutMs）
         followRedirect(resolved, options, depth + 1).then(
           (resp) => done({ ok: true, resp }),
@@ -217,7 +246,11 @@ return new Promise(async (resolve, reject) => {
       resp.on('data', (c: Buffer) => {
         size += c.length;
         if (size > maxBytes) {
-          try { req.abort(); } catch { /* noop */ }
+          try {
+            req.abort();
+          } catch {
+            /* noop */
+          }
           done({ ok: false, error: 'parse-failed' });
           return;
         }
@@ -225,11 +258,11 @@ return new Promise(async (resolve, reject) => {
       });
       resp.on('end', () => {
         try {
-          const buf = Buffer.concat(chunks);
+          const buf = Buffer.concat(chunks as Uint8Array[]);
           const body = decodeBuffer(
             buf,
             options.encoding ?? 'auto',
-            resp.headers as Record<string, string | string[] | undefined>
+            resp.headers as Record<string, string | string[] | undefined>,
           );
           done({ ok: true, resp: { status, headers, body, bytes: buf } });
         } catch {
@@ -248,7 +281,11 @@ return new Promise(async (resolve, reject) => {
     });
 
     const timer = setTimeout(() => {
-      try { req.abort(); } catch { /* noop */ }
+      try {
+        req.abort();
+      } catch {
+        /* noop */
+      }
       done({ ok: false, error: 'timeout' });
     }, timeoutMs);
     req.on('close', () => clearTimeout(timer));

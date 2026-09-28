@@ -1,302 +1,280 @@
+<div
+  class="reader-page theme-{{ view().theme }} w{{ view().pageWidth }}"
+  [class.paged]="paged()"
+  [style.font-size.px]="view().fontSize"
+>
+  @if (book(); as b) {
+  <header class="read-header">
+    <div class="wrap-center">
+      <a class="back-link" (click)="back()"> <span nz-icon nzType="arrow-left"></span> 返回书架 </a>
+      <span class="book-title">{{ displayText()(b.title) }}</span>
+    </div>
+  </header>
 
-    <div
-      class="reader-page theme-{{ view().theme }} w{{ view().pageWidth }}"
-      [class.paged]="paged()"
-      [style.font-size.px]="view().fontSize"
-    >
-      @if (book(); as b) {
-        <header class="read-header">
-          <div class="wrap-center">
-            <a class="back-link" (click)="back()">
-              <span nz-icon nzType="arrow-left"></span> 返回书架
-            </a>
-            <span class="book-title">{{ displayText()(b.title) }}</span>
-          </div>
-        </header>
-
-        <div class="read-main-wrap ff-{{ view().fontFamily }}">
-          <div class="text-wrap">
-            <div class="main-text-wrap">
-              <div class="text-head">
-                <h3>{{ displayText()(currentChapter()?.title ?? '') }}</h3>
-                <div class="text-info">
-                  <i><span nz-icon nzType="book"></span>{{ displayText()(b.title) }}</i>
-                  <i><span nz-icon nzType="file-text"></span>{{ displayText()(b.author) }}</i>
-                  <i>{{ wordCount() }}字</i>
-                  <i>第 {{ chapterIndex() + 1 }} / {{ chapters().length }} 章</i>
-                  @if (paged()) {
-                    <i>第 {{ pageIndex() + 1 }} / {{ totalPages() }} 页</i>
-                  }
-                </div>
-              </div>
-              @if (chapterLoading()) {
-                <p class="chapter-loading">章节加载中...</p>
-              } @else if (chapterError()) {
-                <p class="chapter-loading">该章节加载失败。<a (click)="retryLoad()">重试</a></p>
-              } @else if (paged()) {
-                <div class="paged-viewport" #pagedViewport>
-                  <div
-                    class="read-content paged-content"
-                    #pagedContent
-                    [class.ready]="pageReady()"
-                    [style.column-width.px]="pageW()"
-                    [style.transform]="'translateX(' + (-pageIndex() * pageW() + entryOffset()) + 'px)'"
-                    [style.font-weight]="view().fontWeight"
-                    [style.color]="view().fontColor || null"
-                    [style.line-height]="view().paragraphLineHeight"
-                    [style.--reader-paragraph-spacing]="view().paragraphSpacing + 'em'"
-                  >
-                    @for (line of lines(); track $index) {
-                      <span class="line">{{ line }}</span>
-                    }
-                  </div>
-                </div>
-              } @else {
-                <div
-                  class="read-content"
-                  [style.font-weight]="view().fontWeight"
-                  [style.color]="view().fontColor || null"
-                  [style.line-height]="view().paragraphLineHeight"
-                  [style.--reader-paragraph-spacing]="view().paragraphSpacing + 'em'"
-                >
-                  @for (line of lines(); track $index) {
-                    <span class="line">{{ line }}</span>
-                  }
-                </div>
-              }
-            </div>
-          </div>
-
-          <div class="chapter-control">
-            <a [class.disabled]="chapterIndex() === 0" (click)="prev()">上一章</a>
-            <span class="divider"></span>
-            <a
-              [class.disabled]="chapterIndex() >= chapters().length - 1"
-              (click)="next()"
-              >下一章</a
-            >
+  <div class="read-main-wrap ff-{{ view().fontFamily }}">
+    <div class="text-wrap">
+      <div class="main-text-wrap">
+        <div class="text-head">
+          <h3>{{ displayText()(currentChapter()?.title ?? '') }}</h3>
+          <div class="text-info">
+            <i><span nz-icon nzType="book"></span>{{ displayText()(b.title) }}</i>
+            <i><span nz-icon nzType="file-text"></span>{{ displayText()(b.author) }}</i>
+            <i>{{ wordCount() }}字</i>
+            <i>第 {{ chapterIndex() + 1 }} / {{ chapters().length }} 章</i>
+            @if (paged()) {
+            <i>第 {{ pageIndex() + 1 }} / {{ totalPages() }} 页</i>
+            }
           </div>
         </div>
-
-        <div class="left-bar-list">
-          <dl>
-            <dd [class.act]="catalogOpen()" (click)="toggleCatalog()">
-              <a
-                ><i><span nz-icon nzType="menu"></span><span class="lbl">目录</span></i></a
-              >
-            </dd>
-            <dd [class.act]="settingsOpen()" (click)="toggleSettings()">
-              <a
-                ><i><span nz-icon nzType="setting"></span><span class="lbl">设置</span></i></a
-              >
-            </dd>
-            <dd (click)="openJumpDialog()">
-              <a
-                ><i><span nz-icon nzType="swap"></span><span class="lbl">进度</span></i></a
-              >
-            </dd>
-            <dd (click)="refreshContent()">
-              <a
-                ><i><span nz-icon nzType="reload"></span><span class="lbl">刷新</span></i></a
-              >
-            </dd>
-            <dd (click)="back()">
-              <a
-                ><i><span nz-icon nzType="book"></span><span class="lbl">书架</span></i></a
-              >
-            </dd>
-            <dd class="danger" (click)="confirmDelete()">
-              <a
-                ><i><span nz-icon nzType="delete"></span><span class="lbl">删除</span></i></a
-              >
-            </dd>
-          </dl>
+        @if (chapterLoading()) {
+        <p class="chapter-loading">章节加载中...</p>
+        } @else if (chapterError()) {
+        <p class="chapter-loading">该章节加载失败。<a (click)="retryLoad()">重试</a></p>
+        } @else if (paged()) {
+        <div class="paged-viewport" #pagedViewport>
+          <div
+            class="read-content paged-content"
+            #pagedContent
+            [class.ready]="pageReady()"
+            [style.column-width.px]="pageW()"
+            [style.transform]="'translateX(' + (-pageIndex() * pageW() + entryOffset()) + 'px)'"
+            [style.font-weight]="view().fontWeight"
+            [style.color]="view().fontColor || null"
+            [style.line-height]="view().paragraphLineHeight"
+            [style.--reader-paragraph-spacing]="view().paragraphSpacing + 'em'"
+          >
+            @for (line of lines(); track $index) {
+            <span class="line">{{ line }}</span>
+            }
+          </div>
         </div>
+        } @else {
+        <div
+          class="read-content"
+          [style.font-weight]="view().fontWeight"
+          [style.color]="view().fontColor || null"
+          [style.line-height]="view().paragraphLineHeight"
+          [style.--reader-paragraph-spacing]="view().paragraphSpacing + 'em'"
+        >
+          @for (line of lines(); track $index) {
+          <span class="line">{{ line }}</span>
+          }
+        </div>
+        }
+      </div>
+    </div>
 
-        <!-- 浮层面板（目录 / 设置）从 .left-bar-list 内部移出：
+    <div class="chapter-control">
+      <a [class.disabled]="chapterIndex() === 0" (click)="prev()">上一章</a>
+      <span class="divider"></span>
+      <a [class.disabled]="chapterIndex() >= chapters().length - 1" (click)="next()">下一章</a>
+    </div>
+  </div>
+
+  <div class="left-bar-list">
+    <dl>
+      <dd [class.act]="catalogOpen()" (click)="toggleCatalog()">
+        <a
+          ><i><span nz-icon nzType="menu"></span><span class="lbl">目录</span></i></a
+        >
+      </dd>
+      <dd [class.act]="settingsOpen()" (click)="toggleSettings()">
+        <a
+          ><i><span nz-icon nzType="setting"></span><span class="lbl">设置</span></i></a
+        >
+      </dd>
+      <dd (click)="openJumpDialog()">
+        <a
+          ><i><span nz-icon nzType="swap"></span><span class="lbl">进度</span></i></a
+        >
+      </dd>
+      <dd (click)="refreshContent()">
+        <a
+          ><i><span nz-icon nzType="reload"></span><span class="lbl">刷新</span></i></a
+        >
+      </dd>
+      <dd (click)="back()">
+        <a
+          ><i><span nz-icon nzType="book"></span><span class="lbl">书架</span></i></a
+        >
+      </dd>
+      <dd class="danger" (click)="confirmDelete()">
+        <a
+          ><i><span nz-icon nzType="delete"></span><span class="lbl">删除</span></i></a
+        >
+      </dd>
+    </dl>
+  </div>
+
+  <!-- 浮层面板（目录 / 设置）从 .left-bar-list 内部移出：
              避免 .left-bar-list 的 position:fixed painting layer 调度，
              导致 panel-wrap 在 .paged-content (will-change/transform 合成层) 上下文内
              paint 时序被延后（点击后展示有几十~几百毫秒延迟） -->
-        @if (catalogOpen()) {
-          <div class="panel-wrap catalog">
-            <a class="close-panel" (click)="catalogOpen.set(false)">
-              <span nz-icon nzType="close"></span>
-            </a>
-            <div class="panel-box">
-              <div class="catalog-tab"><span>目录</span></div>
-              <div class="catalog-list" #catalogList>
-                @for (ch of chapters(); track ch.index; let i = $index) {
-                  <a
-                    class="catalog-item"
-                    [class.on]="i === chapterIndex()"
-                    [class.not-loaded]="ch.sourceUrl && !ch.loaded"
-                    [title]="ch.sourceUrl && !ch.loaded ? '未下载' : ''"
-                    (click)="goTo(i)"
-                  >
-                    <span class="title">{{ displayText()(ch.title) }}</span>
-                  </a>
-                }
-              </div>
-            </div>
-          </div>
+  @if (catalogOpen()) {
+  <div class="panel-wrap catalog">
+    <a class="close-panel" (click)="catalogOpen.set(false)">
+      <span nz-icon nzType="close"></span>
+    </a>
+    <div class="panel-box">
+      <div class="catalog-tab"><span>目录</span></div>
+      <div class="catalog-list" #catalogList>
+        @for (ch of chapters(); track ch.index; let i = $index) {
+        <a
+          class="catalog-item"
+          [class.on]="i === chapterIndex()"
+          [class.not-loaded]="ch.sourceUrl && !ch.loaded"
+          [title]="ch.sourceUrl && !ch.loaded ? '未下载' : ''"
+          (click)="goTo(i)"
+        >
+          <span class="title">{{ displayText()(ch.title) }}</span>
+        </a>
         }
-
-        @if (settingsOpen()) {
-          <div class="panel-wrap setting">
-            <a class="close-panel" (click)="cancelSettings()">
-              <span nz-icon nzType="close"></span>
-            </a>
-            <div class="panel-box">
-              <h4>设置</h4>
-              <ul>
-                <li class="theme-list">
-                  <i>阅读主题</i>
-                  @for (t of themes; track t.id) {
-                    <span
-                      class="swatch theme-{{ t.id }}"
-                      [class.act]="draft().theme === t.id"
-                      [title]="t.name"
-                      (click)="setTheme(t.id)"
-                    >
-                      @if (draft().theme === t.id) {
-                        <span nz-icon nzType="check"></span>
-                      }
-                    </span>
-                  }
-                </li>
-                <li class="font-family">
-                  <i>正文字体</i>
-                  @for (f of fontFamilies; track f.id) {
-                    <span
-                      class="ff-btn ff-{{ f.id }}"
-                      [class.act]="draft().fontFamily === f.id"
-                      (click)="setFontFamily(f.id)"
-                      >{{ f.name }}</span
-                    >
-                  }
-                </li>
-                <li class="font-size">
-                  <i>字体大小</i>
-                  <cite>
-                    <span class="step" (click)="stepFontSize(-1)">
-                      <span nz-icon nzType="minus"></span>
-                    </span>
-                    <b></b>
-                    <span class="value">{{ draft().fontSize }}</span>
-                    <b></b>
-                    <span class="step" (click)="stepFontSize(1)">
-                      <span nz-icon nzType="plus"></span>
-                    </span>
-                  </cite>
-                </li>
-                <li class="font-weight">
-                  <i>字体粗细</i>
-                  <cite>
-                    <span class="step" (click)="stepFontWeight(-1)">
-                      <span nz-icon nzType="minus"></span>
-                    </span>
-                    <b></b>
-                    <span class="value">{{ draft().fontWeight }}</span>
-                    <b></b>
-                    <span class="step" (click)="stepFontWeight(1)">
-                      <span nz-icon nzType="plus"></span>
-                    </span>
-                  </cite>
-                </li>
-                <li class="font-color">
-                  <i>字体颜色</i>
-                  <nz-color-picker
-                    [ngModel]="draft().fontColor || null"
-                    (ngModelChange)="setFontColor($event ?? '')"
-                    [nzShowText]="false"
-                    nzTrigger="click"
-                  ></nz-color-picker>
-                </li>
-                <li class="divider-row"><span></span></li>
-                <li class="paragraph-line-height">
-                  <i>段落行高</i>
-                  <cite>
-                    <span class="step" (click)="stepParagraphLineHeight(-1)">
-                      <span nz-icon nzType="minus"></span>
-                    </span>
-                    <b></b>
-                    <span class="value">{{ draft().paragraphLineHeight.toFixed(1) }}</span>
-                    <b></b>
-                    <span class="step" (click)="stepParagraphLineHeight(1)">
-                      <span nz-icon nzType="plus"></span>
-                    </span>
-                  </cite>
-                </li>
-                <li class="paragraph-spacing">
-                  <i>段落间距</i>
-                  <cite>
-                    <span class="step" (click)="stepParagraphSpacing(-1)">
-                      <span nz-icon nzType="minus"></span>
-                    </span>
-                    <b></b>
-                    <span class="value">{{ draft().paragraphSpacing.toFixed(1) }}</span>
-                    <b></b>
-                    <span class="step" (click)="stepParagraphSpacing(1)">
-                      <span nz-icon nzType="plus"></span>
-                    </span>
-                  </cite>
-                </li>
-                <li class="page-width">
-                  <i>页面宽度</i>
-                  <cite>
-                    <span class="step" (click)="stepPageWidth(-1)">
-                      <span nz-icon nzType="minus"></span>
-                    </span>
-                    <b></b>
-                    <span class="value">{{ draft().pageWidth }}</span>
-                    <b></b>
-                    <span class="step" (click)="stepPageWidth(1)">
-                      <span nz-icon nzType="plus"></span>
-                    </span>
-                  </cite>
-                </li>
-                <li class="read-mode">
-                  <i>阅读模式</i>
-                  @for (m of readModes; track m.id) {
-                    <span
-                      class="ff-btn"
-                      [class.act]="draft().readMode === m.id"
-                      (click)="setReadMode(m.id)"
-                      >{{ m.name }}</span
-                    >
-                  }
-                </li>
-                <li class="convert-mode">
-                  <i>简繁转换</i>
-                  @for (m of convertModes; track m.id) {
-                    <span
-                      class="ff-btn"
-                      [class.act]="draft().convertMode === m.id"
-                      (click)="setConvertMode(m.id)"
-                      >{{ m.name }}</span
-                    >
-                  }
-                </li>
-              </ul>
-              <div class="btn-wrap">
-                <a class="red-btn" (click)="saveSettings()">保存</a>
-                <a class="grey-btn" (click)="cancelSettings()">取消</a>
-              </div>
-            </div>
-          </div>
-        }
-
-        @if (showGoTop() && !paged()) {
-          <div class="right-bar-list">
-            <dl>
-              <dd class="go-top" title="返回顶部" (click)="scrollToTop()">
-                <a><i><span nz-icon nzType="arrow-up"></span></i></a>
-              </dd>
-            </dl>
-          </div>
-        }
-      } @else {
-        <p class="reader-loading">书籍加载中...</p>
-      }
+      </div>
     </div>
-  
+  </div>
+  } @if (settingsOpen()) {
+  <div class="panel-wrap setting">
+    <a class="close-panel" (click)="cancelSettings()">
+      <span nz-icon nzType="close"></span>
+    </a>
+    <div class="panel-box">
+      <h4>设置</h4>
+      <ul>
+        <li class="theme-list">
+          <i>阅读主题</i>
+          @for (t of themes; track t.id) {
+          <span
+            class="swatch theme-{{ t.id }}"
+            [class.act]="draft().theme === t.id"
+            [title]="t.name"
+            (click)="setTheme(t.id)"
+          >
+            @if (draft().theme === t.id) {
+            <span nz-icon nzType="check"></span>
+            }
+          </span>
+          }
+        </li>
+        <li class="font-family">
+          <i>正文字体</i>
+          @for (f of fontFamilies; track f.id) {
+          <span class="ff-btn ff-{{ f.id }}" [class.act]="draft().fontFamily === f.id" (click)="setFontFamily(f.id)"
+            >{{ f.name }}</span
+          >
+          }
+        </li>
+        <li class="font-size">
+          <i>字体大小</i>
+          <cite>
+            <span class="step" (click)="stepFontSize(-1)">
+              <span nz-icon nzType="minus"></span>
+            </span>
+            <b></b>
+            <span class="value">{{ draft().fontSize }}</span>
+            <b></b>
+            <span class="step" (click)="stepFontSize(1)">
+              <span nz-icon nzType="plus"></span>
+            </span>
+          </cite>
+        </li>
+        <li class="font-weight">
+          <i>字体粗细</i>
+          <cite>
+            <span class="step" (click)="stepFontWeight(-1)">
+              <span nz-icon nzType="minus"></span>
+            </span>
+            <b></b>
+            <span class="value">{{ draft().fontWeight }}</span>
+            <b></b>
+            <span class="step" (click)="stepFontWeight(1)">
+              <span nz-icon nzType="plus"></span>
+            </span>
+          </cite>
+        </li>
+        <li class="font-color">
+          <i>字体颜色</i>
+          <nz-color-picker
+            [ngModel]="draft().fontColor || null"
+            (ngModelChange)="setFontColor($event ?? '')"
+            [nzShowText]="false"
+            nzTrigger="click"
+          ></nz-color-picker>
+        </li>
+        <li class="divider-row"><span></span></li>
+        <li class="paragraph-line-height">
+          <i>段落行高</i>
+          <cite>
+            <span class="step" (click)="stepParagraphLineHeight(-1)">
+              <span nz-icon nzType="minus"></span>
+            </span>
+            <b></b>
+            <span class="value">{{ draft().paragraphLineHeight.toFixed(1) }}</span>
+            <b></b>
+            <span class="step" (click)="stepParagraphLineHeight(1)">
+              <span nz-icon nzType="plus"></span>
+            </span>
+          </cite>
+        </li>
+        <li class="paragraph-spacing">
+          <i>段落间距</i>
+          <cite>
+            <span class="step" (click)="stepParagraphSpacing(-1)">
+              <span nz-icon nzType="minus"></span>
+            </span>
+            <b></b>
+            <span class="value">{{ draft().paragraphSpacing.toFixed(1) }}</span>
+            <b></b>
+            <span class="step" (click)="stepParagraphSpacing(1)">
+              <span nz-icon nzType="plus"></span>
+            </span>
+          </cite>
+        </li>
+        <li class="page-width">
+          <i>页面宽度</i>
+          <cite>
+            <span class="step" (click)="stepPageWidth(-1)">
+              <span nz-icon nzType="minus"></span>
+            </span>
+            <b></b>
+            <span class="value">{{ draft().pageWidth }}</span>
+            <b></b>
+            <span class="step" (click)="stepPageWidth(1)">
+              <span nz-icon nzType="plus"></span>
+            </span>
+          </cite>
+        </li>
+        <li class="read-mode">
+          <i>阅读模式</i>
+          @for (m of readModes; track m.id) {
+          <span class="ff-btn" [class.act]="draft().readMode === m.id" (click)="setReadMode(m.id)">{{ m.name }}</span>
+          }
+        </li>
+        <li class="convert-mode">
+          <i>简繁转换</i>
+          @for (m of convertModes; track m.id) {
+          <span class="ff-btn" [class.act]="draft().convertMode === m.id" (click)="setConvertMode(m.id)"
+            >{{ m.name }}</span
+          >
+          }
+        </li>
+      </ul>
+      <div class="btn-wrap">
+        <a class="red-btn" (click)="saveSettings()">保存</a>
+        <a class="grey-btn" (click)="cancelSettings()">取消</a>
+      </div>
+    </div>
+  </div>
+  } @if (showGoTop() && !paged()) {
+  <div class="right-bar-list">
+    <dl>
+      <dd class="go-top" title="返回顶部" (click)="scrollToTop()">
+        <a
+          ><i><span nz-icon nzType="arrow-up"></span></i
+        ></a>
+      </dd>
+    </dl>
+  </div>
+  } } @else {
+  <p class="reader-loading">书籍加载中...</p>
+  }
+</div>

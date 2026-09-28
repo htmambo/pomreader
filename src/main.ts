@@ -14,5 +14,4 @@ window.addEventListener('unhandledrejection', (event) => {
   window.location.reload();
 });
 
-bootstrapApplication(AppComponent, appConfig)
-  .catch((err) => console.error(err));
+bootstrapApplication(AppComponent, appConfig).catch((err) => console.error(err));

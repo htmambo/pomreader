@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
-import { SandboxService, type SandboxFn } from '../js-source/sandbox.service'
-import { type BookSourceMeta } from '../js-source/source-meta.types'
+import { SandboxService, type SandboxFn } from '../js-source/sandbox.service';
+import { type BookSourceMeta } from '../js-source/source-meta.types';
 
 /** 单个测试步骤的结果 */
 export interface TestStepResult {
@@ -25,9 +25,14 @@ const STEP_CHAPTER_CONTENT = 'chapterContent';
 const STEP_EXPLORE = 'explore';
 
 /** 默认搜索关键词：主流小说站命中率高的书名 */
-export const DEFAULT_TEST_KEYWORD  = ['庆余年', '雪中悍刀行', '赘婿', '斗破苍穹', '盗墓笔记', '鬼吹灯'][
-  Math.floor(Math.random() * 6)
-];
+export const DEFAULT_TEST_KEYWORD = [
+  '庆余年',
+  '雪中悍刀行',
+  '赘婿',
+  '斗破苍穹',
+  '盗墓笔记',
+  '鬼吹灯',
+][Math.floor(Math.random() * 6)];
 
 type PomRead = {
   booksourceRead?: (fileName: string, sourceDir?: string | null) => Promise<string>;
@@ -43,7 +48,12 @@ export function pickBookUrl(items: unknown[]): string {
   for (const it of items) {
     if (!it || typeof it !== 'object') continue;
     const r = it as Record<string, unknown>;
-    const u = typeof r['bookUrl'] === 'string' ? r['bookUrl'] : typeof r['url'] === 'string' ? r['url'] : '';
+    const u =
+      typeof r['bookUrl'] === 'string'
+        ? r['bookUrl']
+        : typeof r['url'] === 'string'
+          ? r['url']
+          : '';
     if (u.trim()) return u.trim();
   }
   return '';
@@ -73,8 +83,14 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`步骤超时（${Math.round(ms / 1000)}s）`)), ms);
     p.then(
-      (v) => { clearTimeout(timer); resolve(v); },
-      (e) => { clearTimeout(timer); reject(e); },
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
     );
   });
 }
@@ -108,7 +124,12 @@ export class SourceTestService {
       const t0 = Date.now();
       const remaining = deadline - t0;
       if (remaining <= 0) {
-        steps.push({ step, passed: false, message: `超出单项总超时 ${timeoutSecs}s`, durationMs: 0 });
+        steps.push({
+          step,
+          passed: false,
+          message: `超出单项总超时 ${timeoutSecs}s`,
+          durationMs: 0,
+        });
         return null;
       }
       try {
@@ -135,7 +156,12 @@ export class SourceTestService {
     // ── 加载模块到沙箱 ─────────────────────────────────────────────
     const read = pomRead()?.booksourceRead;
     if (!read) {
-      steps.push({ step: 'load', passed: false, message: 'booksourceRead IPC 不可用', durationMs: 0 });
+      steps.push({
+        step: 'load',
+        passed: false,
+        message: 'booksourceRead IPC 不可用',
+        durationMs: 0,
+      });
       return { fileName: meta.fileName, steps, allPassed: false };
     }
     let fns: string[] = [];
@@ -155,12 +181,24 @@ export class SourceTestService {
       const items = await run(
         STEP_SEARCH,
         () => this.sandbox.call<unknown[]>(meta.fileName, 'search', [keyword, 1]),
-        (v) => (!Array.isArray(v) ? '返回值非数组' : v.length === 0 ? `搜索「${keyword}」无结果` : !pickBookUrl(v) ? '结果项缺 url/bookUrl' : null),
+        (v) =>
+          !Array.isArray(v)
+            ? '返回值非数组'
+            : v.length === 0
+              ? `搜索「${keyword}」无结果`
+              : !pickBookUrl(v)
+                ? '结果项缺 url/bookUrl'
+                : null,
         (v) => `命中 ${(v as unknown[]).length} 条`,
       );
       if (items) bookUrl = pickBookUrl(items);
     } else {
-      steps.push({ step: STEP_SEARCH, passed: false, message: '书源未定义 search()', durationMs: 0 });
+      steps.push({
+        step: STEP_SEARCH,
+        passed: false,
+        message: '书源未定义 search()',
+        durationMs: 0,
+      });
     }
 
     // ── bookInfo ──────────────────────────────────────────────────
@@ -181,7 +219,12 @@ export class SourceTestService {
       );
       if (info) chapters = extractChapters(info);
     } else if (bookUrl) {
-      steps.push({ step: STEP_BOOK_INFO, passed: false, message: '书源未定义 bookInfo()', durationMs: 0 });
+      steps.push({
+        step: STEP_BOOK_INFO,
+        passed: false,
+        message: '书源未定义 bookInfo()',
+        durationMs: 0,
+      });
     }
 
     // ── chapterList（bookInfo 未给出章节时回退 toc/chapterList 函数） ──
@@ -196,23 +239,43 @@ export class SourceTestService {
       if (list) chapters = list;
     } else if (chapters.length > 0) {
       // bookInfo 已含章节：chapterList 步骤标记通过（复用 bookInfo 结果）
-      steps.push({ step: STEP_CHAPTER_LIST, passed: true, message: `共 ${chapters.length} 章（来自 bookInfo）`, durationMs: 0 });
+      steps.push({
+        step: STEP_CHAPTER_LIST,
+        passed: true,
+        message: `共 ${chapters.length} 章（来自 bookInfo）`,
+        durationMs: 0,
+      });
     }
 
     // ── chapterContent ────────────────────────────────────────────
     const chapterUrl = pickChapterUrl(chapters);
-    const contentFn: SandboxFn | null = has('chapterContent') ? 'chapterContent' : has('content') ? 'content' : null;
+    const contentFn: SandboxFn | null = has('chapterContent')
+      ? 'chapterContent'
+      : has('content')
+        ? 'content'
+        : null;
     if (chapterUrl && contentFn) {
       await run(
         STEP_CHAPTER_CONTENT,
         () => this.sandbox.call<string>(meta.fileName, contentFn, [chapterUrl]),
-        (v) => (typeof v !== 'string' ? '返回值非字符串' : v.trim().length === 0 ? '正文为空' : null),
+        (v) =>
+          typeof v !== 'string' ? '返回值非字符串' : v.trim().length === 0 ? '正文为空' : null,
         (v) => `正文 ${(v as string).length} 字符`,
       );
     } else if (!chapterUrl) {
-      steps.push({ step: STEP_CHAPTER_CONTENT, passed: false, message: '无章节 URL 可测', durationMs: 0 });
+      steps.push({
+        step: STEP_CHAPTER_CONTENT,
+        passed: false,
+        message: '无章节 URL 可测',
+        durationMs: 0,
+      });
     } else {
-      steps.push({ step: STEP_CHAPTER_CONTENT, passed: false, message: '书源未定义 chapterContent()/content()', durationMs: 0 });
+      steps.push({
+        step: STEP_CHAPTER_CONTENT,
+        passed: false,
+        message: '书源未定义 chapterContent()/content()',
+        durationMs: 0,
+      });
     }
 
     // ── explore（可选步骤：书源定义了才测，不计入 allPassed） ──────

@@ -1,5 +1,5 @@
 import { Component, inject, signal, ChangeDetectionStrategy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { NZ_MODAL_DATA } from 'ng-zorro-antd/modal';
 import { NzInputNumberModule } from 'ng-zorro-antd/input-number';
@@ -16,9 +16,8 @@ interface JumpDialogData {
  */
 @Component({
   selector: 'app-jump-chapter-dialog',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, NzInputNumberModule],
+  imports: [FormsModule, NzInputNumberModule],
   template: `
     <p style="margin-bottom: 8px; color: var(--pom-text-muted);">
       当前：第 {{ data.current }} / {{ data.total }} 章

@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
@@ -7,7 +7,19 @@ import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { PageFetcherService } from '../../../core/book-source/page-fetcher.service';
-import { type SearchMethod, type SourceRules, applyContentReplaceRules, buildFormBody, absUrl, matchLinkItems, pickAttr, pickHtml, pickText, randomTestKeyword, stripTags } from '../../../core/book-source/smart-add/smart-rules'
+import {
+  type SearchMethod,
+  type SourceRules,
+  applyContentReplaceRules,
+  buildFormBody,
+  absUrl,
+  matchLinkItems,
+  pickAttr,
+  pickHtml,
+  pickText,
+  randomTestKeyword,
+  stripTags,
+} from '../../../core/book-source/smart-add/smart-rules';
 
 interface StageSample {
   label: string;
@@ -38,9 +50,7 @@ function emptyStage(): StageState {
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-rules-panel',
-  standalone: true,
   imports: [
-    CommonModule,
     FormsModule,
     NzButtonModule,
     NzIconModule,

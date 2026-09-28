@@ -20,23 +20,17 @@ describe('isCfChallenge', () => {
     });
 
     it('cf-mitigated 大小写不敏感', () => {
-      expect(
-        isCfChallenge(200, { 'cf-mitigated': 'CHALLENGE' }, '<html></html>'),
-      ).toBe(true);
+      expect(isCfChallenge(200, { 'cf-mitigated': 'CHALLENGE' }, '<html></html>')).toBe(true);
     });
   });
 
   describe('status 判定', () => {
     it('403 + cloudflare + 挑战标记 → 挑战', () => {
-      expect(
-        isCfChallenge(403, { server: 'cloudflare' }, 'cf-chl-bypass check'),
-      ).toBe(true);
+      expect(isCfChallenge(403, { server: 'cloudflare' }, 'cf-chl-bypass check')).toBe(true);
     });
 
     it('503 + cloudflare + 挑战标记 → 挑战', () => {
-      expect(
-        isCfChallenge(503, { server: 'cloudflare' }, 'challenge-platform'),
-      ).toBe(true);
+      expect(isCfChallenge(503, { server: 'cloudflare' }, 'challenge-platform')).toBe(true);
     });
 
     it('非 403/503 status 应直接返回 false（即使有 cloudflare）', () => {

@@ -16,9 +16,8 @@ import { LocalTxtImportService } from './local-txt-import.service';
 
 // Mock ToastService + LocalTxtImportService（auto-import 依赖）
 function setupTestBed(autoImportApi: unknown) {
-   
   const toastMock: any = { error: vi.fn(), info: vi.fn(), success: vi.fn(), warn: vi.fn() };
-   
+
   const importerMock: any = {
     hasBook: vi.fn(() => false),
     titleOf: vi.fn((name: string) => name.replace(/\.[^.]+$/, '')),
@@ -29,7 +28,6 @@ function setupTestBed(autoImportApi: unknown) {
     })),
   };
 
-   
   (globalThis as any).window = { pomAPI: autoImportApi };
 
   TestBed.configureTestingModule({
@@ -44,9 +42,8 @@ function setupTestBed(autoImportApi: unknown) {
 }
 
 describe('AutoImportService', () => {
-   
   let toastMock: any;
-   
+
   let importerMock: any;
   let svc: AutoImportService;
 
@@ -78,7 +75,6 @@ describe('AutoImportService', () => {
     });
 
     it('autoImportFromUrl 抛错时应 toast.error + 仍返回 true（受理后阻止导航）', async () => {
-       
       (globalThis as any).window = {
         pomAPI: {
           onAutoImport: vi.fn(),
@@ -89,7 +85,7 @@ describe('AutoImportService', () => {
       };
       TestBed.resetTestingModule();
       setupTestBed((globalThis as any).window.pomAPI);
-       
+
       const fresh: any = TestBed.inject(AutoImportService);
       const result = await fresh.importFromUrl('https://example.com/book.txt');
       expect(result).toBe(true);
@@ -98,9 +94,8 @@ describe('AutoImportService', () => {
 
   describe('onDetected（constructor 注册的回调）', () => {
     // 取当前 beforeEach 创建的最新 service 对应的 callback
-     
+
     function getCallback(): (p: unknown) => Promise<void> {
-       
       const calls = ((globalThis as any).window.pomAPI.onAutoImport as any).mock.calls;
       return calls[calls.length - 1][0] as (p: unknown) => Promise<void>;
     }
@@ -127,7 +122,11 @@ describe('AutoImportService', () => {
       getCallback()({ fileName: 'new.txt', txtName: 'tmp-2' });
       // 等待 onDetected 异步链（autoImportReadText + importText + toast.success）
       await new Promise((resolve) => setTimeout(resolve, 10));
-      expect(importerMock.importText).toHaveBeenCalledWith('new.txt', '第一章\n正文', 'auto-import');
+      expect(importerMock.importText).toHaveBeenCalledWith(
+        'new.txt',
+        '第一章\n正文',
+        'auto-import',
+      );
       expect(toastMock.success).toHaveBeenCalled();
     });
   });

@@ -2,7 +2,10 @@
 (() => {
   // src/app/core/book-source/js-source/sandbox.worker.ts
   try {
-    logToMain("info", "[sandbox.worker] \u25B6 \u9636\u6BB5 1/4: \u5220\u654F\u611F\u5168\u5C40(window/document/localStorage/parent/top)");
+    logToMain(
+      "info",
+      "[sandbox.worker] \u25B6 \u9636\u6BB5 1/4: \u5220\u654F\u611F\u5168\u5C40(window/document/localStorage/parent/top)"
+    );
     delete self["window"];
     delete self["document"];
     delete self["localStorage"];
@@ -13,7 +16,10 @@
     replyInitError(err, "\u9636\u6BB5 1/4 \u5220\u654F\u611F\u5168\u5C40");
   }
   try {
-    logToMain("info", "[sandbox.worker] \u25B6 \u9636\u6BB5 2/4: \u5C4F\u853D 10 \u4E2A\u7F51\u7EDC\u51FA\u53E3(fetch/XMLHttpRequest/WebSocket \u7B49)");
+    logToMain(
+      "info",
+      "[sandbox.worker] \u25B6 \u9636\u6BB5 2/4: \u5C4F\u853D 10 \u4E2A\u7F51\u7EDC\u51FA\u53E3(fetch/XMLHttpRequest/WebSocket \u7B49)"
+    );
     const NETWORK_API_BLOCKLIST = [
       "fetch",
       "XMLHttpRequest",
@@ -48,9 +54,10 @@
     Object.defineProperty(self, "navigator", {
       value: new Proxy(originalNavigator, {
         get(target, prop) {
-          if (prop === "sendBeacon") return () => {
-            throw new Error("sendBeacon is disabled in sandbox");
-          };
+          if (prop === "sendBeacon")
+            return () => {
+              throw new Error("sendBeacon is disabled in sandbox");
+            };
           const v = Reflect.get(target, prop);
           return typeof v === "function" ? v.bind(target) : v;
         },
@@ -59,7 +66,8 @@
           return Reflect.has(target, prop);
         },
         getOwnPropertyDescriptor(target, prop) {
-          if (prop === "sendBeacon") return { configurable: false, enumerable: true, value: void 0 };
+          if (prop === "sendBeacon")
+            return { configurable: false, enumerable: true, value: void 0 };
           return Reflect.getOwnPropertyDescriptor(target, prop);
         },
         set(_, prop) {
@@ -67,7 +75,9 @@
           throw new Error(`navigator is read-only in sandbox (attempted set: ${String(prop)})`);
         },
         defineProperty(_, prop) {
-          throw new Error(`navigator is frozen in sandbox (attempted defineProperty: ${String(prop)})`);
+          throw new Error(
+            `navigator is frozen in sandbox (attempted defineProperty: ${String(prop)})`
+          );
         },
         deleteProperty(_, prop) {
           throw new Error(`navigator is frozen in sandbox (attempted delete: ${String(prop)})`);
@@ -144,17 +154,19 @@
   function buildShim() {
     return {
       http: {
-        get: (url, headers) => requestHttp({ url, method: "GET", headers: headers ?? {} }).then((r) => r.body),
-        post: (url, body, headers) => requestHttp({
+        get: ((url, headers) => requestHttp({ url, method: "GET", headers: headers ?? {} }).then(
+          (r) => r.body
+        )),
+        post: ((url, body, headers) => requestHttp({
           url,
           method: "POST",
           body: body ?? null,
           headers: headers ?? {}
-        }).then((r) => r.body),
-        request: (request) => requestHttp(request)
+        }).then((r) => r.body)),
+        request: ((request) => requestHttp(request))
       },
       /** CSS 选择器查询（主线程 DOMParser 执行；选择器非法/超限/被禁用时 reject） */
-      query: (html, selector, baseUrl) => requestQuery(html, selector, baseUrl)
+      query: ((html, selector, baseUrl) => requestQuery(html, selector, baseUrl))
     };
   }
   var pendingHttp = /* @__PURE__ */ new Map();
@@ -184,7 +196,10 @@
         return;
       }
       if (msg.type === "load") {
-        logToMain("info", `[sandbox.worker] \u25B6 \u6536\u5230 load \u6D88\u606F fileName=${msg.fileName} sourceLen=${msg.source.length}`);
+        logToMain(
+          "info",
+          `[sandbox.worker] \u25B6 \u6536\u5230 load \u6D88\u606F fileName=${msg.fileName} sourceLen=${msg.source.length}`
+        );
         try {
           const mod = compileModule(msg.source);
           modules.set(msg.fileName, mod);
@@ -195,9 +210,7 @@
             type: "loaded",
             fileName: msg.fileName,
             fns: [],
-            error: String(
-              err?.message ?? err
-            )
+            error: String(err?.message ?? err)
           });
         }
         return;
@@ -225,7 +238,9 @@
             reqId: msg.reqId,
             ok: false,
             errorName: err?.name ?? "Error",
-            error: String(err?.stack ?? err?.message ?? err)
+            error: String(
+              err?.stack ?? err?.message ?? err
+            )
           })
         );
         return;
@@ -264,7 +279,9 @@
           reqId,
           ok: false,
           errorName: err?.name ?? "Error",
-          error: String(err?.stack ?? err?.message ?? err)
+          error: String(
+            err?.stack ?? err?.message ?? err
+          )
         });
       }
     }

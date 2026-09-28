@@ -31,7 +31,7 @@ function draftsDir(userData: string): string {
 export function resolvePath(
   userData: string,
   fileName: string,
-  sourceDir: string | null | undefined
+  sourceDir: string | null | undefined,
 ): string | null {
   const safe = safeFileName(fileName);
   if (!safe) return null;
@@ -73,7 +73,11 @@ export function registerBookSourceHandler(ipcMain: IpcMain, userData: string): v
     const sender = e.sender;
     const send = (payload: Record<string, unknown>): void => {
       if (sender.isDestroyed()) return;
-      try { sender.send('pom:booksource-batch', payload); } catch { /* 窗口已销毁 */ }
+      try {
+        sender.send('pom:booksource-batch', payload);
+      } catch {
+        /* 窗口已销毁 */
+      }
     };
     setImmediate(() => {
       try {
@@ -95,14 +99,11 @@ export function registerBookSourceHandler(ipcMain: IpcMain, userData: string): v
     });
   });
 
-  ipcMain.handle(
-    'pom:booksource-read',
-    (_e, fileName: string, sourceDir?: string) => {
-      const p = resolvePath(userData, fileName, sourceDir);
-      if (!p) throw new Error('非法 fileName');
-      return readFileOrFail(p);
-    }
-  );
+  ipcMain.handle('pom:booksource-read', (_e, fileName: string, sourceDir?: string) => {
+    const p = resolvePath(userData, fileName, sourceDir);
+    if (!p) throw new Error('非法 fileName');
+    return readFileOrFail(p);
+  });
 
   ipcMain.handle(
     'pom:booksource-save',
@@ -113,21 +114,18 @@ export function registerBookSourceHandler(ipcMain: IpcMain, userData: string): v
       if (!safe) throw new Error('非法 fileName');
       fs.mkdirSync(dir, { recursive: true });
       atomicWrite(path.join(dir, safe), content);
-    }
+    },
   );
 
-  ipcMain.handle(
-    'pom:booksource-delete',
-    (_e, fileName: string, sourceDir?: string) => {
-      const p = resolvePath(userData, fileName, sourceDir);
-      if (!p) throw new Error('非法 fileName');
-      if (fs.existsSync(p)) fs.unlinkSync(p);
-      for (const suffix of ['.enabled', '.disabled']) {
-        const m = p + suffix;
-        if (fs.existsSync(m)) fs.unlinkSync(m);
-      }
+  ipcMain.handle('pom:booksource-delete', (_e, fileName: string, sourceDir?: string) => {
+    const p = resolvePath(userData, fileName, sourceDir);
+    if (!p) throw new Error('非法 fileName');
+    if (fs.existsSync(p)) fs.unlinkSync(p);
+    for (const suffix of ['.enabled', '.disabled']) {
+      const m = p + suffix;
+      if (fs.existsSync(m)) fs.unlinkSync(m);
     }
-  );
+  });
 
   ipcMain.handle(
     'pom:booksource-toggle',
@@ -141,19 +139,16 @@ export function registerBookSourceHandler(ipcMain: IpcMain, userData: string): v
       if (fs.existsSync(enabledMarker)) fs.unlinkSync(enabledMarker);
       if (fs.existsSync(disabledMarker)) fs.unlinkSync(disabledMarker);
       atomicWrite(enabled ? enabledMarker : disabledMarker, '');
-    }
+    },
   );
 
-  ipcMain.handle(
-    'pom:booksource-save-draft',
-    (_e, fileName: string, content: string) => {
-      const safe = safeFileName(fileName);
-      if (!safe) throw new Error('非法 fileName');
-      const dir = draftsDir(userData);
-      fs.mkdirSync(dir, { recursive: true });
-      atomicWrite(path.join(dir, safe), content);
-    }
-  );
+  ipcMain.handle('pom:booksource-save-draft', (_e, fileName: string, content: string) => {
+    const safe = safeFileName(fileName);
+    if (!safe) throw new Error('非法 fileName');
+    const dir = draftsDir(userData);
+    fs.mkdirSync(dir, { recursive: true });
+    atomicWrite(path.join(dir, safe), content);
+  });
 
   // 书源 HTTP 代理（沙箱 legado.http 走这里）
   ipcMain.handle(
@@ -165,7 +160,7 @@ export function registerBookSourceHandler(ipcMain: IpcMain, userData: string): v
         method?: string;
         headers?: Record<string, string>;
         body?: string | null;
-      }
+      },
     ) => {
       const doRequest = () =>
         safeNetRequest(request.url, {
@@ -179,11 +174,7 @@ export function registerBookSourceHandler(ipcMain: IpcMain, userData: string): v
       let challenged = isCfChallenge(result.status, result.headers, result.body.slice(0, 4096));
       // Tier 1：CF 挑战 → 隐藏窗口真实加载 + 提取 HTML（仅对 GET 类页面有意义；
       // POST 表单/带 body 的接口跳过，自动让 Tier 2 弹窗引导）
-      if (
-        challenged &&
-        (!request.method || request.method === 'GET') &&
-        !request.body
-      ) {
+      if (challenged && (!request.method || request.method === 'GET') && !request.body) {
         const html = await cfFetchHtmlHidden(request.url);
         if (html) {
           result = {
@@ -202,7 +193,7 @@ export function registerBookSourceHandler(ipcMain: IpcMain, userData: string): v
         body: result.body,
         ...(challenged ? { cfChallenge: true } : {}),
       };
-    }
+    },
   );
 
   // eval（健康检测 / 调试）：主进程仅返回文件路径；实际沙箱执行在 Renderer Worker（T-002）

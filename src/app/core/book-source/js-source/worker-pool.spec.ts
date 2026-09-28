@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   WorkerPoolImpl,
   WorkerLikeInternal,
@@ -50,9 +50,18 @@ const fastConfig: Omit<WorkerPoolConfig, 'workerFactory'> = {
 
 describe('WorkerPoolImpl', () => {
   let mocks: ReturnType<typeof makeMockWorker>[];
+  let pools: WorkerPoolImpl[];
 
   beforeEach(() => {
     mocks = [];
+    pools = [];
+  });
+
+  // 用例结束后统一 terminate：清掉 pending 条目的超时定时器，
+  // 否则定时器会在用例之外触发 reject → unhandled rejection
+  afterEach(() => {
+    for (const p of pools) p.terminate();
+    pools = [];
   });
 
   function makePool(overrides: Partial<WorkerPoolConfig> = {}): WorkerPoolImpl {
@@ -61,7 +70,9 @@ describe('WorkerPoolImpl', () => {
       mocks.push(m);
       return m.worker;
     };
-    return new WorkerPoolImpl({ ...fastConfig, ...overrides, workerFactory: factory });
+    const pool = new WorkerPoolImpl({ ...fastConfig, ...overrides, workerFactory: factory });
+    pools.push(pool);
+    return pool;
   }
 
   describe('基础调度', () => {
@@ -98,9 +109,9 @@ describe('WorkerPoolImpl', () => {
   describe('反压 + PoolFullError', () => {
     it('超出 pendingCap 应抛 PoolFullError', async () => {
       const pool = makePool({ pendingCap: 2 });
-      // 第 1 + 第 2 排队
-      pool.schedule({ type: 'load', fileName: 'a', source: '', reqId: 'r1' });
-      pool.schedule({ type: 'load', fileName: 'b', source: '', reqId: 'r2' });
+      // 第 1 + 第 2 排队（故意不 resolve：挂 catch 收尾，由 afterEach 的 terminate 拒绝）
+      pool.schedule({ type: 'load', fileName: 'a', source: '', reqId: 'r1' }).catch(() => {});
+      pool.schedule({ type: 'load', fileName: 'b', source: '', reqId: 'r2' }).catch(() => {});
       // 第 3 应抛 PoolFullError
       await expect(
         pool.schedule({ type: 'load', fileName: 'c', source: '', reqId: 'r3' }),

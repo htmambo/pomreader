@@ -29,7 +29,7 @@ protocol.registerSchemesAsPrivileged([
 // 使其静默快速失败（本应用不使用 WebRTC 出网，CF Turnstile 验证不依赖 STUN）
 app.commandLine.appendSwitch(
   'host-resolver-rules',
-  'MAP stun*.l.google.com 127.0.0.1, MAP stun.cloudflare.com 127.0.0.1'
+  'MAP stun*.l.google.com 127.0.0.1, MAP stun.cloudflare.com 127.0.0.1',
 );
 
 app.on('second-instance', () => {

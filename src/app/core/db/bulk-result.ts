@@ -58,10 +58,7 @@ export function classifyBulkResults(
 /**
  * 构造 bulkDocs 致命错误的统一异常消息（与 db.service.ts 原措辞保持一致）。
  */
-export function formatBulkFatalMessage(
-  op: string,
-  classified: ClassifiedBulkResult,
-): string {
+export function formatBulkFatalMessage(op: string, classified: ClassifiedBulkResult): string {
   const detail = classified.fatal
     .map((f) => `${f.id ?? '?'}[${f.name ?? f.status ?? '?'}]`)
     .join(', ');

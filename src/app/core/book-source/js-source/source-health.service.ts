@@ -10,7 +10,7 @@
  */
 import { Injectable } from '@angular/core';
 import { SandboxService } from './sandbox.service';
-import { type BookSourceMeta } from './source-meta.types'
+import { type BookSourceMeta } from './source-meta.types';
 
 export interface SourceHealthSample {
   ok: boolean;

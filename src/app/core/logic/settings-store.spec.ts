@@ -101,9 +101,9 @@ describe('SettingsStore', () => {
     });
 
     it('convertMode 非法值/缺失应回退默认', () => {
-      expect(
-        SettingsStore.mergeValidated({ convertMode: 's2tw' as 's2t' }).convertMode
-      ).toBe(DEFAULT_SETTINGS.convertMode);
+      expect(SettingsStore.mergeValidated({ convertMode: 's2tw' as 's2t' }).convertMode).toBe(
+        DEFAULT_SETTINGS.convertMode,
+      );
       expect(SettingsStore.mergeValidated({}).convertMode).toBe(DEFAULT_SETTINGS.convertMode);
     });
   });

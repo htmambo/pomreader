@@ -8,7 +8,9 @@ describe('pickBookUrl', () => {
     expect(pickBookUrl([{ bookUrl: ' https://x/b/3 ' }])).toBe('https://x/b/3');
   });
   it('跳过空项与非字符串，找不到返回空串', () => {
-    expect(pickBookUrl([null, 42, { name: 'a' }, { url: '  ' }, { url: 'https://x' }])).toBe('https://x');
+    expect(pickBookUrl([null, 42, { name: 'a' }, { url: '  ' }, { url: 'https://x' }])).toBe(
+      'https://x',
+    );
     expect(pickBookUrl([])).toBe('');
     expect(pickBookUrl([{ name: 'a' }])).toBe('');
   });

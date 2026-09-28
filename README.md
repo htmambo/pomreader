@@ -104,7 +104,7 @@ electron/
 ├── www/                   # ng build 产物（生产加载）
 └── *.spec.ts              # electron 侧单测（vitest.config.ts include 已包含）
 
-e2e/                       # Playwright（5 个 spec + playwright.config.ts）
+e2e/                       # Playwright（5 个 spec；配置在仓库根 playwright.config.ts）
 docs/
 ├── Architecture/          # 设计稿（白虎阅读 v1.1）
 ├── Usage/                 # BOOKSOURCE_GUIDE / EXTENSION_GUIDE / COVER_CACHE

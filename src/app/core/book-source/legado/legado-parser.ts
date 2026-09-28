@@ -12,7 +12,7 @@
  *  - 字段缺失给空字符串 / 0 兜底（保证下游 translator 拿到的 shape 完整）
  *  - 解析失败抛 Error，message 含失败原因 + 原始片段（便于 UI 弹错）
  */
-import { type LegadoSource, LEGADO_SOURCE_TYPE_MAP } from './legado-types'
+import { type LegadoSource, LEGADO_SOURCE_TYPE_MAP } from './legado-types';
 export type { LegadoSource, LegadoSourceType } from './legado-types';
 
 /** 解析后的统一数组（单源也包成数组） */
@@ -31,9 +31,7 @@ export function parseLegadoText(raw: string): LegadoSource[] {
     if (fromBase64) return normalizeMany(fromBase64);
   }
 
-  throw new Error(
-    `Legado 文本既不是合法 JSON 也不是 base64 JSON：${text.slice(0, 60)}…`,
-  );
+  throw new Error(`Legado 文本既不是合法 JSON 也不是 base64 JSON：${text.slice(0, 60)}…`);
 }
 
 /** 浏览器/Electron 通用：拉 URL 拿文本再 parse；非 2xx 抛 */
@@ -151,7 +149,9 @@ function asRules(v: unknown): import('./legado-types').LegadoRules | undefined {
 }
 
 /** legado sourceType → pomreader SourceType；未知 / 0 → 'novel' */
-export function mapLegadoSourceType(t: number | undefined): import('../js-source/source-meta.types').SourceType {
+export function mapLegadoSourceType(
+  t: number | undefined,
+): import('../js-source/source-meta.types').SourceType {
   if (typeof t !== 'number') return 'novel';
   return LEGADO_SOURCE_TYPE_MAP[t] ?? 'novel';
 }

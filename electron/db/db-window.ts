@@ -80,9 +80,7 @@ export function registerDbHandler(ipcMain: IpcMain): void {
     pending.delete(payload.id);
     clearTimeout(p.timer);
     p.resolve(
-      payload.ok
-        ? { ok: true, result: payload.result }
-        : { ok: false, error: payload.error },
+      payload.ok ? { ok: true, result: payload.result } : { ok: false, error: payload.error },
     );
   });
 

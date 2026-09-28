@@ -1,5 +1,5 @@
-import { ChangeDetectionStrategy, Component, inject, signal, type OnInit } from '@angular/core'
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, inject, signal, type OnInit } from '@angular/core';
+
 import { FormsModule } from '@angular/forms';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
@@ -9,7 +9,7 @@ import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { CoverService } from '../../core/cover/cover.service';
 import { SettingsService } from '../../core/services/settings.service';
-import { type BookshelfSort } from '../../core/models/settings.model'
+import { type BookshelfSort } from '../../core/models/settings.model';
 import { ToastService } from '../../core/services/toast.service';
 
 /**
@@ -19,8 +19,15 @@ import { ToastService } from '../../core/services/toast.service';
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-cache-settings',
-  standalone: true,
-  imports: [CommonModule, FormsModule, NzButtonModule, NzIconModule, NzInputModule, NzModalModule, NzRadioModule, NzSpinModule],
+  imports: [
+    FormsModule,
+    NzButtonModule,
+    NzIconModule,
+    NzInputModule,
+    NzModalModule,
+    NzRadioModule,
+    NzSpinModule,
+  ],
   templateUrl: './cache-settings.component.html',
   styleUrls: ['./cache-settings.component.scss'],
 })

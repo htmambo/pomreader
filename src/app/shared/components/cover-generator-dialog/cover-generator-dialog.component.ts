@@ -1,10 +1,17 @@
-import { Component, inject, signal, computed, type OnInit, ChangeDetectionStrategy } from '@angular/core'
-import { CommonModule } from '@angular/common';
+import {
+  Component,
+  inject,
+  signal,
+  computed,
+  type OnInit,
+  ChangeDetectionStrategy,
+} from '@angular/core';
+
 import { NZ_MODAL_DATA, NzModalRef } from 'ng-zorro-antd/modal';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
-import { type Book } from '../../../core/models/book.model'
+import { type Book } from '../../../core/models/book.model';
 import { BUILTIN_COVER_GENERATORS } from '../../../core/cover/generators/builtin';
 
 interface CoverGeneratorData {
@@ -28,9 +35,8 @@ interface PreviewItem {
  */
 @Component({
   selector: 'app-cover-generator-dialog',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, NzButtonModule, NzIconModule, NzSpinModule],
+  imports: [NzButtonModule, NzIconModule, NzSpinModule],
   template: `
     <div class="cg-dialog">
       <div class="cg-summary">
@@ -100,12 +106,7 @@ interface PreviewItem {
         </div>
         <div class="cg-footer__actions">
           <button nz-button nzType="default" (click)="cancel()">取消</button>
-          <button
-            nz-button
-            nzType="primary"
-            [disabled]="!selectedItem()"
-            (click)="confirm()"
-          >
+          <button nz-button nzType="primary" [disabled]="!selectedItem()" (click)="confirm()">
             <span nz-icon nzType="check"></span>
             应用封面
           </button>
@@ -115,7 +116,9 @@ interface PreviewItem {
   `,
   styles: [
     `
-      :host { display: block; }
+      :host {
+        display: block;
+      }
       .cg-dialog {
         display: flex;
         flex-direction: column;
@@ -139,20 +142,33 @@ interface PreviewItem {
         overflow: hidden;
         border-radius: 6px;
         background: rgba(0, 0, 0, 0.06);
-        display: flex; align-items: center; justify-content: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         color: var(--pom-text-muted);
         font-size: 12px;
         flex: 0 0 auto;
       }
       .cg-summary__cover img {
-        width: 100%; height: 100%;
+        width: 100%;
+        height: 100%;
         /* 与书架 cover-img 一致：填满裁切（避免 contain 留白） */
         object-fit: cover;
         display: block;
       }
-      .cg-summary__meta h3 { margin: 0 0 4px; font-size: 16px; color: var(--pom-text); }
-      .cg-summary__meta p { margin: 0; color: var(--pom-text-muted); font-size: 12px; }
-      .cg-regen { flex: 0 0 auto; }
+      .cg-summary__meta h3 {
+        margin: 0 0 4px;
+        font-size: 16px;
+        color: var(--pom-text);
+      }
+      .cg-summary__meta p {
+        margin: 0;
+        color: var(--pom-text-muted);
+        font-size: 12px;
+      }
+      .cg-regen {
+        flex: 0 0 auto;
+      }
 
       .cg-grid {
         flex: 1 1 auto;
@@ -169,11 +185,18 @@ interface PreviewItem {
         /* 注意：不能加 overflow:hidden — 会裁掉 .cg-card__preview 的 padding-bottom 高度
            圆角裁切由 .cg-card__preview 自身的 border-radius + overflow:hidden 负责 */
         background: var(--pom-bg);
-        display: flex; flex-direction: column;
+        display: flex;
+        flex-direction: column;
         cursor: pointer;
-        transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+        transition:
+          border-color 0.15s,
+          box-shadow 0.15s,
+          transform 0.15s;
       }
-      .cg-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12); }
+      .cg-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+      }
       .cg-card--selected {
         border-color: #177ddc;
         box-shadow: 0 0 0 2px rgba(23, 125, 220, 0.2);
@@ -182,7 +205,10 @@ interface PreviewItem {
         cursor: not-allowed;
         opacity: 0.6;
       }
-      .cg-card--disabled:hover { transform: none; box-shadow: none; }
+      .cg-card--disabled:hover {
+        transform: none;
+        box-shadow: none;
+      }
 
       .cg-card__preview {
         width: 100%;
@@ -198,40 +224,64 @@ interface PreviewItem {
       .cg-card__preview img {
         position: absolute;
         inset: 0;
-        width: 100%; height: 100%;
+        width: 100%;
+        height: 100%;
         object-fit: cover;
         display: block;
       }
       .cg-card__state {
         position: absolute;
         inset: 0;
-        display: flex; flex-direction: column; gap: 6px;
-        align-items: center; justify-content: center;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        align-items: center;
+        justify-content: center;
         color: var(--pom-text-muted);
         font-size: 12px;
       }
-      .cg-card__state--error { color: #cf1322; }
+      .cg-card__state--error {
+        color: #cf1322;
+      }
 
       .cg-card__badge {
         position: absolute;
-        top: 8px; right: 8px;
-        width: 28px; height: 28px;
+        top: 8px;
+        right: 8px;
+        width: 28px;
+        height: 28px;
         border-radius: 50%;
         background: #177ddc;
         color: #ffffff;
-        display: flex; align-items: center; justify-content: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         font-size: 16px;
         box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
       }
 
-      .cg-card__body { padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; }
+      .cg-card__body {
+        padding: 8px 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
       .cg-card__body h4 {
-        margin: 0; font-size: 13px; color: var(--pom-text);
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        margin: 0;
+        font-size: 13px;
+        color: var(--pom-text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       .cg-card__body p {
-        margin: 0; color: var(--pom-text-muted); font-size: 11px;
-        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+        margin: 0;
+        color: var(--pom-text-muted);
+        font-size: 11px;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
       }
 
       .cg-footer {
@@ -248,7 +298,10 @@ interface PreviewItem {
         color: var(--pom-text-muted);
         font-size: 12px;
       }
-      .cg-footer__actions { display: flex; gap: 8px; }
+      .cg-footer__actions {
+        display: flex;
+        gap: 8px;
+      }
     `,
   ],
 })
@@ -329,9 +382,7 @@ export class CoverGeneratorDialogComponent implements OnInit {
         });
         if (myRun !== this.runId) return;
         this.previews.update((list) =>
-          list.map((p) =>
-            p.id === gen.id ? { ...p, status: 'ready' as const, coverUrl } : p,
-          ),
+          list.map((p) => (p.id === gen.id ? { ...p, status: 'ready' as const, coverUrl } : p)),
         );
       } catch (e) {
         if (myRun !== this.runId) return;

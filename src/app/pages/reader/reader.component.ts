@@ -1,5 +1,19 @@
-import { Component, ChangeDetectionStrategy, inject, type OnInit, type AfterViewInit, type OnDestroy, HostListener, signal, computed, effect, untracked, viewChild, ElementRef } from '@angular/core'
-import { CommonModule } from '@angular/common';
+import {
+  Component,
+  ChangeDetectionStrategy,
+  inject,
+  type OnInit,
+  type AfterViewInit,
+  type OnDestroy,
+  HostListener,
+  signal,
+  computed,
+  effect,
+  untracked,
+  viewChild,
+  ElementRef,
+} from '@angular/core';
+
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { NzIconModule } from 'ng-zorro-antd/icon';
@@ -10,11 +24,30 @@ import { BookService } from '../../core/services/book.service';
 import { ReaderService } from '../../core/services/reader.service';
 import { SettingsService } from '../../core/services/settings.service';
 import { JumpChapterDialogComponent } from '../../shared/components/jump-chapter-dialog/jump-chapter-dialog.component';
-import { PAGE_WIDTHS, MIN_FONT_SIZE, MAX_FONT_SIZE, MIN_FONT_WEIGHT, MAX_FONT_WEIGHT, FONT_WEIGHT_STEP, MIN_LINE_HEIGHT, MAX_LINE_HEIGHT, LINE_HEIGHT_STEP, MIN_PARAGRAPH_SPACING, MAX_PARAGRAPH_SPACING, PARAGRAPH_SPACING_STEP, type ReadMode, type ConvertMode } from '../../core/models/settings.model'
-import { type Chapter } from '../../core/models/chapter.model'
-import { type Book } from '../../core/models/book.model'
+import {
+  PAGE_WIDTHS,
+  MIN_FONT_SIZE,
+  MAX_FONT_SIZE,
+  MIN_FONT_WEIGHT,
+  MAX_FONT_WEIGHT,
+  FONT_WEIGHT_STEP,
+  MIN_LINE_HEIGHT,
+  MAX_LINE_HEIGHT,
+  LINE_HEIGHT_STEP,
+  MIN_PARAGRAPH_SPACING,
+  MAX_PARAGRAPH_SPACING,
+  PARAGRAPH_SPACING_STEP,
+  type ReadMode,
+  type ConvertMode,
+} from '../../core/models/settings.model';
+import { type Chapter } from '../../core/models/chapter.model';
+import { type Book } from '../../core/models/book.model';
 import { normalizeParagraphIndent } from '../../core/logic/text-format';
-import { getChineseConverter, loadChineseConverter, type ChineseConvertFn } from '../../core/logic/convert-chinese'
+import {
+  getChineseConverter,
+  loadChineseConverter,
+  type ChineseConvertFn,
+} from '../../core/logic/convert-chinese';
 
 interface ReaderViewSettings {
   theme: number;
@@ -31,9 +64,8 @@ interface ReaderViewSettings {
 
 @Component({
   selector: 'app-reader',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, NzIconModule, NzColorPickerModule],
+  imports: [FormsModule, NzIconModule, NzColorPickerModule],
   templateUrl: './reader.component.html',
   preserveWhitespaces: true,
 })
@@ -152,7 +184,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   ];
 
   readonly book = computed<Book | undefined>(() =>
-    this.books.getById(this.reader.currentBookId() ?? '')
+    this.books.getById(this.reader.currentBookId() ?? ''),
   );
 
   /** 按需加载：当前章未加载时触发抓取；渲染后预加载下一章（spec §5.3） */
@@ -304,10 +336,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     const storedTotal = this.totalPages();
     const newIdx =
       storedTotal > 1
-        ? Math.min(
-            Math.round((oldIdx / (storedTotal - 1)) * (actualTotal - 1)),
-            actualTotal - 1,
-          )
+        ? Math.min(Math.round((oldIdx / (storedTotal - 1)) * (actualTotal - 1)), actualTotal - 1)
         : 0;
     this.totalPages.set(actualTotal);
     this.pageIndex.set(newIdx);
@@ -334,7 +363,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
         () => {
           this.chapterLoading.set(false);
           this.chapterError.set(true);
-        }
+        },
       );
     }
     // 预加载下一章（失败静默）
@@ -345,7 +374,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   readonly currentChapter = computed<Chapter | undefined>(
-    () => this.chapters()[this.chapterIndex()]
+    () => this.chapters()[this.chapterIndex()],
   );
 
   /** 渲染用正文：段首缩进规范化兜底（旧库数据中首段缩进被 trim 剥掉的也能正确显示）+ 简繁转换（仅渲染层，不写回原文） */
@@ -360,7 +389,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
 
   /** 界面文案转换（书名/章节标题/作者）：converter 未加载时原样返回 */
   protected readonly displayText = computed<ChineseConvertFn>(
-    () => this.chineseConverter() ?? ((t: string) => t)
+    () => this.chineseConverter() ?? ((t: string) => t),
   );
 
   /** 当前生效的视图设置：面板打开时用草稿（预览），否则用已保存值 */
@@ -369,8 +398,8 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     return this.pickSaved();
   });
 
-  readonly wordCount = computed(() =>
-    (this.currentChapter()?.content ?? '').replace(/\s+/g, '').length
+  readonly wordCount = computed(
+    () => (this.currentChapter()?.content ?? '').replace(/\s+/g, '').length,
   );
 
   private scrollEl: Element | null = null;
@@ -397,9 +426,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     // - 当 chapterId>0 时视为深链接（如 /reader/{bookId}/5）尊重 URL
     const fromDefaultEntry = chapterId === 0;
     const startChapter =
-      fromDefaultEntry && book.progress?.chapterIndex
-        ? book.progress.chapterIndex
-        : chapterId;
+      fromDefaultEntry && book.progress?.chapterIndex ? book.progress.chapterIndex : chapterId;
 
     // 翻页模式的章内页码恢复（scrollOffset 字段复用为页码；-1 = 最后一页）
     if (fromDefaultEntry && book.progress?.scrollOffset !== undefined) {
@@ -607,10 +634,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
       const next = snap(d.paragraphSpacing + delta * PARAGRAPH_SPACING_STEP);
       return {
         ...d,
-        paragraphSpacing: Math.min(
-          MAX_PARAGRAPH_SPACING,
-          Math.max(MIN_PARAGRAPH_SPACING, next),
-        ),
+        paragraphSpacing: Math.min(MAX_PARAGRAPH_SPACING, Math.max(MIN_PARAGRAPH_SPACING, next)),
       };
     });
   }
@@ -639,9 +663,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   onKeydown(event: KeyboardEvent): void {
     const target = event.target as HTMLElement | null;
     // 输入态过滤：input/textarea/contenteditable/select 及其子节点都视为可编辑
-    const inEditable = !!target?.closest(
-      'input, textarea, [contenteditable=true], select'
-    );
+    const inEditable = !!target?.closest('input, textarea, [contenteditable=true], select');
 
     if (event.key === 'Escape') {
       // Modal 打开时 Esc 优先关闭顶层 Modal（无视输入态，用户期望在 input 中按 Esc 也能取消）
