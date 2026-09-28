@@ -31,6 +31,10 @@
     - 外审 2 轮 APPROVED（session `3a9d0182`，Round 2 闭环 icons-angular 归位）
   - Phase 5：vitest 4 稳定后评估 5 / @angular/build:unit-test、branches 覆盖率收紧回 ~70、zoneless 评估（收尾；vitest-4 部分已被 Phase 3 提前消化）
     - ⚠️ **effect() 时序阅读页人工目视复核自 Phase 1 起未做，Phase 2/3/4 均未解决**（无 GUI，e2e reader 用例是 stub 路由 + 缺数据）
+  - **2026-09-28 分支 `chore/dep-major-upgrade` 已合并回 main**（merge commit `36b4c27` + 文档 commit `efd692a`）
+    - 合并前核实：main 独有的 Phase 0 改动无任何文件超出分支范围（分支为严格超集），`-X theirs` 合并无信息丢失
+    - 合并后 main 上六门复验全绿：`npm ci`（无 missing/invalid）/ format:check / lint / 700 用例 / build / build:electron / e2e exit=0
+    - 剩余：Phase 5 可选项（计划标注可拆独立任务）+ 阅读页人工目视复核；本地 main 待推送，远程分支可删
 
 ## Completed Tasks (Archive)
 
