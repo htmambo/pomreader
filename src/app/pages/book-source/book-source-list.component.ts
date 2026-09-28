@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  HostListener,
+  computed,
+  effect,
+  inject,
+} from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -20,6 +27,7 @@ import { ImportLegadoComponent } from '../../modals/import-legado/import-legado.
  * - 拉取全部书源元数据，本地过滤
  * - 启停 / 编辑 / 删除（删除二次确认）
  * - 启停调 pomAPI.booksourceToggle，失败回滚 UI（DM-3）
+ * - Esc 逐级回退：Modal 层交给 ng-zorro → 清空过滤词 → 停在列表页（见 onKeydown）
  *
  * 会话级现场由 BookSourceListStateService 持有（root）：过滤词/列表，
  * 路由切走再回来直接展示；后台再走一次 IPC 同步磁盘真实状态
@@ -140,5 +148,37 @@ export class BookSourceListComponent {
       nzWidth: 640,
       nzMaskClosable: false,
     });
+  }
+
+  /**
+   * Esc 逐级回退（与阅读页 reader.component.ts 的 Esc 栈同构）
+   *
+   * 回退栈（到达本页基态即停，不跨模块跳书架）：
+   *   ① 顶层 Modal（删除确认 / Legado 导入）→ 由 ng-zorro 自己关闭，见下
+   *   ② 过滤词非空 → 清空过滤词
+   *   ③ 已达基态 → 不响应（终态就是「列表」页本身）
+   *
+   * ① 为什么本组件不自己关弹窗：ng-zorro 18 的 Modal 已通过 CDK Overlay 的
+   * keydownEvents() + nzKeyboard（默认 true）接管 Esc，组件再调 triggerCancel()
+   * 属冗余。故此处必须**直接 return**：既不能 preventDefault 也不能 stopPropagation，
+   * 一旦阻断 CDK 在 document 上的监听，弹窗将关不掉。
+   * （ng-zorro 判的是废弃的 event.keyCode === ESCAPE 且 !hasModifierKey，
+   *   本组件用现代的 event.key；两者监听同一 document 上的同一事件，互不干扰。）
+   *
+   * 与阅读页的一处**有意分歧**：reader 在无 Modal 且处于输入态时让 Esc 静默
+   * （避免丢用户输入）。本页的过滤框就是主交互，且过滤词是页面级状态而非
+   * 输入框局部状态，故 Esc 在输入态同样响应——清空过滤词正是回退栈的第 ② 层。
+   */
+  @HostListener('document:keydown', ['$event'])
+  onKeydown(event: KeyboardEvent): void {
+    if (event.key !== 'Escape') return;
+    // 第 ① 层：Modal 打开时放行，交给 ng-zorro 关闭顶层弹窗（见上方注释）
+    if (this.modal.openModals.length > 0) return;
+    // 第 ② 层：清空过滤词（输入态也响应，不做 inEditable 拦截）
+    if (this.state.filter()) {
+      event.preventDefault();
+      this.state.filter.set('');
+    }
+    // 第 ③ 层：已达基态 —— 终态即本页，不再回退
   }
 }
