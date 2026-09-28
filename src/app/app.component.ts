@@ -47,6 +47,11 @@ import {
   SaveOutline,
   SyncOutline,
   ImportOutline,
+  UnorderedListOutline,
+  BugOutline,
+  ExperimentOutline,
+  ReadOutline,
+  DatabaseOutline,
 } from '@ant-design/icons-angular/icons';
 import { PageHeaderComponent } from './shared/components/page-header/page-header.component';
 import { PageHeaderService } from './core/services/page-header.service';
@@ -103,6 +108,11 @@ import { UniversalSearchComponent } from './pages/universal-search/universal-sea
       SaveOutline,
       SyncOutline,
       ImportOutline,
+      UnorderedListOutline,
+      BugOutline,
+      ExperimentOutline,
+      ReadOutline,
+      DatabaseOutline,
     ]),
   ],
   template: `
