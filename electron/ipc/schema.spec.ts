@@ -6,6 +6,7 @@ import {
   registeredSchemas,
   IpcValidationError,
   FetchHtmlArgsSchema,
+  GetFetchUaArgsSchema,
   SetFetchUaArgsSchema,
   SetWebviewEncodingArgsSchema,
 } from './schema';
@@ -15,7 +16,7 @@ import {
  *
  * 覆盖：
  * - safeHandle 行为：rest args 收集、schema parse 失败抛 IpcValidationError
- * - 4 个 schema：合法 + 非法输入
+ * - 5 个 schema：合法 + 非法输入（含零参 channel 的 GetFetchUaArgsSchema 回归）
  *
  * 关键契约（R6 修补 + 98c46eb 真 bug fix）：
  *   safeHandle 必须用 ...rest 收集 ipcMain.handle 的 spread 参数，
@@ -150,6 +151,32 @@ describe('FetchHtmlArgsSchema', () => {
   it('非法 encoding 应失败（picklist）', () => {
     const r = v.safeParse(FetchHtmlArgsSchema, ['https://x.com', 'invalid']);
     expect(r.success).toBe(false);
+  });
+});
+
+describe('GetFetchUaArgsSchema', () => {
+  it('应接受零参调用（safeHandle 收到的是空数组）', () => {
+    expect(v.safeParse(GetFetchUaArgsSchema, []).success).toBe(true);
+  });
+
+  it('多余参数应失败（"恰好零参"契约）', () => {
+    expect(v.safeParse(GetFetchUaArgsSchema, ['oops']).success).toBe(false);
+  });
+
+  it('回归：真实注册方式下无参 invoke 应放行（曾恒抛 IpcValidationError）', async () => {
+    const ipc = makeIpcMainMock();
+    safeHandle(ipc, 'pom:get-fetch-ua', GetFetchUaArgsSchema, () => ({
+      ua: 'Mozilla/5.0',
+      defaultUa: 'Mozilla/5.0',
+    }));
+    await expect(ipc.invoke('pom:get-fetch-ua')).resolves.toEqual({
+      ua: 'Mozilla/5.0',
+      defaultUa: 'Mozilla/5.0',
+    });
+  });
+
+  it('回归：null 不是合法入参形态（schema parse 的是数组）', () => {
+    expect(v.safeParse(GetFetchUaArgsSchema, null).success).toBe(false);
   });
 });
 

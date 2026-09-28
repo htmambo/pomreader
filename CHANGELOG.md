@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Features
+
+- **sidebar**: 侧栏改为图标轨（默认 64px 仅图标）+ hover 悬浮展开 200px（主内容不位移），「书源管理」子菜单默认收起；展开/收起时图标列位置不变，面板自右侧收回
+- **bookshelf**: 书架新增分类（legado 分组语义：多分类 + `Book.groupIds`）与阅读状态筛选（全部 / 未读 / 正在读 / 已读完，带计数、两行互为分面）；分类通过 `group:{id}` PouchDB 文档持久化，入口为书卡右键「分类…」/ 批量栏「分类」/ chips 行「管理分类」
+
+### Bug Fixes
+
+- **electron/ipc**: `pom:get-fetch-ua` 的入参 schema 由 `v.nullish(v.null(), null)` 改为 `v.strictTuple([])`。`safeHandle` 用 `...rest` 收集后 parse 的是 **args 数组**，零参调用收到 `[]`，与 nullish 恒不匹配 —— 该 channel 每次调用都抛 `IpcValidationError`，设置页读不到当前 UA（`strictTuple` 额外拒绝多余参数）
+- **electron/ipc**: `pom:set-webview-encoding` 在 session 没有 `webRequest`（未初始化 partition / 老版本 Electron）时，`ses.webRequest.onHeadersReceived` 抛 TypeError 打挂 IPC；改为可选链 + 函数类型判断，缺能力时静默跳过
+- **electron/ipc**: `fetch-handler.ts` 移除 handler 内的 `require('electron')`（ESM 下无 `require` 标识符，且与文件顶部 import 不一致），改为顶部静态 import `session`
+
+### Tests
+
+- **electron/ipc**: 新增 `fetch-handler.spec.ts`（23 例）—— 补上此前完全缺失的注册级测试层：4 个 channel 的注册/schema 契约（含零参 `pom:get-fetch-ua` 回归）、UA 读写与校验、webview 编码拦截器、`pom:fetch-html` 的 SSRF 拦截 / 浏览器请求头 / gbk 解码 / CF 过盾回落 / 8MB 上限 / 15s 超时
+
 ### Refactor
 
 - **data**: 移除内置示例书 seed（`src/assets/data/books.json` + 15 章 JSON）；`DbService.seedIfEmpty()` 简化为 no-op（保留接口兼容 `BookRepository.load()`）

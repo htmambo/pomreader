@@ -1,4 +1,4 @@
-import { IpcMain, net } from 'electron';
+import { IpcMain, net, session } from 'electron';
 import { URL } from 'url';
 import { decodeBuffer, EncodingMode } from './encoding';
 import { isCfChallenge } from './cf-guard';
@@ -167,10 +167,12 @@ export function registerFetchHandler(ipcMain: IpcMain): void {
     async (_e, [webviewId, mode]) => {
       // 渲染进程侧用 webview.partition 隔离 session；这里按 webviewId 解析
       // 简化实现：mode=auto 时移除拦截器，否则重写 charset
-      const { session } = require('electron');
       const ses = session.fromPartition(`persist:${webviewId}`);
-      if (ses.webRequest.onHeadersReceived) {
-        ses.webRequest.onHeadersReceived(
+      // webRequest 在部分 session（如未初始化的自定义 partition / 老版本 Electron）上不存在，
+      // 必须可选链访问 —— 直接 ses.webRequest.onHeadersReceived 会抛 TypeError 并把 IPC 打挂
+      const wr = ses.webRequest;
+      if (wr && typeof wr.onHeadersReceived === 'function') {
+        wr.onHeadersReceived(
           { urls: ['*://*/*'] },
           (
             details: { responseHeaders?: Record<string, string[]> },

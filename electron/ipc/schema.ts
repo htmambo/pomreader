@@ -86,8 +86,16 @@ export const FetchHtmlArgsSchema = v.tuple([
 ]);
 export type FetchHtmlArgs = v.InferOutput<typeof FetchHtmlArgsSchema>;
 
-/** pom:get-fetch-ua args: void（不接受任何参数） */
-export const GetFetchUaArgsSchema = v.nullish(v.null(), null);
+/**
+ * pom:get-fetch-ua args: void（不接受任何参数）
+ *
+ * ⚠️ schema 收到的是 **args 数组**（safeHandle 用 ...rest 收集），零参调用即 `[]`，
+ * 不是 null/undefined。早期写成 `v.nullish(v.null(), null)` 会让每次调用都抛
+ * IpcValidationError（"Expected null but received Array"）。
+ * 用 strictTuple（而非 tuple）表达"恰好零参"：valibot 的空 tuple 不校验长度，
+ * 多带参数照样放行；strictTuple 才会把多余参数拒掉。
+ */
+export const GetFetchUaArgsSchema = v.strictTuple([]);
 export type GetFetchUaArgs = v.InferOutput<typeof GetFetchUaArgsSchema>;
 
 /** pom:set-fetch-ua args tuple: (ua: string | null) */
