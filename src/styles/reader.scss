@@ -477,6 +477,28 @@
 .reader-page .right-bar-list dd.go-top a i {
   padding-top: 20px;
 }
+/* 右栏章节跳转（上一章 / 下一章）：固定显示，不随滚动显隐，排在「回到顶部」上方 */
+.reader-page .right-bar-list dd.chapter-nav a i.chev {
+  height: 58px;
+  padding-top: 0;
+  font-size: 22px;
+  line-height: 58px;
+  text-align: center;
+  color: var(--r-icon);
+  transition: color 0.3s;
+}
+.reader-page .right-bar-list dd.chapter-nav a:hover i.chev {
+  color: var(--r-accent);
+}
+/* 首章 / 末章：与底部 .chapter-control a.disabled 同一套禁用语义 */
+.reader-page .right-bar-list dd.chapter-nav.disabled a {
+  pointer-events: none;
+  cursor: default;
+}
+.reader-page .right-bar-list dd.chapter-nav.disabled a i.chev {
+  color: var(--r-muted);
+  opacity: 0.35;
+}
 
 /* ---------- 浮层面板（目录 / 设置） ---------- */
 .reader-page .panel-wrap {

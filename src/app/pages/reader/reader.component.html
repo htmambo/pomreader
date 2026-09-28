@@ -264,14 +264,28 @@
       </div>
     </div>
   </div>
-  } @if (showGoTop() && !paged()) {
+  } @if (!paged()) {
   <div class="right-bar-list">
     <dl>
+      <!-- 章节跳转固定显示，不随滚动显隐；排在「回到顶部」上方 -->
+      <dd class="chapter-nav" [class.disabled]="chapterIndex() === 0" title="上一章" (click)="prev()">
+        <a><i class="chev">&lt;</i></a>
+      </dd>
+      <dd
+        class="chapter-nav"
+        [class.disabled]="chapterIndex() >= chapters().length - 1"
+        title="下一章"
+        (click)="next()"
+      >
+        <a><i class="chev">&gt;</i></a>
+      </dd>
+      @if (showGoTop()) {
       <dd class="go-top" title="返回顶部" (click)="scrollToTop()">
         <a
           ><i><span nz-icon nzType="arrow-up"></span></i
         ></a>
       </dd>
+      }
     </dl>
   </div>
   } } @else {
