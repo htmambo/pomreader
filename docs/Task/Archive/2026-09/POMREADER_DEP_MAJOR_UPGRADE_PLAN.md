@@ -159,7 +159,7 @@ puppeteer 25 的 `LaunchOptions.headless` 类型收紧为 `boolean | 'shell'`，
 
 Phase 0 全部 6 项（P0-0 ~ P0-5）收口。**进入 Phase 1：Angular 18 → 19**（`@ant-design/icons-angular` + `angular-eslint` lockstep 跟随、zone.js → `~0.15.0`、`ng update ng-zorro-antd@19` 的 `<span nz-icon>` → `<nz-icon>` 迁移 8 文件 35 处、回归 reader 的 5 处 `effect()` 时序）。
 
-另外，Phase 0 遗留两项**人工目视复核**仍未做，建议在 Phase 1 合并前一并处理：① P-0-4 的 `.html` 重排改了 reader 组件缩进，阅读页渲染未经人眼确认；② 5 个 `.cjs` 冒烟脚本在有 Chrome 的机器上跑一遍。
+另外，Phase 0 遗留两项**人工目视复核**仍未做，建议在 Phase 1 合并前一并处理：① P-0-4 的 `.html` 重排改了 reader 组件缩进，阅读页渲染未经人眼确认；② 5 个 `.cjs` 冒烟脚本在有 Chrome 的机器上跑一遍。（**后记**：① 已由用户 2026-09-28 复核通过；② 已于 2026-09-28 实跑收口，详见 Phase 4「遗留」段。）
 
 ## Phase 1：Angular 18 → 19
 
@@ -465,7 +465,14 @@ Angular 19 引入的 effect() 调度变更**至今没有做人工目视复核**�
 
 **主动 revert 的 schematic 注入**：`provideNzDateFnsAdapter()` —— ng-zorro schematic 注入全局 date adapter + 未声明传递依赖 `date-fns@4.4.0`，但全仓 `rg nz-date-picker|NzDatePicker|nz-range-picker|NzTimePicker|nz-calendar` **零命中**（无日期组件消费者），注入属 diff 噪声，删除后 lint/build/test/e2e 全绿。外审确认移除有据（adapter 仅日期组件实例化时经 DI 查询，非全局必需）。
 
-**遗留（沿 Phase 3）**：~~effect() 时序阅读页人工目视复核~~ **已于 2026-09-28 由用户人工复核通过收口**。剩余轻量冒烟（非阻塞）：5 个 `scripts/*.cjs` 冒烟（需 Chrome）；3 处 `<nz-input-number>` UI 冒烟（ng-zorro 21 重写行为差异）。
+**遗留（沿 Phase 3）**：~~effect() 时序阅读页人工目视复核~~ **已于 2026-09-28 由用户人工复核通过收口**。~~剩余轻量冒烟（非阻塞）：5 个 `scripts/*.cjs` 冒烟（需 Chrome）；3 处 `<nz-input-number>` UI 冒烟（ng-zorro 21 重写行为差异）~~ **两项均已于 2026-09-28 实跑收口，结果如下**：
+
+- **5 个 `scripts/*.cjs` 冒烟**：本机有 `/usr/bin/google-chrome` + `DISPLAY`，独立 dev server（`127.0.0.1:4210`，避开用户在跑的 4200）实跑。**4/5 直接 PASS**；其中 2 个失效脚本已修复（同 commit 入库）：
+  - `e2e-import-local-txt.cjs` / `e2e-txt-preview.cjs`：未改动，PASS。
+  - `e2e-import-online.cjs`（**重写**）：原脚本导入 `example.com` 伪 URL 恒 FAIL。`PageFetcherService.fetchHtml` 浏览器降级恒用 `fetch(url, {mode:'no-cors'})`（`page-fetcher.service.ts`），跨源只能拿到不透明空响应。改为**同源请求拦截**：书页 URL 用 `http://127.0.0.1:${PORT}/smoke-book/*.html`，`page.setRequestInterception(true)` 直接回包（h1 书名 + `dl>dd>a` 10 章链接，对齐启发式解析器形态）。结果：10 章解析、书架 +1、0 JS 错误。
+  - `e2e-search.cjs`（**重写**）：原假设全失效——`/search` 已是内置浏览器页；书籍搜索真实路由是 `/#/book-sources/search`（跨书源聚合搜索，搜远程源而非本地库）。断言改为确定性终态：结果列表或空态提示（"请尝试更换关键词"）其一必现 + 无 JS 错误。PASS。
+  - `e2e-cf-guard.cjs`（真实 Electron + 真实 CF 站点）：新增 `ELECTRON_EXTRA_ARGS` 透传（`--user-data-dir=/tmp/pom-cf-smoke` 绕单实例锁）+ 主页面轮询 20→60 次（修首次启动时序竞态）。结果：sanity（example.com）✅；`nowsecure.nl` fetchHtml + proxy 双链路 ✅（Tier 1 自动过盾，拿到 179KB 真实 HTML）；`scrapingcourse.com/cloudflare-challenge` ⚠️ INCONCLUSIVE（CF 返回挑战，检测链路正确识别 `cf-challenge`/`cfChallenge` 标记——自动过盾受站点难度与网络环境影响，脚本语义即"转人工验证窗口"，**非应用回归**）。
+- **3 处 `<nz-input-number>` UI 冒烟**（实际 4 处实例：书源测试页 3 个 + 跳章对话框 1 个）：一次性 puppeteer 脚本（19 项断言，未入库）全部 PASS，0 JS 错误。覆盖：默认值（5/30/0）、placeholder（`0=无限`）、步进器 ±、手动输入 ngModel 同步、min/max 钳位（0→1、999→20、1→5、5000→3600、跳章 999→5）、跳章真实跳转（1→4 章）与无效输入（清空 → "请输入有效的章节号" 且对话框保持打开）。验证点确认：ng-zorro 21 重写后 DOM 保留 `ant-input-number-handler-up/down` 类名；`input[type=number]` 不支持 triple-click 选区，e2e 模拟输入须用 Ctrl+A 全选。
 
 ## Phase 5：收尾（2026-09-28 全部收口，剩 1 项人工复核 + 1 项可选 schematic）
 
