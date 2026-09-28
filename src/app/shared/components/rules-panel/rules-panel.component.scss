@@ -8,3 +8,29 @@
   grid-template-columns: 1fr 1fr;
 }
 /* POST 表单参数编辑区样式见 src/styles/rules-panel.scss(全局共享) */
+
+/* 搜索样本两行布局:书名 + 作者/分类一行,URL 另起一行。
+   与全局 .sample-label 的 40% 省略号截断分开 —— 作者/分类有独立 flex 槽位,不会被书名挤掉 */
+.sample--stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+}
+.sample-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.sample-extra {
+  font-size: 11px;
+  color: var(--pom-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  max-width: 40%;
+}
+.sample-extra--kind {
+  color: #13c2c2;
+}

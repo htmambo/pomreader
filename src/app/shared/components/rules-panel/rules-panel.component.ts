@@ -8,7 +8,6 @@ import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { PageFetcherService } from '../../../core/book-source/page-fetcher.service';
 import {
-  type MatchedSearchItem,
   type SearchMethod,
   type SourceRules,
   applyContentReplaceRules,
@@ -27,6 +26,9 @@ interface StageSample {
   label: string;
   value: string;
   clickable: boolean;
+  /** 搜索样本的可选增强字段（作者/分类）：单独成列展示，不能拼进 label —— label 会被省略号截断 */
+  author?: string;
+  kind?: string;
 }
 
 interface StageState {
@@ -63,16 +65,6 @@ function buildSearchSummary(
     ? ` —— ${miss.join('/')}规则未命中：作用域是**条目内部**，列表项规则要选到含该信息的整块容器(如 dl.list dd)，而非单个书名链接(dl.list dd a)`
     : '';
   return parts.join(' · ') + hint;
-}
-
-/** 搜索样本标签：书名 + 已命中的增强字段(作者/分类) */
-function formatSearchSample(item: MatchedSearchItem): string {
-  const label = item.name || '（无书名）';
-  const extras = [
-    item.author ? `作者:${item.author}` : '',
-    item.kind ? `分类:${item.kind}` : '',
-  ].filter(Boolean);
-  return extras.length ? `${label}（${extras.join(' ')}）` : label;
 }
 
 /**
@@ -323,9 +315,11 @@ export class RulesPanelComponent {
           this.searchCategory(),
         ),
         samples: items.map((it) => ({
-          label: formatSearchSample(it),
+          label: it.name || '（无书名）',
           value: it.url,
           clickable: true,
+          author: it.author,
+          kind: it.kind,
         })),
       });
       if (items[0]) this.bookUrl.set(items[0].url);

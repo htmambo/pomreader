@@ -143,9 +143,17 @@
     } @if (searchStage().samples.length) {
     <div class="sample-list">
       @for (s of searchStage().samples; track s.value) {
-      <div class="sample" (click)="pickSample('search', s)">
-        <span class="sample-label">{{ s.label }}</span>
-        <span class="sample-value">{{ s.value }}</span>
+      <!-- 搜索样本两行:书名 + 作者/分类一行,URL 另起一行(窄卡片里三段挤一行会被省略号吃掉) -->
+      <div class="sample sample--stack" (click)="pickSample('search', s)">
+        <div class="sample-line">
+          <span class="sample-label" [title]="s.label">{{ s.label }}</span>
+          @if (s.author) {
+          <span class="sample-extra" [title]="s.author">— {{ s.author }}</span>
+          } @if (s.kind) {
+          <span class="sample-extra sample-extra--kind" [title]="s.kind">{{ s.kind }}</span>
+          }
+        </div>
+        <span class="sample-value" [title]="s.value">{{ s.value }}</span>
       </div>
       }
     </div>

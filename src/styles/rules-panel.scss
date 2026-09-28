@@ -84,7 +84,7 @@
 /* 样本列表(240px = 10 行,带滚动) */
 .sample-list {
   max-height: 180px;
-  width: calc(50vw - 160px);
+  width: calc(50vw - 80px);
   overflow-y: auto;
   overflow-x: hidden;
   margin: 4px 0;
