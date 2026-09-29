@@ -69,13 +69,19 @@ export interface LegadoSource {
 
 /** 单源或订阅列表的导入结果（UI 直接消费） */
 export interface LegadoImportItem {
-  /** 文件名（slug(bookSourceName) + .js；冲突时 UI 给"覆盖/跳过"） */
+  /** 文件名（slug(bookSourceName) + .json；冲突时 UI 给"覆盖/跳过"） */
   fileName: string;
-  /** 派生 uuid（用 bookSourceName 哈希；写盘到 JS 头部 @uuid） */
+  /** 派生 uuid（用 bookSourceName 哈希；写盘到文档 `uuid` 字段） */
   uuid: string;
   source: LegadoSource;
-  /** 翻译结果：成功=可执行 JS；失败=骨架 JS（嵌入原始 JSON + 空 stub） */
-  translatedJs: string;
+  /**
+   * 翻译结果（已序列化的 JSON 文档文本）
+   *
+   * 📌 书源 JSON 规则化 P2.3：原字段是 `translatedJs`（JS 模板字符串），现改为 JSON。
+   * 始终非空 —— 翻译失败也给"骨架文档"（`enabled:false` + `legadoRaw`），好让用户
+   * 至少能把这个源登记下来后续编辑。
+   */
+  translatedJson: string;
   /** 是否为骨架（true = 不可执行，需手写） */
   isSkeleton: boolean;
   /** 翻译失败原因（仅 isSkeleton=true 时有值；UI 红字提示） */

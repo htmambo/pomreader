@@ -21,7 +21,7 @@ import {
 } from '../book-source.adapter';
 import { FetchError } from '../fetch-error';
 import { SandboxService } from './sandbox.service';
-import { type BookSourceMeta } from './source-meta.types';
+import { type BookSourceMeta } from '../source-meta.types';
 
 /**
  * legado bookInfo() 返回结构（兼容多种命名）：

@@ -94,8 +94,6 @@ function buildSearchSummary(
 export class RulesPanelComponent {
   /** 测试 URL 解析基址 —— 父组件提供,智能添加传 targetUrl,书源编辑传 BASE_URL */
   readonly baseUrl = input<string>('');
-  /** 是否显示「测试仅验证规则」行为提示(仅书源编辑页需要) */
-  readonly showTestBehaviorHint = input<boolean>(false);
 
   // ── 规则字段(均为 signal) ──
   /** 站点名(对应 @name 头;不在面板显示,仅随 setRules/getRules 传递,保证整包重生成代码时不丢名称) */

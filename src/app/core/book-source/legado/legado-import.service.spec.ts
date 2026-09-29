@@ -8,6 +8,7 @@ import {
 import { LegadoImportService, deriveFileName } from './legado-import.service';
 import { ToastService } from '../../services/toast.service';
 import { LegadoSource } from './legado-types';
+import { buildSourceDoc, serializeSourceDoc } from '../../logic/source-doc-build';
 
 /**
  * LegadoImportService spec — Legado 订阅源导入编排
@@ -30,6 +31,31 @@ function makeLegadoSource(overrides: Partial<LegadoSource> = {}): LegadoSource {
   };
 }
 
+/**
+ * 一份**过得了 schema** 的文档文本。
+ *
+ * `persistSelected` 现在有落盘前的 schema 门（外部评审 R1），所以这些用例不能再用
+ * `'js1'` 这种占位串 —— 那样测的是"占位串被门拦下"，不是"逐项写入"。
+ */
+function validDocText(name = '示例'): string {
+  return serializeSourceDoc(
+    buildSourceDoc({
+      uuid: `u-${name}`,
+      name,
+      homepage: 'https://example.com',
+      rules: {
+        siteName: '示例站点',
+        searchPath: '/s?q={keyword}',
+        searchItemPattern: 'ul.list li',
+        bookTitlePattern: 'h1',
+        bookAuthorPattern: 'css:.author',
+        chapterItemPattern: 'ul.c a',
+        contentPattern: 'div#content',
+      },
+    }),
+  );
+}
+
 function setupTestBed(api: { booksourceList?: unknown; booksourceSave?: unknown }): any {
   const toastMock: any = {
     error: vi.fn(),
@@ -46,6 +72,19 @@ function setupTestBed(api: { booksourceList?: unknown; booksourceSave?: unknown 
   return { svc: TestBed.inject(LegadoImportService), toastMock };
 }
 
+/** 一份最小的合法 legado 订阅文本（提到模块级：多个 describe 都要用） */
+const validJson = JSON.stringify([
+  {
+    bookSourceName: 'Test Source',
+    bookSourceUrl: 'https://example.com',
+    bookSourceType: 0,
+    searchUrl: '/search?key={key}',
+    ruleSearch: { bookList: '.result-list li', name: '.title' },
+    ruleToc: { chapterList: '.chapter-list a' },
+    ruleContent: { content: '#content' },
+  },
+]);
+
 describe('LegadoImportService', () => {
   beforeAll(() => {
     TestBed.initTestEnvironment(BrowserDynamicTestingModule, platformBrowserDynamicTesting());
@@ -60,36 +99,24 @@ describe('LegadoImportService', () => {
   });
 
   describe('prepareFromText', () => {
-    const validJson = JSON.stringify([
-      {
-        bookSourceName: 'Test Source',
-        bookSourceUrl: 'https://example.com',
-        bookSourceType: 0,
-        searchUrl: '/search?key={key}',
-        ruleSearch: { bookList: '.result-list li', name: '.title' },
-        ruleToc: { chapterList: '.chapter-list a' },
-        ruleContent: { content: '#content' },
-      },
-    ]);
-
     it('合法订阅 JSON → 生成可写盘的 import item', async () => {
       const { svc } = setupTestBed({ booksourceList: async () => [] });
       const items = await svc.prepareFromText(validJson);
       expect(items).toHaveLength(1);
       expect(items[0]).toMatchObject({
-        fileName: 'Test_Source.js',
+        fileName: 'Test_Source.json',
         isSkeleton: false,
         translateError: null,
         overwritesExisting: false,
       });
       expect(items[0].uuid).toMatch(/^legado-[0-9a-f]{8}$/);
-      expect(items[0].translatedJs.length).toBeGreaterThan(0);
+      expect(items[0].translatedJson.length).toBeGreaterThan(0);
       expect(items[0].source.bookSourceName).toBe('Test Source');
     });
 
     it('booksourceList 含同名文件 → overwritesExisting=true', async () => {
       const { svc } = setupTestBed({
-        booksourceList: async () => [{ fileName: 'Test_Source.js' }],
+        booksourceList: async () => [{ fileName: 'Test_Source.json' }],
       });
       const items = await svc.prepareFromText(validJson);
       expect(items[0].overwritesExisting).toBe(true);
@@ -132,7 +159,7 @@ describe('LegadoImportService', () => {
       const items = await svc.prepareFromText(skeletonJson);
       expect(items[0].isSkeleton).toBe(true);
       expect(items[0].translateError).toContain('jsLib');
-      expect(items[0].translatedJs.length).toBeGreaterThan(0);
+      expect(items[0].translatedJson.length).toBeGreaterThan(0);
     });
 
     it('空 bookSourceName → fileName 兜底 + uuid 用 fileName 派生', async () => {
@@ -146,7 +173,7 @@ describe('LegadoImportService', () => {
       ]);
       const { svc } = setupTestBed({});
       const items = await svc.prepareFromText(json);
-      expect(items[0].fileName).toBe('legado-imported.js');
+      expect(items[0].fileName).toBe('legado-imported.json');
       expect(items[0].uuid).toMatch(/^legado-[0-9a-f]{8}$/);
     });
 
@@ -174,7 +201,7 @@ describe('LegadoImportService', () => {
         method: 'GET',
       });
       expect(items).toHaveLength(1);
-      expect(items[0].fileName).toBe('Remote_Src.js');
+      expect(items[0].fileName).toBe('Remote_Src.json');
     });
 
     it('HTTP 非 2xx → 抛 订阅源 HTTP <status>', async () => {
@@ -213,9 +240,9 @@ describe('LegadoImportService', () => {
 
       const { svc } = setupTestBed({ booksourceSave: saveMock });
       const items = [
-        { fileName: 'a.js', translatedJs: 'js1', isSkeleton: false },
-        { fileName: 'b.js', translatedJs: 'js2', isSkeleton: true },
-        { fileName: 'c.js', translatedJs: 'js3', isSkeleton: false },
+        { fileName: 'a.json', translatedJson: validDocText('A'), isSkeleton: false },
+        { fileName: 'b.json', translatedJson: validDocText('B'), isSkeleton: true },
+        { fileName: 'c.json', translatedJson: validDocText('C'), isSkeleton: false },
       ];
       const result = await svc.persistSelected(items);
       expect(saveMock).toHaveBeenCalledTimes(3);
@@ -226,18 +253,18 @@ describe('LegadoImportService', () => {
 
     it('IPC 抛错应收集到 failed 但继续后续项', async () => {
       const saveMock = vi.fn(async (fileName: string) => {
-        if (fileName === 'b.js') throw new Error('disk full');
+        if (fileName === 'b.json') throw new Error('disk full');
       });
 
       const { svc } = setupTestBed({ booksourceSave: saveMock });
       const result = await svc.persistSelected([
-        { fileName: 'a.js', translatedJs: 'js1', isSkeleton: false },
-        { fileName: 'b.js', translatedJs: 'js2', isSkeleton: false },
-        { fileName: 'c.js', translatedJs: 'js3', isSkeleton: false },
+        { fileName: 'a.json', translatedJson: validDocText('A'), isSkeleton: false },
+        { fileName: 'b.json', translatedJson: validDocText('B'), isSkeleton: false },
+        { fileName: 'c.json', translatedJson: validDocText('C'), isSkeleton: false },
       ]);
       expect(result.written).toBe(2);
       expect(result.failed).toHaveLength(1);
-      expect(result.failed[0]).toMatchObject({ fileName: 'b.js', error: 'disk full' });
+      expect(result.failed[0]).toMatchObject({ fileName: 'b.json', error: 'disk full' });
     });
 
     it('error 无 message 时用 String(e) 兜底收集', async () => {
@@ -246,17 +273,17 @@ describe('LegadoImportService', () => {
       });
       const { svc } = setupTestBed({ booksourceSave: saveMock });
       const result = await svc.persistSelected([
-        { fileName: 'a.js', translatedJs: 'js', isSkeleton: false },
+        { fileName: 'a.json', translatedJson: validDocText('S'), isSkeleton: false },
       ]);
       expect(result.written).toBe(0);
-      expect(result.failed[0]).toEqual({ fileName: 'a.js', error: 'string failure' });
+      expect(result.failed[0]).toEqual({ fileName: 'a.json', error: 'string failure' });
     });
 
     it('window 完全不存在（非浏览器环境）时按 IPC 不可用处理', async () => {
       const { svc, toastMock } = setupTestBed({});
       delete (globalThis as any).window;
       const result = await svc.persistSelected([
-        { fileName: 'a.js', translatedJs: 'js', isSkeleton: false },
+        { fileName: 'a.json', translatedJson: validDocText('S'), isSkeleton: false },
       ]);
       expect(toastMock.error).toHaveBeenCalledWith(expect.stringContaining('IPC'));
       expect(result.written).toBe(0);
@@ -264,39 +291,89 @@ describe('LegadoImportService', () => {
   });
 
   describe('deriveFileName', () => {
-    it('基础源名应加 .js 后缀', () => {
+    it('基础源名应加 .json 后缀', () => {
       expect(deriveFileName(makeLegadoSource({ bookSourceName: 'My Source' }))).toBe(
-        'My_Source.js',
+        'My_Source.json',
       );
     });
 
     it('特殊字符应替换为 _ 并折叠连续 _', () => {
       expect(deriveFileName(makeLegadoSource({ bookSourceName: 'a/b\\c:d*e?f' }))).toBe(
-        'a_b_c_d_e_f.js',
+        'a_b_c_d_e_f.json',
       );
     });
 
     it('空字符串 + 源名应 fallback legado-imported', () => {
-      expect(deriveFileName(makeLegadoSource({ bookSourceName: '' }))).toBe('legado-imported.js');
+      expect(deriveFileName(makeLegadoSource({ bookSourceName: '' }))).toBe('legado-imported.json');
     });
 
     it('只有特殊字符的源名应 fallback legado-imported', () => {
       expect(deriveFileName(makeLegadoSource({ bookSourceName: '///' }))).toBe(
-        'legado-imported.js',
+        'legado-imported.json',
       );
     });
 
     it('超长源名应截断到 80 字符', () => {
       const longName = 'a'.repeat(200);
       const result = deriveFileName(makeLegadoSource({ bookSourceName: longName }));
-      expect(result.length).toBeLessThanOrEqual(80 + '.js'.length);
-      expect(result.endsWith('.js')).toBe(true);
+      expect(result.length).toBeLessThanOrEqual(80 + '.json'.length);
+      expect(result.endsWith('.json')).toBe(true);
     });
 
     it('控制字符应被剥离', () => {
       expect(deriveFileName(makeLegadoSource({ bookSourceName: 'foo\x00bar\x1fbaz' }))).toBe(
-        'foo_bar_baz.js',
+        'foo_bar_baz.json',
       );
     });
+  });
+});
+
+describe('落盘前的两道门（外部评审 R1）', () => {
+  it('uuid 取**文档里那个**，不二次派生（书源名缺失时两者本会不同）', async () => {
+    const { svc } = setupTestBed({ booksourceList: async () => [] });
+    const items = await svc.prepareFromText(validJson);
+    const doc = JSON.parse(items[0].translatedJson);
+    expect(items[0].uuid).toBe(doc.uuid);
+  });
+
+  it('uuid 与文件内容在书源名缺失的边界上仍一致', async () => {
+    const { svc } = setupTestBed({ booksourceList: async () => [] });
+    const noName = JSON.stringify({
+      sources: [{ bookSourceUrl: 'https://x.test', ruleToc: { chapterList: '.c a' } }],
+    });
+    const items = await svc.prepareFromText(noName);
+    expect(items[0].uuid).toBe(JSON.parse(items[0].translatedJson).uuid);
+  });
+
+  it('规则非法的项**不落盘**，进 failed 且带可读原因', async () => {
+    const save = vi.fn(async () => {});
+    const { svc } = setupTestBed({ booksourceList: async () => [], booksourceSave: save });
+    const items = await svc.prepareFromText(validJson);
+    // 模拟"翻译结果被外部改坏"（例如未来的转换缺陷）
+    items[0].translatedJson = JSON.stringify({ format: 'pomreader.booksource' });
+    const result = await svc.persistSelected(items);
+    expect(save).not.toHaveBeenCalled();
+    expect(result.written).toBe(0);
+    expect(result.failed[0].error).toMatch(/规则非法/);
+  });
+
+  it('非 JSON 文本同样被拦（不落盘）', async () => {
+    const save = vi.fn(async () => {});
+    const { svc } = setupTestBed({ booksourceList: async () => [], booksourceSave: save });
+    const items = await svc.prepareFromText(validJson);
+    items[0].translatedJson = '{ broken';
+    const result = await svc.persistSelected(items);
+    expect(save).not.toHaveBeenCalled();
+    expect(result.failed).toHaveLength(1);
+  });
+
+  it('合法项照常落盘（门不会误杀）', async () => {
+    const save = vi.fn(async () => {});
+    const { svc } = setupTestBed({ booksourceList: async () => [], booksourceSave: save });
+    const items = await svc.prepareFromText(validJson);
+    const result = await svc.persistSelected(items);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(result.written).toBe(1);
+    expect(result.failed).toEqual([]);
   });
 });

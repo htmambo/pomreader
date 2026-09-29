@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseHeaderMeta } from './header-parser';
-import { BookSourceMeta } from './source-meta.types';
+import { BookSourceMeta } from '../source-meta.types';
 
 const FIX = {
   fileName: 'demo.js',

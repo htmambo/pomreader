@@ -1,26 +1,43 @@
 /**
- * 阅读(Legado) JSON → pomreader 沙箱 JS 源 翻译器
+ * 阅读(Legado) JSON → pomreader 书源 JSON 文档 翻译器
  *
  * 策略：
  *  仅对 **CSS / regex 规则为主** 的 legado 源做自动翻译。
  *  含 java.* / source.* / book.* / cookie.* / Packages. 桥接 → 拒绝（提示走智能添加手写）。
- *  含 jsLib / loginUrl / loginUi / eventListener → 拒绝（这些机制 pomreader 沙箱无法模拟）。
+ *  含 jsLib / loginUrl / loginUi / eventListener → 拒绝（这些机制 pomreader 无法模拟）。
  *  rule 字段为 <js>...</js> / {{...}} 模板 / $.jsonpath → 拒绝（单条字段标 untranslatable）。
  *
- * 翻译输出用 `smart-rules.generateSourceCode(url, rules, { headers })`：
- *  - 复用既有 `extractLinks / extractText / extractHtml` 工具链
- *  - legado `header` JSON 字符串注入到 `const HEADERS = ...`
- *  - 文件头加 @uuid / @tags / @type / @url 让 BookSourceMeta 解析正确
+ * 翻译输出用 `smart-rules` 的规则集 → `core/logic/source-doc-build.buildSourceDoc`：
+ *  - 复用既有 `extractLinks / extractText / extractHtml` 工具链的同一套规则串
+ *  - legado `header` JSON 字符串 → 文档 `headers` 字段
+ *  - 源元数据（name / url / tags / type / uuid / description）进文档对应字段
+ *
+ * 📌 书源 JSON 规则化 P2.3：以前这里产出的是 JS 模板字符串（`generateSourceCode`），
+ * 现在直出 `BookSourceDoc`。uuid 派生规则**刻意保持不变**（`deriveUuid`）—— 书架里
+ * `Book.bookSourceUuid` 已指向旧 uuid，改派生规则会让所有已导入源集体失联。
  */
 import { type LegadoSource, mapLegadoSourceType } from './legado-parser';
 import { parseSelector, type ParsedSelector, toRulePattern } from './legado-selector';
-import { generateSourceCode, type SourceRules } from '../smart-add/smart-rules';
+import { type SourceRules } from '../smart-add/smart-rules';
+import { buildSourceDoc } from '../../logic/source-doc-build';
+import { type BookSourceDocDraft } from '../../models/book-source-doc.model';
 
 const UNSUPPORTED_FEATURES = ['jsLib', 'loginUrl', 'loginUi', 'eventListener'] as const;
 
+/** 骨架源（无法自动转换）的占位规则：让文档结构合法、且启用后也只是"抓不到"而非崩溃 */
+const SKELETON_RULES: SourceRules = {
+  siteName: 'legado-imported',
+  searchPath: '/search?keyword={keyword}',
+  searchItemPattern: 'css:a[href]',
+  bookTitlePattern: 'css:h1',
+  bookAuthorPattern: 'css:.author',
+  chapterItemPattern: 'css:a[href]',
+  contentPattern: 'css:body',
+};
+
 export interface TranslateResult {
-  /** 始终返回 JS 字符串：成功=可执行的 search/bookInfo/chapterContent；失败=骨架 JS（含原始 JSON + 空 stub） */
-  js: string;
+  /** 始终返回可写盘的文档：成功=可执行规则；失败=骨架文档（enabled:false + legadoRaw） */
+  doc: BookSourceDocDraft;
   /** 是否为骨架（true = 不可执行，需手写） */
   isSkeleton: boolean;
   /** 失败原因（仅 isSkeleton=true 时有值；UI 直接展示） */
@@ -28,19 +45,20 @@ export interface TranslateResult {
 }
 
 /**
- * LegadoSource → JS 源。
+ * LegadoSource → 书源 JSON 文档。
  *
  * 行为：
- *  - 字段全部 CSS / regex 时 → 返回可执行的 JS（isSkeleton=false），error=null
+ *  - 字段全部 CSS / regex 时 → 返回可执行文档（isSkeleton=false），error=null
  *  - 命中 java.* / source.* 桥接 或 字段是 <js>/{{}}/$.jsonpath 或缺关键字段时
- *    → 返回"骨架 JS"：把原始 Legado JSON 嵌入为注释 + 空函数 stub 让沙箱能加载但调用时
- *      抛明确错误（用户可在书源管理页编辑补充），error 给出第一条失败原因
+ *    → 返回"骨架文档"：`enabled: false` + `legadoRaw` 内嵌原始 JSON，error 给出第一条失败原因。
+ *      骨架源**不进 registry**（`registerRuleAdapters` 跳过 `enabled === false`），
+ *      用户在管理页补完规则并启用后才生效。
  *
- * 调用方永远拿到非空 js（除非 src 本身没有 bookSourceName，那也没有 fileName 没办法写盘）
+ * 调用方永远拿到非空 doc（除非 src 本身没有 bookSourceName，那也没有 fileName 没办法写盘）
  * — 这是为了让用户至少能"登记"这个源以便后续编辑。
  */
-export function translateLegadoToJs(src: LegadoSource): TranslateResult {
-  // 1. 硬拒绝：含 pomreader 沙箱无法模拟的高级特性（拼骨架而不是 null）
+export function translateLegadoToDoc(src: LegadoSource): TranslateResult {
+  // 1. 硬拒绝：含 pomreader 无法模拟的高级特性（拼骨架而不是 null）
   for (const key of UNSUPPORTED_FEATURES) {
     const v = (src as unknown as Record<string, unknown>)[key];
     const isOn = typeof v === 'string' ? v.trim().length > 0 : !!v;
@@ -108,64 +126,70 @@ export function translateLegadoToJs(src: LegadoSource): TranslateResult {
   // 5. header JSON 字符串 → 对象
   const headers = parseHeader(src.header);
 
-  // 6. 生成 JS 主体
-  const body = generateSourceCode(url, rules, { headers });
+  // 6. 组装文档：uuid 沿用既有派生规则（书架里的 bookSourceUuid 已指向它）
+  const doc = buildSourceDoc({
+    uuid: deriveUuid(src),
+    name: src.bookSourceName || 'legado-imported',
+    homepage: url,
+    urls: collectCandidateUrls(src).filter((u) => safeOrigin(u) === url),
+    rules,
+    headers,
+    enabled: src.enabled !== false,
+    sourceType: mapLegadoSourceType(src.bookSourceType),
+    author: 'legado-import',
+    description: buildDescription(src, headers),
+    tags: ['legado-import', ...(src.bookSourceGroup ? [src.bookSourceGroup] : [])],
+    sourceVersion: '1.0.0',
+  });
 
-  // 7. 文件头覆盖：@name / @url / @tags / @type / @uuid / @description / @version / @enabled
-  const overridden = rewriteHeader(body, src, headers);
+  return { doc, isSkeleton: false, error: null };
+}
 
-  return { js: overridden, isSkeleton: false, error: null };
+/** 取 URL 的 origin；非法返回空串 */
+function safeOrigin(raw: string): string {
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return '';
+  }
+}
+
+/** 描述文案：与旧文件头 `@description` 同一套措辞，别让用户看到"换了个说法" */
+function buildDescription(src: LegadoSource, headers: Record<string, string>): string {
+  if (src.bookSourceComment) {
+    return `由 legado JSON 导入：${src.bookSourceComment.split('\n')[0].slice(0, 80)}`;
+  }
+  return `由 legado JSON 导入${headers && Object.keys(headers).length ? '（含自定义 HTTP header）' : ''}`;
 }
 
 /**
- * 骨架 JS：把原 Legado JSON 嵌入为 JS 注释块（便于用户编辑时参考），
- * 再加 search/bookInfo/chapterContent 三个空 stub —— 沙箱能加载，注册到 registry
- * 后调用时抛明确错误（避免静默失败误导用户）。
- * 头标 @enabled false（用户编辑 + 启用后生效）。
+ * 骨架文档：`enabled: false` + `legadoRaw` 内嵌原始 JSON
+ *
+ * 与旧"骨架 JS"的等价物：旧版靠空 stub 函数在被调用时抛错来避免静默失败；
+ * JSON 侧靠 `enabled: false` 让它**根本不被注册**，效果更彻底（也少一次运行时抛错）。
+ * `legadoRaw` 让用户在管理页仍能看到原始配置并据此补规则。
  */
 function makeSkeleton(src: LegadoSource, error: string): TranslateResult {
-  const headers: Record<string, string> = parseHeader(src.header);
-  const headerLines = buildHeader(src, headers, true);
-  const jsonText = safeJsonStringify(src);
-
-  const body = [
-    '// 由 legado 订阅源导入（未能自动转换）。失败原因：',
-    `//   ${error}`,
-    '//',
-    '// ── 原始 Legado JSON（参考用）───────────────────────────────────────────────',
-    `// ${jsonText.split('\n').join('\n// ')}`,
-    '//',
-    '// ── 留空待用户手写：编辑此文件实现 search / bookInfo / chapterContent ──────────',
-    '//   参考：src/app/core/book-source/js-source/js-source.adapter.ts',
-    '//        src/app/core/book-source/smart-add/smart-rules.ts',
-    '//   或从「智能添加」生成规则后粘贴到下面。',
-    '',
-    `async function search(keyword, page) {`,
-    `  throw new Error('此源由 legado 导入，需手写 search() — ${error}')`,
-    '}',
-    '',
-    `async function bookInfo(bookUrl) {`,
-    `  throw new Error('此源由 legado 导入，需手写 bookInfo() — ${error}')`,
-    '}',
-    '',
-    `async function chapterList(bookUrl) {`,
-    `  throw new Error('此源由 legado 导入，需手写 chapterList() — ${error}')`,
-    '}',
-    '',
-    `async function chapterContent(chapterUrl) {`,
-    `  throw new Error('此源由 legado 导入，需手写 chapterContent() — ${error}')`,
-    '}',
-    '',
-  ].join('\n');
-
-  return {
-    js: [...headerLines, '', body].join('\n'),
-    isSkeleton: true,
-    error,
-  };
+  const headers = parseHeader(src.header);
+  const doc = buildSourceDoc({
+    uuid: deriveUuid(src),
+    name: src.bookSourceName || 'legado-imported',
+    homepage: deriveBaseUrl(src),
+    rules: SKELETON_RULES,
+    headers,
+    // 骨架一律禁用：填完规则由用户显式启用，绝不"导入即可用"的错觉
+    enabled: false,
+    sourceType: mapLegadoSourceType(src.bookSourceType),
+    author: 'legado-import',
+    description: `${buildDescription(src, headers)}（未转换：${error}）`,
+    tags: ['legado-import', 'needs-manual', ...(src.bookSourceGroup ? [src.bookSourceGroup] : [])],
+    sourceVersion: '1.0.0',
+    legadoRaw: safeJsonStringify(src),
+  });
+  return { doc, isSkeleton: true, error };
 }
 
-/** 安全 stringify：避免循环 / 异常对象破坏骨架注释 */
+/** 安全 stringify：避免循环 / 异常对象破坏 `legadoRaw` */
 function safeJsonStringify(src: LegadoSource): string {
   try {
     return JSON.stringify(src, null, 2);
@@ -269,53 +293,6 @@ function collectCandidateUrls(src: LegadoSource): string[] {
   if (src.exploreUrl && /^https?:\/\//i.test(src.exploreUrl)) out.push(src.exploreUrl);
   if (src.bookSourceUrl && /^https?:\/\//i.test(src.bookSourceUrl)) out.push(src.bookSourceUrl);
   return out;
-}
-
-/** 覆盖文件头部：把 legado 的元数据写到 // @xxx 注释，让 BookSourceMeta.parseHeaderMeta 读到 */
-function rewriteHeader(body: string, src: LegadoSource, headers: Record<string, string>): string {
-  const lines = body.split('\n');
-  // 找注释头结束位置（第一个非 // 开头的行）
-  let headerEnd = 0;
-  while (headerEnd < lines.length && lines[headerEnd].trimStart().startsWith('//')) headerEnd++;
-
-  const headerLines = buildHeader(src, headers, false);
-  return [...headerLines, ...lines.slice(headerEnd)].join('\n');
-}
-
-function buildHeader(
-  src: LegadoSource,
-  headers: Record<string, string>,
-  forceDisabled: boolean,
-): string[] {
-  const name = src.bookSourceName || 'legado-imported';
-  const url = (() => {
-    try {
-      return deriveBaseUrl(src);
-    } catch {
-      return '';
-    }
-  })();
-  const type = mapLegadoSourceType(src.bookSourceType);
-  const tags = ['legado-import'];
-  if (src.bookSourceGroup) tags.push(src.bookSourceGroup);
-  const uuid = deriveUuid(src);
-  const enabled = forceDisabled ? false : src.enabled !== false;
-  const desc = src.bookSourceComment
-    ? `由 legado JSON 导入：${src.bookSourceComment.split('\n')[0].slice(0, 80)}`
-    : `由 legado JSON 导入${headers && Object.keys(headers).length ? '（含自定义 HTTP header）' : ''}`;
-
-  const lines: string[] = [
-    `// @name        ${name}`,
-    `// @version     1.0.0`,
-    `// @author      legado-import`,
-    `// @url         ${url}`,
-    `// @enabled     ${enabled ? 'true' : 'false'}`,
-    `// @tags        ${tags.join(',')}`,
-    `// @type        ${type}`,
-    `// @uuid        ${uuid}`,
-    `// @description ${desc}`,
-  ];
-  return lines;
 }
 
 /** 用 bookSourceName 派生稳定 uuid（保证同名重复导入不会换 uuid，覆盖式更新） */

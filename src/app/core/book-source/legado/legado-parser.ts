@@ -151,7 +151,7 @@ function asRules(v: unknown): import('./legado-types').LegadoRules | undefined {
 /** legado sourceType → pomreader SourceType；未知 / 0 → 'novel' */
 export function mapLegadoSourceType(
   t: number | undefined,
-): import('../js-source/source-meta.types').SourceType {
+): import('../source-meta.types').SourceType {
   if (typeof t !== 'number') return 'novel';
   return LEGADO_SOURCE_TYPE_MAP[t] ?? 'novel';
 }
