@@ -41,7 +41,7 @@
   .ant-collapse > .ant-collapse-item > .ant-collapse-header {
     color: var(--pom-text);
   }
-  .ant-collapse-content {
+  .ant-collapse-panel {
     background: var(--pom-card);
     border-top-color: var(--pom-border);
     color: var(--pom-text);
@@ -615,7 +615,7 @@
   .ant-collapse > .ant-collapse-item > .ant-collapse-header:hover .ant-collapse-expand-icon {
     color: #ed4259;
   }
-  .ant-collapse-content {
+  .ant-collapse-panel {
     background: #1f1f1f;
     border-top-color: #444444;
     color: #c9c9c9;
