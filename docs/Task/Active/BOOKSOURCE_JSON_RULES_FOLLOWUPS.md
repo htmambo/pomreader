@@ -8,8 +8,8 @@
 
 ## 表达力扩展（二期，按优先级）
 
-- [ ] **T-1 ⭐ 目录分页 `tocPagination`**：目录分多页时循环抓取拼接。触发：遇到目录分页站点。表达力损失的最大头。
-- [ ] **T-2 ⭐ 正文分页 `contentPagination`**：一章拆多页合并。触发：同上。
+- [x] **T-1 ⭐ 目录分页 `tocPagination`**：✅ 2026-09-30 完成（与 T-2 统一为「分页区域链接图遍历」模型，设计 [2026-09-30-BOOKSOURCE-PAGINATION-DESIGN.md](../Architecture/2026-09-30-BOOKSOURCE-PAGINATION-DESIGN.md)）。已知不足与增强项（混合模板取页/query 参数清洗/并发/legado nextTocUrl 映射等）留档于设计 §7，不另开跟踪项。
+- [x] **T-2 ⭐ 正文分页 `contentPagination`**：✅ 2026-09-30 随 T-1 一并完成（同一模型同一模块），见 T-1 链接与设计 §7 增强项。
 - [ ] **T-3 ⭐ 搜索二次跳转 `follow`**：搜索命中中转页 → 二次请求拿真实 bookUrl。触发：中转页型站点。
 - [ ] **T-4 ⭐ 多候选规则**：`contentPattern` 等接受数组按序尝试（`string | string[]`）。替代手改 JS 的 try 多选择器。
 - [ ] **T-5 ⭐ `responseType:'json'` + jsonpath**：兼容 legado API 型书源（当前被拒翻译的一大类）。需引入 jsonpath 求值器，先评估包体。
@@ -19,7 +19,7 @@
 ## 引擎与运行时
 
 - [ ] **T-8 ⭐ `encoding` 字段**（auto/utf-8/gbk 显式指定）。触发：代理层 auto 判错编码的站点出现。
-- [ ] **T-9 `minDelayMs` 主链路强制限流**（现状仅镜像间限流）。触发：被站点限流/封禁的反馈。
+- [ ] **T-9 `minDelayMs` 主链路强制限流**。触发：被站点限流/封禁的反馈。注：2026-09-30 起分页抓取循环（T-1/T-2）已在主链路消费 minDelayMs（设计 §3.4 最小落地），其余主链路请求（搜索/详情/单页正文）仍不限流。
 - [ ] **T-10 P1.5 正则移 Web Worker**（可 terminate 强杀）。判据：出现 UI 卡顿报告或 ReDoS 源；v1 靠 guard 静态拦截兜底。
 - [ ] **T-11 explore / 发现页规则**。触发：有真实需求（现状与 v1 均无）。
 

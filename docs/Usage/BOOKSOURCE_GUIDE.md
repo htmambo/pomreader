@@ -62,11 +62,11 @@ pomreader 的书源是 **JSON 规则文档**（BookSourceDoc），由内置 JSON
 | `headers` | - | 自定义请求头（原 `HEADERS` 常量，legado 导入产物） | `{"Referer": "https://..."}` |
 | `legadoRaw` | - | legado 骨架源内嵌的原始 JSON（导入失败占位，勿手写） | - |
 
-## 3. rules 字段（16 字段 = 7 必填 + 9 可选）
+## 3. rules 字段（16 基础字段 = 7 必填 + 9 可选，另有 2 个可选分页对象）
 
 `rules` 就是旧 JS 书源里那组 `const` 规则常量原样平移（字段名一字不改），
 智能添加页与编辑源页的表单直接读写它们。除 `searchBodyParams` / `contentReplaceRules`
-为对象数组外，其余均为字符串。
+为对象数组、`tocPagination` / `contentPagination` 为对象外，其余均为字符串。
 
 | JSON 字段 | 必填 | 旧 JS 常量 | 说明 |
 |---|---|---|---|
@@ -86,6 +86,8 @@ pomreader 的书源是 **JSON 规则文档**（BookSourceDoc），由内置 JSON
 | `contentReplaceRules` | - | `CONTENT_REPLACE_RULES` | 对象数组 `[{"rule":"正则","replace":"替换为"},...]`，正文净化，见 §7 |
 | `bookCategoryPattern` | - | `BOOK_CATEGORY_RULE` | 分类提取规则 |
 | `coverUrlPattern` | - | `COVER_RULE` | 封面提取规则，缺省 `css:img` |
+| `tocPagination` | - | -（新模型） | 目录分页对象 `{"area":"...","linkPattern":"...","maxPages":N}`，见 §6 |
+| `contentPagination` | - | -（新模型） | 正文分页对象，形状同上，见 §6 |
 
 另有两个原常量不进 `rules`，而是平移到 meta 层：`BASE_URL` → `homepage`，
 `HEADERS` → `headers`。
@@ -160,7 +162,60 @@ POST 模式可视化编辑（智能添加 / 编辑源页 UI 同步）：
 > 会把命中条数显示在摘要里；规则填了却一条没命中时，摘要会提示作用域问题。
 > 老书源没有这两个字段也能正常加载运行（按「未配置」处理）。
 
-## 6. 正文净化（`contentReplaceRules`）
+## 6. 目录 / 正文分页（`tocPagination` / `contentPagination`）
+
+模型一句话：**只给出分页区域**，引擎从起始页出发反复取该区域内的链接、按 URL 去重后
+依次抓取，直到区域内没有新链接（或撞页数上限）——「上一页/下一页」链式分页与页码列表
+分页在该模型下是同一种东西（从第 1 页可达的有限链接图）。两个字段不填 = 单页，
+行为与旧版完全一致。
+
+| 字段 | 起始页 | 多页结果的处理 |
+|---|---|---|
+| `tocPagination` | 书籍 URL（bookUrl） | 每页跑 `chapterItemPattern` 提取，按章 URL 去重后拼接 |
+| `contentPagination` | 章节 URL（chapterUrl） | 每页按 `contentPattern` 提取后**按页序拼接**，`contentReplaceRules` 在拼接后统一执行一次 |
+
+子字段（`area` 必填，其余可选）：
+
+| 子字段 | 必填 | 说明 |
+|---|---|---|
+| `area` | ✅ | 分页区域规则（CSS 或正则，判定语法同 §5），区域内全部 `<a href>` 都是候选翻页链接 |
+| `linkPattern` | - | 链接白名单正则，命中才跟随；不填按 URL 页码位自动推断（见下） |
+| `maxPages` | - | 最大页数：目录缺省 100 / 正文缺省 20，硬上限 200 |
+
+编写者须知：
+
+- **白名单**：填了 `linkPattern` 就只跟随命中正则的链接（如 `/book/123/\d+\.html`）。
+- **页码位推断**（未填白名单时）：引擎对比起始页与区域链接的 URL 形状（path 段 +
+  query 键集合），找出「恰好一个位置不同、且差异值是纯数字」的位置作为页码位，
+  后续只跟随同形状、仅页码位不同的链接。导航/广告/「下一章」链接因形状不符被天然
+  挡掉（正文分页不会跨章逃逸）。推断失败 = 不跟随任何链接（等同单页），调试页
+  RuleTrace 记 `inference-failed` —— 看到它就该补 `linkPattern`。
+- **页序**：推断成功按页码数字升序；起始页不在区域链接中时恒排最前；仅有白名单时
+  按白名单首个数字捕获组升序，无数字组则按 DOM 发现序（trace 记
+  `order: dom-discovery`，正文可能乱序 —— 白名单请尽量带数字捕获组）。
+- **上限**：撞 `maxPages` 不报错，返回已抓部分并在 trace 标 `truncated: true`。
+  目录不全 / 正文被截时先看调试页 trace，再调大 `maxPages` 或修规则。
+
+示例 —— 链式「下一页」（正文分页，只需圈出翻页区域）：
+
+```json
+{
+  "contentPagination": { "area": "css:.pagebar", "maxPages": 20 }
+}
+```
+
+示例 —— 页码列表（目录分页，页码混在导航链接里时用白名单收束）：
+
+```json
+{
+  "tocPagination": { "area": "css:.index-page", "linkPattern": "/book/123/\\d+\\.html", "maxPages": 100 }
+}
+```
+
+> legado 的 `ruleToc.nextTocUrl` / `ruleContent.nextContentUrl` 是「显式下一页 URL」
+> 模型，与区域遍历不同构，legado 导入时**不做自动映射**。
+
+## 7. 正文净化（`contentReplaceRules`）
 
 `contentReplaceRules` 是对象数组 `[{"rule":"正则","replace":"替换为"},...]`，
 按数组顺序对正文做 g 模式全局替换；`replace` 留空即删除命中；非法正则跳过不中断后续。
@@ -175,7 +230,7 @@ POST 模式可视化编辑（智能添加 / 编辑源页 UI 同步）：
 }
 ```
 
-## 7. 从旧 `.js` 迁移
+## 8. 从旧 `.js` 迁移
 
 存量 `.js` 书源**无需手工转换**，启动时主进程自动迁移：
 
@@ -191,7 +246,7 @@ POST 模式可视化编辑（智能添加 / 编辑源页 UI 同步）：
 5. `booksources_legacy/` **永不自动删、永不执行**，随时可人工取回 `.js` 参照重写为 JSON
    （P4 起 JS 链路已删，legacy 仅供参照，无法再执行）。
 
-## 8. 安装与调试
+## 9. 安装与调试
 
 1. 把书源 `.json` 文件保存到 `<userData>/booksources/`
 2. 启动应用 → 打开「书源管理」页（`/book-sources`）
@@ -202,7 +257,7 @@ POST 模式可视化编辑（智能添加 / 编辑源页 UI 同步）：
    （阶段 / 请求 URL / HTTP 状态 / 命中规则 / 提取条数 / 耗时）
 6. 「删除」前有二次确认
 
-## 9. 故障排查
+## 10. 故障排查
 
 | 现象 | 可能原因 | 排查方式 |
 |---|---|---|
@@ -214,3 +269,4 @@ POST 模式可视化编辑（智能添加 / 编辑源页 UI 同步）：
 | 正则规则不生效 / 被拒 | 命中护栏（超长 / 嵌套量词） | 规则串 ≤ 512 字符；`(a+)+` 形态会被静态拒绝，改写为等价安全正则 |
 | 编辑后旧规则生效 | JSON 未保存成功 / 校验失败 | 引擎每次调用重读文件；看列表页是否有 `rulesInvalid` 红标 |
 | 迁移后某源消失 | 判为 needs-manual | 看书源列表页底部标灰行；原始 `.js` 在 `booksources_legacy/`，可查看后重写为 JSON |
+| 目录缺章 / 正文被截断 | 撞 `maxPages` 上限，或页码位推断失败未跟随任何链接 | 调试页看 RuleTrace：`truncated: true` → 调大 `maxPages`；`inference-failed` → 给分页补 `linkPattern`（见 §6） |
