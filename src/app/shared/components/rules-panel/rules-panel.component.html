@@ -1,13 +1,3 @@
-@if (showTestBehaviorHint()) {
-<nz-alert
-  nzType="info"
-  nzShowIcon
-  nzMessage="本页 4 个「测试*」按钮均直接抓 HTML 用 CSS 选择器提取内容,仅验证 15 条规则的正确性"
-  nzDescription="不执行书源 JS 脚本里的 function search / bookInfo / chapterList / chapterContent 等函数。要测试 JS 代码(沙箱执行)→ 进入「调试书源」页;要验证完整链路 → 在「书源搜索」点导入,进入阅读。"
-  style="margin-bottom: 12px"
-></nz-alert>
-}
-
 <div class="panel-grid panel-grid--2">
   <!-- 搜索规则 -->
   <div class="stage-card">

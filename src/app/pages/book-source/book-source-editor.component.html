@@ -1,7 +1,4 @@
-<!-- 规则编辑 + 测试面板 —— 与智能添加页共用 RulesPanelComponent -->
-<app-rules-panel #panel [baseUrl]="form().homepage" [showTestBehaviorHint]="true" />
-
-<!-- meta 表单（BookSourceDoc 顶层字段；rules 由上面板持有） -->
+<!-- meta 表单（BookSourceDoc 顶层字段；rules 由下面板持有） -->
 <div class="meta-form">
   <div class="form-row">
     <label class="form-label">名称</label>
@@ -78,6 +75,9 @@
     ></textarea>
   </div>
 </div>
+
+<!-- 规则编辑 + 测试面板 —— 与智能添加页共用 RulesPanelComponent -->
+<app-rules-panel #panel [baseUrl]="form().homepage" />
 
 <!-- 高级：查看 JSON（只读，当前表单 + 面板规则实时组装） -->
 <details class="json-preview">
