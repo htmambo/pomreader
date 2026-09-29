@@ -1,0 +1,30 @@
+{
+  "format": "pomreader.booksource",
+  "schemaVersion": 1,
+  "uuid": "sample-gbk.json",
+  "name": "样本GBK站",
+  "author": "智能添加",
+  "description": "差分测试样本 sample-gbk（中性占位，非真实站点）",
+  "homepage": "https://sample-gbk.invalid",
+  "urls": [
+    "https://sample-gbk.invalid"
+  ],
+  "enabled": true,
+  "sourceType": "novel",
+  "sourceVersion": "1.2.0",
+  "tags": [
+    "智能识别"
+  ],
+  "minDelayMs": 0,
+  "requireUrls": [],
+  "headers": {},
+  "rules": {
+    "siteName": "样本GBK站",
+    "searchPath": "/search?keyword={keyword}&page={page}",
+    "searchItemPattern": "dl.list dd",
+    "bookTitlePattern": "h1.book-title",
+    "bookAuthorPattern": "span.author",
+    "chapterItemPattern": "ul.chapters a",
+    "contentPattern": "div#content"
+  }
+}

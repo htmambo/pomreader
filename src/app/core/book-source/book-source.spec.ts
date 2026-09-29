@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { PageFetcher, BookSourceAdapter } from './book-source.adapter';
@@ -7,6 +7,9 @@ import { XbiqugeAdapter } from './adapters/xbiquge.adapter';
 import { HeuristicAdapter } from './adapters/heuristic.adapter';
 import { JsSourceAdapter } from './js-source/js-source.adapter';
 import { BookSourceMeta } from './js-source/source-meta.types';
+import { JsonRuleAdapter } from './json-rule/json-rule.adapter';
+import { type RuleEngineService } from './json-rule/rule-engine.service';
+import { setBookSourceEngine } from './feature-flag';
 import { FetchError } from './fetch-error';
 import { SOURCE_CONFIG } from './book-source.config';
 import { looksObfuscated } from './heuristic-parser';
@@ -342,5 +345,129 @@ describe('BookSourceRegistry · matchByUrl（换源弹窗"猜当前源"用）', 
     const reg = BookSourceRegistry.forTest(mockFetcher({}));
     expect(reg.matchByUrl('')).toBeUndefined();
     expect(reg.matchByUrl('https://unknown-site.example/')).toBeUndefined();
+  });
+});
+
+// ========== P1：JSON 规则链路并存注册 + 运行时引擎开关 ==========
+
+function makeRuleMeta(name: string, uuid: string, mainUrl: string, enabled = true): BookSourceMeta {
+  return {
+    sourceKey: uuid,
+    uuid,
+    fileName: `${name}.json`,
+    name,
+    url: mainUrl,
+    urls: [mainUrl],
+    enabled,
+    fileSize: 0,
+    modifiedAt: 0,
+    sourceDir: '',
+    sourceType: 'novel',
+    version: '1',
+    tags: [],
+    minDelayMs: 0,
+    requireUrls: [],
+  };
+}
+
+/** 构造 mock JsonRuleAdapter：engineService 用空 stub（构造期只读 meta，不触引擎） */
+function makeMockJsonAdapter(name: string, uuid: string, mainUrl: string): JsonRuleAdapter {
+  return new JsonRuleAdapter(makeRuleMeta(name, uuid, mainUrl), {} as RuleEngineService);
+}
+
+describe('BookSourceRegistry · registerRuleAdapter（JSON > JS 插入点）', () => {
+  it('JSON 适配器插入在所有 JS 适配器之前，内置/启发式相对顺序不变', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    reg.register(new XbiqugeAdapter());
+    reg.register(new HeuristicAdapter());
+    reg.registerJsAdapter(makeMockJsAdapter('js-a', 'uuid-js-a', 'https://js-a.com'));
+    reg.registerRuleAdapter(makeMockJsonAdapter('json-a', 'uuid-json-a', 'https://json-a.com'));
+    reg.registerJsAdapter(makeMockJsAdapter('js-b', 'uuid-js-b', 'https://js-b.com'));
+    reg.registerRuleAdapter(makeMockJsonAdapter('json-b', 'uuid-json-b', 'https://json-b.com'));
+    expect(reg.supportedSources()).toEqual([
+      '笔趣阁',
+      '通用（启发式）',
+      'json-a',
+      'json-b',
+      'js-a',
+      'js-b',
+    ]);
+  });
+
+  it('无 JS 适配器时 push 到末尾（内置/启发式之后）', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    reg.register(new HeuristicAdapter());
+    reg.registerRuleAdapter(makeMockJsonAdapter('json-a', 'uuid-json-a', 'https://json-a.com'));
+    expect(reg.supportedSources()).toEqual(['通用（启发式）', 'json-a']);
+  });
+
+  it('同 uuid 时 getByUuid 返回 JSON 适配器（JSON > JS）', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    const js = makeMockJsAdapter('same', 'uuid-same', 'https://same.com');
+    const json = makeMockJsonAdapter('same', 'uuid-same', 'https://same.com');
+    reg.registerJsAdapter(js);
+    reg.registerRuleAdapter(json);
+    expect(reg.getByUuid('uuid-same')).toBe(json);
+  });
+
+  it('同域名 matchByUrl 命中 JSON 适配器（数组序 first-match）', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    const js = makeMockJsAdapter('same', 'uuid-same', 'https://same.com');
+    const json = makeMockJsonAdapter('same', 'uuid-same', 'https://same.com');
+    reg.registerJsAdapter(js);
+    reg.registerRuleAdapter(json);
+    expect(reg.matchByUrl('https://same.com/book/1')).toBe(json);
+  });
+});
+
+describe('BookSourceRegistry · loadAllRuleAdapters / loadAllJsAdapters（运行时开关）', () => {
+  afterEach(() => {
+    localStorage.clear();
+    delete (window as unknown as { pomAPI?: unknown }).pomAPI;
+  });
+
+  function setPomApi(api: Record<string, unknown>): void {
+    (window as unknown as { pomAPI?: unknown }).pomAPI = api;
+  }
+
+  it("flag='js' 时 loadAllRuleAdapters 早返回（不调 booksourceListJson）", async () => {
+    setBookSourceEngine('js');
+    const booksourceListJson = vi.fn(async () => [
+      makeRuleMeta('json-a', 'uuid-json-a', 'https://json-a.com'),
+    ]);
+    setPomApi({ booksourceListJson });
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    await reg.loadAllRuleAdapters({} as RuleEngineService);
+    expect(booksourceListJson).not.toHaveBeenCalled();
+    expect(reg.supportedSources()).toHaveLength(0);
+  });
+
+  it("flag='rule' 时 loadAllJsAdapters 早返回（不调 booksourceList）", async () => {
+    setBookSourceEngine('rule');
+    const booksourceList = vi.fn(async () => []);
+    setPomApi({ booksourceList });
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    await reg.loadAllJsAdapters();
+    expect(booksourceList).not.toHaveBeenCalled();
+  });
+
+  it('booksourceListJson 缺失（P2 未实现 IPC）时不抛错、静默早返回', async () => {
+    setBookSourceEngine('rule');
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    await expect(reg.loadAllRuleAdapters({} as RuleEngineService)).resolves.toBeUndefined();
+    expect(reg.supportedSources()).toHaveLength(0);
+  });
+
+  it("flag='rule' + booksourceListJson 可用：注册 enabled 项、跳过 disabled，单条失败不阻塞", async () => {
+    setBookSourceEngine('rule');
+    const ok = makeRuleMeta('json-ok', 'uuid-ok', 'https://ok.com');
+    const disabled = makeRuleMeta('json-off', 'uuid-off', 'https://off.com', false);
+    setPomApi({ booksourceListJson: vi.fn(async () => [ok, disabled]) });
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    reg.registerJsAdapter(makeMockJsAdapter('js-a', 'uuid-js-a', 'https://js-a.com'));
+    await reg.loadAllRuleAdapters({} as RuleEngineService);
+    expect(reg.supportedSources()).toEqual(['json-ok', 'js-a']);
+    expect(reg.getByUuid('uuid-ok')).toBeDefined();
+    expect(reg.getByUuid('uuid-off')).toBeUndefined();
   });
 });

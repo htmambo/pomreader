@@ -1,0 +1,34 @@
+{
+  "format": "pomreader.booksource",
+  "schemaVersion": 1,
+  "uuid": "sample-extra.json",
+  "name": "样本增强站",
+  "author": "智能添加",
+  "description": "差分测试样本 sample-extra（中性占位，非真实站点）",
+  "homepage": "https://sample-extra.invalid",
+  "urls": [
+    "https://sample-extra.invalid"
+  ],
+  "enabled": true,
+  "sourceType": "novel",
+  "sourceVersion": "1.2.0",
+  "tags": [
+    "智能识别"
+  ],
+  "minDelayMs": 0,
+  "requireUrls": [],
+  "headers": {},
+  "rules": {
+    "siteName": "样本增强站",
+    "searchPath": "/search?keyword={keyword}",
+    "searchItemPattern": "css:dl.result dd",
+    "searchAuthorPattern": "css:span.author",
+    "searchCategoryPattern": "css:span.cat",
+    "bookTitlePattern": "css:h1.book-title",
+    "bookAuthorPattern": "css:span.author",
+    "bookCategoryPattern": "css:span.category",
+    "chapterItemPattern": "css:ul.chapters a",
+    "contentPattern": "css:div#content",
+    "coverUrlPattern": "css:img.cover"
+  }
+}

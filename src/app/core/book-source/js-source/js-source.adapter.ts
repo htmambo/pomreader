@@ -11,6 +11,9 @@
  * - legado 标准字段在前（name / author / url）；兼容字段在后（title / bookName / writer / bookUrl / link / description）
  * - 全部用 pickString helper 做 fallback 链，不写 `||` 字面量
  * - pickString 接受任意对象，内部防御 null / 非 plain object
+ *
+ * pickString / toRawSearchItem / buildHostPattern / MAX_SEARCH_RESULTS 已抽共用至
+ * ../source-parse.utils.ts（P1：JsonRuleAdapter 需要同一套 legado 兼容链，复制会漂移）。
  */
 import {
   type BookSourceAdapter,
@@ -20,6 +23,12 @@ import {
   type ResolvedBook,
 } from '../book-source.adapter';
 import { FetchError } from '../fetch-error';
+import {
+  buildHostPattern,
+  MAX_SEARCH_RESULTS,
+  pickString,
+  toRawSearchItem,
+} from '../source-parse.utils';
 import { SandboxService } from './sandbox.service';
 import { type BookSourceMeta } from './source-meta.types';
 
@@ -99,12 +108,6 @@ export class JsSourceAdapter implements BookSourceAdapter {
   }
 
   /**
-   * 单书源 search() 返回结果上限（legado 普遍 10-50 条；100 是宽限兜底，
-   * 防止畸形返回拖垮前端渲染 / 污染聚合去重 key 池）。
-   */
-  private static readonly MAX_SEARCH_RESULTS = 100;
-
-  /**
    * 跨书源聚合搜索的 duck-typed 入口（FR-2 + MultiSourceSearchService.searchAll 过滤条件）。
    * 委托给沙箱内 legado 书源脚本的 `search(keyword, page)` 函数，兼容 legado 风格命名差异。
    *
@@ -125,7 +128,7 @@ export class JsSourceAdapter implements BookSourceAdapter {
       return raw
         .map(toRawSearchItem)
         .filter((it): it is RawSearchItem => it !== null)
-        .slice(0, JsSourceAdapter.MAX_SEARCH_RESULTS);
+        .slice(0, MAX_SEARCH_RESULTS);
     } catch (e) {
       // 结构化日志：Tag 前缀方便 DevTools 检索；throw 由调用方（MultiSourceSearchService.searchAll
       // 用 Promise.allSettled 隔离）兜底，不会拖累整个聚合搜索
@@ -166,77 +169,5 @@ export class JsSourceAdapter implements BookSourceAdapter {
     const read = pom?.booksourceRead;
     if (!read) throw new FetchError('source-unavailable', 'booksourceRead IPC 不可用');
     return await read(this.meta.fileName, this.meta.sourceDir || null);
-  }
-}
-
-/**
- * legado search 返回项 → RawSearchItem 规范化（与 fetchCatalog 同一套 fallback 约定）：
- * - 标准在前：name / author / url / intro
- * - 兼容在后：title / bookUrl / description + 各类常见命名（by/bookAuthor/novelType 等）
- * 非 plain object 一律丢弃；name/url 都为空（即 `[{}]` / `[{name: ""}]`）也丢弃，
- * 避免污染聚合去重 key 池与前端渲染幽灵条目。
- *
- * 调试日志：首次调用时 console.debug 打印原始对象的 keys，便于排查书源 script
- * 实际使用的字段名（如果所有 fallback 都没命中，按 console 输出收紧 fallback 链）。
- */
-let toRawSearchItemLogged = false;
-function toRawSearchItem(raw: unknown): RawSearchItem | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const obj = raw as Record<string, unknown>;
-  if (!toRawSearchItemLogged) {
-    toRawSearchItemLogged = true;
-    console.debug('[JsSourceAdapter] 调试：search() 第一条原始数据 keys =', Object.keys(obj));
-  }
-  const name = pickString(obj, 'name', 'title');
-  const url = pickString(obj, 'url', 'bookUrl', 'link', 'href');
-  if (!name && !url) return null;
-  return {
-    name,
-    author: pickString(obj, 'author', 'writer', 'creator', 'by', 'bookAuthor', 'authorName'),
-    kind: pickString(
-      obj,
-      'kind',
-      'genre',
-      'category',
-      'class',
-      'type',
-      'sort',
-      'tag',
-      'classify',
-      'bookType',
-      'novelType',
-    ),
-    url,
-    intro: pickString(obj, 'intro', 'description', 'summary', 'desc', 'brief'),
-  };
-}
-
-/**
- * 按序取首个非空字符串（trim 后空字符串也算无值）。fallback 链统一规范：
- * - 入参 it 接受任意对象（含 null/undefined）；内部防御，非 plain object 返回 undefined
- * - caller 不用预先做 cast 或 null 检查
- */
-function pickString(it: unknown, ...keys: string[]): string | undefined {
-  if (!it || typeof it !== 'object') return undefined;
-  const rec = it as Record<string, unknown>;
-  for (const k of keys) {
-    const v = rec[k];
-    if (typeof v === 'string') {
-      const trimmed = v.trim();
-      if (trimmed) return trimmed;
-    }
-  }
-  return undefined;
-}
-
-/** 主机名 → 正则（剥 www.，转义点号；与 base-source.adapter.ts 思路一致） */
-function buildHostPattern(mainUrl: string): RegExp | null {
-  if (!mainUrl) return null;
-  try {
-    const u = new URL(mainUrl);
-    const host = u.hostname.replace(/^www\./, '').replace(/\./g, '\\.');
-    return new RegExp(`^https?://([^/]+\\.)?${host}(/|$)`);
-  } catch {
-    return null;
   }
 }

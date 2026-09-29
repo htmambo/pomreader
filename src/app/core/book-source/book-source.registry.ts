@@ -12,7 +12,9 @@ import { FetchError } from './fetch-error';
 import { JsSourceAdapter } from './js-source/js-source.adapter';
 import { SandboxService } from './js-source/sandbox.service';
 import { type BookSourceMeta } from './js-source/source-meta.types';
-import { BOOK_SOURCE_FEATURE_FLAGS } from './feature-flag';
+import { jsEngineEnabled, ruleEngineEnabled } from './feature-flag';
+import { JsonRuleAdapter } from './json-rule/json-rule.adapter';
+import { RuleEngineService } from './json-rule/rule-engine.service';
 import { UNIVERSAL_BOOK_SOURCE_UUID } from './book-source.constants';
 
 /**
@@ -55,8 +57,24 @@ export class BookSourceRegistry {
   }
 
   /**
+   * 注册 JSON 规则书源适配器（方案 §3.3 / P1）：插入到所有 JS 适配器之前。
+   * - resolve 按数组序 first-match，JSON 在 JS 前 → 同 uuid / 同域名时 JSON 胜出（JSON > JS）。
+   * - 决策说明：方案字面优先级「JSON > JS > 内置适配器」，但为避免破坏现有阅读功能，
+   *   不改变内置/启发式适配器的现有优先级（仍排最前）；实际顺序为「内置 > 启发式 > JSON > JS」。
+   * - 用 instanceof JsSourceAdapter 定位插入点（本模块已 import 该类，无新增耦合）。
+   */
+  registerRuleAdapter(adapter: JsonRuleAdapter): void {
+    const firstJsIdx = this.adapters.findIndex((a) => a instanceof JsSourceAdapter);
+    if (firstJsIdx === -1) {
+      this.adapters.push(adapter);
+    } else {
+      this.adapters.splice(firstJsIdx, 0, adapter);
+    }
+  }
+
+  /**
    * 启动时拉取全部书源元数据，逐个构造 JsSourceAdapter 注册。
-   * - Feature Flag 关 → 直接返回（实现计划 §8 回滚）
+   * - 运行时开关 jsEngineEnabled() 为 false → 直接返回（P1 运行时开关，取代原编译期 flag）
    * - preload 不可用（浏览器降级） → 直接返回
    * - 单条书源失败 → console.warn 跳过，不阻塞其他
    *
@@ -64,10 +82,8 @@ export class BookSourceRegistry {
    *        调 `inject()` 会抛 NG0203）。不传时尝试内部 inject（仅 forTest / 直接调用场景可用）
    */
   async loadAllJsAdapters(externalSandbox?: SandboxService): Promise<void> {
-    if (!BOOK_SOURCE_FEATURE_FLAGS.enableJsSource) {
-      console.warn(
-        '[registry] loadAllJsAdapters 早返回：BOOK_SOURCE_FEATURE_FLAGS.enableJsSource = false',
-      );
+    if (!jsEngineEnabled()) {
+      console.warn('[registry] loadAllJsAdapters 早返回：运行时开关 jsEngineEnabled() = false');
       return;
     }
     const pom =
@@ -117,6 +133,72 @@ export class BookSourceRegistry {
       );
     } catch (err) {
       console.warn('[registry] 拉取书源列表失败:', err);
+    }
+  }
+
+  /**
+   * 启动时拉取全部 JSON 规则书源元数据，逐个构造 JsonRuleAdapter 注册（方案 §3.3 / P1）。
+   * 结构与 loadAllJsAdapters 镜像：
+   * - 运行时开关 ruleEngineEnabled() 为 false → 直接返回
+   * - window.pomAPI.booksourceListJson 不存在（P2 才实现该 IPC，过渡期预期）→ console.warn 直接返回
+   * - 单条书源失败 → console.warn 跳过，不阻塞其他
+   *
+   * @param externalService 可选：外部传入的 RuleEngineService（推荐，APP_INITIALIZER 等异步上下文中
+   *        调 `inject()` 会抛 NG0203）。不传时尝试内部 inject（仅 forTest / 直接调用场景可用）
+   */
+  async loadAllRuleAdapters(externalService?: RuleEngineService): Promise<void> {
+    if (!ruleEngineEnabled()) {
+      console.warn('[registry] loadAllRuleAdapters 早返回：运行时开关 ruleEngineEnabled() = false');
+      return;
+    }
+    const pom =
+      typeof window !== 'undefined'
+        ? (
+            window as unknown as {
+              // P2 的 scanJsonDir 产出同构 BookSourceMeta[]，此处按 BookSourceMeta[] 处理（本地 cast）
+              pomAPI?: { booksourceListJson?: () => Promise<BookSourceMeta[]> };
+            }
+          ).pomAPI
+        : undefined;
+    if (!pom?.booksourceListJson) {
+      console.warn(
+        '[registry] loadAllRuleAdapters 早返回：window.pomAPI.booksourceListJson 不存在（preload 未注册 / 非 Electron 环境）',
+      );
+      return;
+    }
+    let service: RuleEngineService | undefined = externalService;
+    if (!service) {
+      try {
+        service = inject(RuleEngineService);
+      } catch (e) {
+        console.warn(
+          '[registry] loadAllRuleAdapters 早返回：inject(RuleEngineService) 失败（无 Angular 注入上下文）',
+          e,
+        );
+        return;
+      }
+    }
+    try {
+      const list = await pom.booksourceListJson();
+      let registered = 0;
+      const registeredNames: string[] = [];
+      for (const meta of list) {
+        if (!meta.enabled) continue;
+        try {
+          const adapter = new JsonRuleAdapter(meta, service);
+          this.registerRuleAdapter(adapter);
+          registered++;
+          registeredNames.push(adapter.name);
+        } catch (err) {
+          console.warn(`[registry] 加载 JSON 书源 ${meta.fileName} 失败:`, err);
+        }
+      }
+      console.info(
+        `[registry] ✓ loadAllRuleAdapters 完成：注册 ${registered} 个 JSON 书源`,
+        registeredNames,
+      );
+    } catch (err) {
+      console.warn('[registry] 拉取 JSON 书源列表失败:', err);
     }
   }
 

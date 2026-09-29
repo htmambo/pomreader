@@ -25,7 +25,11 @@ export class CfPromptService {
     SandboxService.cfChallengeHook = (url) => this.prompt(url);
   }
 
-  private prompt(url: string): void {
+  /**
+   * CF Tier 2 弹窗（public 自 P1：RuleEngineService 的 booksourceHttpProxy 链路直接调用，
+   * 方案 §3.2 配套 a；沙箱链路的 cfChallengeHook 注册保留，P4 删沙箱前两条链路共存）
+   */
+  prompt(url: string): void {
     const cfManual = window.pomAPI?.cfPassManual;
     if (!cfManual) return;
     let host: string;
