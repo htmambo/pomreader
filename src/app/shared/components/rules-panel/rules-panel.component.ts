@@ -7,6 +7,7 @@ import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { PageFetcherService } from '../../../core/book-source/page-fetcher.service';
 import {
+  type PaginationRule,
   type SearchMethod,
   type SourceRules,
   applyContentReplaceRules,
@@ -20,6 +21,25 @@ import {
   randomTestKeyword,
   stripTags,
 } from '../../../core/book-source/smart-add/smart-rules';
+
+/**
+ * 打包一组分页子字段：区域规则为空 = 未启用（不输出该字段，即使填了白名单/页数）；
+ * 区域非空才输出对象，白名单/页数留空则省略对应键。
+ */
+function buildPaginationRule(
+  area: string,
+  linkPattern: string,
+  maxPages: string,
+): PaginationRule | undefined {
+  const trimmedArea = area.trim();
+  if (!trimmedArea) return undefined;
+  const rule: PaginationRule = { area: trimmedArea };
+  const trimmedPattern = linkPattern.trim();
+  if (trimmedPattern) rule.linkPattern = trimmedPattern;
+  const pages = Number.parseInt(maxPages.trim(), 10);
+  if (Number.isFinite(pages) && pages > 0) rule.maxPages = pages;
+  return rule;
+}
 
 interface StageSample {
   label: string;
@@ -111,6 +131,14 @@ export class RulesPanelComponent {
   ]);
   readonly bookCategory = signal('');
 
+  // ── 分页字段（目录 / 正文各一组;三组子字段全空 = 未启用,getRules 不输出） ──
+  readonly tocPaginationArea = signal('');
+  readonly tocPaginationLinkPattern = signal('');
+  readonly tocPaginationMaxPages = signal('');
+  readonly contentPaginationArea = signal('');
+  readonly contentPaginationLinkPattern = signal('');
+  readonly contentPaginationMaxPages = signal('');
+
   // ── 关联状态(测试串联用) ──
   readonly keyword = signal(randomTestKeyword());
   readonly bookUrl = signal('');
@@ -128,24 +156,39 @@ export class RulesPanelComponent {
   private bookHtml = '';
 
   /** 打包规则字段,父组件可用 effect 监听变化 */
-  readonly rules = computed<SourceRules>(() => ({
-    siteName: this.siteName(),
-    searchPath: this.searchPath(),
-    searchMethod: this.searchMethod(),
-    searchBodyParams: this.searchBodyParams(),
-    searchContentType: this.searchContentType(),
-    searchRawBody: this.searchRawBody(),
-    searchItemPattern: this.searchItem(),
-    searchAuthorPattern: this.searchAuthor(),
-    searchCategoryPattern: this.searchCategory(),
-    bookTitlePattern: this.bookTitle(),
-    coverUrlPattern: this.bookCover(),
-    bookAuthorPattern: this.bookAuthor(),
-    chapterItemPattern: this.chapterItem(),
-    contentPattern: this.content(),
-    contentReplaceRules: this.contentReplaceRules().filter((r) => r.rule.trim()),
-    bookCategoryPattern: this.bookCategory(),
-  }));
+  readonly rules = computed<SourceRules>(() => {
+    const out: SourceRules = {
+      siteName: this.siteName(),
+      searchPath: this.searchPath(),
+      searchMethod: this.searchMethod(),
+      searchBodyParams: this.searchBodyParams(),
+      searchContentType: this.searchContentType(),
+      searchRawBody: this.searchRawBody(),
+      searchItemPattern: this.searchItem(),
+      searchAuthorPattern: this.searchAuthor(),
+      searchCategoryPattern: this.searchCategory(),
+      bookTitlePattern: this.bookTitle(),
+      coverUrlPattern: this.bookCover(),
+      bookAuthorPattern: this.bookAuthor(),
+      chapterItemPattern: this.chapterItem(),
+      contentPattern: this.content(),
+      contentReplaceRules: this.contentReplaceRules().filter((r) => r.rule.trim()),
+      bookCategoryPattern: this.bookCategory(),
+    };
+    const tocPagination = buildPaginationRule(
+      this.tocPaginationArea(),
+      this.tocPaginationLinkPattern(),
+      this.tocPaginationMaxPages(),
+    );
+    if (tocPagination) out.tocPagination = tocPagination;
+    const contentPagination = buildPaginationRule(
+      this.contentPaginationArea(),
+      this.contentPaginationLinkPattern(),
+      this.contentPaginationMaxPages(),
+    );
+    if (contentPagination) out.contentPagination = contentPagination;
+    return out;
+  });
 
   private readonly fetcher = inject(PageFetcherService);
 
@@ -176,6 +219,22 @@ export class RulesPanelComponent {
       );
     }
     if (rules.bookCategoryPattern !== undefined) this.bookCategory.set(rules.bookCategoryPattern);
+    if (rules.tocPagination !== undefined) {
+      this.tocPaginationArea.set(rules.tocPagination.area);
+      this.tocPaginationLinkPattern.set(rules.tocPagination.linkPattern ?? '');
+      this.tocPaginationMaxPages.set(
+        rules.tocPagination.maxPages !== undefined ? String(rules.tocPagination.maxPages) : '',
+      );
+    }
+    if (rules.contentPagination !== undefined) {
+      this.contentPaginationArea.set(rules.contentPagination.area);
+      this.contentPaginationLinkPattern.set(rules.contentPagination.linkPattern ?? '');
+      this.contentPaginationMaxPages.set(
+        rules.contentPagination.maxPages !== undefined
+          ? String(rules.contentPagination.maxPages)
+          : '',
+      );
+    }
   }
 
   /** 父组件读取当前规则(用于保存/生成代码) */
@@ -201,6 +260,12 @@ export class RulesPanelComponent {
     this.content.set('');
     this.contentReplaceRules.set([{ rule: '', replace: '' }]);
     this.bookCategory.set('');
+    this.tocPaginationArea.set('');
+    this.tocPaginationLinkPattern.set('');
+    this.tocPaginationMaxPages.set('');
+    this.contentPaginationArea.set('');
+    this.contentPaginationLinkPattern.set('');
+    this.contentPaginationMaxPages.set('');
     this.keyword.set(randomTestKeyword());
     this.bookUrl.set('');
     this.chapterUrl.set('');

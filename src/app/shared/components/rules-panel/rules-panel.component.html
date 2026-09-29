@@ -224,6 +224,43 @@
         测试目录
       </button>
     </div>
+    <!-- 目录分页（可选）:区域规则留空 = 单页目录(现状行为);白名单/页数在区域为空时不生效 -->
+    <div class="body-params">
+      <div class="body-params-header">
+        <span class="body-params-title">分页（可选）</span>
+        <span class="body-params-hint">目录分多页时填分页区域规则;留空 = 单页目录</span>
+      </div>
+      <div class="field-row">
+        <span class="field-label">分页区域</span>
+        <input
+          nz-input
+          [ngModel]="tocPaginationArea()"
+          (ngModelChange)="tocPaginationArea.set($event)"
+          class="mono grow"
+          placeholder="可选 · 如 css:.pagination 或正则(区域内全部链接视为翻页)"
+        />
+      </div>
+      <div class="field-row">
+        <span class="field-label">链接白名单</span>
+        <input
+          nz-input
+          [ngModel]="tocPaginationLinkPattern()"
+          (ngModelChange)="tocPaginationLinkPattern.set($event)"
+          class="mono grow"
+          placeholder="可选 · 正则;不填按 URL 页码位自动推断"
+        />
+      </div>
+      <div class="field-row">
+        <span class="field-label">最大页数</span>
+        <input
+          nz-input
+          [ngModel]="tocPaginationMaxPages()"
+          (ngModelChange)="tocPaginationMaxPages.set($event)"
+          class="mono grow"
+          placeholder="缺省 100(上限 200)"
+        />
+      </div>
+    </div>
     @if (chapterStage().error) {
     <div class="stage-error">{{ chapterStage().error }}</div>
     } @if (chapterStage().summary) {
@@ -265,6 +302,44 @@
         <span nz-icon [nzType]="runningTest() === 'content' ? 'loading' : 'play-circle'"></span>
         测试正文
       </button>
+    </div>
+
+    <!-- 正文分页（可选）:区域规则留空 = 单页正文(现状行为);白名单/页数在区域为空时不生效 -->
+    <div class="body-params">
+      <div class="body-params-header">
+        <span class="body-params-title">分页（可选）</span>
+        <span class="body-params-hint">正文分多页时填分页区域规则;留空 = 单页正文</span>
+      </div>
+      <div class="field-row">
+        <span class="field-label">分页区域</span>
+        <input
+          nz-input
+          [ngModel]="contentPaginationArea()"
+          (ngModelChange)="contentPaginationArea.set($event)"
+          class="mono grow"
+          placeholder="可选 · 如 css:.pagebar 或正则(区域内全部链接视为翻页)"
+        />
+      </div>
+      <div class="field-row">
+        <span class="field-label">链接白名单</span>
+        <input
+          nz-input
+          [ngModel]="contentPaginationLinkPattern()"
+          (ngModelChange)="contentPaginationLinkPattern.set($event)"
+          class="mono grow"
+          placeholder="可选 · 正则;不填按 URL 页码位自动推断"
+        />
+      </div>
+      <div class="field-row">
+        <span class="field-label">最大页数</span>
+        <input
+          nz-input
+          [ngModel]="contentPaginationMaxPages()"
+          (ngModelChange)="contentPaginationMaxPages.set($event)"
+          class="mono grow"
+          placeholder="缺省 20(上限 200)"
+        />
+      </div>
     </div>
 
     <!-- 正文净化规则:多条动态行,正文提取后按顺序执行(正则 g 全局替换,替换为留空 = 删除) -->

@@ -79,4 +79,73 @@ describe('RulesPanelComponent — 面板 ↔ JSON 字段 round-trip', () => {
     const rules = panel.getRules();
     expect(rules.contentReplaceRules).toEqual([{ rule: '广告', replace: '' }]);
   });
+
+  it('分页字段 set → get 保真（tocPagination 全子字段 + contentPagination 仅 area）', () => {
+    const panel = makePanel();
+    const rules: SourceRules = {
+      ...makeFullRules(),
+      tocPagination: { area: 'css:.pagination', linkPattern: '/book/\\d+\\.html', maxPages: 50 },
+      contentPagination: { area: 'css:.pagebar' },
+    };
+    panel.setRules(rules);
+    expect(panel.getRules()).toEqual(rules);
+  });
+
+  it('分页子字段全空 → getRules 不输出 tocPagination / contentPagination（无分页时文档零变化）', () => {
+    const panel = makePanel();
+    panel.setRules(makeFullRules());
+    const rules = panel.getRules();
+    expect('tocPagination' in rules).toBe(false);
+    expect('contentPagination' in rules).toBe(false);
+  });
+
+  it('仅填分页区域 → 输出仅含 area 的对象；白名单/页数键省略', () => {
+    const panel = makePanel();
+    panel.tocPaginationArea.set('css:.pagination');
+    const rules = panel.getRules();
+    expect(rules.tocPagination).toEqual({ area: 'css:.pagination' });
+    expect('contentPagination' in rules).toBe(false);
+  });
+
+  it('区域为空但填了白名单/页数 → 视为未启用，不输出该字段', () => {
+    const panel = makePanel();
+    panel.tocPaginationLinkPattern.set('page_\\d+');
+    panel.tocPaginationMaxPages.set('30');
+    panel.contentPaginationMaxPages.set('10');
+    const rules = panel.getRules();
+    expect('tocPagination' in rules).toBe(false);
+    expect('contentPagination' in rules).toBe(false);
+  });
+
+  it('最大页数接受数字字符串、非法输入省略 maxPages 键', () => {
+    const panel = makePanel();
+    panel.contentPaginationArea.set('css:.pagebar');
+    panel.contentPaginationMaxPages.set('20');
+    expect(panel.getRules().contentPagination).toEqual({
+      area: 'css:.pagebar',
+      maxPages: 20,
+    });
+
+    const panel2 = makePanel();
+    panel2.contentPaginationArea.set('css:.pagebar');
+    panel2.contentPaginationMaxPages.set('abc');
+    expect(panel2.getRules().contentPagination).toEqual({
+      area: 'css:.pagebar',
+    });
+  });
+
+  it('含分页字段的 JSON 落盘往返不变（stringify → parse → setRules → getRules）', () => {
+    const panel = makePanel();
+    const rules: SourceRules = {
+      ...makeFullRules(),
+      tocPagination: { area: 'css:.pagination', maxPages: 100 },
+      contentPagination: { area: 'css:.pagebar', linkPattern: 'chapter_\\d+' },
+    };
+    panel.setRules(rules);
+    const persisted = JSON.parse(JSON.stringify(panel.getRules())) as SourceRules;
+
+    const panel2 = makePanel();
+    panel2.setRules(persisted);
+    expect(panel2.getRules()).toEqual(rules);
+  });
 });
