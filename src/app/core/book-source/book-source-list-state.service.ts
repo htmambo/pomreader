@@ -1,5 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import { type BookSourceMeta } from './source-meta.types';
+import { ToastService } from '../services/toast.service';
 
 /**
  * 书源管理列表页会话级状态（root service，路由切换不销毁）
@@ -16,7 +17,8 @@ import { type BookSourceMeta } from './source-meta.types';
  * - stale-while-revalidate：组件 init 时若已有缓存立即展示，
  *   同时后台再走一次 IPC 刷新（保证启停/删除结果与磁盘一致）
  * - 启停/删除在服务内直接 patch 缓存，无需回组件层
- * - 监听主进程 'pom:booksource-updated' 广播（bundle 导入 / 订阅写入后）→ 后台静默刷新
+ * - 监听主进程 'pom:booksource-updated' 广播（bundle 导入 / 订阅写入后）→ 后台静默刷新；
+ *   payload.source === 'subscription'（订阅自动更新）时另弹更新 toast（设计 §6.3）
  */
 
 /** booksources_legacy/ 中的未迁移 JS 源（LegacyItem 同构，含 legacy 目录绝对路径 sourceDir） */
@@ -33,6 +35,8 @@ type PomAdmin = {
   booksourceDeleteJson?: (fileName: string, sourceDir?: string) => Promise<void>;
   booksourceLegacyList?: () => Promise<LegacySourceItem[]>;
   booksourceDelete?: (fileName: string, sourceDir?: string) => Promise<void>;
+  /** 订阅列表（Phase 2；订阅广播 toast 时用于把 subscriptionId 解析成订阅名） */
+  booksourceSubList?: PomBookSourceSubscriptionApi['booksourceSubList'];
   /** 通用事件订阅（preload on）：bundle 导入 / 订阅写入后 'pom:booksource-updated' 广播走这里 */
   on?: (channel: string, listener: (...args: unknown[]) => void) => () => void;
 };
@@ -55,14 +59,45 @@ export class BookSourceListStateService {
   /** 当前是否在后台刷新（缓存已展示，不阻塞 UI） */
   readonly refreshing = signal(false);
 
-  constructor() {
+  constructor(private readonly toast: ToastService) {
     // bundle 导入 / 订阅自动更新写盘后，主进程广播 'pom:booksource-updated'
-    // （设计 §5.2 / §6.3）→ 后台静默刷新列表，与手动导入共用同一条 refresh 路径
-    pomApi()?.on?.('pom:booksource-updated', () => {
+    // （设计 §5.2 / §6.3）→ 后台静默刷新列表，与手动导入共用同一条 refresh 路径；
+    // payload.source === 'subscription' 时另弹订阅更新 toast（设计 §6.3「渲染层弹 toast」）
+    pomApi()?.on?.('pom:booksource-updated', (payload: unknown) => {
       void this.refresh(false).catch(() => {
         /* IPC 不可用等失败静默：列表保持缓存原样，下次进页面还会再刷 */
       });
+      void this.notifySubscriptionUpdate(payload);
     });
+  }
+
+  /**
+   * 订阅更新广播 toast（设计 §6.3；Phase 2 任务约定）
+   *
+   * payload 只带 subscriptionId，尽力经 booksourceSubList 解析订阅名展示，失败回退 id。
+   * conflicts > 0 用 warn：本 Phase 冲突只提示（设计未定义冲突解决交互），文案如实说明
+   * 「已跳过自动写入」。bundle-import 等其他 source 不弹（导入弹窗自身已有结果 toast）。
+   */
+  private async notifySubscriptionUpdate(payload: unknown): Promise<void> {
+    const p = payload as Partial<BookSourceSubUpdatedPayload> | null | undefined;
+    if (p?.source !== 'subscription') return;
+    const changed = p.changed ?? 0;
+    const conflicts = p.conflicts ?? 0;
+    let label = p.subscriptionId ?? '';
+    try {
+      const subs = await pomApi()?.booksourceSubList?.();
+      const hit = subs?.find((s) => s.id === p.subscriptionId);
+      if (hit) label = hit.name;
+    } catch {
+      /* 名称解析失败回退展示 subscriptionId */
+    }
+    if (conflicts > 0) {
+      this.toast.warn(
+        `订阅《${label}》更新 ${changed} 条，${conflicts} 条与本地修改冲突，已跳过自动写入（可在书源「订阅」管理中查看订阅状态）`,
+      );
+    } else {
+      this.toast.success(`订阅《${label}》已更新 ${changed} 个书源`);
+    }
   }
 
   /** 拉取全量书源元数据 + legacy 清单；首次会显示 loading，后续走后台刷新不阻塞 */

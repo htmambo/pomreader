@@ -27,6 +27,7 @@ import {
 import { ImportLegadoComponent } from '../../modals/import-legado/import-legado.component';
 import { ExportBookSourcesComponent } from '../../modals/export-book-sources/export-book-sources.component';
 import { ImportBookSourceBundleComponent } from '../../modals/import-book-source-bundle/import-book-source-bundle.component';
+import { BookSourceSubscriptionsComponent } from '../../modals/book-source-subscriptions/book-source-subscriptions.component';
 
 type PomRead = {
   booksourceRead?: (fileName: string, sourceDir?: string) => Promise<string>;
@@ -226,6 +227,17 @@ export class BookSourceListComponent {
       nzContent: ExportBookSourcesComponent,
       nzFooter: null,
       nzWidth: 640,
+      nzMaskClosable: false,
+    });
+  }
+
+  /** 打开书源订阅管理弹窗（Phase 2，设计 §6.4）；订阅写入后列表刷新走 pom:booksource-updated 广播 */
+  openSubscriptions(): void {
+    this.modal.create({
+      nzTitle: '书源订阅',
+      nzContent: BookSourceSubscriptionsComponent,
+      nzFooter: null,
+      nzWidth: 760,
       nzMaskClosable: false,
     });
   }

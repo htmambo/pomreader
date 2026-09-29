@@ -52,6 +52,11 @@ declare global {
       booksourceBundleOpen?: PomBookSourceBundleApi['booksourceBundleOpen'];
       /** 书源 bundle 应用勾选决策 */
       booksourceBundleApply?: PomBookSourceBundleApi['booksourceBundleApply'];
+      /** 书源订阅 CRUD / 立即检查（Phase 2，契约见 src/typings/booksource-subscription.d.ts） */
+      booksourceSubList?: PomBookSourceSubscriptionApi['booksourceSubList'];
+      booksourceSubSave?: PomBookSourceSubscriptionApi['booksourceSubSave'];
+      booksourceSubDelete?: PomBookSourceSubscriptionApi['booksourceSubDelete'];
+      booksourceSubCheck?: PomBookSourceSubscriptionApi['booksourceSubCheck'];
     };
   }
 }

@@ -1,0 +1,88 @@
+<div class="book-source-subscriptions">
+  <p class="hint">
+    订阅远端书源 bundle，主进程按设定间隔自动检查更新；变更自动写入本地，与本地修改冲突的条目会跳过并提示。
+  </p>
+
+  <div class="toolbar">
+    <button nz-button nzType="primary" nzSize="small" (click)="startAdd()">
+      <span nz-icon nzType="plus"></span> 新增订阅
+    </button>
+    <span class="count-hint">共 {{ items().length }} 条订阅</span>
+  </div>
+
+  @if (loadError(); as err) {
+  <nz-alert nzType="error" [nzMessage]="err" nzShowIcon></nz-alert>
+  } @if (editing(); as form) {
+  <div class="sub-form">
+    <div class="form-row">
+      <input nz-input class="name-input" placeholder="订阅名称" [(ngModel)]="form.name" />
+      <input nz-input class="url-input" placeholder="订阅 URL（书源 bundle 地址，https://…）" [(ngModel)]="form.url" />
+    </div>
+    <div class="form-row">
+      <span class="form-label">检查间隔</span>
+      <nz-input-number [(ngModel)]="form.intervalHours" [nzMin]="1" [nzMax]="720"></nz-input-number>
+      <span class="form-label">小时</span>
+      <nz-switch [(ngModel)]="form.enabled"></nz-switch>
+      <span class="form-label">{{ form.enabled ? '启用' : '停用' }}</span>
+      <span class="form-actions">
+        <button nz-button nzSize="small" (click)="cancelEdit()">取消</button>
+        <button
+          nz-button
+          nzType="primary"
+          nzSize="small"
+          [disabled]="!canSave()"
+          [nzLoading]="saving()"
+          (click)="save()"
+        >
+          {{ form.id ? '保存' : '新增' }}
+        </button>
+      </span>
+    </div>
+  </div>
+  } @if (loading()) {
+  <div class="state-block">
+    <nz-spin nzSimple></nz-spin>
+  </div>
+  } @else if (items().length === 0) {
+  <nz-empty nzNotFoundContent="暂无订阅，点击「新增订阅」添加"></nz-empty>
+  } @else {
+  <nz-table #subTable [nzData]="items()" nzSize="small" [nzShowPagination]="false">
+    <thead>
+      <tr>
+        <th>名称</th>
+        <th>URL</th>
+        <th>上次检查</th>
+        <th>下次检查</th>
+        <th>状态</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let sub of subTable.data">
+        <td class="cell-name">{{ sub.name }}</td>
+        <td class="cell-url" [title]="sub.url">{{ sub.url }}</td>
+        <td class="cell-time">{{ formatTs(sub.lastCheckedAt) }}</td>
+        <td class="cell-time">{{ nextCheckText(sub) }}</td>
+        <td>
+          <nz-tag [nzColor]="sub.enabled ? 'green' : 'default'"> {{ sub.enabled ? '启用中' : '已停用' }} </nz-tag>
+          @if (sub.lastError) {
+          <div class="last-error" [title]="sub.lastError">最近失败：{{ sub.lastError }}</div>
+          }
+        </td>
+        <td class="cell-actions">
+          <nz-switch [ngModel]="sub.enabled" (ngModelChange)="setEnabled(sub, $event)"></nz-switch>
+          <button nz-button nzType="link" nzSize="small" [nzLoading]="checkingId() === sub.id" (click)="checkNow(sub)">
+            立即检查
+          </button>
+          <button nz-button nzType="link" nzSize="small" (click)="startEdit(sub)">编辑</button>
+          <button nz-button nzType="link" nzSize="small" nzDanger (click)="confirmDelete(sub)">删除</button>
+        </td>
+      </tr>
+    </tbody>
+  </nz-table>
+  }
+
+  <div class="actions">
+    <button nz-button (click)="close()">关闭</button>
+  </div>
+</div>
