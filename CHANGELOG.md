@@ -11,9 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Features
 
+- **book-source**: JS 书源 → JSON 规则书源改造（P0-P3，方案 [`docs/Architecture/2026-09-29-BOOKSOURCE-JSON-RULES-PLAN.md`](docs/Architecture/2026-09-29-BOOKSOURCE-JSON-RULES-PLAN.md)）—— 书源载体改为 `<userData>/booksources/*.json`（`BookSourceDoc`：meta + `rules` 16 字段，valibot 校验，模型在 `core/models/book-source-doc.model.ts`）；新增 `core/book-source/json-rule/` 规则引擎（行为与旧 JS 模板逐字段等价，含执行护栏 guard.ts；`fixtures/` 差分测试证明四入口一致）；存储/IPC 切 `.json` + 新增 `pom:booksource-convert` / `pom:booksource-migration-report` / `pom:booksource-legacy-list` 三个 channel；主进程启动时自动迁移存量 `.js`（uuid / enabled / headers 保留，`Book.bookSourceUuid` 关联不变），手改源判 needs-manual 归档 `booksources_legacy/`（永不删、永不执行，列表标灰行可查看/删除）+ 迁移报告弹窗；四页改造（编辑器删源码反解析改 meta 表单 + rules-panel / 调试页 RuleTrace 替代 sandbox.progress / 测试页换 RuleEngineService / 智能添加直出 JSON）；运行时开关 localStorage `pom.bookSource.engine` = `rule` / `js` / `both`（默认 `rule`，回滚用）。⚠️ **P4「删除 JS 沙箱链路」（`js-source/` 目录 + `build:worker` + 运行时开关）未随本次发布**
 - **sidebar**: 侧栏改为图标轨（默认 64px 仅图标）+ hover 悬浮展开 200px（主内容不位移），「书源管理」子菜单默认收起；展开/收起时图标列位置不变，面板自右侧收回
 - **bookshelf**: 书架新增分类（legado 分组语义：多分类 + `Book.groupIds`）与阅读状态筛选（全部 / 未读 / 正在读 / 已读完，带计数、两行互为分面）；分类通过 `group:{id}` PouchDB 文档持久化，入口为书卡右键「分类…」/ 批量栏「分类」/ chips 行「管理分类」
 - **book-source**: 搜索结果新增两条**可选增强规则** `SEARCH_AUTHOR_RULE` / `SEARCH_CATEGORY_RULE`（规则模型 `searchAuthorPattern` / `searchCategoryPattern`）—— 作用域是搜索结果条目内部（CSS 条目规则取元素 `innerHTML`；正则条目规则取「本条匹配起点 → 下一条匹配起点」片段），填了才提取，命中后由 `search()` 返回 `{ name, author, kind, bookUrl }` 并在书源搜索页以标签展示；留空返回空串且不影响 name/bookUrl，老书源无此常量亦可运行。规则面板（智能添加页 / 编辑源页）新增「结果-作者 / 结果-分类」输入框与测试搜索命中提示，legado 导入自动映射 `ruleSearch.author` / `ruleSearch.kind`
+
+### Removed
+
+- **electron/preload**: 删除 preload `booksourceEval` / `sourceHealthCheck` 与 IPC channel `pom:booksource-eval`（沙箱时代遗物；调试/测试页与健康检测改走渲染端 `RuleEngineService`，留痕见 `docs/CONVENTIONS.md` §exceptions）
 
 ### Bug Fixes
 

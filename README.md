@@ -50,7 +50,7 @@ npm run dev
 
 ## 书源与扩展
 
-- [书源开发指南](docs/Usage/BOOKSOURCE_GUIDE.md) — JS 书源头部 `@key` 规范、函数签名、`legado.http` 宿主 API、沙箱硬化细节
+- [书源开发指南](docs/Usage/BOOKSOURCE_GUIDE.md) — JSON 书源（BookSourceDoc）字段规范、CSS/正则双模式规则、GET/POST/POST_RAW 搜索、旧 `.js` 自动迁移与 `pom.bookSource.engine` 回滚开关
 - [扩展开发指南](docs/Usage/EXTENSION_GUIDE.md) — UserScript 头部、v1 限制（仅元数据加载 + eval 测试入口）、`ad-remover.js` 示例
 - [封面缓存说明](docs/Usage/COVER_CACHE.md) — 缓存目录、SSRF 防护、`local://` / `asset://` / `data:` / `http(s)` 渲染协议、`/settings/cache` 管理页
 
@@ -60,12 +60,13 @@ npm run dev
 src/
 ├── app/
 │   ├── core/
-│   │   ├── logic/         # 纯函数：chapter-split / text-format / bookshelf-sort / bookshelf-filter / bookshelf-group-name / auto-import-url / convert-chinese / settings-store / build-book-source-doc
-│   │   ├── models/        # Book / Chapter / Settings / BookshelfGroup
-│   │   ├── services/      # BookService / BookshelfGroupService / DbService (PouchDB) / ReaderService / SettingsService 等
-│   │   ├── book-source/   # 书源体系：适配器注册表 + JS 书源沙箱 + legado 订阅源导入
+│   │   ├── logic/         # 纯函数：chapter-split / text-format / bookshelf-sort / bookshelf-filter / bookshelf-group-name / auto-import-url / convert-chinese / settings-store / build-book-source-doc / rule-parse
+│   │   ├── models/        # Book / Chapter / Settings / BookshelfGroup / BookSourceDoc（书源 JSON 文档 + valibot schema）
+│   │   ├── services/      # BookService / BookshelfGroupService / DbService (PouchDB) / ReaderService / SettingsService / CfPromptService / SourceHealthService 等
+│   │   ├── book-source/   # 书源体系：适配器注册表 + JSON 规则引擎 + legado 订阅源导入（source-meta.types.ts 在本层；JS 沙箱链路保留至 P4）
 │   │   │   ├── adapters/  # 专用站（笔趣阁）/ 启发式密度算法兜底
-│   │   │   ├── js-source/ # sandbox.worker（网络出口屏蔽 + 原型冻结）+ 健康检查/多镜像
+│   │   │   ├── json-rule/ # JSON 规则引擎（engine / guard / json-rule.adapter / rule-engine.service）
+│   │   │   ├── js-source/ # JS 书源沙箱（sandbox.worker：网络出口屏蔽 + 原型冻结）；健康检查/CF 弹窗已迁 core/services；P4 整目录删除
 │   │   │   ├── legado/    # Legado 订阅源 JSON 解析/翻译/导入
 │   │   │   ├── smart-add/ # 智能添加规则引擎
 │   │   │   └── source-test/# 书源五步测试
@@ -84,7 +85,7 @@ src/
 ├── assets/
 │   ├── fonts/             # 嵌入字体
 │   ├── themes/            # 主题 JSON（与 data-pom-theme 配对）
-│   └── sandbox.worker.js  # build:worker 产物（esbuild 打包）
+│   └── sandbox.worker.js  # build:worker 产物（esbuild 打包；P4 随 JS 链路删除）
 ├── styles/
 │   ├── tokens.scss
 │   ├── ng-zorro-overrides.scss
@@ -94,17 +95,19 @@ src/
 └── test-setup.ts          # Vitest 初始化（@angular/compiler JIT）
 
 electron/
-├── main.ts                # 主进程入口（BrowserWindow 生命周期 + 单实例锁）
+├── main.ts                # 主进程入口（BrowserWindow 生命周期 + 单实例锁 + 书源启动迁移挂接）
 ├── preload.ts             # contextBridge 桥接（preload 暴露给 renderer 的 API 表）
 ├── window-state.ts        # 窗口位置/尺寸持久化（带边界与可见性校验）
 ├── auto-import.ts         # 文件拖入/剪贴板监听 → 自动入库
-├── ipc/                   # 11 个 IPC handler：booksource / fetch / render / cover / external / cf-guard / encoding / safe-net / net-guard / fetch-session / schema
+├── ipc/                   # 12 个 IPC handler：booksource / booksource-migrate / fetch / render / cover / external / cf-guard / encoding / safe-net / net-guard / fetch-session / schema
 ├── db/                    # 隐藏窗口：db-window.html + db-window.ts + db-renderer.ts（独立 PouchDB 进程隔离）
 ├── scripts/after-install.sh
 ├── www/                   # ng build 产物（生产加载）
 └── *.spec.ts              # electron 侧单测（vitest.config.ts include 已包含）
 
 e2e/                       # Playwright（5 个 spec；配置在仓库根 playwright.config.ts）
+fixtures/                  # 书源差分测试样本：booksources/（脱敏 .js/.json 样本）+ html/（页面快照）+ worker-stub.ts + MANIFEST.md
+scripts/                   # 工具脚本：audit-booksources.ts（书源盘点，P0）+ e2e-*.cjs
 docs/
 ├── Architecture/          # 设计稿（白虎阅读 v1.1）
 ├── Usage/                 # BOOKSOURCE_GUIDE / EXTENSION_GUIDE / COVER_CACHE
@@ -136,7 +139,8 @@ docs/
 
 - `core/logic/chapter-split.ts` — TXT 章节切分（核心算法）
 - `core/services/book.service.ts` — 书架/章节中枢：导入、PouchDB 读写、章节内存缓存
-- `core/book-source/js-source/sandbox.worker.ts` — JS 书源沙箱（屏蔽网络出口 + 冻结原型链 + window/document/localStorage 删除）
+- `core/book-source/json-rule/engine.ts` — JSON 规则引擎（BookSourceDoc.rules 四入口直接执行，行为与旧 JS 模板等价；护栏在 guard.ts）
+- `core/book-source/js-source/sandbox.worker.ts` — JS 书源沙箱（屏蔽网络出口 + 冻结原型链 + window/document/localStorage 删除）；保留至 P4 删除
 - `core/services/settings.service.ts` — 阅读设置持久化与校验；主题经 `app.component.ts` 打在 `<html data-pom-theme>`
 - `core/services/global-error-handler.ts` — 全局异常兜底 → ToastService
 - `core/db/bulk-result.ts` — PouchDB bulkDocs 错误分类工具
@@ -148,8 +152,9 @@ docs/
 - `preload.ts` — contextBridge 桥接表（renderer 可访问的 IPC 白名单）
 - `window-state.ts` — 窗口位置/尺寸持久化（含边界校验 + 显示器可见性判定）
 - `ipc/schema.ts` — valibot IPC 入参 schema + `safeHandle` 工厂（多参数 spread 校验）
-- `ipc/booksource-handler.ts` — 书源 JS 文件 CRUD + 流式列表 + HTTP 代理 + eval 入口
-- `ipc/booksource-meta.ts` — 书源头部解析（@name/@author/@url/@tags 等 20+ 字段）+ 原子写
+- `ipc/booksource-handler.ts` — 书源 JSON 文件 CRUD + 流式列表 + HTTP 代理
+- `ipc/booksource-meta.ts` — 书源 meta 解析（JSON 直连 + 迁移期旧 `// @key` 头解析）+ 原子写
+- `ipc/booksource-migrate.ts` — 存量 `.js` → `.json` 启动迁移（`booksources_legacy/` 归档 + needs-manual 判定 + 迁移报告）
 - `ipc/fetch-handler.ts` — HTTP 抓取入口（encoding 协商 + safeNetRequest + CF Tier 1）
 - `ipc/render-handler.ts` — 隐藏窗口（CF Tier 1 真实浏览器渲染）+ 销毁兜底
 - `ipc/cf-guard.ts` — Cloudflare 挑战判定（基于 HTTP 状态/headers/body 头 4KB）
