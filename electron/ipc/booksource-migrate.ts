@@ -227,11 +227,12 @@ function extractString(source: string, name: string): string {
   return raw;
 }
 
-/** 对象数组常量；旧元组形态 [k, v] 命中时升级为对象（F15）；缺失/解析失败 → null */
+/** 对象数组常量；旧元组形态 [k, v] 命中时升级为对象（F15）；非元组条目同口径归一化
+ * （对象缺键补 ''、裸字符串视为 replace/value=''，与 rule-parse.ts 双向同步）；缺失/解析失败 → null */
 function extractObjArray(
   source: string,
   name: string,
-  upgrade: (item: unknown[]) => unknown,
+  normalize: (item: unknown) => unknown,
 ): unknown[] | null {
   const raw = extractRaw(source, name);
   if (!raw) return null;
@@ -242,7 +243,7 @@ function extractObjArray(
     return null;
   }
   if (!Array.isArray(arr)) return null;
-  return arr.map((item) => (Array.isArray(item) ? upgrade(item) : item));
+  return arr.map(normalize);
 }
 
 /**
@@ -268,10 +269,14 @@ function extractRulesFromJs(source: string): SourceRulesDoc | null {
     siteName,
     searchPath: extractString(source, 'SEARCH_PATH'),
     searchMethod,
-    searchBodyParams: (extractObjArray(source, 'SEARCH_BODY_PARAMS', (t) => ({
-      key: String(t[0] ?? ''),
-      value: String(t[1] ?? ''),
-    })) ?? []) as SearchBodyParam[],
+    searchBodyParams: (extractObjArray(source, 'SEARCH_BODY_PARAMS', (item) => {
+      if (Array.isArray(item)) return { key: String(item[0] ?? ''), value: String(item[1] ?? '') };
+      if (item && typeof item === 'object') {
+        const o = item as Record<string, unknown>;
+        return { key: String(o['key'] ?? ''), value: String(o['value'] ?? '') };
+      }
+      return { key: String(item ?? ''), value: '' };
+    }) ?? []) as SearchBodyParam[],
     searchContentType,
     searchRawBody: extractString(source, 'SEARCH_RAW_BODY'),
     searchItemPattern: extractString(source, 'SEARCH_ITEM_RULE'),
@@ -282,10 +287,15 @@ function extractRulesFromJs(source: string): SourceRulesDoc | null {
     bookAuthorPattern: extractString(source, 'BOOK_AUTHOR_RULE'),
     chapterItemPattern: extractString(source, 'CHAPTER_ITEM_RULE'),
     contentPattern: extractString(source, 'CONTENT_RULE'),
-    contentReplaceRules: (extractObjArray(source, 'CONTENT_REPLACE_RULES', (t) => ({
-      rule: String(t[0] ?? ''),
-      replace: String(t[1] ?? ''),
-    })) ?? []) as ContentReplaceRule[],
+    contentReplaceRules: (extractObjArray(source, 'CONTENT_REPLACE_RULES', (item) => {
+      if (Array.isArray(item))
+        return { rule: String(item[0] ?? ''), replace: String(item[1] ?? '') };
+      if (item && typeof item === 'object') {
+        const o = item as Record<string, unknown>;
+        return { rule: String(o['rule'] ?? ''), replace: String(o['replace'] ?? '') };
+      }
+      return { rule: String(item ?? ''), replace: '' };
+    }) ?? []) as ContentReplaceRule[],
     bookCategoryPattern: extractString(source, 'BOOK_CATEGORY_RULE'),
     coverUrlPattern: extractString(source, 'COVER_RULE'),
   };

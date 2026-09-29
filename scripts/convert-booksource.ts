@@ -125,6 +125,9 @@ async function loadMigrateModule(repoRoot: string): Promise<MigrateModule> {
       bundle: true,
       platform: 'node',
       format: 'esm',
+      // electron 仅为 type 级依赖（schema.ts 已 import type），external 双保险：
+      // 未来若有人引入 runtime electron import，bundle 不内联、报错更清晰
+      external: ['electron'],
       outfile,
       logLevel: 'silent',
     });

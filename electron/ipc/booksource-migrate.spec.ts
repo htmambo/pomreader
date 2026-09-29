@@ -367,6 +367,23 @@ describe('migrateBookSources（迁移四态，§7.2）', () => {
     ]);
   });
 
+  it('CONTENT_REPLACE_RULES 非元组条目归一化（对象缺 replace / 裸字符串），转换产物过结构探针', () => {
+    const drifted = readFixture('sample-regex.js').replace(
+      'const CONTENT_REPLACE_RULES = []',
+      'const CONTENT_REPLACE_RULES = [{"rule":"a","replace":"b"},{"rule":"c"},"d"]',
+    );
+    writeSource('drift.js', drifted);
+
+    const report = migrateBookSources(tmpUserData);
+    expect(report.totals.migrated).toBe(1);
+    expect(report.totals.needsManual).toBe(0);
+    expect(readJson('drift.json').rules.contentReplaceRules).toEqual([
+      { rule: 'a', replace: 'b' },
+      { rule: 'c', replace: '' },
+      { rule: 'd', replace: '' },
+    ]);
+  });
+
   it('幂等：二次运行不产生变化（已处理文件移出扫描集，自然幂等）', () => {
     writeSource('sample-regex.js', readFixture('sample-regex.js'));
     writeSource('sample-manual.js', readFixture('sample-manual.js'));

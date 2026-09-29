@@ -13,7 +13,7 @@
  *
  * 注：项目不升 Angular 19 / 不引 zod；valibot 95% 小于 zod（tree-shakable schema fragments）
  */
-import { IpcMain, IpcMainInvokeEvent } from 'electron';
+import type { IpcMain, IpcMainInvokeEvent } from 'electron';
 import * as v from 'valibot';
 
 /** 通用包络错误（main → renderer 走 error.message） */

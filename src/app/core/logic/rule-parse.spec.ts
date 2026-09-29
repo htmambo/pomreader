@@ -141,6 +141,24 @@ describe('rule-parse', () => {
         { rule: '广告', replace: '' },
       ]);
     });
+
+    it('非元组条目归一化：对象缺键补空串、裸字符串视为 replace/value 为空', () => {
+      const src = makeSource([
+        'const CONTENT_REPLACE_RULES = [{"rule":"a","replace":"b"},{"rule":"c"},"d"]',
+        'const SEARCH_BODY_PARAMS = [{"key":"q"},{"k":"v"},"w"]',
+      ]);
+      const parsed = extractRulesFromJs(src);
+      expect(parsed?.contentReplaceRules).toEqual([
+        { rule: 'a', replace: 'b' },
+        { rule: 'c', replace: '' }, // 手写省略 replace（2026-09-30 实机案例）
+        { rule: 'd', replace: '' }, // 裸字符串 = 删除该正则
+      ]);
+      expect(parsed?.searchBodyParams).toEqual([
+        { key: 'q', value: '' },
+        { key: '', value: '' }, // 无 key/value 键的对象 → 双双空串（不丢条目）
+        { key: 'w', value: '' },
+      ]);
+    });
   });
 
   describe('searchContentType 缺省回填（方案 §4.2：按 method 区分）', () => {
