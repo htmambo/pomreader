@@ -117,7 +117,7 @@ export function parseSelector(rule: string): ParsedSelector {
   };
 }
 
-/** 选择器是否可翻译为 CSS/regex 规则串（注入到 generateSourceCode 的 const XXX_RULE 字段） */
+/** 选择器是否可翻译为 CSS/regex 规则串（写入 BookSourceDoc.rules 的对应规则字段） */
 export function isCssOrRegexKind(p: ParsedSelector): boolean {
   return p.kind === 'css' || p.kind === 'regex' || p.kind === 'literal';
 }

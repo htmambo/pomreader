@@ -14,6 +14,7 @@
  * 含 java.* / source.* / book.* / cookie.* / Packages. / jsLib / loginUrl / loginUi
  * 的源会被 translator 拒绝（请走智能添加手写）。
  */
+import { type BookSourceDoc } from '../../models/book-source-doc.model';
 
 export type LegadoSourceType = 0 | 1 | 2 | 3 | 4 | number;
 /** legado sourceType：0=小说 1=听书 2=视频 3=漫画 4=文件；其他容错为 novel */
@@ -69,13 +70,13 @@ export interface LegadoSource {
 
 /** 单源或订阅列表的导入结果（UI 直接消费） */
 export interface LegadoImportItem {
-  /** 文件名（slug(bookSourceName) + .js；冲突时 UI 给"覆盖/跳过"） */
+  /** 文件名（slug(bookSourceName) + .json；冲突时 UI 给"覆盖/跳过"） */
   fileName: string;
-  /** 派生 uuid（用 bookSourceName 哈希；写盘到 JS 头部 @uuid） */
+  /** 派生 uuid（用 bookSourceName 哈希，与 doc.uuid 同值；历史 .js 头部 @uuid 同语义，D6） */
   uuid: string;
   source: LegadoSource;
-  /** 翻译结果：成功=可执行 JS；失败=骨架 JS（嵌入原始 JSON + 空 stub） */
-  translatedJs: string;
+  /** 翻译结果：成功=可用 BookSourceDoc；失败=骨架 doc（enabled:false + legadoRaw + 占位 rules） */
+  doc: BookSourceDoc;
   /** 是否为骨架（true = 不可执行，需手写） */
   isSkeleton: boolean;
   /** 翻译失败原因（仅 isSkeleton=true 时有值；UI 红字提示） */

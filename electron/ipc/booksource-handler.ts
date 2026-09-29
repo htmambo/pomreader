@@ -9,15 +9,32 @@
 import { IpcMain } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
-import { atomicWrite, safeFileName, scanDir } from './booksource-meta';
+import {
+  atomicWrite,
+  safeFileName,
+  safeJsonFileName,
+  scanDir,
+  scanJsonDir,
+  validateBookSourceDocStructure,
+} from './booksource-meta';
 import { isCfChallenge } from './cf-guard';
 import { safeNetRequest } from './safe-net';
 import { cfFetchHtmlHidden } from './render-handler';
+import {
+  safeHandleWithMeta,
+  BooksourceDeleteJsonArgsSchema,
+  BooksourceListJsonArgsSchema,
+  BooksourceListJsonStreamingArgsSchema,
+  BooksourceSaveJsonArgsSchema,
+  BooksourceToggleJsonArgsSchema,
+} from './schema';
 
 const PRIMARY_DIR = 'booksources';
 const DRAFTS_DIR = 'booksources_drafts';
 const BATCH_SIZE = 50;
 const HTTP_TIMEOUT_MS = 15000;
+/** JSON 书源流式列表的批次事件 channel（与 .js 的 'pom:booksource-batch' 隔离） */
+const JSON_BATCH_CHANNEL = 'pom:booksource-json-batch';
 
 function primaryDir(userData: string): string {
   return path.join(userData, PRIMARY_DIR);
@@ -34,6 +51,21 @@ export function resolvePath(
   sourceDir: string | null | undefined,
 ): string | null {
   const safe = safeFileName(fileName);
+  if (!safe) return null;
+  if (sourceDir) {
+    if (!path.isAbsolute(sourceDir)) return null;
+    return path.join(sourceDir, safe);
+  }
+  return path.join(primaryDir(userData), safe);
+}
+
+/** 同 resolvePath，但 fileName 必须 `.json` 结尾（JSON 书源链路专用） */
+export function resolveJsonPath(
+  userData: string,
+  fileName: string,
+  sourceDir: string | null | undefined,
+): string | null {
+  const safe = safeJsonFileName(fileName);
   if (!safe) return null;
   if (sourceDir) {
     if (!path.isAbsolute(sourceDir)) return null;
@@ -104,6 +136,102 @@ export function registerBookSourceHandler(ipcMain: IpcMain, userData: string): v
     if (!p) throw new Error('非法 fileName');
     return readFileOrFail(p);
   });
+
+  /* ── JSON 书源（BookSourceDoc）channel（方案 §3.4，P2 新增；旧 .js channel 不动） ──
+   * read 复用 pom:booksource-read（按 fileName 读任意文件，.json 天然可用）；
+   * 草稿复用 pom:booksource-save-draft（同样按 fileName 通用），均不新增。 */
+
+  safeHandleWithMeta(
+    ipcMain,
+    'pom:booksource-list-json',
+    'BooksourceListJsonArgs',
+    BooksourceListJsonArgsSchema,
+    () => scanJsonDir(primaryDir(userData)),
+  );
+
+  // JSON 流式列表：镜像 pom:booksource-list-streaming，批次事件走独立 channel
+  safeHandleWithMeta(
+    ipcMain,
+    'pom:booksource-list-json-streaming',
+    'BooksourceListJsonStreamingArgs',
+    BooksourceListJsonStreamingArgsSchema,
+    (e, [requestId]) => {
+      const dir = primaryDir(userData);
+      const sender = e.sender;
+      const send = (payload: Record<string, unknown>): void => {
+        if (sender.isDestroyed()) return;
+        try {
+          sender.send(JSON_BATCH_CHANNEL, payload);
+        } catch {
+          /* 窗口已销毁 */
+        }
+      };
+      setImmediate(() => {
+        try {
+          const items = scanJsonDir(dir);
+          const total = items.length;
+          for (let i = 0; i < items.length; i += BATCH_SIZE) {
+            send({ requestId, items: items.slice(i, i + BATCH_SIZE), done: false, total });
+          }
+          send({ requestId, items: [], done: true, total });
+        } catch (err) {
+          send({
+            requestId,
+            items: [],
+            done: true,
+            total: 0,
+            error: (err as Error).message,
+          });
+        }
+      });
+    },
+  );
+
+  // 保存 JSON 书源：入参过 valibot（探针）+ 结构校验（必填存在性），内容 JSON.stringify(doc, null, 2)
+  safeHandleWithMeta(
+    ipcMain,
+    'pom:booksource-save-json',
+    'BooksourceSaveJsonArgs',
+    BooksourceSaveJsonArgsSchema,
+    (_e, [fileName, doc, sourceDir]) => {
+      const dir = resolveDir(userData, sourceDir);
+      if (!dir) throw new Error('sourceDir 必须是绝对路径');
+      const safe = safeJsonFileName(fileName);
+      if (!safe) throw new Error('非法 fileName（必须 .json 结尾）');
+      const reason = validateBookSourceDocStructure(doc);
+      if (reason) throw new Error(`书源文档结构非法: ${reason}`);
+      fs.mkdirSync(dir, { recursive: true });
+      atomicWrite(path.join(dir, safe), JSON.stringify(doc, null, 2));
+    },
+  );
+
+  // 启停：读 → 改文档内 enabled 字段 → atomicWrite 回写（JSON 源不再用 marker 文件）
+  safeHandleWithMeta(
+    ipcMain,
+    'pom:booksource-toggle-json',
+    'BooksourceToggleJsonArgs',
+    BooksourceToggleJsonArgsSchema,
+    (_e, [fileName, enabled, sourceDir]) => {
+      const p = resolveJsonPath(userData, fileName, sourceDir);
+      if (!p) throw new Error('非法 fileName（必须 .json 结尾）');
+      const doc = JSON.parse(readFileOrFail(p)) as Record<string, unknown>;
+      doc.enabled = enabled;
+      atomicWrite(p, JSON.stringify(doc, null, 2));
+    },
+  );
+
+  // 删除：只删 .json 本体（JSON 源没有 marker，无 marker 清理）
+  safeHandleWithMeta(
+    ipcMain,
+    'pom:booksource-delete-json',
+    'BooksourceDeleteJsonArgs',
+    BooksourceDeleteJsonArgsSchema,
+    (_e, [fileName, sourceDir]) => {
+      const p = resolveJsonPath(userData, fileName, sourceDir);
+      if (!p) throw new Error('非法 fileName（必须 .json 结尾）');
+      if (fs.existsSync(p)) fs.unlinkSync(p);
+    },
+  );
 
   ipcMain.handle(
     'pom:booksource-save',

@@ -60,7 +60,7 @@ npm run dev
 src/
 ├── app/
 │   ├── core/
-│   │   ├── logic/         # 纯函数：chapter-split / text-format / bookshelf-sort / bookshelf-filter / bookshelf-group-name / auto-import-url / convert-chinese / settings-store
+│   │   ├── logic/         # 纯函数：chapter-split / text-format / bookshelf-sort / bookshelf-filter / bookshelf-group-name / auto-import-url / convert-chinese / settings-store / build-book-source-doc
 │   │   ├── models/        # Book / Chapter / Settings / BookshelfGroup
 │   │   ├── services/      # BookService / BookshelfGroupService / DbService (PouchDB) / ReaderService / SettingsService 等
 │   │   ├── book-source/   # 书源体系：适配器注册表 + JS 书源沙箱 + legado 订阅源导入

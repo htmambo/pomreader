@@ -1,0 +1,65 @@
+<!-- 返回书源列表（移除内嵌 Tab 后替代入口） -->
+<div class="back-row">
+  <button nz-button nzSize="small" (click)="back()"><span nz-icon nzType="arrow-left"></span> 返回书源列表</button>
+</div>
+
+<!-- ① URL 输入 -->
+<div class="url-row">
+  <input
+    nz-input
+    [(ngModel)]="targetUrl"
+    placeholder="目标网站首页或书籍页 URL(https://...)"
+    [disabled]="analyzing()"
+    (keyup.enter)="analyze()"
+    class="grow"
+  />
+  <button nz-button nzType="primary" (click)="analyze()" [disabled]="analyzing() || !targetUrl.trim()">
+    <span nz-icon [nzType]="analyzing() ? 'loading' : 'thunderbolt'"></span>
+    {{ analyzing() ? '分析中...' : '分析' }}
+  </button>
+</div>
+
+@if (error()) {
+<nz-alert nzType="error" [nzMessage]="error()" class="mb"></nz-alert>
+} @if (analyzed()) {
+<!-- ② 探测摘要 -->
+<div class="summary">
+  <div class="summary-item">
+    <span class="k">章节链接</span><span class="v">首页检测到 {{ chapterLinkCount() }} 个疑似章节链接</span>
+  </div>
+</div>
+
+<!-- ③ 规则处理提示(智能添加特有,讲清楚 CSS/正则双模式与 css: 前缀) -->
+<div class="rules-title">
+  规则处理<span class="rules-hint"
+    >支持 CSS 选择器(如 dl.list dd a)或正则;含 * ^ $ | + ? ( ) &#123; &#125; 等正则特征符号的 CSS(如 a[href*="x"]、div +
+    p、a:not(.x))需加 css: 前缀</span
+  >
+</div>
+
+<!-- ④ 规则编辑 + 测试面板 -->
+<app-rules-panel #panel [baseUrl]="targetUrl" />
+
+<!-- ⑤ 文件名 + JSON 预览 -->
+<div class="file-row">
+  <span class="k">文件名</span>
+  <input
+    nz-input
+    [ngModel]="fileName()"
+    (ngModelChange)="fileName.set($event)"
+    placeholder="source_name.json"
+    class="file-input"
+  />
+  <span class="hint">规则修改后下方 JSON 预览自动更新</span>
+</div>
+
+<textarea nz-input [ngModel]="code" readonly class="code-editor" spellcheck="false"></textarea>
+
+<div class="actions">
+  <button nz-button (click)="reset()"><span nz-icon nzType="reload"></span> 重新分析</button>
+  <button nz-button nzType="primary" (click)="save(true)" [disabled]="saving() || !fileName().trim()">
+    <span nz-icon nzType="save"></span> {{ saving() ? '保存中...' : '保存并调试' }}
+  </button>
+  <button nz-button (click)="save(false)" [disabled]="saving() || !fileName().trim()">仅保存</button>
+</div>
+}

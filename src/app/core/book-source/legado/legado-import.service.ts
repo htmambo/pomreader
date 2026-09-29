@@ -1,22 +1,22 @@
 /**
  * Legado 订阅源导入编排服务
  *
- * 流程：parseLegadoText / fetchAndParseLegadoUrl → translateLegadoToJs →
- *      pomAPI.booksourceList 查现有 → 生成 LegadoImportItem[] → 用户勾选 →
- *      pomAPI.booksourceSave 写盘（仅 translatedJs !== null 的项）
+ * 流程：parseLegadoText / fetchAndParseLegadoUrl → translateLegadoToDoc →
+ *      pomAPI.booksourceListJson 查现有 → 生成 LegadoImportItem[] → 用户勾选 →
+ *      pomAPI.booksourceSaveJson 写盘（BookSourceDoc，主进程校验 + 序列化落盘）
  *
- * 不写盘的项（翻译失败）由 UI 弹 toast 提示用户走智能添加手写。
+ * 骨架项（翻译失败）同样写盘为 enabled:false 的 JSON 草稿，由 UI 提示用户后续编辑启用。
  */
 import { Injectable, inject } from '@angular/core';
 import { type LegadoSource, type LegadoImportItem } from './legado-types';
 import { parseLegadoText, fetchAndParseLegadoUrl } from './legado-parser';
-import { translateLegadoToJs } from './legado-translator';
-import { type BookSourceMeta } from '../js-source/source-meta.types';
+import { translateLegadoToDoc } from './legado-translator';
+import { type BookSourceDoc } from '../../models/book-source-doc.model';
 import { ToastService } from '../../services/toast.service';
 
 interface PomApiSubset {
-  booksourceList?: () => Promise<BookSourceMeta[]>;
-  booksourceSave?: (fileName: string, content: string) => Promise<void>;
+  booksourceListJson?: () => Promise<Array<{ fileName: string }>>;
+  booksourceSaveJson?: (fileName: string, doc: BookSourceDoc, sourceDir?: string) => Promise<void>;
 }
 
 function pomApi(): PomApiSubset | null {
@@ -47,7 +47,7 @@ export class LegadoImportService {
     failed: Array<{ fileName: string; error: string }>;
   }> {
     const api = pomApi();
-    if (!api?.booksourceSave) {
+    if (!api?.booksourceSaveJson) {
       this.toast.error('IPC 不可用（浏览器降级或 preload 未加载）');
       return { written: 0, skeletons: 0, failed: [] };
     }
@@ -56,7 +56,7 @@ export class LegadoImportService {
     let skeletons = 0;
     for (const it of items) {
       try {
-        await api.booksourceSave(it.fileName, it.translatedJs);
+        await api.booksourceSaveJson(it.fileName, it.doc);
         written++;
         if (it.isSkeleton) skeletons++;
       } catch (e) {
@@ -73,12 +73,12 @@ export class LegadoImportService {
     const out: LegadoImportItem[] = [];
     for (const src of sources) {
       const fileName = deriveFileName(src);
-      const { js, isSkeleton, error } = translateLegadoToJs(src);
+      const { doc, isSkeleton, error } = translateLegadoToDoc(src);
       out.push({
         fileName,
-        uuid: deriveUuidFromName(src.bookSourceName || fileName),
+        uuid: doc.uuid,
         source: src,
-        translatedJs: js,
+        doc,
         isSkeleton,
         translateError: error,
         overwritesExisting: existing.has(fileName),
@@ -89,9 +89,9 @@ export class LegadoImportService {
 
   private async fetchExistingFileNames(): Promise<Set<string>> {
     const api = pomApi();
-    if (!api?.booksourceList) return new Set();
+    if (!api?.booksourceListJson) return new Set();
     try {
-      const list = await api.booksourceList();
+      const list = await api.booksourceListJson();
       return new Set((list ?? []).map((m) => m.fileName));
     } catch {
       return new Set();
@@ -99,7 +99,7 @@ export class LegadoImportService {
   }
 }
 
-/** 把书源名 slug 成文件名（去 emoji / 特殊字符 / 限长，加 .js 后缀） */
+/** 把书源名 slug 成文件名（去 emoji / 特殊字符 / 限长，加 .json 后缀） */
 export function deriveFileName(src: LegadoSource): string {
   const raw = src.bookSourceName || 'legado-imported';
   const slug = raw
@@ -107,15 +107,5 @@ export function deriveFileName(src: LegadoSource): string {
     .replace(/_+/g, '_')
     .slice(0, 80)
     .replace(/^_+|_+$/g, '');
-  return `${slug || 'legado-imported'}.js`;
-}
-
-/** 文件名级 uuid（与 legado-translator 派生规则保持一致——同名导入派生一致） */
-function deriveUuidFromName(name: string): string {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < name.length; i++) {
-    h ^= name.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  return `legado-${(h >>> 0).toString(16).padStart(8, '0')}`;
+  return `${slug || 'legado-imported'}.json`;
 }

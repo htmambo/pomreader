@@ -102,6 +102,23 @@ contextBridge.exposeInMainWorld('pomAPI', {
   booksourceSaveDraft: (fileName: string, content: string): Promise<void> =>
     ipcRenderer.invoke('pom:booksource-save-draft', fileName, content),
 
+  // ── 书源 JSON（BookSourceDoc，方案 §3.4 P2；与 .js 链路并存，P4 收敛） ──
+  // 批次事件订阅镜像 .js 流式列表写法：用上方通用 on('pom:booksource-json-batch', listener)
+  booksourceListJson: (): Promise<unknown[]> => ipcRenderer.invoke('pom:booksource-list-json'),
+
+  /** JSON 流式列表：后台扫描 + 'pom:booksource-json-batch' 分批推送 */
+  booksourceListJsonStreaming: (requestId: string): Promise<void> =>
+    ipcRenderer.invoke('pom:booksource-list-json-streaming', requestId),
+
+  booksourceSaveJson: (fileName: string, doc: unknown, sourceDir?: string): Promise<void> =>
+    ipcRenderer.invoke('pom:booksource-save-json', fileName, doc, sourceDir ?? null),
+
+  booksourceToggleJson: (fileName: string, enabled: boolean, sourceDir?: string): Promise<void> =>
+    ipcRenderer.invoke('pom:booksource-toggle-json', fileName, enabled, sourceDir ?? null),
+
+  booksourceDeleteJson: (fileName: string, sourceDir?: string): Promise<void> =>
+    ipcRenderer.invoke('pom:booksource-delete-json', fileName, sourceDir ?? null),
+
   // ── 健康检测（主进程 stub：返回文件路径 + 元数据，详细检测由 Renderer 沙箱执行） ──
   sourceHealthCheck: async (
     fileName: string,

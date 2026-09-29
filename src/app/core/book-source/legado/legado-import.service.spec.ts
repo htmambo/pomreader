@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi, beforeAll } from 'vitest';
+import { describe, it, expect, beforeEach, vi, beforeAll, afterEach } from 'vitest';
 import 'zone.js';
 import { TestBed } from '@angular/core/testing';
 import {
@@ -7,14 +7,15 @@ import {
 } from '@angular/platform-browser-dynamic/testing';
 import { LegadoImportService, deriveFileName } from './legado-import.service';
 import { ToastService } from '../../services/toast.service';
-import { LegadoSource } from './legado-types';
+import { LegadoSource, LegadoImportItem } from './legado-types';
+import { BookSourceDoc } from '../../models/book-source-doc.model';
 
 /**
- * LegadoImportService spec — Legado 订阅源导入编排
+ * LegadoImportService spec — Legado 订阅源导入编排（JSON 书源链路）
  *
  * 覆盖：
  * - 2 个公开方法 (prepareFromText/prepareFromUrl/persistSelected) 的 IPC 编排契约
- * - deriveFileName slug 规则
+ * - deriveFileName slug 规则（.json 后缀）
  * - IPC 不可用降级行为
  */
 
@@ -30,7 +31,19 @@ function makeLegadoSource(overrides: Partial<LegadoSource> = {}): LegadoSource {
   };
 }
 
-function setupTestBed(api: { booksourceList?: unknown; booksourceSave?: unknown }): any {
+function makeItem(fileName: string, isSkeleton: boolean): LegadoImportItem {
+  return {
+    fileName,
+    uuid: `legado-00000000`,
+    source: makeLegadoSource(),
+    doc: { format: 'pomreader.booksource' } as unknown as BookSourceDoc,
+    isSkeleton,
+    translateError: isSkeleton ? 'x' : null,
+    overwritesExisting: false,
+  };
+}
+
+function setupTestBed(api: { booksourceListJson?: unknown; booksourceSaveJson?: unknown }): any {
   const toastMock: any = {
     error: vi.fn(),
     info: vi.fn(),
@@ -72,32 +85,34 @@ describe('LegadoImportService', () => {
       },
     ]);
 
-    it('合法订阅 JSON → 生成可写盘的 import item', async () => {
-      const { svc } = setupTestBed({ booksourceList: async () => [] });
+    it('合法订阅 JSON → 生成可写盘的 import item（BookSourceDoc）', async () => {
+      const { svc } = setupTestBed({ booksourceListJson: async () => [] });
       const items = await svc.prepareFromText(validJson);
       expect(items).toHaveLength(1);
       expect(items[0]).toMatchObject({
-        fileName: 'Test_Source.js',
+        fileName: 'Test_Source.json',
         isSkeleton: false,
         translateError: null,
         overwritesExisting: false,
       });
       expect(items[0].uuid).toMatch(/^legado-[0-9a-f]{8}$/);
-      expect(items[0].translatedJs.length).toBeGreaterThan(0);
+      expect(items[0].uuid).toBe(items[0].doc.uuid);
+      expect(items[0].doc.format).toBe('pomreader.booksource');
+      expect(items[0].doc.rules.searchItemPattern).toBeTruthy();
       expect(items[0].source.bookSourceName).toBe('Test Source');
     });
 
-    it('booksourceList 含同名文件 → overwritesExisting=true', async () => {
+    it('booksourceListJson 含同名文件 → overwritesExisting=true', async () => {
       const { svc } = setupTestBed({
-        booksourceList: async () => [{ fileName: 'Test_Source.js' }],
+        booksourceListJson: async () => [{ fileName: 'Test_Source.json' }],
       });
       const items = await svc.prepareFromText(validJson);
       expect(items[0].overwritesExisting).toBe(true);
     });
 
-    it('booksourceList 抛错 → 按无现有源处理（不中断导入）', async () => {
+    it('booksourceListJson 抛错 → 按无现有源处理（不中断导入）', async () => {
       const { svc } = setupTestBed({
-        booksourceList: async () => {
+        booksourceListJson: async () => {
           throw new Error('ipc down');
         },
       });
@@ -106,20 +121,20 @@ describe('LegadoImportService', () => {
       expect(items[0].overwritesExisting).toBe(false);
     });
 
-    it('booksourceList 返回 null 时不崩溃', async () => {
-      const { svc } = setupTestBed({ booksourceList: async () => null });
+    it('booksourceListJson 返回 null 时不崩溃', async () => {
+      const { svc } = setupTestBed({ booksourceListJson: async () => null });
       const items = await svc.prepareFromText(validJson);
       expect(items[0].overwritesExisting).toBe(false);
     });
 
-    it('无 booksourceList（浏览器降级）也能生成列表', async () => {
+    it('无 booksourceListJson（浏览器降级）也能生成列表', async () => {
       const { svc } = setupTestBed({});
       const items = await svc.prepareFromText(validJson);
       expect(items).toHaveLength(1);
       expect(items[0].overwritesExisting).toBe(false);
     });
 
-    it('含 jsLib 的源 → 骨架 item（isSkeleton=true + translateError）', async () => {
+    it('含 jsLib 的源 → 骨架 item（isSkeleton=true + translateError + enabled:false doc）', async () => {
       const skeletonJson = JSON.stringify([
         {
           bookSourceName: 'JS Source',
@@ -132,10 +147,11 @@ describe('LegadoImportService', () => {
       const items = await svc.prepareFromText(skeletonJson);
       expect(items[0].isSkeleton).toBe(true);
       expect(items[0].translateError).toContain('jsLib');
-      expect(items[0].translatedJs.length).toBeGreaterThan(0);
+      expect(items[0].doc.enabled).toBe(false);
+      expect(items[0].doc.legadoRaw).toContain('"bookSourceName": "JS Source"');
     });
 
-    it('空 bookSourceName → fileName 兜底 + uuid 用 fileName 派生', async () => {
+    it('空 bookSourceName → fileName 兜底 + uuid 保持 legado- 前缀派生', async () => {
       const json = JSON.stringify([
         {
           bookSourceName: '',
@@ -146,7 +162,7 @@ describe('LegadoImportService', () => {
       ]);
       const { svc } = setupTestBed({});
       const items = await svc.prepareFromText(json);
-      expect(items[0].fileName).toBe('legado-imported.js');
+      expect(items[0].fileName).toBe('legado-imported.json');
       expect(items[0].uuid).toMatch(/^legado-[0-9a-f]{8}$/);
     });
 
@@ -174,7 +190,7 @@ describe('LegadoImportService', () => {
         method: 'GET',
       });
       expect(items).toHaveLength(1);
-      expect(items[0].fileName).toBe('Remote_Src.js');
+      expect(items[0].fileName).toBe('Remote_Src.json');
     });
 
     it('HTTP 非 2xx → 抛 订阅源 HTTP <status>', async () => {
@@ -208,17 +224,18 @@ describe('LegadoImportService', () => {
       expect(result).toEqual({ written: 0, skeletons: 0, failed: [] });
     });
 
-    it('IPC 成功应逐项写入 + 累计 written / skeletons', async () => {
+    it('IPC 成功应逐项写入（booksourceSaveJson 携带 doc）+ 累计 written / skeletons', async () => {
       const saveMock = vi.fn(async () => undefined);
 
-      const { svc } = setupTestBed({ booksourceSave: saveMock });
+      const { svc } = setupTestBed({ booksourceSaveJson: saveMock });
       const items = [
-        { fileName: 'a.js', translatedJs: 'js1', isSkeleton: false },
-        { fileName: 'b.js', translatedJs: 'js2', isSkeleton: true },
-        { fileName: 'c.js', translatedJs: 'js3', isSkeleton: false },
+        makeItem('a.json', false),
+        makeItem('b.json', true),
+        makeItem('c.json', false),
       ];
       const result = await svc.persistSelected(items);
       expect(saveMock).toHaveBeenCalledTimes(3);
+      expect(saveMock).toHaveBeenCalledWith('a.json', items[0].doc);
       expect(result.written).toBe(3);
       expect(result.skeletons).toBe(1);
       expect(result.failed).toEqual([]);
@@ -226,76 +243,72 @@ describe('LegadoImportService', () => {
 
     it('IPC 抛错应收集到 failed 但继续后续项', async () => {
       const saveMock = vi.fn(async (fileName: string) => {
-        if (fileName === 'b.js') throw new Error('disk full');
+        if (fileName === 'b.json') throw new Error('disk full');
       });
 
-      const { svc } = setupTestBed({ booksourceSave: saveMock });
+      const { svc } = setupTestBed({ booksourceSaveJson: saveMock });
       const result = await svc.persistSelected([
-        { fileName: 'a.js', translatedJs: 'js1', isSkeleton: false },
-        { fileName: 'b.js', translatedJs: 'js2', isSkeleton: false },
-        { fileName: 'c.js', translatedJs: 'js3', isSkeleton: false },
+        makeItem('a.json', false),
+        makeItem('b.json', false),
+        makeItem('c.json', false),
       ]);
       expect(result.written).toBe(2);
       expect(result.failed).toHaveLength(1);
-      expect(result.failed[0]).toMatchObject({ fileName: 'b.js', error: 'disk full' });
+      expect(result.failed[0]).toMatchObject({ fileName: 'b.json', error: 'disk full' });
     });
 
     it('error 无 message 时用 String(e) 兜底收集', async () => {
       const saveMock = vi.fn(async () => {
         throw 'string failure';
       });
-      const { svc } = setupTestBed({ booksourceSave: saveMock });
-      const result = await svc.persistSelected([
-        { fileName: 'a.js', translatedJs: 'js', isSkeleton: false },
-      ]);
+      const { svc } = setupTestBed({ booksourceSaveJson: saveMock });
+      const result = await svc.persistSelected([makeItem('a.json', false)]);
       expect(result.written).toBe(0);
-      expect(result.failed[0]).toEqual({ fileName: 'a.js', error: 'string failure' });
+      expect(result.failed[0]).toEqual({ fileName: 'a.json', error: 'string failure' });
     });
 
     it('window 完全不存在（非浏览器环境）时按 IPC 不可用处理', async () => {
       const { svc, toastMock } = setupTestBed({});
       delete (globalThis as any).window;
-      const result = await svc.persistSelected([
-        { fileName: 'a.js', translatedJs: 'js', isSkeleton: false },
-      ]);
+      const result = await svc.persistSelected([makeItem('a.json', false)]);
       expect(toastMock.error).toHaveBeenCalledWith(expect.stringContaining('IPC'));
       expect(result.written).toBe(0);
     });
   });
 
   describe('deriveFileName', () => {
-    it('基础源名应加 .js 后缀', () => {
+    it('基础源名应加 .json 后缀', () => {
       expect(deriveFileName(makeLegadoSource({ bookSourceName: 'My Source' }))).toBe(
-        'My_Source.js',
+        'My_Source.json',
       );
     });
 
     it('特殊字符应替换为 _ 并折叠连续 _', () => {
       expect(deriveFileName(makeLegadoSource({ bookSourceName: 'a/b\\c:d*e?f' }))).toBe(
-        'a_b_c_d_e_f.js',
+        'a_b_c_d_e_f.json',
       );
     });
 
     it('空字符串 + 源名应 fallback legado-imported', () => {
-      expect(deriveFileName(makeLegadoSource({ bookSourceName: '' }))).toBe('legado-imported.js');
+      expect(deriveFileName(makeLegadoSource({ bookSourceName: '' }))).toBe('legado-imported.json');
     });
 
     it('只有特殊字符的源名应 fallback legado-imported', () => {
       expect(deriveFileName(makeLegadoSource({ bookSourceName: '///' }))).toBe(
-        'legado-imported.js',
+        'legado-imported.json',
       );
     });
 
     it('超长源名应截断到 80 字符', () => {
       const longName = 'a'.repeat(200);
       const result = deriveFileName(makeLegadoSource({ bookSourceName: longName }));
-      expect(result.length).toBeLessThanOrEqual(80 + '.js'.length);
-      expect(result.endsWith('.js')).toBe(true);
+      expect(result.length).toBeLessThanOrEqual(80 + '.json'.length);
+      expect(result.endsWith('.json')).toBe(true);
     });
 
     it('控制字符应被剥离', () => {
       expect(deriveFileName(makeLegadoSource({ bookSourceName: 'foo\x00bar\x1fbaz' }))).toBe(
-        'foo_bar_baz.js',
+        'foo_bar_baz.json',
       );
     });
   });

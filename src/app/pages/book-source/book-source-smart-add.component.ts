@@ -16,27 +16,26 @@ import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { RulesPanelComponent } from '../../shared/components/rules-panel/rules-panel.component';
 import { ToastService } from '../../core/services/toast.service';
 import { PageFetcherService } from '../../core/book-source/page-fetcher.service';
-import {
-  buildRules,
-  countChapterLinks,
-  generateSourceCode,
-} from '../../core/book-source/smart-add/smart-rules';
+import { buildRules, countChapterLinks } from '../../core/book-source/smart-add/smart-rules';
+import { buildBookSourceDoc } from '../../core/logic/build-book-source-doc';
+import { type BookSourceDoc } from '../../core/models/book-source-doc.model';
 
 type PomSave = {
-  booksourceSave?: (fileName: string, content: string, sourceDir?: string) => Promise<void>;
+  booksourceSaveJson?: (fileName: string, doc: BookSourceDoc, sourceDir?: string) => Promise<void>;
 };
 
 /**
  * 智能添加页(迁移自 legado SmartSourceDetector)
  * 步骤:输入 URL → 真实抓取 + 启发式探测 → 规则面板(可编辑 + 逐阶段真实命中测试)
- *      → 规则参数化生成代码(由 RulesPanelComponent 驱动,自动随规则变更重生成)
- *      → 保存 / 保存并调试
+ *      → 规则 + meta 组装 BookSourceDoc(由 RulesPanelComponent 驱动,自动随规则变更重生成预览)
+ *      → 保存 / 保存并调试（booksourceSaveJson 落盘 .json，方案 §3.1）
  *
  * 规则双模式:CSS 选择器(如 dl.list dd a;含特殊符号加 css: 前缀)或正则;
  * 沙箱无 DOM → CSS 选择器经 legado.query 主线程 DOMParser 代理执行
  */
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
+  preserveWhitespaces: true,
   selector: 'app-book-source-smart-add',
   imports: [
     FormsModule,
@@ -46,84 +45,7 @@ type PomSave = {
     NzAlertModule,
     RulesPanelComponent,
   ],
-  template: `
-    <!-- 返回书源列表（移除内嵌 Tab 后替代入口） -->
-    <div class="back-row">
-      <button nz-button nzSize="small" (click)="back()">
-        <span nz-icon nzType="arrow-left"></span> 返回书源列表
-      </button>
-    </div>
-
-    <!-- ① URL 输入 -->
-    <div class="url-row">
-      <input
-        nz-input
-        [(ngModel)]="targetUrl"
-        placeholder="目标网站首页或书籍页 URL(https://...)"
-        [disabled]="analyzing()"
-        (keyup.enter)="analyze()"
-        class="grow"
-      />
-      <button
-        nz-button
-        nzType="primary"
-        (click)="analyze()"
-        [disabled]="analyzing() || !targetUrl.trim()"
-      >
-        <span nz-icon [nzType]="analyzing() ? 'loading' : 'thunderbolt'"></span>
-        {{ analyzing() ? '分析中...' : '分析' }}
-      </button>
-    </div>
-
-    @if (error()) {
-      <nz-alert nzType="error" [nzMessage]="error()" class="mb"></nz-alert>
-    }
-
-    @if (analyzed()) {
-      <!-- ② 探测摘要 -->
-      <div class="summary">
-        <div class="summary-item">
-          <span class="k">章节链接</span
-          ><span class="v">首页检测到 {{ chapterLinkCount() }} 个疑似章节链接</span>
-        </div>
-      </div>
-
-      <!-- ③ 规则处理提示(智能添加特有,讲清楚 CSS/正则双模式与 css: 前缀) -->
-      <div class="rules-title">
-        规则处理<span class="rules-hint"
-          >支持 CSS 选择器(如 dl.list dd a)或正则;含 * ^ $ | + ? ( ) &#123; &#125; 等正则特征符号的
-          CSS(如 a[href*="x"]、div + p、a:not(.x))需加 css: 前缀</span
-        >
-      </div>
-
-      <!-- ④ 规则编辑 + 测试面板 -->
-      <app-rules-panel #panel [baseUrl]="targetUrl" />
-
-      <!-- ④ 文件名 + 代码生成 -->
-      <div class="file-row">
-        <span class="k">文件名</span>
-        <input nz-input [(ngModel)]="fileName" class="file-input" />
-        <span class="hint">规则修改后下方代码自动重新生成</span>
-      </div>
-
-      <textarea nz-input [(ngModel)]="code" class="code-editor" spellcheck="false"></textarea>
-
-      <div class="actions">
-        <button nz-button (click)="reset()"><span nz-icon nzType="reload"></span> 重新分析</button>
-        <button
-          nz-button
-          nzType="primary"
-          (click)="save(true)"
-          [disabled]="saving() || !fileName.trim()"
-        >
-          <span nz-icon nzType="save"></span> {{ saving() ? '保存中...' : '保存并调试' }}
-        </button>
-        <button nz-button (click)="save(false)" [disabled]="saving() || !fileName.trim()">
-          仅保存
-        </button>
-      </div>
-    }
-  `,
+  templateUrl: './book-source-smart-add.component.html',
   styles: [
     `
       .url-row {
@@ -206,7 +128,8 @@ export class BookSourceSmartAddComponent {
   readonly chapterLinkCount = signal(0);
 
   targetUrl = '';
-  fileName = '';
+  readonly fileName = signal('');
+  /** BookSourceDoc 的 JSON 预览（只读展示；保存时以 buildDoc() 实时组装的 doc 为准） */
   code = '';
 
   private readonly panel = viewChild<RulesPanelComponent>('panel');
@@ -215,15 +138,16 @@ export class BookSourceSmartAddComponent {
   private readonly router = inject(Router);
 
   constructor() {
-    // 规则变化 → 重新生成代码(替代原 Proxy 包装方案)
+    // 规则/文件名变化 → 重新生成 JSON 预览(替代原 Proxy 包装方案)
     effect(() => {
       const p = this.panel();
       if (!p || !this.analyzed()) return;
-      this.code = generateSourceCode(this.targetUrl.trim(), p.getRules());
+      this.fileName(); // 预览中的 uuid 跟随文件名（uuid 缺省回退 fileName）
+      this.code = JSON.stringify(this.buildDoc(), null, 2);
     });
   }
 
-  /** 抓取首页 → 启发式探测 → 初始化规则 + 生成首版代码 */
+  /** 抓取首页 → 启发式探测 → 初始化规则 + 生成首版 JSON 预览 */
   async analyze(): Promise<void> {
     const url = this.targetUrl.trim();
     if (!url) return;
@@ -252,7 +176,7 @@ export class BookSourceSmartAddComponent {
       p.setRules(buildRules(url, html));
       this.chapterLinkCount.set(countChapterLinks(html));
       const host = new URL(url).hostname.replace(/^www\./, '');
-      this.fileName = `${host.replace(/\./g, '_')}.js`;
+      this.fileName.set(`${host.replace(/\./g, '_')}.json`);
     } catch (e) {
       this.error.set(`抓取或分析失败:${(e as Error).message}`);
       this.analyzed.set(false);
@@ -277,18 +201,18 @@ export class BookSourceSmartAddComponent {
   /** 保存书源;andDebug=true 时跳调试页预选该书源 */
   async save(andDebug: boolean): Promise<void> {
     const api = (window as unknown as { pomAPI?: PomSave }).pomAPI;
-    if (!api?.booksourceSave) {
-      this.toast.error('booksourceSave IPC 不可用');
+    if (!api?.booksourceSaveJson) {
+      this.toast.error('booksourceSaveJson IPC 不可用');
       return;
     }
-    const fileName = this.fileName.trim();
-    if (!/^[a-zA-Z0-9_\-一-龥]+\.js$/.test(fileName)) {
-      this.toast.warn('文件名需为 字母/数字/下划线/中划线/中文 + .js 后缀');
+    const fileName = this.fileName().trim();
+    if (!/^[a-zA-Z0-9_\-一-龥]+\.json$/.test(fileName)) {
+      this.toast.warn('文件名需为 字母/数字/下划线/中划线/中文 + .json 后缀');
       return;
     }
     this.saving.set(true);
     try {
-      await api.booksourceSave(fileName, this.code);
+      await api.booksourceSaveJson(fileName, this.buildDoc());
       this.toast.success(`书源「${fileName}」保存成功`);
       if (andDebug) {
         void this.router.navigate(['/book-sources/debug'], { queryParams: { source: fileName } });
@@ -298,5 +222,26 @@ export class BookSourceSmartAddComponent {
     } finally {
       this.saving.set(false);
     }
+  }
+
+  /**
+   * 规则 + meta → BookSourceDoc（meta 口径与历史 generateSourceCode 文件头一致：
+   * author 智能添加 / tags 智能识别 / version 1.2.0 / description 含 host）；
+   * uuid 缺省回退 fileName（带 .json 扩展名，§3.1 硬约束）
+   */
+  private buildDoc(): BookSourceDoc {
+    const url = new URL(this.targetUrl.trim());
+    const rules = this.panel()!.getRules();
+    return buildBookSourceDoc({
+      // 预览期文件名可能尚未生成（analyze 抓取中）→ 兜底占位；保存前已经过了 .json 合法性校验
+      fileName: this.fileName().trim() || 'untitled.json',
+      name: rules.siteName,
+      homepage: url.origin,
+      rules,
+      author: '智能添加',
+      tags: ['智能识别'],
+      sourceVersion: '1.2.0',
+      description: `由智能添加从 ${url.host} 生成(CSS 选择器/正则双模式,可在智能添加页继续调规则)`,
+    });
   }
 }

@@ -114,3 +114,63 @@ export const SetWebviewEncodingArgsSchema = v.tuple([
   v.picklist(['auto', 'utf-8', 'gbk']),
 ]);
 export type SetWebviewEncodingArgs = v.InferOutput<typeof SetWebviewEncodingArgsSchema>;
+
+/* ── booksource-handler.ts JSON 书源 schemas（方案 §3.4，P2） ────────────── */
+
+/**
+ * doc 最小结构探针：只钉 format/schemaVersion 标记，其余字段 loose 放行。
+ * 完整 valibot 校验在渲染端 `core/models/book-source-doc.model.ts` 的
+ * BookSourceDocSchema（electron tsconfig exclude ../src，跨边界不可达）；
+ * 主进程侧的必填存在性检查由 booksource-meta.ts 的
+ * validateBookSourceDocStructure 承担（R5 先松后紧）。
+ */
+export const BookSourceDocProbeSchema = v.looseObject({
+  format: v.literal('pomreader.booksource'),
+  schemaVersion: v.literal(1),
+});
+export type BookSourceDocProbe = v.InferOutput<typeof BookSourceDocProbeSchema>;
+
+/** .json 书源文件名（后缀约束在 IPC 边界再钉一层；handler 内还有 safeJsonFileName） */
+const JsonFileNameSchema = v.pipe(
+  v.string(),
+  v.minLength(1, 'fileName must be non-empty'),
+  v.regex(/\.json$/i, 'fileName must end with .json'),
+);
+
+/** sourceDir 可选；preload 侧传 `sourceDir ?? null`，故用 nullish 对齐现有风格 */
+const OptionalSourceDirSchema = v.nullish(v.string(), null);
+
+/** pom:booksource-list-json args: void（strictTuple 拒多余参数，见 GetFetchUaArgsSchema 注释） */
+export const BooksourceListJsonArgsSchema = v.strictTuple([]);
+export type BooksourceListJsonArgs = v.InferOutput<typeof BooksourceListJsonArgsSchema>;
+
+/** pom:booksource-list-json-streaming args tuple: (requestId: string) */
+export const BooksourceListJsonStreamingArgsSchema = v.tuple([
+  v.pipe(v.string(), v.minLength(1, 'requestId must be non-empty')),
+]);
+export type BooksourceListJsonStreamingArgs = v.InferOutput<
+  typeof BooksourceListJsonStreamingArgsSchema
+>;
+
+/** pom:booksource-save-json args tuple: (fileName, doc, sourceDir?) */
+export const BooksourceSaveJsonArgsSchema = v.tuple([
+  JsonFileNameSchema,
+  BookSourceDocProbeSchema,
+  OptionalSourceDirSchema,
+]);
+export type BooksourceSaveJsonArgs = v.InferOutput<typeof BooksourceSaveJsonArgsSchema>;
+
+/** pom:booksource-toggle-json args tuple: (fileName, enabled, sourceDir?) */
+export const BooksourceToggleJsonArgsSchema = v.tuple([
+  JsonFileNameSchema,
+  v.boolean(),
+  OptionalSourceDirSchema,
+]);
+export type BooksourceToggleJsonArgs = v.InferOutput<typeof BooksourceToggleJsonArgsSchema>;
+
+/** pom:booksource-delete-json args tuple: (fileName, sourceDir?) */
+export const BooksourceDeleteJsonArgsSchema = v.tuple([
+  JsonFileNameSchema,
+  OptionalSourceDirSchema,
+]);
+export type BooksourceDeleteJsonArgs = v.InferOutput<typeof BooksourceDeleteJsonArgsSchema>;
