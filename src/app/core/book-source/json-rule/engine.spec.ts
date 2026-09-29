@@ -1,6 +1,6 @@
 /**
- * JsonRuleEngine 单元测试：假 http（URL → 固定 HTML 映射）驱动四入口，
- * 并用 generateSourceCode 生成的模板代码做 3 组等价性对照（真正的双引擎差分在另一任务）。
+ * JsonRuleEngine 单元测试：假 http（URL → 固定 HTML 映射）驱动四入口。
+ *（与旧 JS 模板的等价性对照已随 P4 删 JS 链路一并移除 —— 模板生成器已不存在。）
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -10,7 +10,7 @@ import {
   type RuleTrace,
 } from './engine';
 import type { BookSourceDoc } from '../../models/book-source-doc.model';
-import { DEFAULT_PATTERNS, generateSourceCode, type SourceRules } from '../smart-add/smart-rules';
+import { DEFAULT_PATTERNS, type SourceRules } from '../smart-add/smart-rules';
 import { HTML_MAX_LENGTH } from './guard';
 
 const BASE = 'https://www.sample.com';
@@ -380,7 +380,7 @@ describe('JsonRuleEngine — 搜索请求形态', () => {
 describe('JsonRuleEngine — cssRules=0 止血门（与沙箱同一文案）', () => {
   afterEach(() => localStorage.removeItem('pom.cssRules'));
 
-  it('CSS 条目规则在 flag=0 时响亮失败（文案 = sandbox.service.ts:677）', async () => {
+  it('CSS 条目规则在 flag=0 时响亮失败（CSS_RULES_DISABLED_MESSAGE 文案）', async () => {
     localStorage.setItem('pom.cssRules', '0');
     const http = new FakeHttp({ [SEARCH_URL]: CSS_SEARCH_HTML });
     const engine = new JsonRuleEngine(http);
@@ -527,126 +527,5 @@ describe('JsonRuleEngine — RuleTrace', () => {
     ).rejects.toThrow('网络失败');
     const done = traces.find((t) => t.stage === 'done');
     expect(done?.error).toBe('网络失败');
-  });
-});
-
-// ── 与模板的等价性（generateSourceCode 对照，3 组） ──────────────────────────
-
-/** 编译模板代码并注入 mock legado（query 语义照抄 sandbox.service.ts toQueryItem/proxyQuery） */
-function compileTemplate(code: string, routes: Record<string, string>) {
-  const legado = {
-    http: {
-      get: async (url: string) => routes[url] ?? '',
-      post: async (url: string) => routes[url] ?? '',
-    },
-    query: async (html: string, selector: string, baseUrl: string) => {
-      const doc = new DOMParser().parseFromString(html, 'text/html');
-      const abs = (h: string | null): string => {
-        if (!h) return '';
-        try {
-          return new URL(h, baseUrl).href;
-        } catch {
-          return '';
-        }
-      };
-      return Array.from(doc.querySelectorAll(selector)).map((el) => {
-        const isA = el.tagName === 'A';
-        const anchors = isA ? [el] : Array.from(el.querySelectorAll('a[href]'));
-        const attrs: Record<string, string> = {};
-        for (const a of Array.from(el.attributes)) attrs[a.name.toLowerCase()] = a.value;
-        return {
-          tag: el.tagName.toLowerCase(),
-          text: (el.textContent ?? '').trim(),
-          html: el.innerHTML,
-          href: isA ? abs(el.getAttribute('href')) : '',
-          links: anchors
-            .map((a) => ({ href: abs(a.getAttribute('href')), text: (a.textContent ?? '').trim() }))
-            .filter((l) => l.href),
-          attrs,
-        };
-      });
-    },
-  };
-  const factory = new Function(
-    'legado',
-    `${code}\n;return { search, bookInfo, chapterList, chapterContent };`,
-  );
-  return factory(legado) as {
-    search: (k: string, p: number) => Promise<unknown>;
-    bookInfo: (u: string) => Promise<unknown>;
-    chapterList: (u: string) => Promise<unknown>;
-    chapterContent: (u: string) => Promise<unknown>;
-  };
-}
-
-describe('JsonRuleEngine — 与 generateSourceCode 模板等价', () => {
-  afterEach(() => localStorage.removeItem('pom.cssRules'));
-
-  it('① 正则 search（含作者增强）输出与模板逐字段一致', async () => {
-    const rules: SourceRules = {
-      siteName: '样例站',
-      searchPath: '/search?keyword={keyword}',
-      searchItemPattern: DEFAULT_PATTERNS.searchItemPattern,
-      searchAuthorPattern: '作者[：:]\\s*([^<]{1,30})',
-      bookTitlePattern: DEFAULT_PATTERNS.bookTitlePattern,
-      bookAuthorPattern: DEFAULT_PATTERNS.bookAuthorPattern,
-      chapterItemPattern: DEFAULT_PATTERNS.chapterItemPattern,
-      contentPattern: DEFAULT_PATTERNS.contentPattern,
-    };
-    const routes = { [SEARCH_URL]: REGEX_SEARCH_HTML };
-    const mod = compileTemplate(generateSourceCode(BASE, rules), routes);
-    const engine = new JsonRuleEngine(new FakeHttp(routes));
-    const [jsOut, tsOut] = await Promise.all([
-      mod.search('庆余年', 1),
-      engine.search(makeDoc(rules), '庆余年', 1),
-    ]);
-    expect(tsOut).toEqual(jsOut);
-  });
-
-  it('② CSS bookInfo（含 cover absUrl、章节复抓）输出与模板逐字段一致', async () => {
-    const rules: SourceRules = {
-      siteName: '样例站',
-      searchPath: '/search?keyword={keyword}',
-      searchItemPattern: 'dl.list dd',
-      bookTitlePattern: 'h1.title',
-      bookAuthorPattern: 'span.author',
-      bookCategoryPattern: 'span.cat',
-      coverUrlPattern: 'img.cover',
-      chapterItemPattern: 'ul.toc a',
-      contentPattern: 'div#content',
-    };
-    const routes = { [BOOK_URL]: CSS_DETAIL_HTML };
-    const mod = compileTemplate(generateSourceCode(BASE, rules), routes);
-    const engine = new JsonRuleEngine(new FakeHttp(routes));
-    const [jsOut, tsOut] = await Promise.all([
-      mod.bookInfo(BOOK_URL),
-      engine.bookInfo(makeDoc(rules), BOOK_URL),
-    ]);
-    expect(tsOut).toEqual(jsOut);
-  });
-
-  it('③ 正则 chapterContent（含净化规则顺序）输出与模板一致', async () => {
-    const rules: SourceRules = {
-      siteName: '样例站',
-      searchPath: '/search?keyword={keyword}',
-      searchItemPattern: DEFAULT_PATTERNS.searchItemPattern,
-      bookTitlePattern: DEFAULT_PATTERNS.bookTitlePattern,
-      bookAuthorPattern: DEFAULT_PATTERNS.bookAuthorPattern,
-      chapterItemPattern: DEFAULT_PATTERNS.chapterItemPattern,
-      contentPattern: DEFAULT_PATTERNS.contentPattern,
-      contentReplaceRules: [
-        { rule: '正文甲', replace: '正文一' },
-        { rule: '<[^>]+>', replace: '' },
-      ],
-    };
-    const routes = { [CHAPTER_URL]: REGEX_CONTENT_HTML };
-    const mod = compileTemplate(generateSourceCode(BASE, rules), routes);
-    const engine = new JsonRuleEngine(new FakeHttp(routes));
-    const [jsOut, tsOut] = await Promise.all([
-      mod.chapterContent(CHAPTER_URL),
-      engine.chapterContent(makeDoc(rules), CHAPTER_URL),
-    ]);
-    expect(tsOut).toEqual(jsOut);
-    expect(tsOut).toBe('正文一\n\n正文乙');
   });
 });

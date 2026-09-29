@@ -8,7 +8,7 @@
  *  rule 字段为 <js>...</js> / {{...}} 模板 / $.jsonpath → 拒绝（单条字段标 untranslatable）。
  *
  * 翻译输出为 BookSourceDoc（方案 §3.1）：
- *  - rules 由 legado rule* 字段逐字段映射（与历史 generateSourceCode 注入的规则串同口径）
+ *  - rules 由 legado rule* 字段逐字段映射（与历史模板生成器注入的规则串同口径）
  *  - legado `header` JSON 字符串 → doc.headers（F7）
  *  - meta 一对一平移历史 buildHeader 的 @xxx 头语义：@name/@url/@tags/@type/@uuid/
  *    @description/@version/@enabled；uuid 派生规则不变（D6）

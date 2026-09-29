@@ -76,30 +76,19 @@ contextBridge.exposeInMainWorld('pomAPI', {
 
   coverCacheClear: (): Promise<number> => ipcRenderer.invoke('pom:cover-cache-clear'),
 
-  // ── 书源文件 CRUD ─────────────────────────────────────────────────────
-  booksourceList: (): Promise<unknown[]> => ipcRenderer.invoke('pom:booksource-list'),
-
-  /** 流式列表：触发主进程后台扫描并通过 'pom:booksource-batch' 分批推送 */
-  booksourceListStreaming: (requestId: string): Promise<void> =>
-    ipcRenderer.invoke('pom:booksource-list-streaming', requestId),
-
+  // ── 书源文件 CRUD（P4 起仅保留通用 read/delete/save-draft；
+  // .js 专属 list/listStreaming/save/toggle 已随 JS 链路删除） ──────────────
   booksourceRead: (fileName: string, sourceDir?: string): Promise<string> =>
     ipcRenderer.invoke('pom:booksource-read', fileName, sourceDir ?? null),
-
-  booksourceSave: (fileName: string, content: string, sourceDir?: string): Promise<void> =>
-    ipcRenderer.invoke('pom:booksource-save', fileName, content, sourceDir ?? null),
 
   booksourceDelete: (fileName: string, sourceDir?: string): Promise<void> =>
     ipcRenderer.invoke('pom:booksource-delete', fileName, sourceDir ?? null),
 
-  booksourceToggle: (fileName: string, enabled: boolean, sourceDir?: string): Promise<void> =>
-    ipcRenderer.invoke('pom:booksource-toggle', fileName, enabled, sourceDir ?? null),
-
   booksourceSaveDraft: (fileName: string, content: string): Promise<void> =>
     ipcRenderer.invoke('pom:booksource-save-draft', fileName, content),
 
-  // ── 书源 JSON（BookSourceDoc，方案 §3.4 P2；与 .js 链路并存，P4 收敛） ──
-  // 批次事件订阅镜像 .js 流式列表写法：用上方通用 on('pom:booksource-json-batch', listener)
+  // ── 书源 JSON（BookSourceDoc，方案 §3.4） ──────────────────────────────
+  // 批次事件订阅：用上方通用 on('pom:booksource-json-batch', listener)
   booksourceListJson: (): Promise<unknown[]> => ipcRenderer.invoke('pom:booksource-list-json'),
 
   /** JSON 流式列表：后台扫描 + 'pom:booksource-json-batch' 分批推送 */

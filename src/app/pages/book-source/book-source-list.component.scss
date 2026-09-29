@@ -66,17 +66,6 @@
 .invalid-tag {
   cursor: help;
 }
-.engine-switch {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.engine-switch-label {
-  color: var(--pom-text-muted);
-  font-size: 12px;
-  white-space: nowrap;
-}
 .state-block {
   text-align: center;
   padding: 48px 0;

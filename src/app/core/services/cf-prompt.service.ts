@@ -1,13 +1,13 @@
 import { Injectable, inject } from '@angular/core';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { ToastService } from './toast.service';
-import { SandboxService } from '../book-source/js-source/sandbox.service';
 
 /**
- * CF Tier 2 人工过盾引导（书源沙箱链路）
+ * CF Tier 2 人工过盾引导（JSON 规则书源链路）
  *
  * 主进程代理（pom:booksource-http-proxy）Tier 1 自动过盾失败（交互式 Turnstile）时，
- * 响应带 cfChallenge 标记 → SandboxService.cfChallengeHook → 本服务弹窗引导。
+ * 响应带 cfChallenge 标记 → RuleEngineService 直接调本服务 prompt() 弹窗引导
+ * （P4 起唯一链路；JS 沙箱时代的 SandboxService.cfChallengeHook 静态钩子已随沙箱删除）。
  *
  * 静置场景友好设计：
  * - fire-and-forget，不阻塞抓取回执（本次请求仍以 403 失败，章节保持未加载待重试）；
@@ -21,13 +21,9 @@ export class CfPromptService {
   /** 已提示过的 host（验证成功后移除，cookie 过期时允许再次提醒） */
   private readonly promptedHosts = new Set<string>();
 
-  constructor() {
-    SandboxService.cfChallengeHook = (url) => this.prompt(url);
-  }
-
   /**
-   * CF Tier 2 弹窗（public 自 P1：RuleEngineService 的 booksourceHttpProxy 链路直接调用，
-   * 方案 §3.2 配套 a；沙箱链路的 cfChallengeHook 注册保留，P4 删沙箱前两条链路共存）
+   * CF Tier 2 弹窗（RuleEngineService 的 booksourceHttpProxy 链路直接调用，方案 §3.2 配套 a；
+   * P4 起为唯一入口 —— 沙箱时代的构造函数钩子注册已删除，启动时实例化即可，见 app.config.ts）
    */
   prompt(url: string): void {
     const cfManual = window.pomAPI?.cfPassManual;

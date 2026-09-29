@@ -1,27 +1,27 @@
 /**
  * JSON 规则引擎服务（方案 §3.2 / P1）：RuleEngineService = JsonRuleEngine 的 Angular 装配层。
  *
- * 职责边界（对照 sandbox.service.ts 在 JS 链路中的角色）：
+ * 职责边界（对照历史沙箱服务在 JS 链路中的角色）：
  *  1. IO：每次入口调用都经 pomAPI.booksourceRead 重读文件 + JSON.parse + valibot parse
- *     （BookSourceDocSchema）——「改完立即生效」，无实例级缓存（同 JsSourceAdapter.ensureLoaded
- *     语义：书源是 dev 期频繁修改的资产，缓存会让改动不生效）。
+ *     （BookSourceDocSchema）——「改完立即生效」，无实例级缓存
+ *     （书源是 dev 期频繁修改的资产，缓存会让改动不生效）。
  *  2. HTTP 接线：RuleEngineHttp 直连 pomAPI.booksourceHttpProxy（主进程 safeNetRequest，
  *     共享 persist:fetch session，CF cookie 互通）；cfChallenge → CfPromptService.prompt
- *     fire-and-forget（语义等价 sandbox.service.ts:623 的 cfChallengeHook 调用）。
+ *     fire-and-forget（本次请求仍以非 2xx 失败，不阻塞抓取回执）。
  *  3. RuleTrace 暴露：内部 Subject → 只读 traces$ Observable 供调试页（P3）订阅。
  *     选型理由（vs 每次调用传 onTrace 透传）：adapter 不感知 trace，调用方（registry /
  *     聚合搜索）无需改签名；调试页订阅一次即可收全量流。引擎仍支持 per-call onTrace，
  *     本服务统一转发进 Subject，并补填 http trace 的 status（引擎的 RuleEngineHttp 只回
  *     body，status 只有本层知道 —— 引擎内请求逐条 await 串行，lastStatus 无竞态）。
  *
- * HTTP 状态码语义（已核对沙箱 worker 的 legado.http shim，sandbox.worker.ts:405-409）：
- *  worker 对 http-result 仅 status ∈ [200,300) resolve body，其余一律 reject
+ * HTTP 状态码语义（对齐历史沙箱 worker 的 legado.http shim，P1 差分测试期逐字锁定）：
+ *  仅 status ∈ [200,300) 视为成功 resolve body，其余一律 reject
  *  `Error('HTTP ${status}')`（含 3xx —— safe-net 已跟随重定向，3xx 到不了这里即异常）。
  *  本服务镜像该语义：非 2xx → FetchError('parse-failed', `HTTP ${status}`)。
- *  注意 page-fetcher.fetchPost 是 `status >= 400` 才抛（:160），比 worker 宽松；
- *  引擎链路对齐的是 worker shim（legado.http.get/post 的实际行为），不对齐 fetchPost。
+ *  注意 page-fetcher.fetchPost 是 `status >= 400` 才抛，比引擎链路宽松；
+ *  引擎链路对齐的是历史 worker shim（legado.http.get/post 的实际行为），不对齐 fetchPost。
  *
- * 无需 NgZone/inZone 包装：项目 zoneless（sandbox.service 全程无 NgZone 为佐证，方案 §3.2 已论证）。
+ * 无需 NgZone/inZone 包装：项目 zoneless（方案 §3.2 已论证）。
  */
 import { Injectable, inject } from '@angular/core';
 import { Subject, type Observable } from 'rxjs';
@@ -77,18 +77,18 @@ export class RuleEngineService {
   }
 
   /**
-   * 每次入口调用重读文件 + valibot parse（无缓存 —— JsSourceAdapter.ensureLoaded 同语义，
-   * 「改完立即生效」；JSON.parse + safeParse 是微秒级开销，无需缓存优化）。
+   * 每次入口调用重读文件 + valibot parse（无缓存 —— 「改完立即生效」；
+   * JSON.parse + safeParse 是微秒级开销，无需缓存优化）。
    */
   private async loadDoc(meta: BookSourceMeta): Promise<BookSourceDoc> {
-    // 与 JsSourceAdapter.readSource 同通道；本地 cast 而非改 Window.pomAPI 全局声明
-    // （page-fetcher.service.ts 的声明 sourceDir?: string 不收 null，js-source.adapter.ts:156-169 同处理）
+    // 本地 cast 而非改 Window.pomAPI 全局声明
+    // （page-fetcher.service.ts 的声明 sourceDir?: string 不收 null，这里按 null 传）
     const pom = window.pomAPI as
       | { booksourceRead?: (fileName: string, sourceDir?: string | null) => Promise<string> }
       | undefined;
     const read = pom?.booksourceRead;
     if (!read) throw new FetchError('source-unavailable', 'booksourceRead IPC 不可用');
-    // read 自身 reject（文件不存在等）原样透传，与 JsSourceAdapter.readSource 一致
+    // read 自身 reject（文件不存在等）原样透传
     const raw = await read(meta.fileName, meta.sourceDir || null);
     let json: unknown;
     try {
@@ -141,8 +141,8 @@ export class RuleEngineService {
   }
 
   /**
-   * booksourceHttpProxy 直连 + CF 钩子 + 状态码语义（镜像 sandbox.service.ts:614-636 proxyHttp
-   * 与 sandbox.worker.ts:405-409 的 2xx-only resolve 契约）。
+   * booksourceHttpProxy 直连 + CF 钩子 + 状态码语义（2xx-only resolve 契约，
+   * 语义对齐见本文件头注释）。
    */
   private async proxyRequest(
     method: 'GET' | 'POST',
@@ -156,16 +156,16 @@ export class RuleEngineService {
     try {
       res = await proxy({ url, method, headers, body: body ?? null });
     } catch (e) {
-      // 代理自身失败（网络/DNS/IPC 异常；对照 sandbox sendHttpError 599 → worker reject HTTP 599）
+      // 代理自身失败（网络/DNS/IPC 异常；历史沙箱语义为 sendHttpError 599 → reject HTTP 599）
       throw new FetchError(
         'source-unavailable',
         `书源 HTTP 代理失败: ${(e as Error)?.message ?? String(e)}`,
       );
     }
     // Tier 1 自动过盾失败 → Tier 2 人工过盾引导；fire-and-forget 不阻塞本次回执
-    // （本次请求仍以非 2xx 失败，与 sandbox.service.ts:623 语义等价）
+    // （本次请求仍以非 2xx 失败，与历史沙箱链路语义等价）
     if (res.cfChallenge) this.cfPrompt.prompt(url);
-    // 镜像 sandbox.worker.ts:405-409：仅 [200,300) 视为成功，其余 reject HTTP ${status}
+    // 仅 [200,300) 视为成功，其余 reject HTTP ${status}（历史 worker shim 语义）
     if (res.status < 200 || res.status >= 300) {
       throw new FetchError('parse-failed', `HTTP ${res.status}`);
     }

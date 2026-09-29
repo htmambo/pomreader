@@ -5,20 +5,20 @@
  * JSON 规则改由主线程 TS 引擎直接执行后没有这层兜底，所以把预算与上限前移到本模块：
  *  - 规则串长度 / 正则静态风险：执行前拦截（灾难性回溯在主线程无法中断，只能事前拦）
  *  - 执行预算 / HTML 上限：执行中与提取前拦截
- *  - 结果条数 / 正文长度：裁剪而非报错（对齐现状 JsSourceAdapter 的静默截断语义）
+ *  - 结果条数 / 正文长度：裁剪而非报错（对齐历史 JS 适配器的静默截断语义）
  *  - 提取结果对象：字段白名单 + null 原型中间态，替代沙箱里的原型冻结
  */
 
 /** 单条规则串长度上限（现有规则都是几十字符级，超长多为误填） */
 export const RULE_MAX_LENGTH = 512;
 
-/** 单次入口执行预算（对齐沙箱 call 的 15s 超时） */
+/** 单次入口执行预算（对齐历史沙箱 call 的 15s 超时） */
 export const EXECUTION_BUDGET_MS = 15_000;
 
-/** 单页 HTML 上限（沿用沙箱 QUERY_HTML_LIMIT，sandbox.service.ts:114） */
+/** 单页 HTML 上限（沿用历史沙箱 QUERY_HTML_LIMIT 同值） */
 export const HTML_MAX_LENGTH = 5 * 1024 * 1024;
 
-/** 搜索结果条数上限（沿用 JsSourceAdapter.MAX_SEARCH_RESULTS） */
+/** 搜索结果条数上限（沿用历史适配器的 MAX_SEARCH_RESULTS 同值） */
 export const SEARCH_MAX_RESULTS = 100;
 
 /** 章节数上限（防畸形源；模板提取层另有 500 上限，本上限是兜底） */
@@ -34,7 +34,7 @@ export function assertRuleLength(field: string, rule: string): void {
   }
 }
 
-/** HTML 大小检查：进入提取前调用（文案沿用沙箱 proxyQuery，sandbox.service.ts:681） */
+/** HTML 大小检查：进入提取前调用（文案沿用历史沙箱 proxyQuery） */
 export function assertHtmlSize(html: string): void {
   if (html.length > HTML_MAX_LENGTH) {
     throw new Error(`HTML 超过 ${HTML_MAX_LENGTH / 1024 / 1024}MB 解析上限`);

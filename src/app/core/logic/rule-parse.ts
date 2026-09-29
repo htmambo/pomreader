@@ -37,7 +37,7 @@ function extractRaw(source: string, name: string): string {
 }
 
 /**
- * 字符串常量值：生成器以 JSON.stringify 注入（smart-rules.ts generateSourceCode），故按 JSON.parse 语义解析；
+ * 字符串常量值：历史模板生成器以 JSON.stringify 注入，故按 JSON.parse 语义解析；
  * 与 editor 对齐的兜底链：JSON.parse 失败且为反引号 → 取内层；再失败 → 返回原文（手改源的容错路径）
  */
 function extractString(source: string, name: string): string {

@@ -115,9 +115,8 @@ app.whenReady().then(() => {
   registerFetchHandler(ipcMain);
   registerRenderHandler(ipcMain);
   registerExternalHandler(ipcMain);
-  // 存量 JS 书源启动迁移（方案 §4.2，P3）：必须在书源 handler 注册（首次 scanDir）前完成，
-  // 否则渲染端会先读到未迁移列表（竞态）；迁移不受 pom.bookSource.engine 开关约束；
-  // 失败只告警不阻断启动
+  // 存量 JS 书源启动迁移（方案 §4.2）：必须在书源 handler 注册（首次 scanJsonDir）前完成，
+  // 否则渲染端会先读到未迁移列表（竞态）；失败只告警不阻断启动
   try {
     migrateBookSources(userData);
   } catch (err) {

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { MultiSourceSearchService, RawSearchItem } from './multi-source-search.service';
 import { BookSourceRegistry } from './book-source.registry';
 import { BookSourceAdapter } from './book-source.adapter';
+import { type BookSourceMeta } from './source-meta.types';
 
 /**
  * Mock 适配器 — 实现 duck-typed search(keyword, page)
@@ -157,68 +158,50 @@ describe('MultiSourceSearchService', () => {
     }
   });
 
-  // 端到端聚合 + JS 书源 duck-typed 桥接（FR-2 + 实施计划 T-006）
-  // search() 的具体行为（沙箱调用 / 字段映射 / 截断）在 js-source.adapter.spec.ts 覆盖
-  it('JsSourceAdapter 暴露了 search 方法（duck-typed 聚合过滤能识别）', async () => {
-    const { JsSourceAdapter } = await import('./js-source/js-source.adapter');
-    expect(typeof JsSourceAdapter.prototype.search).toBe('function');
+  // 端到端聚合 + JSON 规则书源 duck-typed 桥接（FR-2 + 实施计划 T-006）
+  // search() 的具体行为（引擎调用 / 字段映射 / 截断）在 json-rule.adapter.spec.ts 覆盖
+  it('JsonRuleAdapter 暴露了 search 方法（duck-typed 聚合过滤能识别）', async () => {
+    const { JsonRuleAdapter } = await import('./json-rule/json-rule.adapter');
+    expect(typeof JsonRuleAdapter.prototype.search).toBe('function');
   });
 
-  it('JsSourceAdapter 接入 registry 后能被聚合搜索识别并按 name|作者 去重', async () => {
-    const { JsSourceAdapter } = await import('./js-source/js-source.adapter');
-    /* eslint-disable @typescript-eslint/no-unused-vars, no-undef */
-    const { BookSourceMeta } = await import('./source-meta.types');
-    // mock pomAPI.booksourceRead（ensureLoaded 内部 readSource 调用）
-    const w = window as unknown as { pomAPI?: { booksourceRead: (fn: string) => Promise<string> } };
-    const origPom = w.pomAPI;
-    w.pomAPI = { booksourceRead: async () => 'function search(){return []}' };
-    try {
-      // 最小 sandbox mock：让 ensureLoaded 走通 + search 返回固定数据
-      const searchResult = [
-        { name: '庆余年', author: '猫腻', bookUrl: 'http://a/1' },
-        { name: '赘婿', author: '愤怒的香蕉', bookUrl: 'http://a/2' },
-        { name: '庆余年', author: '猫腻', bookUrl: 'http://a/3' }, // 重复 name|author
-      ];
-      const sandbox = {
-        load: async () => ({ fileName: 'js-a.js', fns: ['search'] }),
-        call: async <T>(_fileName: string, fn: string): Promise<T> => {
-          if (fn === 'search') return searchResult as unknown as T;
-          return [] as unknown as T;
-        },
-      };
-      const meta: BookSourceMeta = {
-        sourceKey: 'k',
-        uuid: 'k',
-        fileName: 'js-a.js',
-        name: 'JS 源 A',
-        url: 'https://js-a.com',
-        urls: ['https://js-a.com'],
-        author: undefined,
-        logo: undefined,
-        description: undefined,
-        enabled: true,
-        fileSize: 0,
-        modifiedAt: 0,
-        sourceDir: '',
-        sourceType: 'novel',
-        version: '1',
-        tags: [],
-        minDelayMs: 0,
-        requireUrls: [],
-      };
-      const adapter = new JsSourceAdapter(meta, sandbox as never);
-      registry.registerJsAdapter(adapter);
-      /* eslint-enable @typescript-eslint/no-unused-vars, no-undef */
+  it('JsonRuleAdapter 接入 registry 后能被聚合搜索识别并按 name|作者 去重', async () => {
+    const { JsonRuleAdapter } = await import('./json-rule/json-rule.adapter');
+    // 最小 engineService stub：search 返回固定数据
+    const searchResult = [
+      { name: '庆余年', author: '猫腻', bookUrl: 'http://a/1' },
+      { name: '赘婿', author: '愤怒的香蕉', bookUrl: 'http://a/2' },
+      { name: '庆余年', author: '猫腻', bookUrl: 'http://a/3' }, // 重复 name|author
+    ];
+    const engineService = { search: async () => searchResult };
+    const meta: BookSourceMeta = {
+      sourceKey: 'k',
+      uuid: 'k',
+      fileName: 'rule-a.json',
+      name: '规则源 A',
+      url: 'https://rule-a.com',
+      urls: ['https://rule-a.com'],
+      author: undefined,
+      logo: undefined,
+      description: undefined,
+      enabled: true,
+      fileSize: 0,
+      modifiedAt: 0,
+      sourceDir: '',
+      sourceType: 'novel',
+      version: '1',
+      tags: [],
+      minDelayMs: 0,
+      requireUrls: [],
+    };
+    const adapter = new JsonRuleAdapter(meta, engineService as never);
+    registry.registerRuleAdapter(adapter);
 
-      const results = await service.searchAll('网文');
-      // 3 条原始数据去重后 2 条（庆余年只保留先返回者）
-      const fromJsA = results.filter((r) => r.sourceName === 'JS 源 A');
-      expect(fromJsA).toHaveLength(2);
-      expect(fromJsA.map((r) => r.name).sort()).toEqual(['庆余年', '赘婿']);
-    } finally {
-      if (origPom === undefined) delete w.pomAPI;
-      else w.pomAPI = origPom;
-    }
+    const results = await service.searchAll('网文');
+    // 3 条原始数据去重后 2 条（庆余年只保留先返回者）
+    const fromRuleA = results.filter((r) => r.sourceName === '规则源 A');
+    expect(fromRuleA).toHaveLength(2);
+    expect(fromRuleA.map((r) => r.name).sort()).toEqual(['庆余年', '赘婿']);
   });
 
   it('progress signal 在搜索过程中正确更新阶段', async () => {

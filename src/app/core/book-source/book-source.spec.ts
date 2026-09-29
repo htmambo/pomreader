@@ -5,11 +5,9 @@ import { PageFetcher, BookSourceAdapter } from './book-source.adapter';
 import { BookSourceRegistry } from './book-source.registry';
 import { XbiqugeAdapter } from './adapters/xbiquge.adapter';
 import { HeuristicAdapter } from './adapters/heuristic.adapter';
-import { JsSourceAdapter } from './js-source/js-source.adapter';
 import { BookSourceMeta } from './source-meta.types';
 import { JsonRuleAdapter } from './json-rule/json-rule.adapter';
 import { type RuleEngineService } from './json-rule/rule-engine.service';
-import { setBookSourceEngine } from './feature-flag';
 import { FetchError } from './fetch-error';
 import { SOURCE_CONFIG } from './book-source.config';
 import { looksObfuscated } from './heuristic-parser';
@@ -213,143 +211,6 @@ describe('HeuristicAdapter 渲染兜底', () => {
 
 // ========== Registry.getByUuid / findJsSourceAdapterByUrl ==========
 
-/**
- * 构造 mock JsSourceAdapter：注入 meta（带 uuid + mainUrl 作为 hostPattern 来源）+ sandbox stub
- * mainUrl 会被 JsSourceAdapter.buildHostPattern 处理（去 www、转义点号）
- * 例：mainUrl='https://www.hetushu.com' → 匹配 www.hetushu.com 和 hetushu.com
- */
-function makeMockJsAdapter(name: string, uuid: string, mainUrl: string): JsSourceAdapter {
-  const meta: BookSourceMeta = {
-    sourceKey: uuid,
-    uuid,
-    fileName: `${name}.js`,
-    name,
-    url: mainUrl,
-    urls: [mainUrl],
-    enabled: true,
-    fileSize: 0,
-    modifiedAt: 0,
-    sourceDir: '',
-    sourceType: 'novel',
-    version: '1',
-    tags: [],
-    minDelayMs: 0,
-    requireUrls: [],
-  };
-  const sandbox = {
-    load: async () => ({ fileName: meta.fileName, fns: [] }),
-    call: async () => null,
-  };
-
-  return new JsSourceAdapter(meta, sandbox as any);
-}
-
-describe('BookSourceRegistry · getByUuid / findJsSourceAdapterByUrl', () => {
-  it('getByUuid 精确匹配 JsSourceAdapter meta.uuid', () => {
-    const reg = BookSourceRegistry.forTest(mockFetcher({}));
-    const a = makeMockJsAdapter('hetushu', 'uuid-hetushu-001', 'https://www.hetushu.com');
-    reg.registerJsAdapter(a);
-    expect(reg.getByUuid('uuid-hetushu-001')).toBe(a);
-  });
-
-  it('getByUuid 未命中时返回 undefined（不返回兜底误命中的 adapter）', () => {
-    const reg = BookSourceRegistry.forTest(mockFetcher({}));
-    reg.register(new HeuristicAdapter());
-    expect(reg.getByUuid('not-exists')).toBeUndefined();
-  });
-
-  it('getByUuid 严格按 meta.uuid：不通过 name 兜底（防止跨源误命中）', () => {
-    const reg = BookSourceRegistry.forTest(mockFetcher({}));
-    reg.register(new HeuristicAdapter());
-    // 即使存在 name === '通用（启发式）' 的 adapter，getByUuid 也不返回
-    expect(reg.getByUuid('通用（启发式）')).toBeUndefined();
-    // 想要按 name 查请用 getByName
-    expect(reg.getByName('通用（启发式）')).toBeDefined();
-  });
-
-  it('getByUuid P0-2 回归：即使存在 name === "universal" 的 adapter 也不误命中', () => {
-    const reg = BookSourceRegistry.forTest(mockFetcher({}));
-    // 构造一个 name = 'universal' 的 adapter（不是 JsSourceAdapter，没 meta.uuid）
-    class NamedUniversalAdapter extends HeuristicAdapter {
-      override readonly name = 'universal';
-    }
-    reg.register(new NamedUniversalAdapter());
-    // UNIVERSAL 标识永远返回 undefined（保护 Book.bookSourceUuid = 'universal' 的 invariant）
-    expect(reg.getByUuid('universal')).toBeUndefined();
-  });
-
-  it('getByName 独立 API：按 adapter.name 查（与 getByUuid 语义分离）', () => {
-    const reg = BookSourceRegistry.forTest(mockFetcher({}));
-    reg.register(new HeuristicAdapter());
-    expect(reg.getByName('通用（启发式）')).toBeDefined();
-    expect(reg.getByName('不存在的源')).toBeUndefined();
-    expect(reg.getByName('')).toBeUndefined();
-  });
-
-  it('findJsSourceAdapterByUrl：按 hostPattern 匹配首个 JsSourceAdapter', () => {
-    const reg = BookSourceRegistry.forTest(mockFetcher({}));
-    const a = makeMockJsAdapter('hetushu', 'uuid-hetushu-001', 'https://www.hetushu.com');
-    reg.registerJsAdapter(a);
-    expect(reg.findJsSourceAdapterByUrl('https://www.hetushu.com/book/5763/')?.name).toBe(
-      'hetushu',
-    );
-    expect(reg.findJsSourceAdapterByUrl('https://other.com/book/')).toBeUndefined();
-  });
-
-  it('findJsSourceAdapterByUrl：跳过 HeuristicAdapter（match 任意 URL 会误命中）', () => {
-    const reg = BookSourceRegistry.forTest(mockFetcher({}));
-    reg.register(new HeuristicAdapter()); // 没 meta.uuid，按 duck typing 跳过
-    expect(reg.findJsSourceAdapterByUrl('https://anywhere.com/')).toBeUndefined();
-  });
-
-  it('findJsSourceAdapterByUrl：空 url 返回 undefined', () => {
-    const reg = BookSourceRegistry.forTest(mockFetcher({}));
-    expect(reg.findJsSourceAdapterByUrl('')).toBeUndefined();
-  });
-
-  it('findJsSourceAdapterByUrl：多个 JsSourceAdapter 都 match 时返回首个（按注册顺序）', () => {
-    // 用 mock 适配器（meta.uuid + 自定义 hostPattern）验证「按注册顺序返回首个」语义
-    const reg = BookSourceRegistry.forTest(mockFetcher({}));
-    const first = makeMockJsAdapter('first', 'uuid-first', 'https://first.com');
-    const second = makeMockJsAdapter('second', 'uuid-second', 'https://first.com');
-    reg.registerJsAdapter(first);
-    reg.registerJsAdapter(second);
-    const result = reg.findJsSourceAdapterByUrl('https://first.com/book/');
-    expect(result?.name).toBe('first'); // 注册顺序在前
-    expect(result).toBe(first);
-  });
-});
-
-describe('BookSourceRegistry · matchByUrl（换源弹窗"猜当前源"用）', () => {
-  it('专用适配器优先：笔趣阁 URL 命中 XbiqugeAdapter', () => {
-    const reg = BookSourceRegistry.forTest(mockFetcher({}));
-    reg.register(new XbiqugeAdapter());
-    reg.register(new HeuristicAdapter());
-    expect(reg.matchByUrl('https://www.xbiquge.cc/book/9231/')?.name).toBe('笔趣阁');
-  });
-
-  it('JS 书源按 hostPattern 命中（老数据无 bookSourceUuid 时的回退路径）', () => {
-    const reg = BookSourceRegistry.forTest(mockFetcher({}));
-    const a = makeMockJsAdapter('hetushu', 'uuid-hetushu-001', 'https://www.hetushu.com');
-    reg.registerJsAdapter(a);
-    expect(reg.matchByUrl('https://www.hetushu.com/book/5763/')).toBe(a);
-  });
-
-  it('无专用/JS 命中时兜底 HeuristicAdapter', () => {
-    const reg = BookSourceRegistry.forTest(mockFetcher({}));
-    reg.register(new HeuristicAdapter());
-    expect(reg.matchByUrl('https://unknown-site.example/book/1/')?.name).toBe('通用（启发式）');
-  });
-
-  it('空 url / 无任何适配器可匹配时返回 undefined（不抛错）', () => {
-    const reg = BookSourceRegistry.forTest(mockFetcher({}));
-    expect(reg.matchByUrl('')).toBeUndefined();
-    expect(reg.matchByUrl('https://unknown-site.example/')).toBeUndefined();
-  });
-});
-
-// ========== P1：JSON 规则链路并存注册 + 运行时引擎开关 ==========
-
 function makeRuleMeta(name: string, uuid: string, mainUrl: string, enabled = true): BookSourceMeta {
   return {
     sourceKey: uuid,
@@ -370,59 +231,142 @@ function makeRuleMeta(name: string, uuid: string, mainUrl: string, enabled = tru
   };
 }
 
-/** 构造 mock JsonRuleAdapter：engineService 用空 stub（构造期只读 meta，不触引擎） */
+/**
+ * 构造 mock JsonRuleAdapter：engineService 用空 stub（构造期只读 meta，不触引擎）。
+ * meta.url 会被 JsonRuleAdapter 的 buildHostPattern 处理（去 www、转义点号）
+ * 例：mainUrl='https://www.hetushu.com' → 匹配 www.hetushu.com 和 hetushu.com
+ */
 function makeMockJsonAdapter(name: string, uuid: string, mainUrl: string): JsonRuleAdapter {
   return new JsonRuleAdapter(makeRuleMeta(name, uuid, mainUrl), {} as RuleEngineService);
 }
 
-describe('BookSourceRegistry · registerRuleAdapter（JSON > JS 插入点）', () => {
-  it('JSON 适配器插入在所有 JS 适配器之前，内置/启发式相对顺序不变', () => {
+describe('BookSourceRegistry · getByUuid / findJsSourceAdapterByUrl', () => {
+  it('getByUuid 精确匹配书源适配器 meta.uuid', () => {
     const reg = BookSourceRegistry.forTest(mockFetcher({}));
-    reg.register(new XbiqugeAdapter());
-    reg.register(new HeuristicAdapter());
-    reg.registerJsAdapter(makeMockJsAdapter('js-a', 'uuid-js-a', 'https://js-a.com'));
-    reg.registerRuleAdapter(makeMockJsonAdapter('json-a', 'uuid-json-a', 'https://json-a.com'));
-    reg.registerJsAdapter(makeMockJsAdapter('js-b', 'uuid-js-b', 'https://js-b.com'));
-    reg.registerRuleAdapter(makeMockJsonAdapter('json-b', 'uuid-json-b', 'https://json-b.com'));
-    expect(reg.supportedSources()).toEqual([
-      '笔趣阁',
-      '通用（启发式）',
-      'json-a',
-      'json-b',
-      'js-a',
-      'js-b',
-    ]);
+    const a = makeMockJsonAdapter('hetushu', 'uuid-hetushu-001', 'https://www.hetushu.com');
+    reg.registerRuleAdapter(a);
+    expect(reg.getByUuid('uuid-hetushu-001')).toBe(a);
   });
 
-  it('无 JS 适配器时 push 到末尾（内置/启发式之后）', () => {
+  it('getByUuid 未命中时返回 undefined（不返回兜底误命中的 adapter）', () => {
     const reg = BookSourceRegistry.forTest(mockFetcher({}));
     reg.register(new HeuristicAdapter());
-    reg.registerRuleAdapter(makeMockJsonAdapter('json-a', 'uuid-json-a', 'https://json-a.com'));
-    expect(reg.supportedSources()).toEqual(['通用（启发式）', 'json-a']);
+    expect(reg.getByUuid('not-exists')).toBeUndefined();
   });
 
-  it('同 uuid 时 getByUuid 返回 JSON 适配器（JSON > JS）', () => {
+  it('getByUuid 严格按 meta.uuid：不通过 name 兜底（防止跨源误命中）', () => {
     const reg = BookSourceRegistry.forTest(mockFetcher({}));
-    const js = makeMockJsAdapter('same', 'uuid-same', 'https://same.com');
-    const json = makeMockJsonAdapter('same', 'uuid-same', 'https://same.com');
-    reg.registerJsAdapter(js);
-    reg.registerRuleAdapter(json);
-    expect(reg.getByUuid('uuid-same')).toBe(json);
+    reg.register(new HeuristicAdapter());
+    // 即使存在 name === '通用（启发式）' 的 adapter，getByUuid 也不返回
+    expect(reg.getByUuid('通用（启发式）')).toBeUndefined();
+    // 想要按 name 查请用 getByName
+    expect(reg.getByName('通用（启发式）')).toBeDefined();
   });
 
-  it('同域名 matchByUrl 命中 JSON 适配器（数组序 first-match）', () => {
+  it('getByUuid P0-2 回归：即使存在 name === "universal" 的 adapter 也不误命中', () => {
     const reg = BookSourceRegistry.forTest(mockFetcher({}));
-    const js = makeMockJsAdapter('same', 'uuid-same', 'https://same.com');
-    const json = makeMockJsonAdapter('same', 'uuid-same', 'https://same.com');
-    reg.registerJsAdapter(js);
-    reg.registerRuleAdapter(json);
-    expect(reg.matchByUrl('https://same.com/book/1')).toBe(json);
+    // 构造一个 name = 'universal' 的 adapter（无 meta.uuid）
+    class NamedUniversalAdapter extends HeuristicAdapter {
+      override readonly name = 'universal';
+    }
+    reg.register(new NamedUniversalAdapter());
+    // UNIVERSAL 标识永远返回 undefined（保护 Book.bookSourceUuid = 'universal' 的 invariant）
+    expect(reg.getByUuid('universal')).toBeUndefined();
+  });
+
+  it('getByName 独立 API：按 adapter.name 查（与 getByUuid 语义分离）', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    reg.register(new HeuristicAdapter());
+    expect(reg.getByName('通用（启发式）')).toBeDefined();
+    expect(reg.getByName('不存在的源')).toBeUndefined();
+    expect(reg.getByName('')).toBeUndefined();
+  });
+
+  it('findJsSourceAdapterByUrl：按 hostPattern 匹配首个书源适配器', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    const a = makeMockJsonAdapter('hetushu', 'uuid-hetushu-001', 'https://www.hetushu.com');
+    reg.registerRuleAdapter(a);
+    expect(reg.findJsSourceAdapterByUrl('https://www.hetushu.com/book/5763/')?.name).toBe(
+      'hetushu',
+    );
+    expect(reg.findJsSourceAdapterByUrl('https://other.com/book/')).toBeUndefined();
+  });
+
+  it('findJsSourceAdapterByUrl：跳过 HeuristicAdapter（match 任意 URL 会误命中）', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    reg.register(new HeuristicAdapter()); // 没 meta.uuid，按 duck typing 跳过
+    expect(reg.findJsSourceAdapterByUrl('https://anywhere.com/')).toBeUndefined();
+  });
+
+  it('findJsSourceAdapterByUrl：空 url 返回 undefined', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    expect(reg.findJsSourceAdapterByUrl('')).toBeUndefined();
+  });
+
+  it('findJsSourceAdapterByUrl：多个书源适配器都 match 时返回首个（按注册顺序）', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    const first = makeMockJsonAdapter('first', 'uuid-first', 'https://first.com');
+    const second = makeMockJsonAdapter('second', 'uuid-second', 'https://first.com');
+    reg.registerRuleAdapter(first);
+    reg.registerRuleAdapter(second);
+    const result = reg.findJsSourceAdapterByUrl('https://first.com/book/');
+    expect(result?.name).toBe('first'); // 注册顺序在前
+    expect(result).toBe(first);
   });
 });
 
-describe('BookSourceRegistry · loadAllRuleAdapters / loadAllJsAdapters（运行时开关）', () => {
+describe('BookSourceRegistry · matchByUrl（换源弹窗"猜当前源"用）', () => {
+  it('专用适配器优先：笔趣阁 URL 命中 XbiqugeAdapter', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    reg.register(new XbiqugeAdapter());
+    reg.register(new HeuristicAdapter());
+    expect(reg.matchByUrl('https://www.xbiquge.cc/book/9231/')?.name).toBe('笔趣阁');
+  });
+
+  it('JSON 书源按 hostPattern 命中（老数据无 bookSourceUuid 时的回退路径）', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    const a = makeMockJsonAdapter('hetushu', 'uuid-hetushu-001', 'https://www.hetushu.com');
+    reg.registerRuleAdapter(a);
+    expect(reg.matchByUrl('https://www.hetushu.com/book/5763/')).toBe(a);
+  });
+
+  it('无专用/书源命中时兜底 HeuristicAdapter', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    reg.register(new HeuristicAdapter());
+    expect(reg.matchByUrl('https://unknown-site.example/book/1/')?.name).toBe('通用（启发式）');
+  });
+
+  it('空 url / 无任何适配器可匹配时返回 undefined（不抛错）', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    expect(reg.matchByUrl('')).toBeUndefined();
+    expect(reg.matchByUrl('https://unknown-site.example/')).toBeUndefined();
+  });
+});
+
+// ========== JSON 规则书源注册（P4 起为唯一用户书源链路） ==========
+
+describe('BookSourceRegistry · registerRuleAdapter', () => {
+  it('JSON 适配器 push 到末尾，内置/启发式相对顺序不变', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    reg.register(new XbiqugeAdapter());
+    reg.register(new HeuristicAdapter());
+    reg.registerRuleAdapter(makeMockJsonAdapter('json-a', 'uuid-json-a', 'https://json-a.com'));
+    reg.registerRuleAdapter(makeMockJsonAdapter('json-b', 'uuid-json-b', 'https://json-b.com'));
+    expect(reg.supportedSources()).toEqual(['笔趣阁', '通用（启发式）', 'json-a', 'json-b']);
+  });
+
+  it('同 uuid 时 getByUuid 返回先注册者（数组序 first-match）', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    const first = makeMockJsonAdapter('same-a', 'uuid-same', 'https://same.com');
+    const second = makeMockJsonAdapter('same-b', 'uuid-same', 'https://same.com');
+    reg.registerRuleAdapter(first);
+    reg.registerRuleAdapter(second);
+    expect(reg.getByUuid('uuid-same')).toBe(first);
+  });
+});
+
+describe('BookSourceRegistry · loadAllRuleAdapters（P4 起无条件加载）', () => {
   afterEach(() => {
-    localStorage.clear();
     delete (window as unknown as { pomAPI?: unknown }).pomAPI;
   });
 
@@ -430,43 +374,19 @@ describe('BookSourceRegistry · loadAllRuleAdapters / loadAllJsAdapters（运行
     (window as unknown as { pomAPI?: unknown }).pomAPI = api;
   }
 
-  it("flag='js' 时 loadAllRuleAdapters 早返回（不调 booksourceListJson）", async () => {
-    setBookSourceEngine('js');
-    const booksourceListJson = vi.fn(async () => [
-      makeRuleMeta('json-a', 'uuid-json-a', 'https://json-a.com'),
-    ]);
-    setPomApi({ booksourceListJson });
-    const reg = BookSourceRegistry.forTest(mockFetcher({}));
-    await reg.loadAllRuleAdapters({} as RuleEngineService);
-    expect(booksourceListJson).not.toHaveBeenCalled();
-    expect(reg.supportedSources()).toHaveLength(0);
-  });
-
-  it("flag='rule' 时 loadAllJsAdapters 早返回（不调 booksourceList）", async () => {
-    setBookSourceEngine('rule');
-    const booksourceList = vi.fn(async () => []);
-    setPomApi({ booksourceList });
-    const reg = BookSourceRegistry.forTest(mockFetcher({}));
-    await reg.loadAllJsAdapters();
-    expect(booksourceList).not.toHaveBeenCalled();
-  });
-
-  it('booksourceListJson 缺失（P2 未实现 IPC）时不抛错、静默早返回', async () => {
-    setBookSourceEngine('rule');
+  it('booksourceListJson 缺失（preload 未注册）时不抛错、静默早返回', async () => {
     const reg = BookSourceRegistry.forTest(mockFetcher({}));
     await expect(reg.loadAllRuleAdapters({} as RuleEngineService)).resolves.toBeUndefined();
     expect(reg.supportedSources()).toHaveLength(0);
   });
 
-  it("flag='rule' + booksourceListJson 可用：注册 enabled 项、跳过 disabled，单条失败不阻塞", async () => {
-    setBookSourceEngine('rule');
+  it('booksourceListJson 可用：注册 enabled 项、跳过 disabled，单条失败不阻塞', async () => {
     const ok = makeRuleMeta('json-ok', 'uuid-ok', 'https://ok.com');
     const disabled = makeRuleMeta('json-off', 'uuid-off', 'https://off.com', false);
     setPomApi({ booksourceListJson: vi.fn(async () => [ok, disabled]) });
     const reg = BookSourceRegistry.forTest(mockFetcher({}));
-    reg.registerJsAdapter(makeMockJsAdapter('js-a', 'uuid-js-a', 'https://js-a.com'));
     await reg.loadAllRuleAdapters({} as RuleEngineService);
-    expect(reg.supportedSources()).toEqual(['json-ok', 'js-a']);
+    expect(reg.supportedSources()).toEqual(['json-ok']);
     expect(reg.getByUuid('uuid-ok')).toBeDefined();
     expect(reg.getByUuid('uuid-off')).toBeUndefined();
   });

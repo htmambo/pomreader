@@ -3,7 +3,7 @@
  *
  * mock window.pomAPI（booksourceRead / booksourceHttpProxy）+ CfPromptService，
  * 覆盖：valibot parse 失败带字段路径、cfChallenge → prompt fire-and-forget、
- * HTTP 状态码语义（镜像 sandbox.worker.ts:405-409 的 2xx-only resolve）、
+ * HTTP 状态码语义（历史 worker shim 的 2xx-only resolve）、
  * IPC 缺失降级、每次调用重读文件、traces$ 补 status。
  */
 import 'zone.js';
@@ -185,7 +185,7 @@ describe('RuleEngineService', () => {
     expect(cfPromptMock.prompt).toHaveBeenCalledWith('https://example.com/search?q=kw&page=1');
   });
 
-  it('HTTP 状态码语义镜像 worker shim（sandbox.worker.ts:405-409）：非 2xx 一律 reject', async () => {
+  it('HTTP 状态码语义对齐历史 worker shim：非 2xx 一律 reject', async () => {
     const proxy = vi.fn(async () => ({ status: 404, headers: {}, body: 'not found' }));
     installPomApi({ booksourceHttpProxy: proxy });
     await expect(svc.search(meta, 'kw')).rejects.toMatchObject({

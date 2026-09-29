@@ -1,7 +1,7 @@
 /**
  * 书源锚定标识常量（项目 Book.bookSourceUuid 字段用）
  *
- * - JsSourceAdapter 来源：写 meta.uuid（legado 协议字段，每个书源全局唯一）
+ * - JSON 书源来源：写 meta.uuid（每个书源全局唯一）
  * - 万能搜索 / 启发式兜底：写 UNIVERSAL_BOOK_SOURCE_UUID（非具体书源标识）
  * - 未填：历史数据 / 本地导入
  *

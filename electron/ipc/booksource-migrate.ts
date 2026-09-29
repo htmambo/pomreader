@@ -1,9 +1,9 @@
 /**
  * 存量 JS 书源 → JSON（BookSourceDoc）启动迁移（方案 docs/Architecture/2026-09-29-BOOKSOURCE-JSON-RULES-PLAN.md §4.2）
  *
- * - 触发时机：主进程 `app.whenReady` 后、书源 handler 注册（首次 scanDir）前（main.ts 挂接）；
+ * - 触发时机：主进程 `app.whenReady` 后、书源 handler 注册（首次 scanJsonDir）前（main.ts 挂接）；
  *   `pom:booksource-convert` channel 供手动重触发。失败只告警不阻断启动。
- *   迁移不受 `pom.bookSource.engine` 运行时开关约束（§4.2 明示：一次性文件级转换）。
+ *   迁移是一次性文件级转换，不受任何引擎开关约束（P4 起运行时开关已删）。
  * - 幂等（唯一口径）：`<同名>.json` 已存在且 uuid 相同 → 跳过整个文件（不动 .js 不覆盖 .json）；
  *   不做任何 mtime 比对。自然幂等来自已处理文件移出扫描集（.js 移入 booksources_legacy/）。
  * - 判定保守：宁可误归 needs-manual 不可错迁；legacy 文件永不删、可人工救回。
@@ -21,7 +21,131 @@
 import type { IpcMain } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
-import { atomicWrite, parseHeaderMeta, validateBookSourceDocStructure } from './booksource-meta';
+import { atomicWrite, validateBookSourceDocStructure } from './booksource-meta';
+
+/* ════════════════════════════════════════════════════════════════════════
+ * parseHeaderMeta（自 booksource-meta.ts 迁入，P4：该文件的 .js 扫描链路已删，
+ * 本函数为迁移/legacy 列表独占 —— 启动迁移与老版本升级用户仍要读旧 .js 头注释）
+ * ════════════════════════════════════════════════════════════════════════ */
+
+/** 解析书源 JS 头部注释（`// @key value`），纯函数 */
+export function parseHeaderMeta(
+  content: string,
+  fileName: string,
+  sourceDir: string,
+  fileSize: number,
+  modifiedAt: number,
+  enabledOverride: boolean | null,
+): Record<string, unknown> {
+  let name: string | null = null;
+  let author: string | null = null;
+  let logo: string | null = null;
+  const descriptions: string[] = [];
+  const urls: string[] = [];
+  const tags: string[] = [];
+  let version = '';
+  let updateUrl: string | null = null;
+  let uuid: string | null = null;
+  let sourceType = 'novel';
+  let headerEnabled: boolean | null = null;
+  let minDelayMs = 0;
+  const requireUrls: string[] = [];
+
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trimStart();
+    if (!trimmed.startsWith('//')) continue;
+    const body = trimmed.replace(/^\/+/, '').trimStart();
+    if (!body.startsWith('@')) continue;
+    const rest = body.slice(1);
+    const ws = rest.search(/\s/);
+    const key = ws === -1 ? rest : rest.slice(0, ws);
+    const value = (ws === -1 ? '' : rest.slice(ws + 1)).trim();
+    if (!key) continue;
+    switch (key) {
+      case 'name':
+        if (!name && value) name = value;
+        break;
+      case 'author':
+        if (!author && value) author = value;
+        break;
+      case 'logo':
+        if (!logo && value) logo = value;
+        break;
+      case 'description':
+        descriptions.push(value);
+        break;
+      case 'url':
+        if (value) urls.push(value);
+        break;
+      case 'tags':
+        for (const t of value.split(/[,，]/)) {
+          const s = t.trim();
+          if (s && !tags.includes(s)) tags.push(s);
+        }
+        break;
+      case 'version':
+        if (!version && value) version = value;
+        break;
+      case 'updateUrl':
+        if (!updateUrl && value) updateUrl = value;
+        break;
+      case 'uuid':
+        if (!uuid && value) uuid = value;
+        break;
+      case 'type':
+        if (
+          value === 'novel' ||
+          value === 'comic' ||
+          value === 'video' ||
+          value === 'music' ||
+          value === 'webpage'
+        ) {
+          sourceType = value;
+        }
+        break;
+      case 'enabled':
+        if (headerEnabled === null) {
+          headerEnabled = !(value === 'false' || value === '0' || value === 'no');
+        }
+        break;
+      case 'minDelayMs':
+      case 'minDelay': {
+        const n = parseInt(value, 10);
+        if (Number.isFinite(n) && n >= 0) minDelayMs = n;
+        break;
+      }
+      case 'require':
+        if (value) requireUrls.push(value);
+        break;
+    }
+  }
+
+  const finalUuid = uuid || fileName;
+  const enabled =
+    enabledOverride !== null ? enabledOverride : headerEnabled !== null ? headerEnabled : true;
+
+  return {
+    sourceKey: finalUuid,
+    uuid: finalUuid,
+    fileName,
+    name: name || fileName.replace(/\.js$/i, ''),
+    url: urls[0] || '',
+    urls,
+    author,
+    logo,
+    description: descriptions.length ? descriptions.join('\n') : null,
+    enabled,
+    fileSize,
+    modifiedAt,
+    sourceDir,
+    sourceType,
+    version,
+    updateUrl,
+    tags,
+    minDelayMs,
+    requireUrls,
+  };
+}
 
 const PRIMARY_DIR = 'booksources';
 const LEGACY_DIR = 'booksources_legacy';
@@ -533,7 +657,7 @@ export function migrateBookSources(userData: string): MigrationReport {
       stat.mtimeMs,
       markerOverride(dir, fileName),
     );
-    // 头缺 @uuid 时 parseHeaderMeta 已回退为 fileName（带扩展名，booksource-meta.ts:142，D6 硬验收前提）
+    // 头缺 @uuid 时 parseHeaderMeta 已回退为 fileName（带扩展名，D6 硬验收前提）
     const uuid = String(meta.uuid);
     const jsonFileName = fileName.replace(/\.js$/i, '.json');
     const jsonPath = path.join(dir, jsonFileName);

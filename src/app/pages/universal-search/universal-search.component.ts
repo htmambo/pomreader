@@ -374,9 +374,9 @@ export class UniversalSearchComponent {
   }
 
   openImport(): void {
-    // 域名匹配：若用户 webview 里访问的 URL 命中某个已启用书源（JsSourceAdapter.hostPattern），
+    // 域名匹配：若用户 webview 里访问的 URL 命中某个已启用书源（adapter hostPattern），
     // 则注入 source 到 nzData → ImportOnlineComponent 自动预选该书源 → importByUrl 走该书源
-    // 的 JsSourceAdapter.fetchCatalog → Book.bookSourceUuid 锚定到 meta.uuid（而不是 'universal'）
+    // 的 fetchCatalog → Book.bookSourceUuid 锚定到 meta.uuid（而不是 'universal'）
     const matchedSourceName = this.findMatchingBookSource(this.url);
     this.modal.create({
       nzTitle: '导入在线书页',
@@ -393,7 +393,7 @@ export class UniversalSearchComponent {
   }
 
   /**
-   * 在 registry 里查找首个 match(url) 的 JsSourceAdapter 名（universal-search 用）。
+   * 在 registry 里查找首个 match(url) 的书源适配器名（universal-search 用）。
    * 找不到时返回 undefined → modal 不注入 source，ImportOnlineComponent 走 registry 自动 resolve
    */
   private findMatchingBookSource(url: string): string | undefined {

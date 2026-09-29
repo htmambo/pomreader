@@ -1,12 +1,12 @@
 /**
- * 书源结果规范化共用 helper（P1：JsSourceAdapter / JsonRuleAdapter 两条链路共用）
+ * 书源结果规范化共用 helper（JSON 规则书源链路用；历史上曾与 JS 链路共用）
  *
  * 抽共用的理由（替代复制）：pickString fallback 链与 toRawSearchItem 的字段命名约定
  * 是 legado 兼容契约（RawSearchItem 的 legado 标准在前、兼容在后），两条 adapter 链路
  * 必须永远一致 —— 复制会随书源字段兼容演进漂移，独一份实现 + 两处引用更安全。
  *
- * 从 js-source.adapter.ts 原样迁出（行为不变）：toRawSearchItem 的 console.debug tag
- * 由 '[JsSourceAdapter]' 改为中性的 '[SourceParse]'（纯调试日志，无行为语义）。
+ * 自历史 JS 适配器原样迁出（行为不变）：toRawSearchItem 的 console.debug tag
+ * 为中性的 '[SourceParse]'（纯调试日志，无行为语义）。
  */
 import { type RawSearchItem } from './book-source.adapter';
 

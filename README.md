@@ -13,11 +13,10 @@ npm install
 npm start
 # → http://localhost:4200
 
-# 3. 生产构建（Angular + Electron + Worker 同步）
+# 3. 生产构建（Angular + Electron）
 npm run build
 #   • ng build            → electron/www/
 #   • electron            → release/linux-unpacked/（仅 dist 模式）
-#   • build:worker (esbuild) → src/assets/sandbox.worker.js
 # 完整 Electron 包：npm run dist → release/
 
 # 4. 单元测试（Vitest；含 src/ + electron/ 两侧单测）
@@ -46,11 +45,11 @@ npm run dev
 - **@angular/localize**（i18n 机制就位；zh-Hans 默认）
 - **Vitest 5.0 + jsdom**（`src/` 与 `electron/` 两侧共测，v8 coverage：**92.88% 行 / 85.1% 分支 / 90.55% 函数** 总计；978 tests across 63 files）+ **Playwright 1.63**（E2E，5 spec / 19 tests；Chromium only）
 - **ESLint 9.39 + angular-eslint 22.5 + typescript-eslint 8.70**（`npm run lint`；flat config；0 errors / 0 warnings baseline）
-- **esbuild**（`build:worker` 打包 `sandbox.worker.ts` → `src/assets/sandbox.worker.js`）
+- **esbuild**（`build:db-window` 打包 DB 隐藏窗口渲染脚本 → `dist-electron/db-renderer.js`）
 
 ## 书源与扩展
 
-- [书源开发指南](docs/Usage/BOOKSOURCE_GUIDE.md) — JSON 书源（BookSourceDoc）字段规范、CSS/正则双模式规则、GET/POST/POST_RAW 搜索、旧 `.js` 自动迁移与 `pom.bookSource.engine` 回滚开关
+- [书源开发指南](docs/Usage/BOOKSOURCE_GUIDE.md) — JSON 书源（BookSourceDoc）字段规范、CSS/正则双模式规则、GET/POST/POST_RAW 搜索、旧 `.js` 自动迁移
 - [扩展开发指南](docs/Usage/EXTENSION_GUIDE.md) — UserScript 头部、v1 限制（仅元数据加载 + eval 测试入口）、`ad-remover.js` 示例
 - [封面缓存说明](docs/Usage/COVER_CACHE.md) — 缓存目录、SSRF 防护、`local://` / `asset://` / `data:` / `http(s)` 渲染协议、`/settings/cache` 管理页
 
@@ -63,10 +62,9 @@ src/
 │   │   ├── logic/         # 纯函数：chapter-split / text-format / bookshelf-sort / bookshelf-filter / bookshelf-group-name / auto-import-url / convert-chinese / settings-store / build-book-source-doc / rule-parse
 │   │   ├── models/        # Book / Chapter / Settings / BookshelfGroup / BookSourceDoc（书源 JSON 文档 + valibot schema）
 │   │   ├── services/      # BookService / BookshelfGroupService / DbService (PouchDB) / ReaderService / SettingsService / CfPromptService / SourceHealthService 等
-│   │   ├── book-source/   # 书源体系：适配器注册表 + JSON 规则引擎 + legado 订阅源导入（source-meta.types.ts 在本层；JS 沙箱链路保留至 P4）
+│   │   ├── book-source/   # 书源体系：适配器注册表 + JSON 规则引擎 + legado 订阅源导入（source-meta.types.ts 在本层）
 │   │   │   ├── adapters/  # 专用站（笔趣阁）/ 启发式密度算法兜底
 │   │   │   ├── json-rule/ # JSON 规则引擎（engine / guard / json-rule.adapter / rule-engine.service）
-│   │   │   ├── js-source/ # JS 书源沙箱（sandbox.worker：网络出口屏蔽 + 原型冻结）；健康检查/CF 弹窗已迁 core/services；P4 整目录删除
 │   │   │   ├── legado/    # Legado 订阅源 JSON 解析/翻译/导入
 │   │   │   ├── smart-add/ # 智能添加规则引擎
 │   │   │   └── source-test/# 书源五步测试
@@ -84,8 +82,7 @@ src/
 │   └── app.routes.ts      # lazy load 路由
 ├── assets/
 │   ├── fonts/             # 嵌入字体
-│   ├── themes/            # 主题 JSON（与 data-pom-theme 配对）
-│   └── sandbox.worker.js  # build:worker 产物（esbuild 打包；P4 随 JS 链路删除）
+│   └── themes/            # 主题 JSON（与 data-pom-theme 配对）
 ├── styles/
 │   ├── tokens.scss
 │   ├── ng-zorro-overrides.scss
@@ -106,7 +103,7 @@ electron/
 └── *.spec.ts              # electron 侧单测（vitest.config.ts include 已包含）
 
 e2e/                       # Playwright（5 个 spec；配置在仓库根 playwright.config.ts）
-fixtures/                  # 书源差分测试样本：booksources/（脱敏 .js/.json 样本）+ html/（页面快照）+ worker-stub.ts + MANIFEST.md
+fixtures/                  # 书源迁移测试样本：booksources/（脱敏 .js 样本，booksource-migrate.spec.ts 用）+ MANIFEST.md
 scripts/                   # 工具脚本：audit-booksources.ts（书源盘点，P0）+ e2e-*.cjs
 docs/
 ├── Architecture/          # 设计稿（白虎阅读 v1.1）
@@ -140,7 +137,6 @@ docs/
 - `core/logic/chapter-split.ts` — TXT 章节切分（核心算法）
 - `core/services/book.service.ts` — 书架/章节中枢：导入、PouchDB 读写、章节内存缓存
 - `core/book-source/json-rule/engine.ts` — JSON 规则引擎（BookSourceDoc.rules 四入口直接执行，行为与旧 JS 模板等价；护栏在 guard.ts）
-- `core/book-source/js-source/sandbox.worker.ts` — JS 书源沙箱（屏蔽网络出口 + 冻结原型链 + window/document/localStorage 删除）；保留至 P4 删除
 - `core/services/settings.service.ts` — 阅读设置持久化与校验；主题经 `app.component.ts` 打在 `<html data-pom-theme>`
 - `core/services/global-error-handler.ts` — 全局异常兜底 → ToastService
 - `core/db/bulk-result.ts` — PouchDB bulkDocs 错误分类工具
@@ -167,7 +163,7 @@ docs/
 | 项 | 原 vendor | 本项目 |
 |---|---|---|
 | 源码 | 仅打包产物 | Angular 22 TypeScript |
-| 外部源 | 硬编码接入 | 书源适配器体系（专用 / 启发式 / JS 沙箱 / Legado 导入） |
+| 外部源 | 硬编码接入 | 书源适配器体系（专用 / 启发式 / JSON 规则书源 / Legado 导入） |
 | 主题切换 | `<body>` 上打标 | `<html>` 上打 `data-pom-theme`（避免弹窗背景闪烁） |
 | 路由参数 | `/:bookId` | `/:bookId/:chapterId` |
 | IPC 验证 | 无 | valibot `safeHandle` 工厂统一 runtime schema 校验 |

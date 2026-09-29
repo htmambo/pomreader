@@ -24,8 +24,8 @@ export interface Book {
   source: BookSource;
   sourceUrl?: string;
   /**
-   * 锚定具体书源（legado meta.uuid 全局唯一）；
-   * - JsSourceAdapter 来源：写 meta.uuid，通过 registry.getByUuid() 找 adapter 重抓
+   * 锚定具体书源（meta.uuid 全局唯一）；
+   * - JSON 书源来源：写 meta.uuid，通过 registry.getByUuid() 找 adapter 重抓
    * - 万能搜索 / 启发式兜底：写 'universal' 标识（非具体书源，getByUuid 返回 undefined）
    * - 未填：历史数据 / 本地导入
    */

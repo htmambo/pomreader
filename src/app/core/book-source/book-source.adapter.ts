@@ -57,7 +57,7 @@ export interface BookSourceAdapter {
 /**
  * 书源搜索原始返回项（兼容 legado 风格：name/title, url/bookUrl, author, intro/description）。
  * 适配器层公共类型：聚合搜索与各适配器统一使用，避免循环依赖
- * （multi-source.search → registry → js-source 形成回路）。
+ * （multi-source.search → registry → 具体 adapter 子模块会形成回路）。
  *
  * 字段命名约定：legado 标准在前（name / url / intro），兼容字段在后（title / bookUrl / description）。
  * kind 用项目 Book.kind 命名（对应「分类」/「题材」）；fallback 链：kind / genre / category / class / type。
@@ -76,8 +76,8 @@ export interface RawSearchItem {
 }
 
 /**
- * 鸭子类型提取 adapter 的 meta.uuid（JsSourceAdapter 持有 BookSourceMeta.uuid）。
- * 用 duck typing 检查 meta 属性而不是 instanceof —— registry 不反向耦合 js-source 子模块。
+ * 鸭子类型提取 adapter 的 meta.uuid（JSON 书源适配器持有 BookSourceMeta.uuid）。
+ * 用 duck typing 检查 meta 属性而不是 instanceof —— registry 不反向耦合具体 adapter 子模块。
  * 返回空字符串视为无效（早期版本 / 损坏数据兜底）。
  */
 export function extractMetaUuid(adapter: BookSourceAdapter): string | undefined {

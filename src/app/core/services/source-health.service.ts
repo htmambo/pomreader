@@ -1,13 +1,10 @@
 /**
  * 书源健康检测服务（JSON 规则书源版）
  *
- * 改挂记录（书源 JSON 化方案 §5「周边服务改挂」）：
- * - 原实现依赖 SandboxService.load() 取沙箱模块函数表；沙箱链路 P4 删除
- * - 现改为「JSON 合法性 + 必填规则非空」校验：读 .json → JSON.parse → BookSourceDocSchema
- *   safeParse；全通过 → 四入口能力全开；任一失败 → 空能力（列表页健康角标语义不变）
- * - detectBatch 接口保留（BATCH_CONCURRENCY 并发，单源失败不影响其他）
- * - preload sourceHealthCheck / IPC booksource-eval 与本服务无关，已于 P3 随调试/测试页
- *   切走 SandboxService 一并删除（preload 暴露 + pom:booksource-eval channel）
+ * 实现：「JSON 合法性 + 必填规则非空」校验：读 .json → JSON.parse → BookSourceDocSchema
+ * safeParse；全通过 → 四入口能力全开；任一失败 → 空能力（列表页健康角标语义不变）。
+ * detectBatch 接口保留（BATCH_CONCURRENCY 并发，单源失败不影响其他）。
+ *（历史：沙箱时代曾取 JS 模块函数表判能力，沙箱链路已于 P4 删除。）
  */
 import { Injectable } from '@angular/core';
 import * as v from 'valibot';

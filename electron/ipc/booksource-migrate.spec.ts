@@ -6,6 +6,7 @@ import * as path from 'path';
 import {
   isPureTemplate,
   migrateBookSources,
+  parseHeaderMeta,
   readMigrationReportOnce,
   registerBookSourceMigrationHandlers,
   scanLegacyDir,
@@ -73,6 +74,99 @@ function makeSkeletonSource(): string {
     '',
   ].join('\n');
 }
+
+describe('parseHeaderMeta（书源 JS 头部注释解析；自 booksource-meta 迁入，P4）', () => {
+  it('应解析基本字段 name/author/url/tags/version/uuid', () => {
+    const content = [
+      '// @name 测试书源',
+      '// @author me',
+      '// @url https://example.com/',
+      '// @tags 小说, 玄幻',
+      '// @tags 都市, 修仙',
+      '// @version 1.0.0',
+      '// @uuid abc-123',
+      'function search() {}',
+    ].join('\n');
+    const r = parseHeaderMeta(content, 'test.js', '/sources', 100, Date.now(), null);
+    expect(r.name).toBe('测试书源');
+    expect(r.author).toBe('me');
+    expect(r.url).toBe('https://example.com/');
+    expect(r.urls).toEqual(['https://example.com/']);
+    expect(r.tags).toEqual(['小说', '玄幻', '都市', '修仙']); // 中文逗号也支持
+    expect(r.version).toBe('1.0.0');
+    expect(r.uuid).toBe('abc-123');
+    expect(r.sourceType).toBe('novel'); // 默认
+    expect(r.enabled).toBe(true); // 无 @enabled 头 → 默认 true
+  });
+
+  it('缺 @name 时应 fallback 到 fileName 去 .js 后缀', () => {
+    const r = parseHeaderMeta('// @author me', 'mySource.js', '/d', 0, 0, null);
+    expect(r.name).toBe('mySource');
+  });
+
+  it('@enabled false/0/no 应判定禁用', () => {
+    const r = parseHeaderMeta('// @enabled false', 'a.js', '/d', 0, 0, null);
+    expect(r.enabled).toBe(false);
+  });
+
+  it('enabledOverride（marker 文件）应优先于 @enabled 头', () => {
+    const r = parseHeaderMeta('// @enabled false', 'a.js', '/d', 0, 0, true);
+    expect(r.enabled).toBe(true);
+  });
+
+  it('@type 接受合法枚举值', () => {
+    for (const type of ['novel', 'comic', 'video', 'music', 'webpage']) {
+      const r = parseHeaderMeta(`// @type ${type}`, 'a.js', '/d', 0, 0, null);
+      expect(r.sourceType).toBe(type);
+    }
+  });
+
+  it('@type 非法值应保持默认 novel', () => {
+    const r = parseHeaderMeta('// @type unknown-type', 'a.js', '/d', 0, 0, null);
+    expect(r.sourceType).toBe('novel');
+  });
+
+  it('@minDelayMs / @minDelay 解析为整数', () => {
+    const r1 = parseHeaderMeta('// @minDelayMs 500', 'a.js', '/d', 0, 0, null);
+    expect(r1.minDelayMs).toBe(500);
+    const r2 = parseHeaderMeta('// @minDelay 1000', 'a.js', '/d', 0, 0, null);
+    expect(r2.minDelayMs).toBe(1000);
+  });
+
+  it('@minDelayMs 负值应忽略（保持 0）', () => {
+    const r = parseHeaderMeta('// @minDelayMs -100', 'a.js', '/d', 0, 0, null);
+    expect(r.minDelayMs).toBe(0);
+  });
+
+  it('description 多行应 join 为 \\n', () => {
+    const r = parseHeaderMeta(
+      ['// @description 第一行', '// @description 第二行'].join('\n'),
+      'a.js',
+      '/d',
+      0,
+      0,
+      null,
+    );
+    expect(r.description).toBe('第一行\n第二行');
+  });
+
+  it('@url 多个应保留为数组', () => {
+    const r = parseHeaderMeta(
+      ['// @url https://a.com', '// @url https://b.com'].join('\n'),
+      'a.js',
+      '/d',
+      0,
+      0,
+      null,
+    );
+    expect(r.urls).toEqual(['https://a.com', 'https://b.com']);
+  });
+
+  it('@uuid 缺省时应 fallback 到 fileName', () => {
+    const r = parseHeaderMeta('// @name x', 'fallback-uuid.js', '/d', 0, 0, null);
+    expect(r.uuid).toBe('fallback-uuid.js');
+  });
+});
 
 describe('isPureTemplate（结构白名单判定，方案 §4.2 D8）', () => {
   it('模板生成源（sample-regex.js）应判为纯模板', () => {

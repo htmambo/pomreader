@@ -1,10 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { extractRulesFromJs, extractBaseUrl, extractHeaders } from './rule-parse';
-import {
-  generateSourceCode,
-  DEFAULT_PATTERNS,
-  type SourceRules,
-} from '../book-source/smart-add/smart-rules';
+import { type SourceRules } from '../book-source/smart-add/smart-rules';
 
 /** 手拼最小可用书源（7 必填常量 + @name 头）；extra 追加常量行，name=null 去掉 @name 头 */
 function makeSource(extra: string[] = [], opts: { name?: string | null } = {}): string {
@@ -23,7 +19,35 @@ function makeSource(extra: string[] = [], opts: { name?: string | null } = {}): 
 }
 
 describe('rule-parse', () => {
-  describe('round-trip（generateSourceCode → extractRulesFromJs）', () => {
+  /**
+   * 全量常量形态（历史模板生成源的标准形态，P4 删代码生成器后固化为内联 fixture）：
+   * 常量值以 JSON.stringify 注入（与 extractString 的 JSON.parse 语义互为镜像）
+   */
+  function makeFullSource(rules: SourceRules, headers?: Record<string, string>): string {
+    const j = (v: unknown): string => JSON.stringify(v);
+    return [
+      `// @name        ${rules.siteName}`,
+      `const BASE_URL = ${j('https://example.com')}`,
+      ...(headers ? [`const HEADERS = ${j(headers)}`] : []),
+      `const SEARCH_PATH = ${j(rules.searchPath)}`,
+      `const SEARCH_METHOD = ${j(rules.searchMethod ?? 'GET')}`,
+      `const SEARCH_BODY_PARAMS = ${j(rules.searchBodyParams ?? [])}`,
+      `const SEARCH_CONTENT_TYPE = ${j(rules.searchContentType ?? '')}`,
+      `const SEARCH_RAW_BODY = ${j(rules.searchRawBody ?? '')}`,
+      `const SEARCH_ITEM_RULE = ${j(rules.searchItemPattern)}`,
+      `const SEARCH_AUTHOR_RULE = ${j(rules.searchAuthorPattern ?? '')}`,
+      `const SEARCH_CATEGORY_RULE = ${j(rules.searchCategoryPattern ?? '')}`,
+      `const BOOK_TITLE_RULE = ${j(rules.bookTitlePattern)}`,
+      `const BOOK_AUTHOR_RULE = ${j(rules.bookAuthorPattern)}`,
+      `const CHAPTER_ITEM_RULE = ${j(rules.chapterItemPattern)}`,
+      `const CONTENT_RULE = ${j(rules.contentPattern)}`,
+      `const CONTENT_REPLACE_RULES = ${j(rules.contentReplaceRules ?? [])}`,
+      `const BOOK_CATEGORY_RULE = ${j(rules.bookCategoryPattern ?? '')}`,
+      `const COVER_RULE = ${j(rules.coverUrlPattern ?? '')}`,
+    ].join('\n');
+  }
+
+  describe('全量常量形态解析（历史生成源 fixture）', () => {
     const rules: SourceRules = {
       siteName: '示例书源',
       searchPath: '/search?q={keyword}&page={page}',
@@ -49,21 +73,19 @@ describe('rule-parse', () => {
       coverUrlPattern: 'css:img.cover',
     };
 
-    it('全字段规则 round-trip 深比较一致', () => {
-      const src = generateSourceCode('https://example.com', rules, {
-        headers: { 'User-Agent': 'pom/1.0' },
-      });
+    it('全字段规则解析深比较一致', () => {
+      const src = makeFullSource(rules, { 'User-Agent': 'pom/1.0' });
       expect(extractRulesFromJs(src)).toEqual(rules);
     });
 
-    it('extractBaseUrl / extractHeaders 与生成入参一致', () => {
+    it('extractBaseUrl / extractHeaders 与常量值一致', () => {
       const headers = { 'User-Agent': 'pom/1.0', Referer: 'https://example.com/' };
-      const src = generateSourceCode('https://example.com', rules, { headers });
+      const src = makeFullSource(rules, headers);
       expect(extractBaseUrl(src)).toBe('https://example.com');
       expect(extractHeaders(src)).toEqual(headers);
     });
 
-    it('省略可选字段时回填与 generateSourceCode 注入逻辑同口径（无不对称）', () => {
+    it('可选常量缺失时按 method 回填 contentType，其余回退空串/空数组', () => {
       const minimal: SourceRules = {
         siteName: '极简站',
         searchPath: '/s?q={keyword}',
@@ -75,12 +97,9 @@ describe('rule-parse', () => {
         chapterItemPattern: 'css:a',
         contentPattern: 'css:#content',
       };
-      const parsed = extractRulesFromJs(generateSourceCode('https://example.com', minimal));
-      // generateSourceCode :483-485 按 method 注入缺省 contentType，与本模块回填同口径
+      const parsed = extractRulesFromJs(makeFullSource(minimal));
+      // 常量存在但值为空串 → 按 POST_RAW 回填缺省 contentType（与回填逻辑同口径）
       expect(parsed?.searchContentType).toBe('application/json');
-      // 生成器对省略字段注入模板缺省而非省略常量：解析结果拿到的是注入值（round-trip 的已知不对称点）
-      expect(parsed?.coverUrlPattern).toBe(DEFAULT_PATTERNS.coverUrlPattern);
-      expect(parsed?.bookCategoryPattern).toBe(DEFAULT_PATTERNS.bookCategoryPattern);
       expect(parsed?.searchBodyParams).toEqual([]);
       expect(parsed?.contentReplaceRules).toEqual([]);
       expect(parsed?.searchAuthorPattern).toBe('');

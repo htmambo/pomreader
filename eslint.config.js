@@ -49,8 +49,6 @@ module.exports = tseslint.config(
       'electron/www/**',
       'dist-electron/**',
       'release/**',
-      'src/assets/sandbox.worker.js',
-      'src/app/core/book-source/js-source/sandbox.worker.ts', // worker 上下文（DedicatedWorkerGlobalScope）
       'src/typings/**',
       '*.config.js',
       '*.config.ts',

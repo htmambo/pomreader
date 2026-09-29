@@ -49,7 +49,7 @@ const TRACE_LIMIT = 200;
  * 调试书源页（迁移自 legado DebugSourceTab；P3 切 JSON 规则引擎，方案 §5）
  * 选定 JSON 书源 → 逐入口调用（搜索/详情/目录/正文）→ 预览 + 原始 JSON 对照
  * - JS 沙箱 → RuleEngineService（沙箱 P4 删除；explore 入口按 D3 移除）
- * - 进度日志区渲染 RuleTrace（订阅 RuleEngineService.traces$，替代 sandbox.progress，F11）：
+ * - 进度日志区渲染 RuleTrace（订阅 RuleEngineService.traces$，F11）：
  *   阶段 / 请求 URL+method / HTTP 状态 / 命中规则 / 提取条数 / 耗时
  * 差异：原项目的「浏览器探测」依赖 Tauri browser probe 命令，pomreader 无对应设施，未迁移；
  * 书籍详情抽屉/章节阅读弹窗用目录点击填充 + 正文预览替代
@@ -232,7 +232,7 @@ export class BookSourceDebugComponent {
   }
 
   private readonly engine = inject(RuleEngineService);
-  /** 引擎 trace 日志（替代 sandbox.progress，F11）：订阅 traces$，截断保留最近 TRACE_LIMIT 条 */
+  /** 引擎 trace 日志（F11）：订阅 traces$，截断保留最近 TRACE_LIMIT 条 */
   readonly traces = signal<RuleTrace[]>([]);
   readonly traceLines = computed(() => this.traces().map((t) => this.formatTrace(t)));
   readonly traceLogText = computed(() => this.traceLines().join('\n'));
@@ -246,7 +246,7 @@ export class BookSourceDebugComponent {
     void this.load();
   }
 
-  /** 从 JSON 源列表选择调试对象（方案 §5：booksourceList → booksourceListJson） */
+  /** 从 JSON 源列表选择调试对象（方案 §5：booksourceListJson） */
   async load(): Promise<void> {
     const api = (window as unknown as { pomAPI?: PomAdmin }).pomAPI;
     if (!api?.booksourceListJson) {

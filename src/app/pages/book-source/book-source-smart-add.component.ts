@@ -225,7 +225,7 @@ export class BookSourceSmartAddComponent {
   }
 
   /**
-   * 规则 + meta → BookSourceDoc（meta 口径与历史 generateSourceCode 文件头一致：
+   * 规则 + meta → BookSourceDoc（meta 口径与历史模板生成源的文件头一致：
    * author 智能添加 / tags 智能识别 / version 1.2.0 / description 含 host）；
    * uuid 缺省回退 fileName（带 .json 扩展名，§3.1 硬约束）
    */

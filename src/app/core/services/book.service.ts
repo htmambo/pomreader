@@ -398,7 +398,7 @@ export class BookService {
 
   /**
    * 测试入口：手动注入依赖（绕开 Angular DI 上下文 NG0203）。
-   * 与 SandboxService.forTest / ImportViaSourceService.forTest 同模式：
+   * 与 ImportViaSourceService.forTest 等同模式：
    * 生产用 Angular inject()，测试用静态工厂。
    * 注意：测试中 _books / _chaptersCache 是空白 signal，调用前需手动
    * 设置 _books 状态以模拟 in-memory bookshelf。

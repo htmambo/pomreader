@@ -9,9 +9,8 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "build:worker": "esbuild src/app/core/book-source/js-source/sandbox.worker.ts --bundle --target=es2020 --format=iife --outfile=src/assets/sandbox.worker.js",
-    "build": "npm run build:worker && ng build",
-    "watch": "npm run build:worker && ng build --watch --configuration development",
+    "build": "ng build",
+    "watch": "ng build --watch --configuration development",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

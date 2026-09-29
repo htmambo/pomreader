@@ -271,7 +271,7 @@ export class ImportOnlineComponent implements OnInit {
         importedAt: new Date().toISOString(),
         source: 'online',
         sourceUrl: this.url,
-        // 锚定具体书源：JsSourceAdapter 来源 → meta.uuid（importByUrl 透传）；其它来源 →
+        // 锚定具体书源：JSON 书源来源 → meta.uuid（importByUrl 透传）；其它来源 →
         // UNIVERSAL_BOOK_SOURCE_UUID（服务层统一返回，consumer 不必 ?? 兜底）
         bookSourceUuid: this.parsedBookSourceUuid,
       };

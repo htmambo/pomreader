@@ -1,8 +1,9 @@
 /**
- * JSON 规则书源适配器（方案 §3.2 / P1）：JsonRuleAdapter —— JsSourceAdapter 的行为等价镜像，
- * 执行后端由「Worker 沙箱 + legado JS」换为「JsonRuleEngine + RuleEngineService」。
+ * JSON 规则书源适配器（方案 §3.2 / P1）：JsonRuleAdapter，
+ * 执行后端为「JsonRuleEngine + RuleEngineService」（P4 起唯一用户书源链路；
+ * 原为历史 JS 沙箱适配器的行为等价镜像，差分测试已随 P4 一并删除）。
  *
- * 镜像要点（与 js-source.adapter.ts 逐条对应）：
+ * 行为要点：
  * - match(url)：meta.url || meta.urls[0] 主机名正则（buildHostPattern，v1 只取 [0]，不做 failover）
  * - fetchCatalog → engineService.bookInfo(...)，走同一套 pickString fallback 链
  *   （name/title/bookName、author/writer、kind/genre/category/class/type、cover/coverUrl/image、
@@ -10,14 +11,14 @@
  *   保留整条链为兼容未来字段差异与 legado 导入产物。
  * - fetchChapter → engineService.chapterContent(...)，非 string 返回 ''
  * - search → engineService.search(...)，toRawSearchItem 规范化 + 截断 MAX_SEARCH_RESULTS
- * - 「改完立即生效」：JsSourceAdapter.ensureLoaded 每次入口重读源码交给 sandbox 判断；
- *   JSON 链路由 RuleEngineService 每次入口重读文件 + valibot parse 保证，adapter 不做实例级缓存。
+ * - 「改完立即生效」：RuleEngineService 每次入口重读文件 + valibot parse 保证，
+ *   adapter 不做实例级缓存。
  *
  * pickString / toRawSearchItem / buildHostPattern / MAX_SEARCH_RESULTS 共用自
  * ../source-parse.utils.ts（选择抽共用而非复制：这套 legado 兼容链是两条 adapter 必须
  * 永远一致的契约，复制会随字段兼容演进漂移）。
  *
- * meta 用 core/book-source/source-meta.types.ts 的 BookSourceMeta（P3 已从 js-source/ 迁出）。
+ * meta 用 core/book-source/source-meta.types.ts 的 BookSourceMeta。
  * meta 暴露为实例属性供 extractMetaUuid 鸭子类型读取（registry 匹配用）。
  */
 import {
@@ -40,7 +41,7 @@ import { type RuleChapterItem } from './engine';
 
 /**
  * bookInfo 结果（引擎返回 RuleBookInfo = title/author/category/cover/chapters[{name,url}]；
- * interface 列出整条 fallback 链的合法字段名，兼容未来差异与 legado 命名，同 JsSourceAdapter 约定）
+ * interface 列出整条 fallback 链的合法字段名，兼容未来差异与 legado 命名）
  */
 interface BookInfoResult {
   name?: string;
@@ -59,7 +60,7 @@ interface BookInfoResult {
   chapters?: (CatalogEntry | RuleChapterItem)[];
 }
 
-/** 手动 `new` 实例化（registry 装配层），不挂 Angular DI —— 与 JsSourceAdapter 同模式 */
+/** 手动 `new` 实例化（registry 装配层），不挂 Angular DI */
 export class JsonRuleAdapter implements BookSourceAdapter {
   readonly name: string;
   private readonly hostPattern: RegExp | null;
@@ -100,7 +101,7 @@ export class JsonRuleAdapter implements BookSourceAdapter {
   }
 
   /**
-   * 跨书源聚合搜索的 duck-typed 入口（与 JsSourceAdapter.search 语义逐条一致）。
+   * 跨书源聚合搜索的 duck-typed 入口。
    *
    * @param keyword 搜索关键词；trim 后空字符串/undefined → 返回 [] 不调引擎
    * @param page 分页号（非正整数 → 兜底 1）

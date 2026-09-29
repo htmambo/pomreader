@@ -1,13 +1,12 @@
 /**
  * JSON 规则引擎（方案 §3.2）：BookSourceDoc.rules 直接由 TS 执行，替代「生成 JS + 沙箱运行」。
  *
- * 行为与 JS 模板逐字段等价（smart-rules.ts generateSourceCode 生成的 search/bookInfo/
- * chapterList/chapterContent，:695-756）。对齐要点：
+ * 行为与历史 JS 模板逐字段等价（search/bookInfo/chapterList/chapterContent 四入口；
+ * 等价性由 P1 差分测试证明，模板生成器与差分测试已随 P4 一并删除）。对齐要点：
  *  - HTTP 不直连 IPC：构造函数注入 RuleEngineHttp，由外层 service 接 booksourceHttpProxy + CF 弹窗
  *  - F6：模板 extractText 正则分支 stripTags(m[1])，而 pickText 正则分支不剥标签
  *    → 单值文本一律走本模块的 pickTextStripped，不得直接用 pickText
- *  - F6c：cssRulesEnabled 止血开关现状两条链路都在（sandbox.service.ts:676-677 对每个 CSS
- *    选择器 fail）→ 引擎对每条 CSS 规则先过 assertCssAllowed，抛与沙箱同一文案
+ *  - F6c：cssRulesEnabled 止血开关 → 引擎对每条 CSS 规则先过 assertCssAllowed 响亮失败
  *  - 提取复用 smart-rules 纯函数（stripTags/absUrl/buildFormBody/applyContentReplaceRules/
  *    pickHtml/pickAttr/matchLinkItems/matchSearchItems 已核对逐字等价）
  *  - 执行护栏（长度/正则风险/预算/HTML 上限/结果裁剪/原型防御）全部在 guard.ts
@@ -57,7 +56,7 @@ export interface RuleEngineHttp {
 /** 引擎入口阶段 */
 export type RuleEnginePhase = 'search' | 'bookInfo' | 'chapterList' | 'chapterContent';
 
-/** 一次入口调用内的追踪记录（调试页数据源，替代 sandbox.progress，方案 F11） */
+/** 一次入口调用内的追踪记录（调试页数据源，方案 F11） */
 export interface RuleTrace {
   /** 所属入口 */
   phase: RuleEnginePhase;
@@ -116,10 +115,10 @@ export interface RuleEngineOptions {
   budgetMs?: number;
 }
 
-/** F6c 门报错文案：与 sandbox.service.ts:677 逐字一致，差分矩阵断言同一文案 */
+/** F6c 门报错文案（历史沙箱链路同款文案，差分测试期逐字锁定） */
 export const CSS_RULES_DISABLED_MESSAGE = 'CSS 规则已禁用（localStorage pom.cssRules=0）';
 
-/** 模板提取层上限（generateSourceCode 的 MAX_EXTRACT_LINKS，smart-rules.ts:539） */
+/** 模板提取层上限（历史模板的 MAX_EXTRACT_LINKS 同值） */
 const MAX_EXTRACT_LINKS = 500;
 
 /**

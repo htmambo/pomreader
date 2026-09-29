@@ -1,8 +1,8 @@
 /**
  * JsonRuleAdapter 单元测试（方案 §3.2 / P1）
  *
- * 用例面镜像 js-source.adapter.spec.ts（26 例）：假 RuleEngineService 替代
- * MockSandboxService，断言 adapter 行为与 JsSourceAdapter 一致。
+ * 用例面镜像历史 JS 适配器 spec（26 例，已随 P4 删除）：假 RuleEngineService 驱动，
+ * 断言 adapter 行为契约不变。
  * 不依赖 Angular TestBed（adapter 手动 new，项目 vitest 直实例化模式）。
  */
 import { describe, it, expect, vi } from 'vitest';
@@ -138,7 +138,7 @@ describe('JsonRuleAdapter', () => {
     });
   });
 
-  // ========== fetchCatalog 字段 fallback 链（与 JsSourceAdapter 同一套约定） ==========
+  // ========== fetchCatalog 字段 fallback 链（legado 兼容命名约定） ==========
 
   it('fetchCatalog 标准 legado 字段 name/bookUrl 也能解析（不只 title/url）', async () => {
     const { adapter, mock } = makeAdapter();

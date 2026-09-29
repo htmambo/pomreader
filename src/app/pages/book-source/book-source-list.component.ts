@@ -17,7 +17,6 @@ import { NzModalModule, NzModalService } from 'ng-zorro-antd/modal';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
-import { NzSegmentedModule } from 'ng-zorro-antd/segmented';
 import { PageHeaderService } from '../../core/services/page-header.service';
 import { ToastService } from '../../core/services/toast.service';
 import { type BookSourceMeta } from '../../core/book-source/source-meta.types';
@@ -26,12 +25,6 @@ import {
   type LegacySourceItem,
 } from '../../core/book-source/book-source-list-state.service';
 import { ImportLegadoComponent } from '../../modals/import-legado/import-legado.component';
-import {
-  getBookSourceEngine,
-  setBookSourceEngine,
-  type BookSourceEngine,
-} from '../../core/book-source/feature-flag';
-import { signal } from '@angular/core';
 
 type PomRead = {
   booksourceRead?: (fileName: string, sourceDir?: string) => Promise<string>;
@@ -46,7 +39,6 @@ function pomApi(): PomRead | null {
  * 书源管理列表页（实施计划 T-005；P3 切 JSON 链路，方案 §5）
  * - 数据源 = booksourceListJson（state 服务内）；meta.rulesInvalid 非空 → 行内红标
  * - needs-manual legacy 源（§4.3）：列表末尾标灰 + 「查看原始 JS」「删除」
- * - 顶栏引擎开关（§3.3，调试用，P4 删）：rule / js / both
  * - 启停 / 编辑 / 删除（删除二次确认）；启停失败回滚 UI（DM-3）
  * - Esc 逐级回退：Modal 层交给 ng-zorro → 清空过滤词 → 停在列表页（见 onKeydown）
  *
@@ -66,7 +58,6 @@ function pomApi(): PomRead | null {
     NzEmptyModule,
     NzSpinModule,
     NzTooltipModule,
-    NzSegmentedModule,
   ],
   templateUrl: './book-source-list.component.html',
   styleUrl: './book-source-list.component.scss',
@@ -77,14 +68,6 @@ export class BookSourceListComponent {
   private readonly modal = inject(NzModalService);
   private readonly router = inject(Router);
   private readonly pageHeader = inject(PageHeaderService);
-
-  /** 引擎运行时开关（§3.3）：切换只影响下次 adapter 加载（registry 在启动时读开关） */
-  readonly engine = signal<BookSourceEngine>(getBookSourceEngine());
-  readonly engineOptions: { label: string; value: BookSourceEngine }[] = [
-    { label: 'JSON 规则', value: 'rule' },
-    { label: 'JS 沙箱', value: 'js' },
-    { label: '并存', value: 'both' },
-  ];
 
   /** 是否还在首次加载（首次成功前显示 spinner，已加载过则走后台刷新不阻塞） */
   readonly firstLoading = computed(() => !this.state.loaded());
@@ -152,15 +135,6 @@ export class BookSourceListComponent {
         }
       },
     });
-  }
-
-  /** 引擎切换（§3.3）：写 localStorage；adapter 注册在启动时读开关，故提示重启并原地刷新列表 */
-  onEngineChange(value: string | number): void {
-    const next = value as BookSourceEngine;
-    setBookSourceEngine(next);
-    this.engine.set(next);
-    this.toast.info('引擎开关已保存，重启应用后生效（列表已原地刷新）');
-    void this.refresh(false);
   }
 
   /** 「查看原始 JS」（§4.3）：读 legacy 文件内容，Modal 只读展示 */

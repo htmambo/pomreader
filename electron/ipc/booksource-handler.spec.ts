@@ -208,19 +208,29 @@ describe('JSON 书源 channel（save → list → toggle → delete round-trip�
     fs.rmSync(tmpUserData, { recursive: true, force: true });
   });
 
-  it('应注册 5 个 JSON channel（旧 channel 不受影响）', () => {
+  it('应注册 5 个 JSON channel + 保留的通用 channel（.js 专属 channel 已随 P4 删除）', () => {
     for (const ch of [
       'pom:booksource-list-json',
       'pom:booksource-list-json-streaming',
       'pom:booksource-save-json',
       'pom:booksource-toggle-json',
       'pom:booksource-delete-json',
-      // 旧 channel 仍在
+      // 保留：legacy 读取/删除 + 草稿 + HTTP 代理
+      'pom:booksource-read',
+      'pom:booksource-delete',
+      'pom:booksource-save-draft',
+      'pom:booksource-http-proxy',
+    ]) {
+      expect(handlers.has(ch), ch).toBe(true);
+    }
+    // .js 专属 channel 不再注册（P4 删除）
+    for (const ch of [
       'pom:booksource-list',
+      'pom:booksource-list-streaming',
       'pom:booksource-save',
       'pom:booksource-toggle',
     ]) {
-      expect(handlers.has(ch), ch).toBe(true);
+      expect(handlers.has(ch), ch).toBe(false);
     }
   });
 

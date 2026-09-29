@@ -1,11 +1,11 @@
 /**
- * 书源头部元数据解析 + 目录扫描（纯函数 / 纯 IO，无 IPC 依赖）
+ * 书源元数据工具（纯函数 / 纯 IO，无 IPC 依赖）
  *
- * - parseHeaderMeta: 扫 `// @key value` → BookSourceMeta（.js 链路，P4 删）
- * - scanDir: 遍历 `.js` 文件，叠加 marker 文件覆盖 enabled（.js 链路，P4 删）
  * - scanJsonDir: 遍历 `.json` 书源（BookSourceDoc），enabled 取文档内字段（方案 §3.4）
  * - safeFileName / safeJsonFileName / atomicWrite: 跨 handler 复用的工具
  *   （⚠️ 本文件不能整体删：electron/window-state.ts 依赖 atomicWrite）
+ * - 历史 .js 链路的 parseHeaderMeta 已迁入 booksource-migrate.ts（迁移/legacy 独占），
+ *   scanDir（.js 扫描）已随 P4 删除
  */
 import * as fs from 'fs';
 import * as path from 'path';
@@ -59,151 +59,6 @@ export function atomicWrite(target: string, content: string): void {
     }
     throw err;
   }
-}
-
-/** 解析书源 JS 头部注释（`// @key value`），纯函数 */
-export function parseHeaderMeta(
-  content: string,
-  fileName: string,
-  sourceDir: string,
-  fileSize: number,
-  modifiedAt: number,
-  enabledOverride: boolean | null,
-): Record<string, unknown> {
-  let name: string | null = null;
-  let author: string | null = null;
-  let logo: string | null = null;
-  const descriptions: string[] = [];
-  const urls: string[] = [];
-  const tags: string[] = [];
-  let version = '';
-  let updateUrl: string | null = null;
-  let uuid: string | null = null;
-  let sourceType = 'novel';
-  let headerEnabled: boolean | null = null;
-  let minDelayMs = 0;
-  const requireUrls: string[] = [];
-
-  for (const line of content.split(/\r?\n/)) {
-    const trimmed = line.trimStart();
-    if (!trimmed.startsWith('//')) continue;
-    const body = trimmed.replace(/^\/+/, '').trimStart();
-    if (!body.startsWith('@')) continue;
-    const rest = body.slice(1);
-    const ws = rest.search(/\s/);
-    const key = ws === -1 ? rest : rest.slice(0, ws);
-    const value = (ws === -1 ? '' : rest.slice(ws + 1)).trim();
-    if (!key) continue;
-    switch (key) {
-      case 'name':
-        if (!name && value) name = value;
-        break;
-      case 'author':
-        if (!author && value) author = value;
-        break;
-      case 'logo':
-        if (!logo && value) logo = value;
-        break;
-      case 'description':
-        descriptions.push(value);
-        break;
-      case 'url':
-        if (value) urls.push(value);
-        break;
-      case 'tags':
-        for (const t of value.split(/[,，]/)) {
-          const s = t.trim();
-          if (s && !tags.includes(s)) tags.push(s);
-        }
-        break;
-      case 'version':
-        if (!version && value) version = value;
-        break;
-      case 'updateUrl':
-        if (!updateUrl && value) updateUrl = value;
-        break;
-      case 'uuid':
-        if (!uuid && value) uuid = value;
-        break;
-      case 'type':
-        if (
-          value === 'novel' ||
-          value === 'comic' ||
-          value === 'video' ||
-          value === 'music' ||
-          value === 'webpage'
-        ) {
-          sourceType = value;
-        }
-        break;
-      case 'enabled':
-        if (headerEnabled === null) {
-          headerEnabled = !(value === 'false' || value === '0' || value === 'no');
-        }
-        break;
-      case 'minDelayMs':
-      case 'minDelay': {
-        const n = parseInt(value, 10);
-        if (Number.isFinite(n) && n >= 0) minDelayMs = n;
-        break;
-      }
-      case 'require':
-        if (value) requireUrls.push(value);
-        break;
-    }
-  }
-
-  const finalUuid = uuid || fileName;
-  const enabled =
-    enabledOverride !== null ? enabledOverride : headerEnabled !== null ? headerEnabled : true;
-
-  return {
-    sourceKey: finalUuid,
-    uuid: finalUuid,
-    fileName,
-    name: name || fileName.replace(/\.js$/i, ''),
-    url: urls[0] || '',
-    urls,
-    author,
-    logo,
-    description: descriptions.length ? descriptions.join('\n') : null,
-    enabled,
-    fileSize,
-    modifiedAt,
-    sourceDir,
-    sourceType,
-    version,
-    updateUrl,
-    tags,
-    minDelayMs,
-    requireUrls,
-  };
-}
-
-/** 扫描目录，返回 BookSourceMeta[]（按 fileName 排序） */
-export function scanDir(dir: string): Record<string, unknown>[] {
-  if (!fs.existsSync(dir)) return [];
-  const out: Record<string, unknown>[] = [];
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (!entry.isFile()) continue;
-    if (path.extname(entry.name).toLowerCase() !== '.js') continue;
-    const full = path.join(dir, entry.name);
-    let stat: fs.Stats;
-    try {
-      stat = fs.statSync(full);
-    } catch {
-      continue;
-    }
-    const content = fs.readFileSync(full, 'utf-8');
-    const disabled = path.join(dir, entry.name + '.disabled');
-    const enabled = path.join(dir, entry.name + '.enabled');
-    let override: boolean | null = null;
-    if (fs.existsSync(disabled)) override = false;
-    else if (fs.existsSync(enabled)) override = true;
-    out.push(parseHeaderMeta(content, entry.name, dir, stat.size, stat.mtimeMs, override));
-  }
-  out.sort((a, b) => String(a.fileName).localeCompare(String(b.fileName)));
-  return out;
 }
 
 /* ── JSON 书源（BookSourceDoc）扫描（方案 §3.4，P2 新增） ────────────────── */
@@ -273,7 +128,7 @@ function strArr(value: unknown): string[] {
 }
 
 /**
- * 由 BookSourceDoc 生成 BookSourceMeta 同构对象（字段与 parseHeaderMeta 输出对齐）。
+ * 由 BookSourceDoc 生成 BookSourceMeta 同构对象（字段与历史 parseHeaderMeta 输出对齐）。
  * rulesInvalid 非空时条目仍返回（列表页红标用，方案 §3.4），enabled 按文档值或 false。
  */
 function jsonDocToMeta(
@@ -284,7 +139,7 @@ function jsonDocToMeta(
   modifiedAt: number,
   rulesInvalid?: string,
 ): Record<string, unknown> {
-  // ⚠️ 两条回退方向相反（方案 §3.1/§4.2 硬约束，对照 booksource-meta.ts 上方 :142 vs :150）：
+  // ⚠️ 两条回退方向相反（方案 §3.1/§4.2 硬约束）:
   // uuid 缺省回退**带扩展名**的文件名（`foo.json`，uuid 一致性是 D6 硬验收前提）；
   // name 缺省回退**剥掉** `.json` 的文件名。两者不可互相佐证。
   const uuid = strOrNull(doc.uuid) ?? fileName;

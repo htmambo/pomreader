@@ -17,10 +17,7 @@ declare global {
       getFetchUA?: () => Promise<{ ua: string; defaultUa: string }>;
       setFetchUA?: (ua: string | null) => Promise<{ ua: string }>;
       openExternal: (url: string) => Promise<void>;
-      /**
-       * 书源 HTTP 代理（T-002 sandbox.service.ts 用）
-       * 完整类型定义在 sandbox.service.ts 的同源声明中（page-fetcher.ts 跨文件引用）
-       */
+      /** 书源 HTTP 代理（T-002 书源链路用；RuleEngineService 经此出网） */
       booksourceHttpProxy?: (req: {
         url: string;
         method?: string;
@@ -32,19 +29,8 @@ declare global {
         body: string;
         cfChallenge?: boolean;
       }>;
-      /** 书源文件读取（T-004 js-source.adapter.ts 用） */
+      /** 书源文件读取（T-004 书源适配器 / 编辑器用） */
       booksourceRead?: (fileName: string, sourceDir?: string) => Promise<string>;
-      /** 书源列表（T-004 registry 用） */
-      booksourceList?: () => Promise<
-        Array<{
-          fileName: string;
-          name: string;
-          url: string;
-          enabled: boolean;
-          sourceDir?: string;
-          [key: string]: unknown;
-        }>
-      >;
       /** 封面缓存 IPC（T-008 CoverService 用） */
       coverResolveCache?: (req: {
         url: string;
@@ -142,7 +128,7 @@ export class PageFetcherService implements PageFetcher {
 
   /**
    * POST 抓取 —— 智能添加页 testSearch 用,主进程走 booksourceHttpProxy（safe-net 已支持任意 method/body）
-   * 失败时同样弹 Tier 2 CF 引导（cf-challenge hook 由 SandboxService 注册,此处复用同一错误码契约）
+   * 失败时同样弹 Tier 2 CF 引导（cfChallenge 标记 → CfPromptService,复用同一错误码契约）
    */
   async fetchPost(
     url: string,

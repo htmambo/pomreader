@@ -10,16 +10,6 @@
   <button nz-button nzType="primary" (click)="openLegadoImport()">
     <span nz-icon nzType="import"></span> 导入 Legado 源
   </button>
-  <!-- 引擎运行时开关（方案 §3.3，调试用，P4 随 JS 链路一并删除）：rule=仅 JSON / js=仅 JS / both=并存 -->
-  <div class="engine-switch">
-    <span class="engine-switch-label">引擎</span>
-    <nz-segmented
-      [ngModel]="engine()"
-      (ngModelChange)="onEngineChange($event)"
-      [nzOptions]="engineOptions"
-      nzSize="small"
-    ></nz-segmented>
-  </div>
 </div>
 
 @if (firstLoading()) {

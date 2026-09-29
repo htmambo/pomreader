@@ -4,8 +4,8 @@ import { type RawSearchItem } from './book-source.adapter';
 
 /**
  * 重新导出 RawSearchItem 以保留既有调用方 import 路径（多源聚合搜索服务对外契约），
- * 实际类型定义在 book-source.adapter.ts（适配器层公共类型，便于 JsSourceAdapter 等
- * 子模块复用，避免 multi-source → registry → js-source 循环依赖）。
+ * 实际类型定义在 book-source.adapter.ts（适配器层公共类型，便于具体 adapter
+ * 子模块复用，避免 multi-source → registry → adapter 子模块循环依赖）。
  */
 export type { RawSearchItem };
 

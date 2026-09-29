@@ -37,7 +37,7 @@ export interface ImportByUrlResult {
   book: ResolvedBook;
   /**
    * 书源锚定（结构统一必有值）：
-   * - JsSourceAdapter 来源：meta.uuid（精确锚定）
+   * - JSON 书源来源：meta.uuid（精确锚定）
    * - 万能搜索 fallback：UNIVERSAL_BOOK_SOURCE_UUID（'universal' 常量）
    * - 破损 meta.uuid（空字符串）→ UNIVERSAL_BOOK_SOURCE_UUID 兜底
    */
@@ -55,7 +55,7 @@ export class ImportViaSourceService {
    * - sourceName 指定 → 仅在该书源 match(url) 时走该书源；否则回退到 registry.fetchCatalog
    *
    * @returns { book, bookSourceUuid? } book 永远是 ResolvedBook；bookSourceUuid 仅当
-   *          指定书源且为 JsSourceAdapter 时返回 meta.uuid，其它场景 undefined（不混入）
+   *          指定书源且带 meta.uuid 时返回 meta.uuid，其它场景 undefined（不混入）
    */
   /**
    * 通过指定书源（或自动 resolve）解析书页 URL → 目录
@@ -64,7 +64,7 @@ export class ImportViaSourceService {
    *   避免静默降级导致 Book.bookSourceUuid 与用户选择的书源不一致（P0-1 修复）
    *
    * @returns { book, bookSourceUuid } book 永远是 ResolvedBook；bookSourceUuid 结构统一：
-   *          - JsSourceAdapter 命中 → meta.uuid（精确锚定）
+   *          - 带 meta.uuid 的书源命中 → meta.uuid（精确锚定）
    *          - sourceName 指定但 match 失败 / 源不存在 → 抛 FetchError（不返回）
    *          - 万能搜索 fallback → UNIVERSAL_BOOK_SOURCE_UUID（统一兜底，consumer 不必再 ?? 兜底）
    */
@@ -98,7 +98,7 @@ export class ImportViaSourceService {
       throw new FetchError('unsupported-source', `书源不存在: ${sourceName}`);
     }
     // 不能摘取方法后裸调（`const fn = adapter.search; fn(...)` 会丢 this，
-    // JsSourceAdapter.search 依赖 this.ensureLoaded()/this.sandbox）——在转型后的
+    // JsonRuleAdapter.search 依赖 this.meta/this.engineService）——在转型后的
     // 同一对象引用上调用，this 仍是 adapter 本身
     const searcher = adapter as unknown as {
       search?: (kw: string, p: number) => Promise<RawSearchItem[]>;

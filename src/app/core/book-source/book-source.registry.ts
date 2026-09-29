@@ -9,10 +9,7 @@ import {
 } from './book-source.adapter';
 import { PageFetcherService } from './page-fetcher.service';
 import { FetchError } from './fetch-error';
-import { JsSourceAdapter } from './js-source/js-source.adapter';
-import { SandboxService } from './js-source/sandbox.service';
 import { type BookSourceMeta } from './source-meta.types';
-import { jsEngineEnabled, ruleEngineEnabled } from './feature-flag';
 import { JsonRuleAdapter } from './json-rule/json-rule.adapter';
 import { RuleEngineService } from './json-rule/rule-engine.service';
 import { UNIVERSAL_BOOK_SOURCE_UUID } from './book-source.constants';
@@ -51,111 +48,29 @@ export class BookSourceRegistry {
     this.adapters.push(adapter);
   }
 
-  /** 注册 JS 书源适配器（push 到末尾：内置 > 启发式 > JS，spec §4 R-2 缓解） */
-  registerJsAdapter(adapter: JsSourceAdapter): void {
+  /**
+   * 注册 JSON 规则书源适配器（push 到末尾：内置 > 启发式 > JSON 书源，spec §4 R-2 缓解；
+   * P4 删 JS 链路后「插到 JS 适配器前」的 instanceof 逻辑随之消亡）。
+   */
+  registerRuleAdapter(adapter: JsonRuleAdapter): void {
     this.adapters.push(adapter);
   }
 
   /**
-   * 注册 JSON 规则书源适配器（方案 §3.3 / P1）：插入到所有 JS 适配器之前。
-   * - resolve 按数组序 first-match，JSON 在 JS 前 → 同 uuid / 同域名时 JSON 胜出（JSON > JS）。
-   * - 决策说明：方案字面优先级「JSON > JS > 内置适配器」，但为避免破坏现有阅读功能，
-   *   不改变内置/启发式适配器的现有优先级（仍排最前）；实际顺序为「内置 > 启发式 > JSON > JS」。
-   * - 用 instanceof JsSourceAdapter 定位插入点（本模块已 import 该类，无新增耦合）。
-   */
-  registerRuleAdapter(adapter: JsonRuleAdapter): void {
-    const firstJsIdx = this.adapters.findIndex((a) => a instanceof JsSourceAdapter);
-    if (firstJsIdx === -1) {
-      this.adapters.push(adapter);
-    } else {
-      this.adapters.splice(firstJsIdx, 0, adapter);
-    }
-  }
-
-  /**
-   * 启动时拉取全部书源元数据，逐个构造 JsSourceAdapter 注册。
-   * - 运行时开关 jsEngineEnabled() 为 false → 直接返回（P1 运行时开关，取代原编译期 flag）
-   * - preload 不可用（浏览器降级） → 直接返回
-   * - 单条书源失败 → console.warn 跳过，不阻塞其他
-   *
-   * @param externalSandbox 可选：外部传入的 SandboxService（推荐，APP_INITIALIZER 等异步上下文中
-   *        调 `inject()` 会抛 NG0203）。不传时尝试内部 inject（仅 forTest / 直接调用场景可用）
-   */
-  async loadAllJsAdapters(externalSandbox?: SandboxService): Promise<void> {
-    if (!jsEngineEnabled()) {
-      console.warn('[registry] loadAllJsAdapters 早返回：运行时开关 jsEngineEnabled() = false');
-      return;
-    }
-    const pom =
-      typeof window !== 'undefined'
-        ? (
-            window as unknown as {
-              pomAPI?: { booksourceList?: () => Promise<BookSourceMeta[]> };
-            }
-          ).pomAPI
-        : undefined;
-    if (!pom?.booksourceList) {
-      console.warn(
-        '[registry] loadAllJsAdapters 早返回：window.pomAPI.booksourceList 不存在（preload 未注册 / 非 Electron 环境）',
-      );
-      return;
-    }
-    let sandbox: SandboxService | undefined = externalSandbox;
-    if (!sandbox) {
-      try {
-        sandbox = inject(SandboxService);
-      } catch (e) {
-        console.warn(
-          '[registry] loadAllJsAdapters 早返回：inject(SandboxService) 失败（无 Angular 注入上下文）',
-          e,
-        );
-        return;
-      }
-    }
-    try {
-      const list = await pom.booksourceList();
-      let registered = 0;
-      const registeredNames: string[] = [];
-      for (const meta of list) {
-        if (!meta.enabled) continue;
-        try {
-          const adapter = new JsSourceAdapter(meta, sandbox);
-          this.registerJsAdapter(adapter);
-          registered++;
-          registeredNames.push(adapter.name);
-        } catch (err) {
-          console.warn(`[registry] 加载书源 ${meta.fileName} 失败:`, err);
-        }
-      }
-      console.info(
-        `[registry] ✓ loadAllJsAdapters 完成：注册 ${registered} 个 JS 书源`,
-        registeredNames,
-      );
-    } catch (err) {
-      console.warn('[registry] 拉取书源列表失败:', err);
-    }
-  }
-
-  /**
-   * 启动时拉取全部 JSON 规则书源元数据，逐个构造 JsonRuleAdapter 注册（方案 §3.3 / P1）。
-   * 结构与 loadAllJsAdapters 镜像：
-   * - 运行时开关 ruleEngineEnabled() 为 false → 直接返回
-   * - window.pomAPI.booksourceListJson 不存在（P2 才实现该 IPC，过渡期预期）→ console.warn 直接返回
+   * 启动时拉取全部 JSON 规则书源元数据，逐个构造 JsonRuleAdapter 注册（方案 §3.3；P4 起无条件加载，
+   * 运行时开关已随 JS 链路一并删除）。
+   * - window.pomAPI.booksourceListJson 不存在（preload 未注册 / 非 Electron 环境）→ console.warn 直接返回
    * - 单条书源失败 → console.warn 跳过，不阻塞其他
    *
    * @param externalService 可选：外部传入的 RuleEngineService（推荐，APP_INITIALIZER 等异步上下文中
    *        调 `inject()` 会抛 NG0203）。不传时尝试内部 inject（仅 forTest / 直接调用场景可用）
    */
   async loadAllRuleAdapters(externalService?: RuleEngineService): Promise<void> {
-    if (!ruleEngineEnabled()) {
-      console.warn('[registry] loadAllRuleAdapters 早返回：运行时开关 ruleEngineEnabled() = false');
-      return;
-    }
     const pom =
       typeof window !== 'undefined'
         ? (
             window as unknown as {
-              // P2 的 scanJsonDir 产出同构 BookSourceMeta[]，此处按 BookSourceMeta[] 处理（本地 cast）
+              // 主进程 scanJsonDir 产出同构 BookSourceMeta[]，此处按 BookSourceMeta[] 处理（本地 cast）
               pomAPI?: { booksourceListJson?: () => Promise<BookSourceMeta[]> };
             }
           ).pomAPI
@@ -244,11 +159,11 @@ export class BookSourceRegistry {
   }
 
   /**
-   * 按 legado meta.uuid 锚定具体书源（用于阅读时重抓章节列表/正文）。
-   * - JsSourceAdapter 来源：精确匹配 meta.uuid
+   * 按 meta.uuid 锚定具体书源（用于阅读时重抓章节列表/正文）。
+   * - JSON 书源来源：精确匹配 meta.uuid
    * - UNIVERSAL_BOOK_SOURCE_UUID 永远返回 undefined（保证万能搜索的 bookSourceUuid 不误命中具体书源）
    * - 空 / 无效输入 → undefined
-   * - 不依赖 instanceof，用 extractMetaUuid 工具（避免 registry 反向耦合 js-source 子模块）
+   * - 不依赖 instanceof，用 extractMetaUuid 工具（registry 不反向耦合具体 adapter 子模块）
    *
    * 注：如需"按 adapter.name 查"请用 `getByName(name)`，两者语义独立。
    */
@@ -264,8 +179,8 @@ export class BookSourceRegistry {
   }
 
   /**
-   * 按 URL 查找首个 match 的 JsSourceAdapter（universal-search 等场景用）。
-   * 仅匹配持有有效 meta.uuid 的 JS 书源（内置启发式适配器 match 任意 URL 会误命中，跳过）。
+   * 按 URL 查找首个 match 的书源适配器（universal-search 等场景用）。
+   * 仅匹配持有有效 meta.uuid 的书源（内置启发式适配器 match 任意 URL 会误命中，跳过）。
    * 找不到时返回 undefined（调用方决定 fallback）。
    */
   findJsSourceAdapterByUrl(url: string): BookSourceAdapter | undefined {

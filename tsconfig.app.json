@@ -7,12 +7,7 @@
     "types": []
   },
   "files": ["src/main.ts"],
-  "include": [
-    "src/**/*.d.ts",
-    "src/app/core/book-source/js-source/sandbox.worker.ts",
-    "src/app/core/book-source/js-source/multi-mirror.service.ts",
-    "src/app/core/book-source/js-source/worker-pool.ts"
-  ],
+  "include": ["src/**/*.d.ts"],
   "angularCompilerOptions": {
     "extendedDiagnostics": {
       "checks": {
