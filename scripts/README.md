@@ -32,8 +32,9 @@ node scripts/e2e-import-online.cjs     # 终端 2：默认连 127.0.0.1:4200
 - ❌ FAIL → `console.log("❌ FAIL: ...")`
 - 抛异常 → `TEST ERROR: ...`
 
-## 盘点脚本（非 e2e）
+## 盘点 / 转换脚本（非 e2e）
 
 | 脚本 | 场景 |
 |---|---|
-| `audit-booksources.ts` | P0 书源存量盘点（只读，方案 §4.1）：`node scripts/audit-booksources.ts [书源目录] [--out report.json]`。目录缺省自动探测 `<userData>/booksources`；默认打印人类可读报告，`--out` 另存完整 JSON。目录里唯一的 TS 脚本：Node ≥ 22.18 原生 type stripping 直接跑，无需 tsx/ts-node、无需 dev server |
+| `audit-booksources.ts` | P0 书源存量盘点（只读，方案 §4.1）：`node scripts/audit-booksources.ts [书源目录] [--out report.json]`。目录缺省自动探测 `<userData>/booksources`；默认打印人类可读报告，`--out` 另存完整 JSON。TS 脚本：Node ≥ 22.18 原生 type stripping 直接跑，无需 tsx/ts-node、无需 dev server |
+| `convert-booksource.ts` | 原 .js 书源 → 新 JSON 规则离线转换：`node scripts/convert-booksource.ts <文件或目录...> [--save [--out-dir 目录] [--overwrite]] [--enable] [--compact]`。输入支持多个 .js 文件或目录（取目录下一层全部 .js）；默认仅打印转换结果不写盘，`--save` 落盘同名 .json。转换逻辑复用 `electron/ipc/booksource-migrate.ts` 的 `convertJsContent`（esbuild 现场 bundle 绕过无扩展名 import，单一事实源，禁止再抄一份）。needs-manual 的源只报告不保存；退出码 0=全部成功，1=有失败项 |

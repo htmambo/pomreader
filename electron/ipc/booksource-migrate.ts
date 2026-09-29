@@ -602,6 +602,65 @@ function markerOverride(dir: string, fileName: string): boolean | null {
   return null;
 }
 
+/** 单个 .js 的转换结果（convertJsContent 返回；启动迁移与 CLI 转换脚本共用） */
+export interface JsConversion {
+  /** ok=完整转换；skeleton=legado 骨架源（rules 占位 + legadoRaw）；needs-manual=不可自动转换 */
+  outcome: 'ok' | 'skeleton' | 'needs-manual';
+  /** 书源 uuid（@uuid 缺省回退带扩展名文件名，D6） */
+  uuid: string;
+  /** 目标 JSON 文件名（同名 .js → .json） */
+  jsonFileName: string;
+  /** 转换出的文档（needs-manual 时无） */
+  doc?: BookSourceDocShape;
+  /** needs-manual 的原因 */
+  reason?: string;
+}
+
+/**
+ * 单个 .js 内容 → BookSourceDoc 的**纯转换**（无 IO）：
+ * parseHeaderMeta → classifyContent → docFromMeta 组装（骨架源补占位 rules + legadoRaw）
+ * → validateBookSourceDocStructure 结构探针。
+ * enabledOverride 语义同 parseHeaderMeta（null = 头注释/缺省 true）。
+ * 启动迁移（migrateBookSources）与 scripts/convert-booksource.ts 共用本函数，
+ * 保证「启动迁移」与「CLI 离线转换」口径一致（单一事实源）。
+ */
+export function convertJsContent(
+  content: string,
+  fileName: string,
+  enabledOverride: boolean | null,
+): JsConversion {
+  // sourceDir/fileSize/modifiedAt 不进入 doc（docFromMeta 只挑 meta 字段），CLI 场景传占位值
+  const meta = parseHeaderMeta(content, fileName, '', 0, 0, enabledOverride);
+  const uuid = String(meta.uuid);
+  const jsonFileName = fileName.replace(/\.js$/i, '.json');
+
+  const classified = classifyContent(content, meta);
+  if (classified.kind === 'needs-manual') {
+    return { outcome: 'needs-manual', uuid, jsonFileName, reason: classified.reason };
+  }
+
+  const doc = docFromMeta(meta);
+  if (classified.kind === 'skeleton') {
+    // 骨架源不是 needs-manual（F8）：enabled:false + legadoRaw + 无害占位 rules
+    doc.enabled = false;
+    doc.rules = skeletonRules(String(meta.name));
+    doc.legadoRaw = classified.legadoRaw;
+    const note =
+      'legado 骨架源迁移：rules 为占位（css:body），请补全规则后再启用；原始 legado JSON 见 legadoRaw 字段。';
+    doc.description = doc.description ? `${doc.description}\n${note}` : note;
+  } else {
+    doc.rules = classified.rules;
+    doc.headers = classified.headers;
+  }
+
+  // 结构校验（完整 valibot 在渲染端，跨边界不可达 → 用结构探针，§3.4/R5）
+  const invalid = validateBookSourceDocStructure(doc as unknown as Record<string, unknown>);
+  if (invalid) {
+    return { outcome: 'needs-manual', uuid, jsonFileName, reason: `结构校验失败: ${invalid}` };
+  }
+  return { outcome: classified.kind === 'skeleton' ? 'skeleton' : 'ok', uuid, jsonFileName, doc };
+}
+
 /** 搬一个文件到 legacy 目录（同名）；返回 null = 成功，否则错误消息 */
 function moveToLegacy(legacyDir: string, srcPath: string, fileName: string): string | null {
   try {
@@ -634,10 +693,8 @@ export function migrateBookSources(userData: string): MigrationReport {
   for (const fileName of fileNames) {
     const jsPath = path.join(dir, fileName);
     let content: string;
-    let stat: fs.Stats;
     try {
       content = fs.readFileSync(jsPath, 'utf-8');
-      stat = fs.statSync(jsPath);
     } catch (err) {
       entries.push({
         fileName,
@@ -648,18 +705,11 @@ export function migrateBookSources(userData: string): MigrationReport {
       continue;
     }
 
-    // marker 覆盖优先进 meta.enabled（迁移时 marker 仍覆盖一次后删除，§3.4）
-    const meta = parseHeaderMeta(
-      content,
-      fileName,
-      dir,
-      stat.size,
-      stat.mtimeMs,
-      markerOverride(dir, fileName),
-    );
-    // 头缺 @uuid 时 parseHeaderMeta 已回退为 fileName（带扩展名，D6 硬验收前提）
-    const uuid = String(meta.uuid);
-    const jsonFileName = fileName.replace(/\.js$/i, '.json');
+    // marker 覆盖优先进 enabled（迁移时 marker 仍覆盖一次后删除，§3.4）；
+    // 头缺 @uuid 时回退 fileName（带扩展名，D6）—— 均在 convertJsContent 内完成
+    const conv = convertJsContent(content, fileName, markerOverride(dir, fileName));
+    const uuid = conv.uuid;
+    const jsonFileName = conv.jsonFileName;
     const jsonPath = path.join(dir, jsonFileName);
 
     // 幂等（唯一口径）：.json 已存在且 uuid 相同 → 跳过整个文件（不动 .js 也不覆盖 .json）
@@ -695,9 +745,7 @@ export function migrateBookSources(userData: string): MigrationReport {
       continue;
     }
 
-    const classified = classifyContent(content, meta);
-
-    if (classified.kind === 'needs-manual') {
+    if (conv.outcome === 'needs-manual') {
       // 三条 needs-manual 分支统一：移 .js + 连带搬 marker 到 legacy（不产 JSON，§4.2/E4）
       const moveErr = moveToLegacy(legacyDir, jsPath, fileName);
       const markerErr = moveMarkersToLegacy(legacyDir, dir, fileName);
@@ -706,40 +754,7 @@ export function migrateBookSources(userData: string): MigrationReport {
         uuid,
         outcome: 'needs-manual',
         reason:
-          classified.reason +
-          [moveErr, markerErr]
-            .filter(Boolean)
-            .map((e) => `；移动失败: ${e}`)
-            .join(''),
-      });
-      continue;
-    }
-
-    const doc = docFromMeta(meta);
-    if (classified.kind === 'skeleton') {
-      // 骨架源不是 needs-manual（F8）：enabled:false + legadoRaw + 无害占位 rules
-      doc.enabled = false;
-      doc.rules = skeletonRules(String(meta.name));
-      doc.legadoRaw = classified.legadoRaw;
-      const note =
-        'legado 骨架源迁移：rules 为占位（css:body），请补全规则后再启用；原始 legado JSON 见 legadoRaw 字段。';
-      doc.description = doc.description ? `${doc.description}\n${note}` : note;
-    } else {
-      doc.rules = classified.rules;
-      doc.headers = classified.headers;
-    }
-
-    // 结构校验（完整 valibot 在渲染端，跨边界不可达 → 用结构探针，§3.4/R5）
-    const invalid = validateBookSourceDocStructure(doc as unknown as Record<string, unknown>);
-    if (invalid) {
-      const moveErr = moveToLegacy(legacyDir, jsPath, fileName);
-      const markerErr = moveMarkersToLegacy(legacyDir, dir, fileName);
-      entries.push({
-        fileName,
-        uuid,
-        outcome: 'needs-manual',
-        reason:
-          `结构校验失败: ${invalid}` +
+          (conv.reason ?? '未知原因') +
           [moveErr, markerErr]
             .filter(Boolean)
             .map((e) => `；移动失败: ${e}`)
@@ -750,13 +765,13 @@ export function migrateBookSources(userData: string): MigrationReport {
 
     // 成功路径：写 .json（atomicWrite）→ 移 .js 到 legacy（失败只记录不阻断）→ 删 marker
     //（enabled 已并入 doc.enabled，marker 不搬只删）
-    atomicWrite(jsonPath, JSON.stringify(doc, null, 2));
+    atomicWrite(jsonPath, JSON.stringify(conv.doc, null, 2));
     const moveErr = moveToLegacy(legacyDir, jsPath, fileName);
     deleteMarkers(dir, fileName);
     entries.push({
       fileName,
       uuid,
-      outcome: classified.kind === 'skeleton' ? 'skeleton' : 'migrated',
+      outcome: conv.outcome === 'skeleton' ? 'skeleton' : 'migrated',
       jsonFileName,
       ...(moveErr ? { reason: `.js 移入 legacy 失败（不阻断）: ${moveErr}` } : {}),
     });

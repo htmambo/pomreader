@@ -26,7 +26,8 @@
     "dev": "npm run build:db-window && concurrently -k -n web,ele \"ng serve --port 4200\" \"npm run watch:electron\" \"wait-on http://localhost:4200 && cross-env POM_DEV_URL=http://localhost:4200 electron .\"",
     "dev:file": "npm run build:db-window && rm -rf electron/www && concurrently -k -n web,ele \"ng build --watch --configuration development\" \"npm run watch:electron\" \"wait-on electron/www/browser/index.html && electron .\"",
     "dist": "npm run build && npm run build:electron && electron-builder",
-    "dist:linux": "npm run build && npm run build:electron && electron-builder --linux"
+    "dist:linux": "npm run build && npm run build:electron && electron-builder --linux",
+    "convert:booksource": "node scripts/convert-booksource.ts"
   },
   "private": true,
   "engines": {
