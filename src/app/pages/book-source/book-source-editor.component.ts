@@ -33,6 +33,12 @@ function pomApi(): PomBooksourceEditor | null {
   return (window.pomAPI as unknown as PomBooksourceEditor | undefined) ?? null;
 }
 
+/** 请求头一行（可视化键值对输入；key 空白的行保存时忽略） */
+interface HeaderRow {
+  key: string;
+  value: string;
+}
+
 /** meta 表单字段（signals 集中管理；rules 由 RulesPanel 持有，保存时 getRules() 合并） */
 interface MetaForm {
   name: string;
@@ -44,8 +50,8 @@ interface MetaForm {
   /** 标签（可视化标签输入，数组直存） */
   tags: string[];
   enabled: boolean;
-  /** 自定义请求头（JSON 文本，原 HEADERS 常量） */
-  headersText: string;
+  /** 自定义请求头（键值对行，原 HEADERS 常量；重复 key 后行覆盖前行） */
+  headerRows: HeaderRow[];
 }
 
 /**
@@ -94,7 +100,7 @@ export class BookSourceEditorComponent {
     extraUrls: '',
     tags: [],
     enabled: true,
-    headersText: '{}',
+    headerRows: [],
   });
 
   private readonly panel = viewChild<RulesPanelComponent>('panel');
@@ -102,7 +108,7 @@ export class BookSourceEditorComponent {
   /** 「高级：查看 JSON」只读视图：当前表单 + 面板规则实时组装的 doc */
   readonly jsonPreview = computed(() => {
     const doc = this.assembleDoc();
-    return doc ? JSON.stringify(doc, null, 2) : '// 请求头 JSON 解析失败，请先修正';
+    return doc ? JSON.stringify(doc, null, 2) : '// 规则未就绪（书源尚未加载）';
   });
 
   private readonly route = inject(ActivatedRoute);
@@ -169,7 +175,7 @@ export class BookSourceEditorComponent {
       extraUrls: doc.urls.slice(1).join('\n'),
       tags: [...doc.tags],
       enabled: doc.enabled,
-      headersText: JSON.stringify(doc.headers, null, 2),
+      headerRows: Object.entries(doc.headers).map(([key, value]) => ({ key, value })),
     });
     this.panel()?.setRules(doc.rules);
   }
@@ -194,7 +200,7 @@ export class BookSourceEditorComponent {
       extraUrls: '',
       tags: [],
       enabled: false, // 人工转换默认禁用，验证后手动启用
-      headersText: JSON.stringify(extractHeaders(content), null, 2),
+      headerRows: Object.entries(extractHeaders(content)).map(([key, value]) => ({ key, value })),
     });
     this.panel()?.setRules(rules);
     this.toast.info(
@@ -202,16 +208,14 @@ export class BookSourceEditorComponent {
     );
   }
 
-  /** 表单 + 面板规则 → BookSourceDoc；headersText 非法 JSON 时返回 null（保存时拦截） */
+  /** 表单 + 面板规则 → BookSourceDoc；规则未就绪（尚未加载）时返回 null */
   private assembleDoc(): BookSourceDoc | null {
     const f = this.form();
-    let headers: Record<string, string>;
-    try {
-      const parsed: unknown = JSON.parse(f.headersText.trim() || '{}');
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
-      headers = Object.fromEntries(Object.entries(parsed).map(([k, val]) => [k, String(val)]));
-    } catch {
-      return null;
+    // 键值对行 → headers 对象：key 去空白，空 key 行忽略；重复 key 后行覆盖前行
+    const headers: Record<string, string> = {};
+    for (const row of f.headerRows) {
+      const key = row.key.trim();
+      if (key) headers[key] = row.value;
     }
     const panelRules = this.panel()?.getRules() ?? this.loadedRules;
     if (!panelRules) return null;
@@ -249,11 +253,26 @@ export class BookSourceEditorComponent {
     this.form.update((f) => ({ ...f, ...patch }));
   }
 
+  addHeaderRow(): void {
+    this.form.update((f) => ({ ...f, headerRows: [...f.headerRows, { key: '', value: '' }] }));
+  }
+
+  removeHeaderRow(index: number): void {
+    this.form.update((f) => ({ ...f, headerRows: f.headerRows.filter((_, i) => i !== index) }));
+  }
+
+  patchHeaderRow(index: number, patch: Partial<HeaderRow>): void {
+    this.form.update((f) => ({
+      ...f,
+      headerRows: f.headerRows.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+    }));
+  }
+
   /** 保存（.json 覆盖原文件；.js 打开时落盘同名 .json） */
   async save(): Promise<void> {
     const doc = this.assembleDoc();
     if (!doc) {
-      this.toast.warn('自定义请求头不是合法 JSON，无法保存');
+      this.toast.warn('书源规则未就绪，无法保存');
       return;
     }
     const parsed = v.safeParse(BookSourceDocSchema, doc);

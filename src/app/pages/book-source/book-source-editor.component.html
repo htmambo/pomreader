@@ -67,15 +67,37 @@
       </div>
       <div class="form-row form-row--top">
         <label class="form-label">请求头</label>
-        <textarea
-          nz-input
-          class="grow mono"
-          rows="3"
-          spellcheck="false"
-          [ngModel]="form().headersText"
-          (ngModelChange)="patchForm({ headersText: $event })"
-          placeholder='自定义请求头 JSON（原 HEADERS 常量），如 {"User-Agent":"..."}'
-        ></textarea>
+        <div class="grow headers-editor">
+          @for (row of form().headerRows; track $index) {
+          <div class="header-row">
+            <input
+              nz-input
+              class="mono header-key"
+              [ngModel]="row.key"
+              (ngModelChange)="patchHeaderRow($index, { key: $event })"
+              placeholder="Header 名（如 User-Agent）"
+              spellcheck="false"
+            />
+            <input
+              nz-input
+              class="mono header-value"
+              [ngModel]="row.value"
+              (ngModelChange)="patchHeaderRow($index, { value: $event })"
+              placeholder="值"
+              spellcheck="false"
+            />
+            <button nz-button nzType="text" nzDanger nzSize="small" title="删除该行" (click)="removeHeaderRow($index)">
+              <span nz-icon nzType="delete"></span>
+            </button>
+          </div>
+          }
+          <div>
+            <button nz-button nzType="dashed" nzSize="small" (click)="addHeaderRow()">
+              <span nz-icon nzType="plus"></span> 添加请求头
+            </button>
+            <span class="headers-hint">自定义请求头（原 HEADERS 常量）；名为空的行保存时忽略</span>
+          </div>
+        </div>
       </div>
     </div>
   </nz-collapse-panel>

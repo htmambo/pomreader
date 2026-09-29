@@ -36,6 +36,31 @@
   font-size: 12px;
 }
 
+/* 请求头键值对编辑器 */
+.headers-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.header-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.header-key {
+  flex: 2;
+  min-width: 0;
+}
+.header-value {
+  flex: 3;
+  min-width: 0;
+}
+.headers-hint {
+  margin-left: 8px;
+  color: var(--pom-text-muted);
+  font-size: 12px;
+}
+
 /* 高级：查看 JSON（只读预览） */
 .json-preview {
   margin: 8px 0;
