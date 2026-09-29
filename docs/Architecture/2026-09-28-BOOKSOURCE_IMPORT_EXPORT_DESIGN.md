@@ -4,11 +4,20 @@
 **状态**：设计已确认，待实施
 **范围**：Phase 1 备份还原（独立可用）+ Phase 2 订阅自动更新
 
+**修订记录**
+
+- 2026-09-29：按「书源 JSON 化方案 v2.1」（`2026-09-29-BOOKSOURCE-JSON-RULES-PLAN.md` §10）修订。主要变更：
+  - bundle `sources[].content` 语义：内嵌 JS 全文 → 内嵌 **BookSourceDoc JSON 全文**（导入侧以 `BookSourceDocSchema` 做 valibot 校验，失败按损坏条目处理）；
+  - 移除 `parseHeaderMeta` 依赖（新载体无 `// @key` 头注释，meta 在文档字段里）；
+  - 删除 bundle 旁路 `enabled` 字段（启停已内联在 content 的 `enabled` 字段内，旁路携带会产生双真相）；
+  - uuid / 基线 hash 口径改为基于 `doc.uuid`（缺省回退带扩展名文件名 `foo.json`，见方案 §3.1 uuid 注释）；
+  - 书源文件扩展名引用 `.js` → `.json`，并补充与 `booksources_legacy/` 的关系说明。
+
 ---
 
 ## 1. 背景
 
-书源在本项目里是 `<userData>/booksources/` 下的独立 `.js` 文件，每个文件头部是 `// @name` / `// @url` / `// @uuid` 等元数据注释，正文是规则代码。启停状态存在同目录的 `<name>.js.enabled` / `.js.disabled` marker 文件里。
+书源在本项目里是 `<userData>/booksources/` 下的独立 `.json` 文件（BookSourceDoc：规则 + meta 合一，schema 见 `src/app/core/models/book-source-doc.model.ts`），启停状态内联在文档的 `enabled` 字段。JSON 化迁移前的 `.js` 原件备份在 `<userData>/booksources_legacy/`（只读，永不执行、永不删），不参与导入导出。
 
 当前只有**一条腿**：即 `ImportLegadoComponent` 弹窗从订阅 URL 或粘贴 JSON 导入 Legado（阅读）格式的源，单向转换成 pomreader 书源。**导出完全不存在**，因此：
 
@@ -37,8 +46,8 @@
 
 | 事实 | 位置 | 影响 |
 |---|---|---|
-| 书源 = 独立 `.js` 文件，header 注释承载元数据 | `electron/ipc/booksource-meta.ts` `parseHeaderMeta` | 导出即整份文件内容，无需另行抽取元数据 |
-| 启停是 marker 文件，不是文件内容 | `booksource-handler.ts` `pom:booksource-toggle` | bundle 必须单独带 `enabled` 字段 |
+| 书源 = 独立 `.json` 文件（BookSourceDoc，规则 + meta 合一） | `src/app/core/models/book-source-doc.model.ts` `BookSourceDocSchema` | 导出即整份文档 JSON，无需另行抽取元数据 |
+| 启停内联在文档 `enabled` 字段（原 marker 文件已随 JSON 化取消） | `book-source-doc.model.ts` / `core/logic/build-book-source-doc.ts` | bundle **不单独携带** `enabled`，避免双真相 |
 | `safeFileName` 拒绝 `/` `\` `..` 空串 | `booksource-meta.ts` | 导入的 `fileName` 必须二次校验 |
 | `atomicWrite` = tmp + rename，失败清 tmp | `booksource-meta.ts` | 单文件写入原子；批量不原子（见 §8） |
 | 渲染层无 node 访问，IO 全部走主进程 IPC | `electron/preload.ts` / `main.ts` | 调度与写盘放主进程 |
@@ -58,10 +67,9 @@
   "app": "1.0.0",                          // 导出方版本，仅供排查
   "sources": [
     {
-      "uuid": "3f2a…",                     // 来自 @uuid，缺省回落 fileName（与 parseHeaderMeta 同规则）
-      "fileName": "example-source.js",
-      "enabled": true,                      // 对应 .enabled / .disabled marker
-      "content": "// @name 示例源\n// @url https://example.com\n…"   // .js 全文
+      "uuid": "3f2a…",                     // 来自 doc.uuid；缺省回退带扩展名文件名（`foo.json`，见方案 §3.1 uuid 注释）
+      "fileName": "example-source.json",
+      "content": "{ \"format\": \"pomreader.booksource\", \"schemaVersion\": 1, … }"   // BookSourceDoc JSON 全文；enabled 等 meta 均在其中
     }
   ]
 }
@@ -69,9 +77,9 @@
 
 ### 4.2 有意的设计决策
 
-**不存冗余 `meta` 对象。** 预览界面需要名称、标签、类型，但这些都能从 `content` 经 `parseHeaderMeta` 重新解析得到。存两份真相必然出现不一致（改了 meta 没改 content，导入时以谁为准？）。故 bundle 只保留无法推导的字段：`enabled`（在 marker 文件里）和 `exportedAt`（纯信息）。
+**不存冗余 `meta` 对象。** 预览界面需要名称、标签、类型，但 `content` 本身就是 BookSourceDoc（meta 与规则合一），valibot parse 一次即得全部字段。存两份真相必然出现不一致（改了 meta 没改 content，导入时以谁为准？）。故 bundle 只保留无法推导的字段：`exportedAt`（纯信息）。修订前另有旁路 `enabled` 字段 —— 彼时启停是独立 marker 文件；JSON 化后 `enabled` 内联进文档，旁路字段随之删除。
 
-**`content` 是权威副本。** 导入时 `content` 覆盖整个文件，包括 header 注释。这保证了「导出 → 还原」逐字节一致。
+**`content` 是权威副本。** 导入时 `content` 覆盖整个文件；落盘前逐条过 `BookSourceDocSchema`（valibot），校验失败按损坏条目处理（见 §5.3 `invalid`）。这保证了「导出 → 还原」逐字节一致。
 
 ### 4.3 纯函数模块
 
@@ -79,7 +87,7 @@
 
 | 导出 | 职责 |
 |---|---|
-| `parseBundle(text: string): BookSourceBundle` | 解析 + 校验。未知 `format`、缺字段、超限条目、超限总量一律抛错，**整体拒绝**，不做部分导入 |
+| `parseBundle(text: string): BookSourceBundle` | 解析 + 校验。未知 `format`、缺字段、单条 `content` 未通过 `BookSourceDocSchema`、超限条目、超限总量一律抛错，**整体拒绝**，不做部分导入 |
 | `buildBundle(items: BundleSourceInput[]): BookSourceBundle` | 组装 |
 | `diffBundle(incoming, local, baseline?): DiffEntry[]` | 分类，见 §5 |
 
@@ -109,15 +117,15 @@ IPC pom:booksource-bundle-open()
   → 渲染层预览（按分类分组、勾选、统计）
   → 用户确认
   → IPC pom:booksource-bundle-apply(decisions[])
-  → 写前全量预校验：safeFileName + parseHeaderMeta 必须成功
-  → 逐条 atomicWrite + 按 enabled 落 marker
+  → 写前全量预校验：safeFileName + BookSourceDocSchema 必须成功
+  → 逐条 atomicWrite（enabled 已内联在 content 内，随文件落盘，无 marker）
   → sender.send('pom:booksource-updated', {...})
   → 列表页刷新
 ```
 
 ### 5.3 diff 分类
 
-**匹配键：uuid 优先，fileName 兜底。** 用户改过文件名时（uuid 源自书源名，改名后仍稳定）仍认作同一源，避免重复导入产生两份。
+**匹配键：uuid 优先，fileName 兜底。** uuid 取 `doc.uuid`（缺省 = 带扩展名文件名 `foo.json`，与 §4.1 同口径）；显式 uuid 的源改过文件名后仍认作同一源，避免重复导入产生两份。
 
 | 类别 | 判定 | 默认勾选 | 说明 |
 |---|---|---|---|
@@ -128,7 +136,7 @@ IPC pom:booksource-bundle-open()
 
 本地导入（无基线）只会产生 `new` / `identical` / `update`。订阅更新（带 `applied` 基线）才会产生 `conflict`。
 
-`invalid`（`fileName` 非法或 `content` 无法解析出元信息）在 `parseBundle` 阶段即被拒，不进入预览列表。
+`invalid`（`fileName` 非法或 `content` 未通过 `BookSourceDocSchema` 校验）在 `parseBundle` 阶段即被拒（整体拒绝，见 §4.3），不进入预览列表。
 
 ## 6. 订阅
 
@@ -158,7 +166,7 @@ IPC pom:booksource-bundle-open()
 
 ### 6.2 `applied` 基线机制
 
-`applied[uuid]` = 上次该订阅成功写入时，`content` 的 sha256。下次拉取时对每个远端源：
+`applied[uuid]` = 上次该订阅成功写入时，`content`（BookSourceDoc JSON 全文）的 sha256；uuid 取 `doc.uuid`，缺省回退带扩展名文件名（`foo.json`，与 §4.1 同口径）。下次拉取时对每个远端源：
 
 - 远端 hash **等于** `applied[uuid]` → 本地自上次写入后未被外部改动 → 可安全自动写入（`update`）
 - 远端 hash **不等** → 远端更新了，但本地可能也改过 → 判 `conflict`，交给用户
@@ -196,12 +204,12 @@ IPC pom:booksource-bundle-open()
 | 导入文件名 | `parseBundle` 与写盘前各过一次 `safeFileName` |
 | 导入内容大小 | 单条 2 MB / 总量 20 MB 硬上限 |
 | 订阅 URL | 走 `safeNetRequest`（既有 SSRF 防护），不新开网络出口 |
-| 渲染层信任边界 | 渲染层无 node 访问；导入的内容沿用既有书源执行链路 —— `pom:booksource-eval` 只回传文件路径，实际执行在 Renderer Worker 沙箱内，导入环节不新增 eval 入口 |
+| 渲染层信任边界 | 渲染层无 node 访问；导入内容为纯数据 JSON，经 `BookSourceDocSchema` 校验后由 JSON 规则引擎解释执行，无 eval 链路（JS 书源的 `pom:booksource-eval` 随 JSON 化方案 P4 删除） |
 | 未知格式 | `format` 常量不匹配即整体拒绝，避免误读他人 JSON |
 
 ## 8. 接受的取舍
 
-1. **批量写入不做整体回滚。** 单文件靠 `atomicWrite` 原子，但批量非原子。取舍为「写前全量预校验（`safeFileName` + `parseHeaderMeta` 必须成功），再逐个写，失败项收集后报告」。整体回滚的复杂度远高于收益 —— 写入幂等，用户重试即可。
+1. **批量写入不做整体回滚。** 单文件靠 `atomicWrite` 原子，但批量非原子。取舍为「写前全量预校验（`safeFileName` + `BookSourceDocSchema` 必须成功），再逐个写，失败项收集后报告」。整体回滚的复杂度远高于收益 —— 写入幂等，用户重试即可。
 2. **草稿目录不进 bundle。** 草稿是需要手写的半成品，备份它只会污染还原结果。
 3. **不做 Legado 反向导出，不做云同步。** 见 §2 非目标。
 4. **`identical` 项灰显而非隐藏。** 让用户确认「这些确实已存在」比静默消失更有说服力。
@@ -210,8 +218,8 @@ IPC pom:booksource-bundle-open()
 
 | 文件 | 覆盖 |
 |---|---|
-| `electron/shared/booksource-bundle.spec.ts` | 编解码往返；`parseBundle` 拒绝未知 `format` / 缺字段 / 超限；`diffBundle` 五类判定；uuid 优先匹配；基线 hash 变化触发 `conflict`；`parseBundle` 对恶意 `fileName`（`../x.js`）的拒绝 |
-| `electron/ipc/booksource-bundle-handler.spec.ts` | dialog 取消；`safeFileName` 拒绝路径穿越；写入后 `.enabled` / `.disabled` marker 正确；部分失败时报告结果（沿用 `booksource-handler.spec.ts` 的 mock 风格） |
+| `electron/shared/booksource-bundle.spec.ts` | 编解码往返；`parseBundle` 拒绝未知 `format` / 缺字段 / 超限 / `content` 未通过 `BookSourceDocSchema`；`diffBundle` 五类判定；uuid 优先匹配；基线 hash 变化触发 `conflict`；`parseBundle` 对恶意 `fileName`（`../x.json`）的拒绝 |
+| `electron/ipc/booksource-bundle-handler.spec.ts` | dialog 取消；`safeFileName` 拒绝路径穿越；写入后 `enabled` 状态随文档落盘正确（无 marker 文件）；部分失败时报告结果（沿用 `booksource-handler.spec.ts` 的 mock 风格） |
 | `electron/ipc/booksource-subscription.spec.ts` | 到期计算；单订阅失败不阻断同跳其他订阅；`applied` 更新；通知 payload 内容 |
 | 渲染层组件 spec | 预览分类渲染、勾选与统计、默认勾选规则（比照现有 `import-legado.component` 测试风格） |
 
