@@ -25,7 +25,7 @@
 
 ## 生态与工具
 
-- [ ] **T-12 书源导入/导出 bundle 实施**：✅ 前置已清——`docs/Architecture/2026-09-28-BOOKSOURCE_IMPORT_EXPORT_DESIGN.md` 已于 2026-09-29 按 JSON 契约修订（commit 3b91948）。
+- [>] **T-12 书源导入/导出 bundle 实施**：✅ 前置已清——`docs/Architecture/2026-09-28-BOOKSOURCE_IMPORT_EXPORT_DESIGN.md` 已于 2026-09-29 按 JSON 契约修订（commit 3b91948）。已于 2026-09-30 激活，立项见 [2026-09-30-BOOKSOURCE-BUNDLE-TASK.md](2026-09-30-BOOKSOURCE-BUNDLE-TASK.md)。
 - [ ] **T-13 needs-manual 源人工重写指引 + BOOKSOURCE_GUIDE.md 规则编写指南**。触发：P3 迁移后有 needs-manual 残留。（P0 实跑本机存量手改 0%；GUIDE 已含 JSON 规则章节，本条只剩「needs-manual 重写指引」待有真实残留时补）
 - [ ] **T-14 `booksources_legacy/` 清理策略**：保留 ≥1 个版本周期；之后设置页提供「清理旧书源备份」按钮（永不自动删）。
 - [ ] **T-15 书源分享/订阅**：T-12 bundle 落地后的自然延伸。
