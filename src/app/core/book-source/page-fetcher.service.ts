@@ -44,6 +44,14 @@ declare global {
       coverCacheClear?: () => Promise<number>;
       /** 设置 webview 编码（universal-search.component.ts:364 用） */
       setWebviewEncoding?: (webContentsId: string, mode: 'auto' | 'utf-8' | 'gbk') => Promise<void>;
+      /** 通用事件订阅（preload 通用 on；'pom:booksource-updated' 等主进程广播走这里） */
+      on?: (channel: string, listener: (...args: unknown[]) => void) => () => void;
+      /** 书源 bundle 导出（Phase 1，契约见 src/typings/booksource-bundle.d.ts） */
+      booksourceBundleExport?: PomBookSourceBundleApi['booksourceBundleExport'];
+      /** 书源 bundle 打开 + diff 预览 */
+      booksourceBundleOpen?: PomBookSourceBundleApi['booksourceBundleOpen'];
+      /** 书源 bundle 应用勾选决策 */
+      booksourceBundleApply?: PomBookSourceBundleApi['booksourceBundleApply'];
     };
   }
 }

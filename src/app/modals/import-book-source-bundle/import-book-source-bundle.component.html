@@ -1,0 +1,52 @@
+<div class="import-bundle">
+  @if (phase() === 'loading') {
+  <nz-spin nzSimple></nz-spin>
+  <p class="hint">正在选择并解析 bundle 文件…</p>
+  } @if (phase() === 'error') {
+  <nz-alert nzType="error" nzShowIcon nzMessage="无法导入该文件" [nzDescription]="errorMsg()"></nz-alert>
+  <p class="hint">bundle 校验不通过时整体拒绝，不做部分导入。请确认文件来自 pomreader 导出。</p>
+  <div class="actions">
+    <button nz-button (click)="cancel()">关闭</button>
+  </div>
+  } @if (phase() === 'preview') {
+  <p class="hint">
+    逐项勾选要导入的书源：新增 / 更新默认勾选，冲突项默认不勾，与本地一致的项灰显跳过。 @if (corruptedCount() > 0) {
+    <strong>{{ corruptedCount() }} 条内容校验失败（已标灰，不可导入）。</strong>
+    }
+  </p>
+
+  @for (g of groups(); track g.kind) {
+  <p class="group-title"><nz-tag [nzColor]="g.color">{{ g.label }}</nz-tag> {{ g.items.length }} 条</p>
+  <ul class="source-list">
+    @for (it of g.items; track it.fileName) {
+    <li class="source-item" [class.disabled]="it.kind === 'identical' || it.corrupted">
+      <label class="source-row">
+        <input
+          type="checkbox"
+          nz-checkbox
+          [checked]="isSelected(it)"
+          [disabled]="it.kind === 'identical' || it.corrupted"
+          (change)="toggle(it)"
+        />
+        <span class="source-name">{{ it.name ?? it.fileName }}</span>
+        <span class="source-meta">{{ it.author || it.uuid }}</span>
+        @for (tag of it.tags; track tag) {
+        <nz-tag>{{ tag }}</nz-tag>
+        } @if (it.corrupted) {
+        <nz-tag nzColor="red">内容损坏</nz-tag>
+        }
+      </label>
+    </li>
+    }
+  </ul>
+  }
+
+  <div class="actions">
+    <span class="select-hint">共 {{ totalCount() }} 条，将写入 {{ selectedCount() }} 条</span>
+    <button nz-button (click)="cancel()">取消</button>
+    <button nz-button nzType="primary" [disabled]="selectedCount() === 0" [nzLoading]="applying()" (click)="apply()">
+      导入所选
+    </button>
+  </div>
+  }
+</div>

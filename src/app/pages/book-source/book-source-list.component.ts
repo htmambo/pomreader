@@ -25,6 +25,8 @@ import {
   type LegacySourceItem,
 } from '../../core/book-source/book-source-list-state.service';
 import { ImportLegadoComponent } from '../../modals/import-legado/import-legado.component';
+import { ExportBookSourcesComponent } from '../../modals/export-book-sources/export-book-sources.component';
+import { ImportBookSourceBundleComponent } from '../../modals/import-book-source-bundle/import-book-source-bundle.component';
 
 type PomRead = {
   booksourceRead?: (fileName: string, sourceDir?: string) => Promise<string>;
@@ -199,6 +201,29 @@ export class BookSourceListComponent {
       nzTitle: '导入 Legado 订阅源',
       nzContent: ImportLegadoComponent,
       nzData: { onImported: () => void this.refresh(false) },
+      nzFooter: null,
+      nzWidth: 640,
+      nzMaskClosable: false,
+    });
+  }
+
+  /** 打开书源 bundle 导入预览弹窗（Phase 1，设计 §6.4）；导入完成后刷新列表 */
+  openBundleImport(): void {
+    this.modal.create({
+      nzTitle: '导入书源',
+      nzContent: ImportBookSourceBundleComponent,
+      nzData: { onImported: () => void this.refresh(false) },
+      nzFooter: null,
+      nzWidth: 720,
+      nzMaskClosable: false,
+    });
+  }
+
+  /** 打开书源 bundle 导出弹窗（Phase 1，设计 §6.4） */
+  openBundleExport(): void {
+    this.modal.create({
+      nzTitle: '导出书源',
+      nzContent: ExportBookSourcesComponent,
       nzFooter: null,
       nzWidth: 640,
       nzMaskClosable: false,

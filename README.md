@@ -75,7 +75,7 @@ src/
 │   ├── pages/             # bookshelf / universal-search / reader / disclaimer
 │   │   ├── book-source/   # 书源管理 6 子页: list / search / smart-add / debug / test / editor
 │   │   └── settings/      # 缓存管理
-│   ├── modals/            # import-online / import-local-txt / import-legado / book-source-migration-report（4 个弹窗，每个独立子目录）
+│   ├── modals/            # import-online / import-local-txt / import-legado / book-source-migration-report / export-book-sources / import-book-source-bundle（6 个弹窗，每个独立子目录）
 │   ├── directives/        # 共享指令（如无限滚动 / 长按等）
 │   ├── app.component.ts
 │   ├── app.config.ts      # bootstrapApplication providers（含书源适配器注册）

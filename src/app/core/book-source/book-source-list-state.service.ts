@@ -16,6 +16,7 @@ import { type BookSourceMeta } from './source-meta.types';
  * - stale-while-revalidate：组件 init 时若已有缓存立即展示，
  *   同时后台再走一次 IPC 刷新（保证启停/删除结果与磁盘一致）
  * - 启停/删除在服务内直接 patch 缓存，无需回组件层
+ * - 监听主进程 'pom:booksource-updated' 广播（bundle 导入 / 订阅写入后）→ 后台静默刷新
  */
 
 /** booksources_legacy/ 中的未迁移 JS 源（LegacyItem 同构，含 legacy 目录绝对路径 sourceDir） */
@@ -32,6 +33,8 @@ type PomAdmin = {
   booksourceDeleteJson?: (fileName: string, sourceDir?: string) => Promise<void>;
   booksourceLegacyList?: () => Promise<LegacySourceItem[]>;
   booksourceDelete?: (fileName: string, sourceDir?: string) => Promise<void>;
+  /** 通用事件订阅（preload on）：bundle 导入 / 订阅写入后 'pom:booksource-updated' 广播走这里 */
+  on?: (channel: string, listener: (...args: unknown[]) => void) => () => void;
 };
 
 function pomApi(): PomAdmin | null {
@@ -51,6 +54,16 @@ export class BookSourceListStateService {
   readonly loaded = signal(false);
   /** 当前是否在后台刷新（缓存已展示，不阻塞 UI） */
   readonly refreshing = signal(false);
+
+  constructor() {
+    // bundle 导入 / 订阅自动更新写盘后，主进程广播 'pom:booksource-updated'
+    // （设计 §5.2 / §6.3）→ 后台静默刷新列表，与手动导入共用同一条 refresh 路径
+    pomApi()?.on?.('pom:booksource-updated', () => {
+      void this.refresh(false).catch(() => {
+        /* IPC 不可用等失败静默：列表保持缓存原样，下次进页面还会再刷 */
+      });
+    });
+  }
 
   /** 拉取全量书源元数据 + legacy 清单；首次会显示 loading，后续走后台刷新不阻塞 */
   async refresh(showLoading: boolean): Promise<void> {
