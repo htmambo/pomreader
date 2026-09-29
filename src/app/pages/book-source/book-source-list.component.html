@@ -36,7 +36,12 @@
     <div class="source-info">
       <h3>
         {{ src.name }} @if (src.rulesInvalid) {
-        <nz-tag class="invalid-tag" nzColor="error" nz-tooltip [nzTooltipTitle]="src.rulesInvalid" nzTooltipPlacement="top"
+        <nz-tag
+          class="invalid-tag"
+          nzColor="error"
+          nz-tooltip
+          [nzTooltipTitle]="src.rulesInvalid"
+          nzTooltipPlacement="top"
           >规则无效</nz-tag
         >
         }
