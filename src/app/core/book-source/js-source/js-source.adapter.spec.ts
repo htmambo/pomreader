@@ -7,7 +7,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { JsSourceAdapter } from './js-source.adapter';
 import { FetchError } from '../fetch-error';
-import { BookSourceMeta } from './source-meta.types';
+import { BookSourceMeta } from '../source-meta.types';
 
 class MockSandboxService {
   loaded = new Set<string>();

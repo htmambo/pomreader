@@ -19,7 +19,7 @@ import { GlobalErrorHandler } from './core/services/global-error-handler';
 import { BookService } from './core/services/book.service';
 import { BookSourceRegistry } from './core/book-source/book-source.registry';
 import { SandboxService } from './core/book-source/js-source/sandbox.service';
-import { CfPromptService } from './core/book-source/js-source/cf-prompt.service';
+import { CfPromptService } from './core/services/cf-prompt.service';
 import { XbiqugeAdapter } from './core/book-source/adapters/xbiquge.adapter';
 import { HeuristicAdapter } from './core/book-source/adapters/heuristic.adapter';
 

@@ -30,7 +30,7 @@ import {
   toRawSearchItem,
 } from '../source-parse.utils';
 import { SandboxService } from './sandbox.service';
-import { type BookSourceMeta } from './source-meta.types';
+import { type BookSourceMeta } from '../source-meta.types';
 
 /**
  * legado bookInfo() 返回结构（兼容多种命名）：

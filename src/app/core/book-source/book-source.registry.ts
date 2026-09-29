@@ -11,7 +11,7 @@ import { PageFetcherService } from './page-fetcher.service';
 import { FetchError } from './fetch-error';
 import { JsSourceAdapter } from './js-source/js-source.adapter';
 import { SandboxService } from './js-source/sandbox.service';
-import { type BookSourceMeta } from './js-source/source-meta.types';
+import { type BookSourceMeta } from './source-meta.types';
 import { jsEngineEnabled, ruleEngineEnabled } from './feature-flag';
 import { JsonRuleAdapter } from './json-rule/json-rule.adapter';
 import { RuleEngineService } from './json-rule/rule-engine.service';

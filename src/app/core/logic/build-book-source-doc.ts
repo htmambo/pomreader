@@ -12,7 +12,7 @@
  */
 import { type BookSourceDoc } from '../models/book-source-doc.model';
 import { type SourceRules } from '../book-source/smart-add/smart-rules';
-import { type SourceType } from '../book-source/js-source/source-meta.types';
+import { type SourceType } from '../book-source/source-meta.types';
 
 export interface BuildBookSourceDocInput {
   rules: SourceRules;

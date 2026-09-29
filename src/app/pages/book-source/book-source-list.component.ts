@@ -18,7 +18,7 @@ import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { PageHeaderService } from '../../core/services/page-header.service';
 import { ToastService } from '../../core/services/toast.service';
-import { type BookSourceMeta } from '../../core/book-source/js-source/source-meta.types';
+import { type BookSourceMeta } from '../../core/book-source/source-meta.types';
 import { BookSourceListStateService } from '../../core/book-source/book-source-list-state.service';
 import { ImportLegadoComponent } from '../../modals/import-legado/import-legado.component';
 

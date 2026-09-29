@@ -5,7 +5,7 @@ import {
   pickChapterUrl,
   extractChapters,
 } from './source-test.service';
-import { type BookSourceMeta } from '../js-source/source-meta.types';
+import { type BookSourceMeta } from '../source-meta.types';
 
 describe('pickBookUrl', () => {
   it('优先取 bookUrl，回退 url', () => {

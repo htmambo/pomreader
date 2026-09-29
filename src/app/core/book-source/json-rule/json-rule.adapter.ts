@@ -17,7 +17,7 @@
  * ../source-parse.utils.ts（选择抽共用而非复制：这套 legado 兼容链是两条 adapter 必须
  * 永远一致的契约，复制会随字段兼容演进漂移）。
  *
- * meta 暂用 js-source/source-meta.types.ts 的 BookSourceMeta（P3 才迁出，保持 import 旧路径）。
+ * meta 用 core/book-source/source-meta.types.ts 的 BookSourceMeta（P3 已从 js-source/ 迁出）。
  * meta 暴露为实例属性供 extractMetaUuid 鸭子类型读取（registry 匹配用）。
  */
 import {
@@ -28,7 +28,7 @@ import {
   type ResolvedBook,
 } from '../book-source.adapter';
 import { FetchError } from '../fetch-error';
-import { type BookSourceMeta } from '../js-source/source-meta.types';
+import { type BookSourceMeta } from '../source-meta.types';
 import {
   buildHostPattern,
   MAX_SEARCH_RESULTS,

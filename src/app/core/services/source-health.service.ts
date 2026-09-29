@@ -1,16 +1,17 @@
 /**
- * 书源健康检测服务（实施计划 T-012 + spec FR-1.7）
+ * 书源健康检测服务（JSON 规则书源版）
  *
- * - detectCapabilities(fileName)：经 SandboxService.load() 拿到模块 fns 列表（按 fileName 缓存命中）
- * - detectBatch(metas)：BATCH_CONCURRENCY 并发批量探测，单书源失败不影响其他
- * - sampleTest(meta)：可选 sample 测试（v1 占位不触发网络，避免批量检测时网络风暴）
- *
- * 决策（DM-T-012）：v1 简化为「Renderer 进程内」探测 — 复用现有 SandboxService（FR-1.7）；
- * IPC `booksourceEval` 留作调试入口（不在此服务调用）；sample 测试推迟到管理页「测试」按钮单独触发。
+ * 改挂记录（书源 JSON 化方案 §5「周边服务改挂」）：
+ * - 原实现依赖 SandboxService.load() 取沙箱模块函数表；沙箱链路 P4 删除
+ * - 现改为「JSON 合法性 + 必填规则非空」校验：读 .json → JSON.parse → BookSourceDocSchema
+ *   safeParse；全通过 → 四入口能力全开；任一失败 → 空能力（列表页健康角标语义不变）
+ * - detectBatch 接口保留（BATCH_CONCURRENCY 并发，单源失败不影响其他）
+ * - preload sourceHealthCheck / IPC booksource-eval 与本服务无关，随沙箱在 P4 删除
  */
 import { Injectable } from '@angular/core';
-import { SandboxService } from './sandbox.service';
-import { type BookSourceMeta } from './source-meta.types';
+import * as v from 'valibot';
+import { BookSourceDocSchema } from '../models/book-source-doc.model';
+import { type BookSourceMeta } from '../book-source/source-meta.types';
 
 export interface SourceHealthSample {
   ok: boolean;
@@ -27,6 +28,9 @@ export interface SourceHealthReport {
 
 const BATCH_CONCURRENCY = 5; // spec FR-1.7：批量 5 并发
 
+/** JSON 书源四入口能力（schema 全过即全开 —— 必填规则非空由 minLength 保证） */
+const ALL_CAPABILITIES = ['search', 'bookInfo', 'chapterList', 'chapterContent'];
+
 interface PomReadApi {
   booksourceRead?: (fileName: string, sourceDir?: string | null) => Promise<string>;
 }
@@ -38,18 +42,16 @@ function getPomApi(): PomReadApi | undefined {
 
 @Injectable({ providedIn: 'root' })
 export class SourceHealthService {
-  constructor(private readonly sandbox: SandboxService) {}
-
   /**
-   * 检测单个书源能力（FR-1.7）
-   * 读源 + SandboxService.load → 取 fns；load 内部按 fileName 缓存，二次调用零网络。
+   * 检测单个书源能力：JSON 合法性 + schema 校验（含 7 必填规则非空）。
+   * 读不到文件 / JSON 非法 / schema 不过 → []（与旧版 load 失败返 [] 同语义）。
    */
   async detectCapabilities(fileName: string): Promise<string[]> {
     const source = await this.readSource(fileName);
     if (source === null) return [];
     try {
-      const mod = await this.sandbox.load(fileName, source);
-      return mod.fns;
+      const parsed = v.safeParse(BookSourceDocSchema, JSON.parse(source));
+      return parsed.success ? [...ALL_CAPABILITIES] : [];
     } catch {
       return [];
     }
@@ -72,8 +74,8 @@ export class SourceHealthService {
   }
 
   /**
-   * 可选 sample 测试：用 meta.urls[0] 跑一次 bookInfo（v1 占位）
-   * 实际能力图标在管理页通过 search/bookInfo 显式探测，避免批量检测时网络风暴。
+   * 可选 sample 测试：v1 占位（不触发网络，避免批量检测时网络风暴）。
+   * 实际能力图标在管理页通过 search/bookInfo 显式探测。
    */
   async sampleTest(_meta: BookSourceMeta): Promise<SourceHealthSample> {
     return { ok: true, durationMs: 0 };

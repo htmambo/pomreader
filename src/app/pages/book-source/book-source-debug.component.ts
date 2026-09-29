@@ -11,7 +11,7 @@ import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { ToastService } from '../../core/services/toast.service';
 import { SandboxService, type SandboxFn } from '../../core/book-source/js-source/sandbox.service';
-import { type BookSourceMeta } from '../../core/book-source/js-source/source-meta.types';
+import { type BookSourceMeta } from '../../core/book-source/source-meta.types';
 import {
   pickBookUrl,
   pickChapterUrl,

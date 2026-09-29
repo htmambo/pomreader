@@ -6,7 +6,7 @@ import { BookSourceRegistry } from './book-source.registry';
 import { XbiqugeAdapter } from './adapters/xbiquge.adapter';
 import { HeuristicAdapter } from './adapters/heuristic.adapter';
 import { JsSourceAdapter } from './js-source/js-source.adapter';
-import { BookSourceMeta } from './js-source/source-meta.types';
+import { BookSourceMeta } from './source-meta.types';
 import { JsonRuleAdapter } from './json-rule/json-rule.adapter';
 import { type RuleEngineService } from './json-rule/rule-engine.service';
 import { setBookSourceEngine } from './feature-flag';

@@ -8,7 +8,7 @@
  * 标量字段首次出现生效；uuid 缺省 → 回退 fileName；name 缺省 → fileName 去 .js；
  * @type 非法 → 降级 'novel'；@enabled 非 false/0/no → true；@minDelayMs 与 @minDelay 等价。
  */
-import { type BookSourceMeta, SOURCE_TYPES, type SourceType } from './source-meta.types';
+import { type BookSourceMeta, SOURCE_TYPES, type SourceType } from '../source-meta.types';
 
 const HEADER_SCAN_LINES = 100;
 const DEFAULT_TYPE: SourceType = 'novel';

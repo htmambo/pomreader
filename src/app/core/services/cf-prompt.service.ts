@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { NzModalService } from 'ng-zorro-antd/modal';
-import { ToastService } from '../../services/toast.service';
-import { SandboxService } from './sandbox.service';
+import { ToastService } from './toast.service';
+import { SandboxService } from '../book-source/js-source/sandbox.service';
 
 /**
  * CF Tier 2 人工过盾引导（书源沙箱链路）

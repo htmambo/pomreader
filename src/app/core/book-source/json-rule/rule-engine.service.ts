@@ -28,8 +28,8 @@ import { Subject, type Observable } from 'rxjs';
 import * as v from 'valibot';
 import { BookSourceDocSchema, type BookSourceDoc } from '../../models/book-source-doc.model';
 import { FetchError } from '../fetch-error';
-import { CfPromptService } from '../js-source/cf-prompt.service';
-import { type BookSourceMeta } from '../js-source/source-meta.types';
+import { CfPromptService } from '../../services/cf-prompt.service';
+import { type BookSourceMeta } from '../source-meta.types';
 import {
   JsonRuleEngine,
   type RuleBookInfo,

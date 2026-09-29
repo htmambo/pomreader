@@ -10,7 +10,7 @@
  */
 import * as v from 'valibot';
 import type { SourceRules } from '../book-source/smart-add/smart-rules';
-import type { SourceType } from '../book-source/js-source/source-meta.types';
+import type { SourceType } from '../book-source/source-meta.types';
 
 export interface BookSourceDoc {
   /** 固定标记 'pomreader.booksource'（导入导出/文件识别用） */

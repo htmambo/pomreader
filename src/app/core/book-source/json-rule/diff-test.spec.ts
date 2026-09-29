@@ -28,10 +28,10 @@ import {
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FixtureWorker } from '../../../../../fixtures/worker-stub';
 import { type PageFetcher } from '../book-source.adapter';
-import { CfPromptService } from '../js-source/cf-prompt.service';
+import { CfPromptService } from '../../services/cf-prompt.service';
 import { JsSourceAdapter } from '../js-source/js-source.adapter';
 import { SandboxService } from '../js-source/sandbox.service';
-import { type BookSourceMeta } from '../js-source/source-meta.types';
+import { type BookSourceMeta } from '../source-meta.types';
 import { CSS_RULES_DISABLED_MESSAGE } from './engine';
 import { JsonRuleAdapter } from './json-rule.adapter';
 import { RuleEngineService } from './rule-engine.service';

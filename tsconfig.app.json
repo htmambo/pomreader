@@ -11,7 +11,6 @@
     "src/**/*.d.ts",
     "src/app/core/book-source/js-source/sandbox.worker.ts",
     "src/app/core/book-source/js-source/multi-mirror.service.ts",
-    "src/app/core/book-source/js-source/source-health.service.ts",
     "src/app/core/book-source/js-source/worker-pool.ts"
   ],
   "angularCompilerOptions": {

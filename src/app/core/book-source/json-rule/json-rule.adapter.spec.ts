@@ -8,7 +8,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { JsonRuleAdapter } from './json-rule.adapter';
 import { FetchError } from '../fetch-error';
-import { type BookSourceMeta } from '../js-source/source-meta.types';
+import { type BookSourceMeta } from '../source-meta.types';
 import { type RuleEngineService } from './rule-engine.service';
 
 /** 假 RuleEngineService：key = 入口名 → result；记录调用参数与次数 */

@@ -1,5 +1,5 @@
 import { Injectable, signal } from '@angular/core';
-import { type BookSourceMeta } from './js-source/source-meta.types';
+import { type BookSourceMeta } from './source-meta.types';
 
 /**
  * 书源管理列表页会话级状态（root service，路由切换不销毁）

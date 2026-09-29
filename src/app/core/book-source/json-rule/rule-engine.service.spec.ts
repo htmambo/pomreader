@@ -14,8 +14,8 @@ import {
 } from '@angular/platform-browser-dynamic/testing';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FetchError } from '../fetch-error';
-import { CfPromptService } from '../js-source/cf-prompt.service';
-import { type BookSourceMeta } from '../js-source/source-meta.types';
+import { CfPromptService } from '../../services/cf-prompt.service';
+import { type BookSourceMeta } from '../source-meta.types';
 import { type RuleTrace } from './engine';
 import { RuleEngineService } from './rule-engine.service';
 

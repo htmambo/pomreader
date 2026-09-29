@@ -7,8 +7,8 @@ import {
 } from '@angular/platform-browser-dynamic/testing';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { CfPromptService } from './cf-prompt.service';
-import { ToastService } from '../../services/toast.service';
-import { SandboxService } from './sandbox.service';
+import { ToastService } from './toast.service';
+import { SandboxService } from '../book-source/js-source/sandbox.service';
 
 /**
  * CfPromptService spec — CF Tier 2 人工过盾引导（书源沙箱链路）
