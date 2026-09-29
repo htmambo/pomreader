@@ -8,6 +8,7 @@
  *  - 结果条数 / 正文长度：裁剪而非报错（对齐历史 JS 适配器的静默截断语义）
  *  - 提取结果对象：字段白名单 + null 原型中间态，替代沙箱里的原型冻结
  */
+import { cssRulesEnabled, isCssRule } from '../smart-add/smart-rules';
 
 /** 单条规则串长度上限（现有规则都是几十字符级，超长多为误填） */
 export const RULE_MAX_LENGTH = 512;
@@ -79,6 +80,20 @@ export function whitelistResult<T extends Record<string, unknown>>(fields: T): T
     safe[key] = fields[key];
   }
   return { ...safe } as T;
+}
+
+/** F6c 门报错文案（历史沙箱链路同款文案，差分测试期逐字锁定） */
+export const CSS_RULES_DISABLED_MESSAGE = 'CSS 规则已禁用（localStorage pom.cssRules=0）';
+
+/**
+ * F6c 门：CSS 规则在 localStorage['pom.cssRules']==='0' 时响亮失败。
+ * ⚠️ 不能依赖 smart-rules 函数的自带门 —— pickText/matchLinkItems 在 flag=0 时是
+ * 静默回退正则，而沙箱链路是 fail；引擎与分页抓取必须在每条 CSS 路径前显式检查。
+ */
+export function assertCssAllowed(pattern: string): void {
+  if (!cssRulesEnabled() && isCssRule(pattern)) {
+    throw new Error(CSS_RULES_DISABLED_MESSAGE);
+  }
 }
 
 // ── 正则静态风险检查 ─────────────────────────────────────────────────────────

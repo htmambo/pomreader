@@ -102,6 +102,47 @@ describe('BookSourceDocSchema', () => {
   });
 });
 
+describe('PaginationRule schema（T-1/T-2）', () => {
+  it('tocPagination / contentPagination 均可省略（向后兼容）', () => {
+    const r = v.safeParse(SourceRulesSchema, MIN_RULES);
+    expect(r.success).toBe(true);
+    expect(r.success && r.output.tocPagination).toBeUndefined();
+    expect(r.success && r.output.contentPagination).toBeUndefined();
+  });
+
+  it('合法分页对象通过（全子字段 / 仅 area 两种形态）', () => {
+    const r = v.safeParse(SourceRulesSchema, {
+      ...MIN_RULES,
+      tocPagination: { area: 'css:.pagination', linkPattern: 'page_\\d+', maxPages: 50 },
+      contentPagination: { area: 'css:.pagebar' },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it.each(['tocPagination', 'contentPagination'] as const)('%s.area 缺失或空串 → 拒绝', (field) => {
+    const missing = v.safeParse(SourceRulesSchema, { ...MIN_RULES, [field]: {} });
+    expect(missing.success).toBe(false);
+    const empty = v.safeParse(SourceRulesSchema, { ...MIN_RULES, [field]: { area: '' } });
+    expect(empty.success).toBe(false);
+  });
+
+  it.each([0, 1.5, 201, -3])('maxPages=%s 越界（整数 1-200）→ 拒绝', (maxPages) => {
+    const r = v.safeParse(SourceRulesSchema, {
+      ...MIN_RULES,
+      tocPagination: { area: 'css:.pagination', maxPages },
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it('maxPages=200（硬上限边界）→ 通过', () => {
+    const r = v.safeParse(SourceRulesSchema, {
+      ...MIN_RULES,
+      contentPagination: { area: 'css:.pagebar', maxPages: 200 },
+    });
+    expect(r.success).toBe(true);
+  });
+});
+
 describe('isBookSourceDocLike', () => {
   it('format 标记命中 → true', () => {
     expect(isBookSourceDocLike({ format: 'pomreader.booksource' })).toBe(true);

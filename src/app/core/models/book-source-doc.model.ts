@@ -5,7 +5,7 @@
  * valibot schema 与本接口同文件导出 —— 渲染端 rule-engine.service 与主进程
  * booksource-handler 都需要 parse，故不放 electron/ipc/schema.ts（渲染端不可达 electron/）。
  *
- * `rules` 直接复用 smart-rules 的 SourceRules（16 字段 = 7 必填 + 9 可选），
+ * `rules` 直接复用 smart-rules 的 SourceRules（18 字段 = 7 必填 + 11 可选），
  * 字段名一字不改：转换层越薄越好，rules-panel / buildRules / detect* 全部原样复用。
  */
 import * as v from 'valibot';
@@ -49,7 +49,7 @@ export interface BookSourceDoc {
   requireUrls: string[];
   /** 自定义请求头（legado header 导入产物，原 HEADERS 常量, F7） */
   headers: Record<string, string>;
-  /** 16 字段原样平移（7 必填 + 9 可选，F3），字段名一字不改 */
+  /** 18 字段原样平移（7 必填 + 11 可选，F3 + T-1/T-2 分页两字段），字段名一字不改 */
   rules: SourceRules;
   /** 可选：legado 骨架源内嵌原始 JSON（F8） */
   legadoRaw?: string;
@@ -67,8 +67,15 @@ const ContentReplaceRuleSchema = v.object({
   replace: v.string(),
 });
 
+/** 分页规则（T-1/T-2）：area 必填；maxPages 整数 1-200（硬上限，目录缺省 100 / 正文缺省 20 由引擎给） */
+const PaginationRuleSchema = v.object({
+  area: v.pipe(v.string(), v.minLength(1, '分页区域规则必填')),
+  linkPattern: v.optional(v.string()),
+  maxPages: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(200))),
+});
+
 /**
- * SourceRules schema：7 必填 + 9 可选（F3）。
+ * SourceRules schema：7 必填 + 11 可选（F3 + T-1/T-2 分页两字段）。
  * ⚠️ searchMethod 可选、缺省 'GET' —— 必须 optional() + default，不可设 required（E3）。
  */
 export const SourceRulesSchema = v.object({
@@ -88,6 +95,8 @@ export const SourceRulesSchema = v.object({
   contentReplaceRules: v.optional(v.array(ContentReplaceRuleSchema)),
   bookCategoryPattern: v.optional(v.string()),
   coverUrlPattern: v.optional(v.string()),
+  tocPagination: v.optional(PaginationRuleSchema),
+  contentPagination: v.optional(PaginationRuleSchema),
 });
 
 export const BookSourceDocSchema = v.object({

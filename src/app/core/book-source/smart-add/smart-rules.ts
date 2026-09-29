@@ -56,6 +56,19 @@ export interface ContentReplaceRule {
   replace: string;
 }
 
+/**
+ * 分页规则（T-1 目录 / T-2 正文共用，区域链接图遍历模型）：
+ * 每一页取 area 区域内全部 <a href>，去重后跟随白名单链接，直到所有已发现链接均已读。
+ */
+export interface PaginationRule {
+  /** 分页区域规则（CSS 或正则，与全仓规则语法同构）：取该区域内全部 <a href> */
+  area: string;
+  /** 可选：链接白名单正则（命中才跟随）。未填走 URL 页码位推断 */
+  linkPattern?: string;
+  /** 可选：最大页数。目录缺省 100 / 正文缺省 20（由调用方给缺省）；硬上限 200 */
+  maxPages?: number;
+}
+
 /** 可视化规则：每个字段直接参数化生成的书源代码 */
 export interface SourceRules {
   siteName: string;
@@ -102,6 +115,10 @@ export interface SourceRules {
   bookCategoryPattern?: string;
   /** 封面规则（CSS 选择器（命中 img 元素，提取 src）或正则：捕获组 1=封面 URL） */
   coverUrlPattern?: string;
+  /** 【可选】目录分页（T-1）。不填 = 单页目录（现状行为） */
+  tocPagination?: PaginationRule;
+  /** 【可选】正文分页（T-2）。不填 = 单页正文（现状行为） */
+  contentPagination?: PaginationRule;
 }
 
 /** 默认规则模板（探测失败时的兜底值） */

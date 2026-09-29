@@ -29,9 +29,11 @@ import {
   pickText,
   stripTags,
   type ContentReplaceRule,
+  type PaginationRule,
   type SearchMethod,
 } from '../smart-add/smart-rules';
 import {
+  assertCssAllowed,
   assertHtmlSize,
   assertRegexSafe,
   assertRuleLength,
@@ -43,6 +45,15 @@ import {
   whitelistResult,
   withBudget,
 } from './guard';
+import {
+  CONTENT_DEFAULT_MAX_PAGES,
+  crawlPaginatedPages,
+  TOC_DEFAULT_MAX_PAGES,
+  type PageOrder,
+} from './pagination';
+
+/** F6c 门文案/检查已上移 guard.ts（分页抓取复用），此处再导出保持既有 import 路径 */
+export { CSS_RULES_DISABLED_MESSAGE } from './guard';
 
 /**
  * 引擎的 HTTP 抽象（对齐 legado.http.get/post）：只回 body 文本。
@@ -76,9 +87,17 @@ export interface RuleTrace {
   itemCount?: number;
   /** 正文长度（chapterContent） */
   contentLength?: number;
+  /** 分页抓取页数（ruleField=tocPagination/contentPagination 的汇总 trace） */
+  pageCount?: number;
+  /** 分页撞 maxPages 上限截断（分页汇总 trace） */
+  truncated?: boolean;
+  /** 分页页序恢复方式（分页汇总 trace） */
+  order?: PageOrder;
+  /** 分页链接页码位推断失败（提示用户补 linkPattern） */
+  inferenceFailed?: boolean;
   /** 本步骤耗时 ms */
   durationMs: number;
-  /** 错误信息（stage=done 且失败时） */
+  /** 错误信息（stage=done 且失败时；分页汇总 trace 则携带单页失败的部分抓取错误） */
   error?: string;
 }
 
@@ -115,22 +134,8 @@ export interface RuleEngineOptions {
   budgetMs?: number;
 }
 
-/** F6c 门报错文案（历史沙箱链路同款文案，差分测试期逐字锁定） */
-export const CSS_RULES_DISABLED_MESSAGE = 'CSS 规则已禁用（localStorage pom.cssRules=0）';
-
 /** 模板提取层上限（历史模板的 MAX_EXTRACT_LINKS 同值） */
 const MAX_EXTRACT_LINKS = 500;
-
-/**
- * F6c 门：CSS 规则在 localStorage['pom.cssRules']==='0' 时响亮失败。
- * ⚠️ 不能依赖 smart-rules 函数的自带门 —— pickText/matchLinkItems 在 flag=0 时是
- * 静默回退正则（:162,:275），而沙箱链路是 fail；引擎必须在每条 CSS 路径前显式检查。
- */
-function assertCssAllowed(pattern: string): void {
-  if (!cssRulesEnabled() && isCssRule(pattern)) {
-    throw new Error(CSS_RULES_DISABLED_MESSAGE);
-  }
-}
 
 /**
  * 单值文本提取（模板 extractText，smart-rules.ts:638-646）：
@@ -406,6 +411,10 @@ export class JsonRuleEngine {
     emit: PhaseTraceEmitter,
   ): Promise<RuleChapterItem[]> {
     const rules = doc.rules;
+    const tocPagination = rules.tocPagination;
+    if (tocPagination?.area) {
+      return this.doChapterListPaginated(doc, bookUrl, emit, tocPagination);
+    }
     checkPatterns([['chapterItemPattern', rules.chapterItemPattern]]);
     assertCssAllowed(rules.chapterItemPattern);
 
@@ -427,12 +436,86 @@ export class JsonRuleEngine {
     );
   }
 
+  /** 目录分页（T-1）：crawl 全书目录页，每页跑 chapterItemPattern，按章 URL 去重拼接 */
+  private async doChapterListPaginated(
+    doc: BookSourceDoc,
+    bookUrl: string,
+    emit: PhaseTraceEmitter,
+    tocPagination: PaginationRule,
+  ): Promise<RuleChapterItem[]> {
+    const rules = doc.rules;
+    checkPatterns([
+      ['chapterItemPattern', rules.chapterItemPattern],
+      ['tocPagination.area', tocPagination.area],
+      ...(tocPagination.linkPattern
+        ? ([['tocPagination.linkPattern', tocPagination.linkPattern]] as Array<[string, string]>)
+        : []),
+    ]);
+    assertCssAllowed(rules.chapterItemPattern);
+    assertCssAllowed(tocPagination.area);
+
+    const crawl = await crawlPaginatedPages(bookUrl, tocPagination, {
+      fetchPage: (url) => this.request(emit, 'GET', url, undefined, doc.headers ?? {}),
+      defaultMaxPages: TOC_DEFAULT_MAX_PAGES,
+      minDelayMs: doc.minDelayMs ?? 0,
+      onTrace: (e) => {
+        if (e.type === 'inference-failed') {
+          emit({
+            stage: 'extract',
+            ruleField: 'tocPagination',
+            rule: tocPagination.area,
+            inferenceFailed: true,
+            durationMs: 0,
+          });
+        }
+      },
+    });
+
+    const byUrl = new Map<string, RuleChapterItem>();
+    for (const page of crawl.pages) {
+      const items = matchLinkItems(
+        rules.chapterItemPattern,
+        page.html,
+        page.url,
+        MAX_EXTRACT_LINKS,
+      );
+      emit({
+        stage: 'extract',
+        ruleField: 'chapterItemPattern',
+        rule: rules.chapterItemPattern,
+        itemCount: items.length,
+        durationMs: 0,
+      });
+      for (const it of items) {
+        if (!it.url || byUrl.has(it.url)) continue;
+        byUrl.set(it.url, whitelistResult({ name: it.name, url: it.url }));
+      }
+    }
+    const chapters = [...byUrl.values()];
+    emit({
+      stage: 'extract',
+      ruleField: 'tocPagination',
+      rule: tocPagination.area,
+      itemCount: chapters.length,
+      pageCount: crawl.pages.length,
+      truncated: crawl.truncated,
+      order: crawl.order,
+      durationMs: 0,
+      ...(crawl.error ? { error: crawl.error } : {}),
+    });
+    return capList(chapters, CHAPTER_MAX_ITEMS);
+  }
+
   private async doChapterContent(
     doc: BookSourceDoc,
     chapterUrl: string,
     emit: PhaseTraceEmitter,
   ): Promise<string> {
     const rules = doc.rules;
+    const contentPagination = rules.contentPagination;
+    if (contentPagination?.area) {
+      return this.doChapterContentPaginated(doc, chapterUrl, emit, contentPagination);
+    }
     checkPatterns([['contentPattern', rules.contentPattern]]);
     checkReplaceRules(rules.contentReplaceRules);
     assertCssAllowed(rules.contentPattern);
@@ -449,6 +532,72 @@ export class JsonRuleEngine {
       rule: rules.contentPattern,
       contentLength: text.length,
       durationMs: 0,
+    });
+    text = applyContentReplaceRules(text, rules.contentReplaceRules);
+    return capContent(text);
+  }
+
+  /** 正文分页（T-2）：crawl 本章全部页，顺序拼接后整体过一次 contentReplaceRules */
+  private async doChapterContentPaginated(
+    doc: BookSourceDoc,
+    chapterUrl: string,
+    emit: PhaseTraceEmitter,
+    contentPagination: PaginationRule,
+  ): Promise<string> {
+    const rules = doc.rules;
+    checkPatterns([
+      ['contentPattern', rules.contentPattern],
+      ['contentPagination.area', contentPagination.area],
+      ...(contentPagination.linkPattern
+        ? ([['contentPagination.linkPattern', contentPagination.linkPattern]] as Array<
+            [string, string]
+          >)
+        : []),
+    ]);
+    checkReplaceRules(rules.contentReplaceRules);
+    assertCssAllowed(rules.contentPattern);
+    assertCssAllowed(contentPagination.area);
+
+    const crawl = await crawlPaginatedPages(chapterUrl, contentPagination, {
+      fetchPage: (url) => this.request(emit, 'GET', url, undefined, doc.headers ?? {}),
+      defaultMaxPages: CONTENT_DEFAULT_MAX_PAGES,
+      minDelayMs: doc.minDelayMs ?? 0,
+      onTrace: (e) => {
+        if (e.type === 'inference-failed') {
+          emit({
+            stage: 'extract',
+            ruleField: 'contentPagination',
+            rule: contentPagination.area,
+            inferenceFailed: true,
+            durationMs: 0,
+          });
+        }
+      },
+    });
+
+    const parts: string[] = [];
+    for (const page of crawl.pages) {
+      const text = stripTags(pickHtml(rules.contentPattern, page.html));
+      emit({
+        stage: 'extract',
+        ruleField: 'contentPattern',
+        rule: rules.contentPattern,
+        contentLength: text.length,
+        durationMs: 0,
+      });
+      parts.push(text);
+    }
+    let text = parts.join('\n\n');
+    emit({
+      stage: 'extract',
+      ruleField: 'contentPagination',
+      rule: contentPagination.area,
+      contentLength: text.length,
+      pageCount: crawl.pages.length,
+      truncated: crawl.truncated,
+      order: crawl.order,
+      durationMs: 0,
+      ...(crawl.error ? { error: crawl.error } : {}),
     });
     text = applyContentReplaceRules(text, rules.contentReplaceRules);
     return capContent(text);

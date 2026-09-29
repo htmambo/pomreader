@@ -529,3 +529,105 @@ describe('JsonRuleEngine — RuleTrace', () => {
     expect(done?.error).toBe('网络失败');
   });
 });
+
+// ── 目录/正文分页（T-1/T-2） ─────────────────────────────────────────────────
+
+describe('JsonRuleEngine — 分页（T-1/T-2）', () => {
+  afterEach(() => localStorage.removeItem('pom.cssRules'));
+
+  const TOC_URL_1 = `${BASE}/book/5/toc/1`;
+  const TOC_URL_2 = `${BASE}/book/5/toc/2`;
+  // 第 2 页含与第 1 页重复的章节 URL（第二章），拼接时应按章 URL 去重保首次
+  const TOC_PAGE_1 =
+    '<ul class="toc"><li><a href="/book/5/1.html">第一章 起</a></li>' +
+    '<li><a href="/book/5/2.html">第二章 承</a></li></ul>' +
+    '<div class="pagination"><a href="/book/5/toc/2">下一页</a></div>';
+  const TOC_PAGE_2 =
+    '<ul class="toc"><li><a href="/book/5/2.html">第二章 承（重复）</a></li>' +
+    '<li><a href="/book/5/3.html">第三章 转</a></li></ul>' +
+    '<div class="pagination"><a href="/book/5/toc/1">上一页</a></div>';
+
+  it('tocPagination：多页目录拼接 + 按章 URL 去重 + 分页汇总 trace', async () => {
+    const http = new FakeHttp({ [TOC_URL_1]: TOC_PAGE_1, [TOC_URL_2]: TOC_PAGE_2 });
+    const engine = new JsonRuleEngine(http);
+    const traces: RuleTrace[] = [];
+    const chapters = await engine.chapterList(
+      makeDoc({
+        siteName: '样例站',
+        chapterItemPattern: 'ul.toc a',
+        tocPagination: { area: 'css:.pagination' },
+      }),
+      TOC_URL_1,
+      (t) => traces.push(t),
+    );
+    expect(chapters).toEqual([
+      { name: '第一章 起', url: `${BASE}/book/5/1.html` },
+      { name: '第二章 承', url: `${BASE}/book/5/2.html` },
+      { name: '第三章 转', url: `${BASE}/book/5/3.html` },
+    ]);
+    expect(http.calls.map((c) => c.url)).toEqual([TOC_URL_1, TOC_URL_2]);
+    const summary = traces.find((t) => t.ruleField === 'tocPagination');
+    expect(summary).toMatchObject({
+      stage: 'extract',
+      pageCount: 2,
+      itemCount: 3,
+      truncated: false,
+      order: 'page-number',
+    });
+  });
+
+  const CONTENT_URL_1 = `${BASE}/read/9/1`;
+  const CONTENT_URL_2 = `${BASE}/read/9/2`;
+  // 两页正文末尾/开头凑出 'AB\n\nCD'：replaceRules 若逐页跑（而非拼接后跑一次）则不会命中
+  const CONTENT_PAGE_1 =
+    '<div id="content"><p>上半AB</p></div>' +
+    '<div class="pagination"><a href="/read/9/2">下一页</a></div>';
+  const CONTENT_PAGE_2 =
+    '<div id="content"><p>CD下半</p></div>' +
+    '<div class="pagination"><a href="/read/9/1">上一页</a></div>';
+
+  it('contentPagination：多页正文顺序拼接，contentReplaceRules 只在拼接后跑一次', async () => {
+    const http = new FakeHttp({
+      [CONTENT_URL_1]: CONTENT_PAGE_1,
+      [CONTENT_URL_2]: CONTENT_PAGE_2,
+    });
+    const engine = new JsonRuleEngine(http);
+    const traces: RuleTrace[] = [];
+    const text = await engine.chapterContent(
+      makeDoc({
+        siteName: '样例站',
+        contentPattern: 'div#content',
+        contentReplaceRules: [{ rule: 'AB\\n\\nCD', replace: 'ABCD' }],
+        contentPagination: { area: 'css:.pagination' },
+      }),
+      CONTENT_URL_1,
+      (t) => traces.push(t),
+    );
+    expect(text).toBe('上半ABCD下半');
+    expect(http.calls.map((c) => c.url)).toEqual([CONTENT_URL_1, CONTENT_URL_2]);
+    const summary = traces.find((t) => t.ruleField === 'contentPagination');
+    expect(summary).toMatchObject({
+      stage: 'extract',
+      pageCount: 2,
+      truncated: false,
+      order: 'page-number',
+    });
+  });
+
+  it('无分页字段：单页行为回归（仅一次请求，无分页 trace）', async () => {
+    const http = new FakeHttp({ [BOOK_URL]: CSS_DETAIL_HTML, [CHAPTER_URL]: CSS_CONTENT_HTML });
+    const engine = new JsonRuleEngine(http);
+    const traces: RuleTrace[] = [];
+    const chapters = await engine.chapterList(
+      makeDoc({ siteName: '样例站', chapterItemPattern: 'ul.toc a' }),
+      BOOK_URL,
+      (t) => traces.push(t),
+    );
+    expect(chapters).toEqual([
+      { name: '第一章 起', url: `${BASE}/book/5/1.html` },
+      { name: '第二章 承', url: `${BASE}/book/5/2.html` },
+    ]);
+    expect(http.calls).toHaveLength(1);
+    expect(traces.some((t) => t.ruleField === 'tocPagination')).toBe(false);
+  });
+});
