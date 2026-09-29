@@ -28,6 +28,24 @@
   .ant-menu-inline .ant-menu-item::after {
     border-right-color: var(--pom-accent);
   }
+
+  /* nz-collapse（书源编辑器「基础信息」面板）对齐米色卡片基调；
+   * 暗色主题由下方 [data-pom-theme='6'] 块硬编码覆盖 */
+  .ant-collapse {
+    background: var(--pom-card);
+    border-color: var(--pom-border);
+  }
+  .ant-collapse > .ant-collapse-item {
+    border-bottom-color: var(--pom-border);
+  }
+  .ant-collapse > .ant-collapse-item > .ant-collapse-header {
+    color: var(--pom-text);
+  }
+  .ant-collapse-content {
+    background: var(--pom-card);
+    border-top-color: var(--pom-border);
+    color: var(--pom-text);
+  }
 }
 
 /* 滚动条（v1.1 §11.3 / T5.3 — 8px 细条） */
@@ -496,6 +514,21 @@
   .ant-select-focused:not(.ant-select-customize-input) .ant-select-selector {
     border-color: #bf2c24;
   }
+  /* tags/multiple 模式下的选中项 chip（书源编辑器标签输入）默认浅灰底深字 */
+  .ant-select-selection-item {
+    background: #2a2a2a;
+    border-color: #444444;
+    color: #c9c9c9;
+  }
+  .ant-select-selection-item-remove {
+    color: #888888;
+  }
+  .ant-select-selection-item-remove:hover {
+    color: #ed4259;
+  }
+  .ant-select-selection-placeholder {
+    color: #666666;
+  }
   .ant-select .ant-select-arrow,
   .ant-select .ant-select-clear {
     color: #999999;
@@ -556,6 +589,36 @@
   }
   .ant-alert-banner {
     border-radius: 0;
+  }
+
+  /* ============================================================
+   * nz-collapse 暗色覆盖（书源编辑器「基础信息」面板）
+   * 默认 #fafafa 头 / #fff 体 / 黑字在暗色下反差强烈，对齐 #1f1f1f/#444 基调
+   * ============================================================ */
+  .ant-collapse {
+    background: #1f1f1f;
+    border-color: #444444;
+  }
+  .ant-collapse > .ant-collapse-item {
+    border-bottom-color: #444444;
+  }
+  .ant-collapse > .ant-collapse-item > .ant-collapse-header {
+    color: #e0e0e0;
+    background: #232323;
+  }
+  .ant-collapse > .ant-collapse-item > .ant-collapse-header:hover {
+    color: #ed4259;
+  }
+  .ant-collapse .ant-collapse-expand-icon {
+    color: #999999;
+  }
+  .ant-collapse > .ant-collapse-item > .ant-collapse-header:hover .ant-collapse-expand-icon {
+    color: #ed4259;
+  }
+  .ant-collapse-content {
+    background: #1f1f1f;
+    border-top-color: #444444;
+    color: #c9c9c9;
   }
 
   /* ============================================================
