@@ -31,3 +31,9 @@ node scripts/e2e-import-online.cjs     # 终端 2：默认连 127.0.0.1:4200
 - ✅ PASS → `console.log("✅ PASS: ...")`
 - ❌ FAIL → `console.log("❌ FAIL: ...")`
 - 抛异常 → `TEST ERROR: ...`
+
+## 盘点脚本（非 e2e）
+
+| 脚本 | 场景 |
+|---|---|
+| `audit-booksources.ts` | P0 书源存量盘点（只读，方案 §4.1）：`node scripts/audit-booksources.ts [书源目录] [--out report.json]`。目录缺省自动探测 `<userData>/booksources`；默认打印人类可读报告，`--out` 另存完整 JSON。目录里唯一的 TS 脚本：Node ≥ 22.18 原生 type stripping 直接跑，无需 tsx/ts-node、无需 dev server |
