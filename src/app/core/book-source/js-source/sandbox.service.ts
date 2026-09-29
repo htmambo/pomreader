@@ -671,62 +671,80 @@ export class SandboxService implements OnDestroy {
    * error 通道：Feature Flag 关闭 / HTML 超 5MB / 选择器为空 / 选择器非法 → {ok:false,error} → Worker 侧 reject
    */
   private proxyQuery(reqId: string, html: string, selector: string, baseUrl: string): void {
-    const fail = (error: string) =>
-      this.worker!.postMessage({ type: 'query-result', reqId, ok: false, error });
-    if (!cssRulesEnabled()) {
-      fail('CSS 规则已禁用（localStorage pom.cssRules=0）');
-      return;
-    }
-    if (html.length > QUERY_HTML_LIMIT) {
-      fail(`HTML 超过 ${QUERY_HTML_LIMIT / 1024 / 1024}MB 解析上限`);
-      return;
-    }
-    // 空选择器前置检查：DOM 报错信息技术（'The provided selector is empty'），不指引书源常量名;
-    // 书源 BOOK_TITLE_RULE / BOOK_AUTHOR_RULE / CHAPTER_ITEM_RULE / CONTENT_RULE / COVER_RULE / BOOK_CATEGORY_RULE
-    // 任意一个为空字符串都会触发,直接告诉用户去检查书源编辑器
-    if (!selector || !selector.trim()) {
-      fail(
-        '选择器为空：书源规则未填写（BOOK_TITLE_RULE / BOOK_AUTHOR_RULE / CHAPTER_ITEM_RULE / CONTENT_RULE / COVER_RULE / BOOK_CATEGORY_RULE 中至少一个为空）— 打开书源编辑器确认',
-      );
-      return;
-    }
-    try {
-      const doc = new DOMParser().parseFromString(html, 'text/html');
-      const items = Array.from(doc.querySelectorAll(selector)).map((el) =>
-        this.toQueryItem(el, baseUrl),
-      );
-      this.worker!.postMessage({ type: 'query-result', reqId, ok: true, items });
-    } catch (e) {
-      fail(`选择器无效：${(e as Error).message}`);
-    }
+    const r = runQuery(html, selector, baseUrl);
+    this.worker!.postMessage(
+      r.ok
+        ? { type: 'query-result', reqId, ok: true, items: r.items }
+        : { type: 'query-result', reqId, ok: false, error: r.error },
+    );
   }
+}
 
-  /** 命中元素 → 契约结构；links 为自身（a 时）+ 后代锚点，href 一律预绝对化 */
-  private toQueryItem(el: Element, baseUrl: string): QueryItem {
-    const abs = (href: string | null): string => {
-      if (!href) return '';
-      try {
-        return new URL(href, baseUrl).href;
-      } catch {
-        return '';
-      }
-    };
-    const isAnchor = el.tagName === 'A';
-    const anchors = isAnchor ? [el] : Array.from(el.querySelectorAll('a[href]'));
-    // 元素全部属性（key 已 lowercase）—— 供 extractAttr(rule, html, attr) 提取 img@src 等
-    const attrs: Record<string, string> = {};
-    for (const a of Array.from(el.attributes)) {
-      attrs[a.name.toLowerCase()] = a.value;
-    }
+/**
+ * 执行一次 CSS 选择器查询（主线程 DOMParser，不执行脚本）——**纯函数，已导出**
+ *
+ * 导出而非留在 SandboxService 私有方法里的原因：书源 JSON 规则化的**差分测试基座**
+ * 需要让「旧 JS 引擎」与「新规则引擎」在**同一份** query 实现上跑，否则新引擎自测等于拿自己测自己
+ * （方案 §7.1 明确要求"query 走主线程 DOMParser 真实实现"）。提取是纯重构，线上行为与
+ * 回报给 Worker 的消息结构完全不变。
+ */
+export function runQuery(
+  html: string,
+  selector: string,
+  baseUrl: string,
+): { ok: true; items: QueryItem[] } | { ok: false; error: string } {
+  if (!cssRulesEnabled()) {
+    return { ok: false, error: 'CSS 规则已禁用（localStorage pom.cssRules=0）' };
+  }
+  if (html.length > QUERY_HTML_LIMIT) {
+    return { ok: false, error: `HTML 超过 ${QUERY_HTML_LIMIT / 1024 / 1024}MB 解析上限` };
+  }
+  // 空选择器前置检查：DOM 报错信息技术（'The provided selector is empty'），不指引书源常量名;
+  // 书源 BOOK_TITLE_RULE / BOOK_AUTHOR_RULE / CHAPTER_ITEM_RULE / CONTENT_RULE / COVER_RULE / BOOK_CATEGORY_RULE
+  // 任意一个为空字符串都会触发,直接告诉用户去检查书源编辑器
+  if (!selector || !selector.trim()) {
     return {
-      tag: el.tagName.toLowerCase(),
-      text: (el.textContent ?? '').trim(),
-      html: el.innerHTML,
-      href: isAnchor ? abs(el.getAttribute('href')) : '',
-      links: anchors
-        .map((a) => ({ href: abs(a.getAttribute('href')), text: (a.textContent ?? '').trim() }))
-        .filter((l) => l.href),
-      attrs,
+      ok: false,
+      error:
+        '选择器为空：书源规则未填写（BOOK_TITLE_RULE / BOOK_AUTHOR_RULE / CHAPTER_ITEM_RULE / CONTENT_RULE / COVER_RULE / BOOK_CATEGORY_RULE 中至少一个为空）— 打开书源编辑器确认',
     };
   }
+  try {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    return {
+      ok: true,
+      items: Array.from(doc.querySelectorAll(selector)).map((el) => toQueryItem(el, baseUrl)),
+    };
+  } catch (e) {
+    return { ok: false, error: `选择器无效：${(e as Error).message}` };
+  }
+}
+
+/** 命中元素 → 契约结构；links 为自身（a 时）+ 后代锚点，href 一律预绝对化 */
+function toQueryItem(el: Element, baseUrl: string): QueryItem {
+  const abs = (href: string | null): string => {
+    if (!href) return '';
+    try {
+      return new URL(href, baseUrl).href;
+    } catch {
+      return '';
+    }
+  };
+  const isAnchor = el.tagName === 'A';
+  const anchors = isAnchor ? [el] : Array.from(el.querySelectorAll('a[href]'));
+  // 元素全部属性（key 已 lowercase）—— 供 extractAttr(rule, html, attr) 提取 img@src 等
+  const attrs: Record<string, string> = {};
+  for (const a of Array.from(el.attributes)) {
+    attrs[a.name.toLowerCase()] = a.value;
+  }
+  return {
+    tag: el.tagName.toLowerCase(),
+    text: (el.textContent ?? '').trim(),
+    html: el.innerHTML,
+    href: isAnchor ? abs(el.getAttribute('href')) : '',
+    links: anchors
+      .map((a) => ({ href: abs(a.getAttribute('href')), text: (a.textContent ?? '').trim() }))
+      .filter((l) => l.href),
+    attrs,
+  };
 }

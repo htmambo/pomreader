@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { PageFetcher, BookSourceAdapter } from './book-source.adapter';
@@ -6,10 +6,13 @@ import { BookSourceRegistry } from './book-source.registry';
 import { XbiqugeAdapter } from './adapters/xbiquge.adapter';
 import { HeuristicAdapter } from './adapters/heuristic.adapter';
 import { JsSourceAdapter } from './js-source/js-source.adapter';
-import { BookSourceMeta } from './js-source/source-meta.types';
+import { BookSourceMeta } from './source-meta.types';
 import { FetchError } from './fetch-error';
 import { SOURCE_CONFIG } from './book-source.config';
 import { looksObfuscated } from './heuristic-parser';
+import { BOOK_SOURCE_ENGINE_KEY, writeBookSourceEngine } from './feature-flag';
+import type { RuleEngineService } from './json-rule/rule-engine.service';
+import type { BookSourceDoc } from '../models/book-source-doc.model';
 
 const FIXTURES = join(__dirname, 'adapters', '__fixtures__');
 
@@ -342,5 +345,229 @@ describe('BookSourceRegistry · matchByUrl（换源弹窗"猜当前源"用）', 
     const reg = BookSourceRegistry.forTest(mockFetcher({}));
     expect(reg.matchByUrl('')).toBeUndefined();
     expect(reg.matchByUrl('https://unknown-site.example/')).toBeUndefined();
+  });
+});
+
+describe('BookSourceRegistry · registerRuleAdapters（P1.7 过渡期并存注册）', () => {
+  const fakeRuleEngine = () => ({ engineFor: vi.fn() }) as unknown as RuleEngineService;
+
+  function makeDoc(overrides: Partial<BookSourceDoc> = {}): BookSourceDoc {
+    return {
+      format: 'pomreader.booksource',
+      schemaVersion: 1,
+      uuid: 'uuid-rule-1',
+      name: '规则源',
+      homepage: 'https://example.com',
+      urls: ['https://example.com'],
+      enabled: true,
+      sourceType: 'novel',
+      rules: {
+        siteName: '示例',
+        searchPath: '/s?q={keyword}',
+        searchItemPattern: 'ul.list li',
+        bookTitlePattern: 'h1',
+        bookAuthorPattern: 'css:.a',
+        chapterItemPattern: 'ul.c a',
+        contentPattern: 'div#content',
+      },
+      ...overrides,
+    };
+  }
+
+  afterEach(() => localStorage.removeItem(BOOK_SOURCE_ENGINE_KEY));
+
+  it('注册后可按 uuid 命中（getByUuid 走 duck typing，不反向耦合 json-rule）', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}), fakeRuleEngine());
+    reg.registerRuleAdapters([makeDoc()]);
+    expect(reg.getByUuid('uuid-rule-1')?.name).toBe('规则源');
+    expect(reg.hasRuleAdapters()).toBe(true);
+  });
+
+  it('JSON 源优先级高于内置站点适配器（unshift 到最前，方案 §3.3）', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}), fakeRuleEngine());
+    reg.register(new XbiqugeAdapter());
+    reg.registerRuleAdapters([makeDoc({ urls: ['https://www.xbiquge.cc'] })]);
+    expect(reg.matchByUrl('https://www.xbiquge.cc/book/1')?.name).toBe('规则源');
+  });
+
+  it('enabled=false 的源不注册（启停状态已内联进 JSON 文档）', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}), fakeRuleEngine());
+    reg.registerRuleAdapters([makeDoc({ enabled: false })]);
+    expect(reg.getByUuid('uuid-rule-1')).toBeUndefined();
+    expect(reg.hasRuleAdapters()).toBe(false);
+  });
+
+  it('重装时已禁用的源会被**摘掉**（外部评审 R1 P0：只 continue 会把旧适配器留在原地）', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}), fakeRuleEngine());
+    reg.registerRuleAdapters([makeDoc({ enabled: true })]);
+    expect(reg.getByUuid('uuid-rule-1')?.name).toBe('规则源');
+    // 用户在编辑器里禁用 → 重装同一份文档
+    reg.registerRuleAdapters([makeDoc({ enabled: false })]);
+    expect(reg.getByUuid('uuid-rule-1')).toBeUndefined();
+    expect(reg.hasRuleAdapters()).toBe(false);
+  });
+
+  it('重装时摘除按"清单 + 对象同一性"，只动规则适配器，其他 uuid 的 JS 适配器不受影响', () => {
+    // 摘除判据是"在 ruleAdapters 清单里 + 同一对象"，**不是**按 uuid 在总表里猜。
+    // 差别在于：同 uuid 可能还有一份**别的**适配器（内置站 / 启发式），
+    // 按 uuid 猜会把它们连坐 —— 那是"禁用一个源"变成"这个站点整体失联"。
+    // 注：同 uuid 的 JS 适配器在 JSON 装上那一步就已被「JSON 胜出」摘走（方案 §3.3），
+    // 故这里用不同 uuid 的 JS 适配器来验证"不该动的没被动"。
+    const reg = BookSourceRegistry.forTest(mockFetcher({}), fakeRuleEngine());
+    const other = makeMockJsAdapter('legacy', 'uuid-other', 'https://other.example.com');
+    reg.registerJsAdapter(other);
+    reg.registerRuleAdapters([makeDoc({ enabled: true })]);
+    reg.registerRuleAdapters([makeDoc({ enabled: false })]);
+    expect(reg.hasRuleAdapters()).toBe(false);
+    expect(reg.getByUuid('uuid-other')).toBe(other);
+    // 内置站点适配器同样不该被连坐
+    reg.register(new XbiqugeAdapter());
+    reg.registerRuleAdapters([makeDoc({ uuid: 'uuid-rule-2', enabled: true })]);
+    reg.registerRuleAdapters([makeDoc({ uuid: 'uuid-rule-2', enabled: false })]);
+    expect(reg.matchByUrl('https://www.xbiquge.cc/book/1')?.name).not.toBe('规则源');
+  });
+
+  it('重复注册同一份文档不产生重复适配器（重装幂等）', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}), fakeRuleEngine());
+    reg.registerRuleAdapters([makeDoc()]);
+    const first = reg.getByUuid('uuid-rule-1');
+    reg.registerRuleAdapters([makeDoc()]);
+    expect(reg.getByUuid('uuid-rule-1')).not.toBe(first);
+    expect(reg.matchByUrl('https://example.com/s')?.name).toBe('规则源');
+  });
+
+  it('同 uuid 时 JSON 顶掉已注册的 JS 适配器（迁移后 .js/.json 并存，JSON 胜出）', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}), fakeRuleEngine());
+    const js = makeMockJsAdapter('legacy', 'uuid-rule-1', 'https://example.com');
+    reg.registerJsAdapter(js);
+    reg.registerRuleAdapters([makeDoc()]);
+    expect(reg.getByUuid('uuid-rule-1')?.name).toBe('规则源');
+    expect(reg.getByUuid('uuid-rule-1')).not.toBe(js);
+  });
+
+  it('不同 uuid 的 JS 适配器不受影响（不能整片清掉）', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}), fakeRuleEngine());
+    const other = makeMockJsAdapter('other', 'uuid-other', 'https://other.test');
+    reg.registerJsAdapter(other);
+    reg.registerRuleAdapters([makeDoc()]);
+    expect(reg.getByUuid('uuid-other')).toBe(other);
+  });
+
+  it('开关 = js 时整体不注册（新链路能被干净关掉）', () => {
+    writeBookSourceEngine('js');
+    const reg = BookSourceRegistry.forTest(mockFetcher({}), fakeRuleEngine());
+    reg.registerRuleAdapters([makeDoc()]);
+    expect(reg.getByUuid('uuid-rule-1')).toBeUndefined();
+  });
+
+  it('同一份文档重复注册是幂等的（不会堆出多个同名适配器）', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}), fakeRuleEngine());
+    reg.registerRuleAdapters([makeDoc()]);
+    reg.registerRuleAdapters([makeDoc()]);
+    expect(reg.supportedSources().filter((n) => n === '规则源')).toHaveLength(1);
+    reg.clearRuleAdapters();
+    expect(reg.supportedSources().filter((n) => n === '规则源')).toHaveLength(0);
+    expect(reg.hasRuleAdapters()).toBe(false);
+  });
+
+  it('重复注册后 `ruleAdapters` 清单不累积（外部评审 R1：只从 adapters 摘会越攒越厚）', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}), fakeRuleEngine());
+    reg.registerRuleAdapters([makeDoc({ uuid: 'u1', name: '甲' })]);
+    reg.registerRuleAdapters([
+      makeDoc({ uuid: 'u1', name: '甲' }),
+      makeDoc({ uuid: 'u2', name: '乙' }),
+    ]);
+    // 撤干净后不应还有任何"撤不掉"的残留：再注册一次，两个源各一份
+    reg.clearRuleAdapters();
+    expect(reg.supportedSources()).toHaveLength(0);
+    reg.registerRuleAdapters([
+      makeDoc({ uuid: 'u1', name: '甲' }),
+      makeDoc({ uuid: 'u2', name: '乙' }),
+    ]);
+    expect(reg.supportedSources().sort()).toEqual(['乙', '甲'].sort());
+  });
+
+  it('切到 js 档位时**撤掉已注册的规则适配器**（外部评审 R1：只 early-return 开关形同虚设）', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}), fakeRuleEngine());
+    reg.registerRuleAdapters([makeDoc()]);
+    expect(reg.getByUuid('uuid-rule-1')).toBeDefined();
+    writeBookSourceEngine('js');
+    reg.registerRuleAdapters([makeDoc()]);
+    expect(reg.getByUuid('uuid-rule-1')).toBeUndefined();
+    expect(reg.hasRuleAdapters()).toBe(false);
+  });
+
+  it('无 RuleEngineService（无注入上下文）时跳过而不是崩', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    expect(() => reg.registerRuleAdapters([makeDoc()])).not.toThrow();
+    expect(reg.getByUuid('uuid-rule-1')).toBeUndefined();
+  });
+
+  it('单个源构造失败不牵连其他源', () => {
+    const reg = BookSourceRegistry.forTest(mockFetcher({}), fakeRuleEngine());
+    const bad = makeDoc({ uuid: 'bad', urls: [null as unknown as string] });
+    reg.registerRuleAdapters([bad, makeDoc({ uuid: 'good', name: '好源' })]);
+    expect(reg.getByUuid('good')?.name).toBe('好源');
+  });
+});
+
+describe('BookSourceRegistry · 运行时开关对 JS 链路的影响', () => {
+  afterEach(() => localStorage.removeItem(BOOK_SOURCE_ENGINE_KEY));
+
+  /** 装一个只记录"有没有被拉过书源列表"的 pomAPI 桩 */
+  function stubList(): { list: ReturnType<typeof vi.fn> } {
+    const list = vi.fn(async () => []);
+    (window as unknown as { pomAPI?: unknown }).pomAPI = { booksourceList: list };
+    return { list };
+  }
+
+  it('开关 = js：**照常装载** JS 链路（存量源的应急回退通道必须一直能用）', async () => {
+    writeBookSourceEngine('js');
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    const { list } = stubList();
+    await reg.loadAllJsAdapters({} as never);
+    expect(list).toHaveBeenCalled();
+    delete (window as unknown as { pomAPI?: unknown }).pomAPI;
+  });
+
+  it('开关 = rule + 已有规则源：JS 链路早返回（一个都不装）', async () => {
+    writeBookSourceEngine('rule');
+    const reg = BookSourceRegistry.forTest(mockFetcher({}), {
+      engineFor: vi.fn(),
+    } as unknown as RuleEngineService);
+    reg.registerRuleAdapters([
+      {
+        format: 'pomreader.booksource',
+        schemaVersion: 1,
+        uuid: 'uuid-rule-1',
+        name: '规则源',
+        homepage: 'https://example.com',
+        urls: ['https://example.com'],
+        enabled: true,
+        sourceType: 'novel',
+        rules: {
+          siteName: '示例',
+          searchPath: '/s?q={keyword}',
+          searchItemPattern: 'ul.list li',
+          bookTitlePattern: 'h1',
+          bookAuthorPattern: 'css:.a',
+          chapterItemPattern: 'ul.c a',
+          contentPattern: 'div#content',
+        },
+      },
+    ]);
+    const { list } = stubList();
+    await reg.loadAllJsAdapters({} as never);
+    expect(list).not.toHaveBeenCalled();
+    delete (window as unknown as { pomAPI?: unknown }).pomAPI;
+  });
+
+  it('开关 = rule + **无**规则源（P1/P2 现状）：JS 照常装载，不让书源集体消失', async () => {
+    writeBookSourceEngine('rule');
+    const reg = BookSourceRegistry.forTest(mockFetcher({}));
+    const { list } = stubList();
+    await reg.loadAllJsAdapters({} as never);
+    expect(list).toHaveBeenCalled();
+    delete (window as unknown as { pomAPI?: unknown }).pomAPI;
   });
 });

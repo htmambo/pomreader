@@ -17,6 +17,7 @@ import {
   buildFormBody,
   applyContentReplaceRules,
   DEFAULT_PATTERNS,
+  resolveRuleDefaults,
 } from './smart-rules';
 
 describe('stripTags', () => {
@@ -915,5 +916,99 @@ describe('generateSourceCode — 搜索结果增强规则分支', () => {
     const rules = buildRules(`${BASE}/`, '<title>t</title>');
     expect(rules.searchAuthorPattern).toBe('');
     expect(rules.searchCategoryPattern).toBe('');
+  });
+});
+
+/**
+ * `resolveRuleDefaults` —— 生成侧缺省链的唯一镜像（书源 JSON 规则化 P1）
+ *
+ * 与 `generateSourceCode:481-499` 的 `??` 链逐条对偶；`??` 而非 `||` 是语义要求：
+ * 「显式留空 = 不提取」必须与「没填 → 取默认」区分开。
+ */
+describe('resolveRuleDefaults — 构造规则的路径必须过这一道', () => {
+  it('补齐 searchContentType 的条件缺省（schema 表达不了，只能在这里补）', () => {
+    const base = {
+      siteName: 'S',
+      searchPath: '/s',
+      searchItemPattern: 'a',
+      bookTitlePattern: 'h1',
+      bookAuthorPattern: 'a',
+      chapterItemPattern: 'a',
+      contentPattern: 'div',
+    } as const;
+    expect(resolveRuleDefaults({ ...base, searchMethod: 'POST_RAW' }).searchContentType).toBe(
+      'application/json',
+    );
+    expect(resolveRuleDefaults({ ...base, searchMethod: 'POST' }).searchContentType).toBe(
+      'application/x-www-form-urlencoded',
+    );
+    expect(resolveRuleDefaults({ ...base, searchMethod: 'GET' }).searchContentType).toBe(
+      'application/x-www-form-urlencoded',
+    );
+  });
+
+  it('显式写了的值不被覆盖', () => {
+    const base = {
+      siteName: 'S',
+      searchPath: '/s',
+      searchItemPattern: 'a',
+      bookTitlePattern: 'h1',
+      bookAuthorPattern: 'a',
+      chapterItemPattern: 'a',
+      contentPattern: 'div',
+    } as const;
+    expect(
+      resolveRuleDefaults({ ...base, searchMethod: 'POST_RAW', searchContentType: 'text/plain' })
+        .searchContentType,
+    ).toBe('text/plain');
+  });
+
+  it('bookCategoryPattern / coverUrlPattern 缺省取 DEFAULT_PATTERNS，非法 method 降级 GET', () => {
+    const base = {
+      siteName: 'S',
+      searchPath: '/s',
+      searchItemPattern: 'a',
+      bookTitlePattern: 'h1',
+      bookAuthorPattern: 'a',
+      chapterItemPattern: 'a',
+      contentPattern: 'div',
+    } as const;
+    const r = resolveRuleDefaults({ ...base, searchMethod: 'FETCH' as never });
+    expect(r.searchMethod).toBe('GET');
+    expect(r.bookCategoryPattern).toBe(DEFAULT_PATTERNS.bookCategoryPattern);
+    expect(r.coverUrlPattern).toBe(DEFAULT_PATTERNS.coverUrlPattern);
+  });
+
+  it('显式留空（不提取）不被 DEFAULT_PATTERNS 覆盖', () => {
+    const base = {
+      siteName: 'S',
+      searchPath: '/s',
+      searchItemPattern: 'a',
+      bookTitlePattern: 'h1',
+      bookAuthorPattern: 'a',
+      chapterItemPattern: 'a',
+      contentPattern: 'div',
+    } as const;
+    expect(resolveRuleDefaults({ ...base, coverUrlPattern: '' }).coverUrlPattern).toBe('');
+  });
+
+  it('**`??` 而非 `||`**：模板全程用 `??`，显式空串必须原样保留', () => {
+    // 回归：曾用 `||`，把「显式留空 = 不提取」覆盖成了默认值（与模板语义不符）
+    const base = {
+      siteName: 'S',
+      searchPath: '/s',
+      searchItemPattern: 'a',
+      bookTitlePattern: 'h1',
+      bookAuthorPattern: 'a',
+      chapterItemPattern: 'a',
+      contentPattern: 'div',
+    } as const;
+    expect(
+      resolveRuleDefaults({ ...base, searchContentType: '', searchMethod: 'POST' })
+        .searchContentType,
+    ).toBe('');
+    expect(resolveRuleDefaults({ ...base, bookCategoryPattern: '' }).bookCategoryPattern).toBe('');
+    // 缺席（undefined）才取缺省
+    expect(resolveRuleDefaults({ ...base, searchRawBody: undefined }).searchRawBody).toBe('');
   });
 });

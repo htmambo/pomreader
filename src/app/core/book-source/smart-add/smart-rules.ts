@@ -43,6 +43,9 @@ export function ruleSelector(pattern: string): string {
 /** 搜索请求方式：GET 走 searchPath 模板；POST/POST_RAW 走 searchBodyParams / searchRawBody */
 export type SearchMethod = 'GET' | 'POST' | 'POST_RAW';
 
+/** `SearchMethod` 的运行时值表（归一与校验共用；与 `models/book-source-doc.model.ts` 的 SEARCH_METHODS 同值） */
+export const SEARCH_METHODS = ['GET', 'POST', 'POST_RAW'] as const;
+
 /** 单条表单参数（POST form-urlencoded 模式） */
 export interface SearchBodyParam {
   key: string;
@@ -115,6 +118,90 @@ export const DEFAULT_PATTERNS = {
   // 封面：默认 CSS 模式兜底选首张 img 的 src（用户在智能添加/编辑器可改）
   coverUrlPattern: 'css:img',
 } as const;
+
+/**
+ * `searchMethod` 归一：缺席/非法一律 GET（模板 `generateSourceCode` 的行为，`:481`）
+ *
+ * 放在这里是它是 `resolveRuleDefaults` 的前置，而后者必须与 `generateSourceCode` 的缺省链同源。
+ */
+export function normalizeMethod(raw: string | undefined): SearchMethod {
+  const v = raw ?? 'GET';
+  return SEARCH_METHODS.includes(v as SearchMethod) ? (v as SearchMethod) : 'GET';
+}
+
+/**
+ * `searchContentType` 的**条件缺省**推导（缺省依赖 `searchMethod`，schema 表达不了）
+ *
+ * 单独导出而不是埋在 `resolveRuleDefaults` 里：`core/logic/source-doc-build.ts` 需要
+ * **同一个**判断来决定"文件里这个值是不是多余的、可以省掉"。
+ * 两处各写一份推导链的话，将来加了新 method 只会让其中一处悄悄过期
+ * （省掉一个其实该保留的 contentType → 引擎发错 Content-Type，且**不报错**）。
+ */
+export function impliedSearchContentType(method: string | undefined): string {
+  return normalizeMethod(method) === 'POST_RAW'
+    ? 'application/json'
+    : 'application/x-www-form-urlencoded';
+}
+
+/**
+ * `resolveRuleDefaults` 的产物类型：那些"有缺省"的字段在收口后**必定**有值
+ *
+ * 不写这个类型，收口就只是一句运行时约定：调用方拿到的仍是 `SourceRules`，
+ * 于是 `rules.coverUrlPattern` 静态类型是 `string | undefined`，用的时候要么报错、
+ * 要么被迫写 `!` 或 `?? ''` 把已经收好的值又弄丢一次。
+ */
+export type ResolvedSourceRules = SourceRules &
+  Required<
+    Pick<
+      SourceRules,
+      | 'searchMethod'
+      | 'searchContentType'
+      | 'searchRawBody'
+      | 'searchBodyParams'
+      | 'searchAuthorPattern'
+      | 'searchCategoryPattern'
+      | 'contentReplaceRules'
+      | 'bookCategoryPattern'
+      | 'coverUrlPattern'
+    >
+  >;
+
+/**
+ * 补齐「schema 表达不了的条件缺省」——**所有构造 `SourceRules` / `BookSourceDoc` 的路径都必须过**
+ *
+ * 本函数是 `generateSourceCode` 缺省链（`:481-499`）的**唯一镜像**，逐条对应：
+ * `searchMethod ?? 'GET'` / `searchContentType ?? (POST_RAW ? json : form)` /
+ * `searchRawBody ?? ''` / `searchBodyParams ?? []` / `searchAuthor(ategory)Pattern ?? ''` /
+ * `contentReplaceRules ?? []` / `bookCategory… ?? DEFAULT_PATTERNS.*` / `cover… ?? DEFAULT_PATTERNS.*`
+ *
+ * 全部用 `??` 而非 `||`：模板用 `??`，用 `||` 会吃掉「显式留空 = 不提取」的语义。
+ *
+ * ## 为什么住在本文件而不是解析器里
+ *
+ * ① 它镜像的缺省链就在这几百行内，改模板时看得见对偶，改一处必然想到另一处；
+ * ② `json-rule/engine.ts` 在 `createRuleEngine` 里也要过它 —— 引擎若反向依赖
+ *    `core/logic/rule-parse.ts`（遗留 JS 源码解析器），就把长期存在的引擎绑在了迁移期工具上。
+ *
+ * 幂等：对已解析结果再过一次，值全部原样保留（全程 `??`）。
+ *
+ * ⚠️ valibot 表达不了"缺省依赖另一个字段"（`searchContentType` 要看 `searchMethod`），
+ * 故 `SourceRulesSchema` 里该字段刻意不给缺省 —— 缺省由本函数回填。
+ */
+export function resolveRuleDefaults(rules: SourceRules): ResolvedSourceRules {
+  const searchMethod = normalizeMethod(rules.searchMethod);
+  return {
+    ...rules,
+    searchMethod,
+    searchContentType: rules.searchContentType ?? impliedSearchContentType(searchMethod),
+    searchRawBody: rules.searchRawBody ?? '',
+    searchBodyParams: rules.searchBodyParams ?? [],
+    searchAuthorPattern: rules.searchAuthorPattern ?? '',
+    searchCategoryPattern: rules.searchCategoryPattern ?? '',
+    contentReplaceRules: rules.contentReplaceRules ?? [],
+    bookCategoryPattern: rules.bookCategoryPattern ?? DEFAULT_PATTERNS.bookCategoryPattern,
+    coverUrlPattern: rules.coverUrlPattern ?? DEFAULT_PATTERNS.coverUrlPattern,
+  };
+}
 
 /** 去标签 + 常见实体反转义（与生成代码里的 stripTags 保持同语义） */
 export function stripTags(html: string): string {
@@ -463,6 +550,14 @@ export function buildRules(url: string, html: string): SourceRules {
  * @param url 主站 origin（用于 absUrl 解析）
  * @param rules 可视化规则(列表/列表项内作者/列表项内分类/标题/作者/章节/正文/分类/封面 + 正文净化规则) + searchPath + 搜索方式(method/body)
  * @param options.headers 注入每个 HTTP 请求的自定义 header（legado JSON 导入用）
+ *
+ * @deprecated 书源 JSON 规则化 P2.3 起**不再用于新建源** —— 智能添加与 legado 导入都改走
+ * `core/logic/source-doc-build.buildSourceDoc`（直出 JSON 文档）。
+ * 剩余调用方只有两处，都不该再长大：
+ * ① `json-rule/differential/legacy-runner.ts` —— 差分基座**必须**拿旧引擎的源码来跑，
+ *    这正是差分测试的意义所在（P4 随沙箱一起删）；
+ * ② 书源编辑器页「从规则生成代码」按钮 —— 面向存量 `.js` 源的**逃生口**，P3.2 页面改造时移除。
+ * 新增功能一律用 `buildSourceDoc`。
  */
 export function generateSourceCode(
   url: string,
