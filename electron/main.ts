@@ -6,6 +6,7 @@ import { applyUaEverywhere, migrateLegacySearchCookies } from './ipc/fetch-sessi
 import { registerRenderHandler } from './ipc/render-handler';
 import { registerExternalHandler } from './ipc/external-handler';
 import { registerBookSourceHandler } from './ipc/booksource-handler';
+import { migrateBookSources, registerBookSourceMigrationHandlers } from './ipc/booksource-migrate';
 import { registerCoverHandler } from './ipc/cover-handler';
 import { registerCfGuardHandler } from './ipc/cf-guard';
 import { registerAutoImport } from './auto-import';
@@ -114,7 +115,16 @@ app.whenReady().then(() => {
   registerFetchHandler(ipcMain);
   registerRenderHandler(ipcMain);
   registerExternalHandler(ipcMain);
+  // 存量 JS 书源启动迁移（方案 §4.2，P3）：必须在书源 handler 注册（首次 scanDir）前完成，
+  // 否则渲染端会先读到未迁移列表（竞态）；迁移不受 pom.bookSource.engine 开关约束；
+  // 失败只告警不阻断启动
+  try {
+    migrateBookSources(userData);
+  } catch (err) {
+    console.warn('[booksource-migrate] 启动迁移失败（不阻断启动）:', err);
+  }
   registerBookSourceHandler(ipcMain, userData);
+  registerBookSourceMigrationHandlers(ipcMain, userData);
   registerCoverHandler(ipcMain, userData);
   registerCfGuardHandler(ipcMain, () => mainWindow);
   registerAutoImport(ipcMain, userData, () => mainWindow);

@@ -119,6 +119,18 @@ contextBridge.exposeInMainWorld('pomAPI', {
   booksourceDeleteJson: (fileName: string, sourceDir?: string): Promise<void> =>
     ipcRenderer.invoke('pom:booksource-delete-json', fileName, sourceDir ?? null),
 
+  // ── 书源迁移（方案 §4.2/§3.4，P3） ─────────────────────────────────────
+  /** 手动批量重触发存量 .js → .json 迁移（主进程内完成，原子写）；返回迁移报告 */
+  booksourceConvert: (): Promise<unknown> => ipcRenderer.invoke('pom:booksource-convert'),
+
+  /** 读一次性迁移报告（读后删）；无报告返回 null */
+  booksourceMigrationReport: (): Promise<unknown | null> =>
+    ipcRenderer.invoke('pom:booksource-migration-report'),
+
+  /** 常驻扫描 booksources_legacy/（needs-manual 行内状态数据源，§4.3） */
+  booksourceLegacyList: (): Promise<{ fileName: string; enabled: boolean; reason?: string }[]> =>
+    ipcRenderer.invoke('pom:booksource-legacy-list'),
+
   // ── 健康检测（主进程 stub：返回文件路径 + 元数据，详细检测由 Renderer 沙箱执行） ──
   sourceHealthCheck: async (
     fileName: string,
