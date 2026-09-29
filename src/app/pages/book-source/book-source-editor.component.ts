@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
   signal,
   viewChild,
@@ -130,7 +131,30 @@ export class BookSourceEditorComponent {
       this.pageHeader.subtitle.set(this.fileName);
       void this.loadExisting();
     });
+    // 规则播种：文档与面板**都**就绪后再注入
+    //
+    // 不能在 loadExisting 里直接 `this.panel()?.setRules(...)`：`<app-rules-panel #panel>`
+    // 位于模板 `@if (loading())` 的 `@else` 分支里，而 loadExisting 在 await 之前就把
+    // `loading` 置成了 true —— 那一刻面板**根本没有渲染**，`panel()` 是 undefined，
+    // `?.` 会把这次注入静默吞掉。随后 `finally` 把 loading 置回 false，面板才被创建，
+    // 但里面全是默认空值；用户一保存，buildDraft 取到的就是一份空规则，
+    // 落盘后列表页立刻标「规则损坏」（必填 7 项全空）。
+    //
+    // 用 effect 盯 `doc()` 与 `panel()` 两个信号：面板在 loading 翻回 false 后才出现，
+    // effect 会因 `panel()` 从 undefined 变成实例而再跑一次，那一次才真正注入。
+    effect(() => {
+      const doc = this.doc();
+      const panel = this.panel();
+      if (!doc || !panel) return;
+      // 同一份文档只播种一次：否则用户在面板里的后续编辑会被反复冲掉
+      if (this.seededDoc === doc) return;
+      this.seededDoc = doc;
+      panel.setRules(doc.rules);
+    });
   }
+
+  /** 已把规则注入面板的文档（防重复播种冲掉用户编辑） */
+  private seededDoc: BookSourceDoc | null = null;
 
   /** 读文档 → 拆成「规则面板 + 元信息表单」两路 */
   private async loadExisting(): Promise<void> {
@@ -155,7 +179,6 @@ export class BookSourceEditorComponent {
       this.minDelayMs.set(doc.minDelayMs ?? 0);
       this.requireUrlsText.set((doc.requireUrls ?? []).join('\n'));
       this.enabled.set(doc.enabled);
-      this.panel()?.setRules(doc.rules);
     } catch (e) {
       this.toast.error(`读取失败：${(e as Error).message}`);
     } finally {

@@ -54,21 +54,33 @@ export const ContentReplaceRuleSchema = v.object({
  * `searchMethod`（`POST_RAW` → `application/json`，其余 → form-urlencoded），
  * schema 无法表达这种条件缺省。强行给 form-urlencoded 会让 POST_RAW 源行为漂移 ——
  * 这正是编辑器反解析里的既有缺陷，迁移层不能继承。缺省回填由 `rule-parse.ts` 按方法推导。
+ *
+ * ⚠️ 必填 7 项用 `nonEmpty()`（**非空串**）而不是裸 `v.string()`：
+ * 主进程 `jsonEnvelopeError`（`electron/ipc/booksource-meta.ts`）对同样这 7 项要求
+ * `typeof x === 'string' && x` 非空。两边判据必须一致 —— 否则编辑器的
+ * 「不合规不会写盘」是假的：它会放行一份 7 项全空的文档写进 booksources/，
+ * 列表页立刻用 `rulesInvalid` 标成「规则损坏」，而源本身已经不可用。
+ * 这正是本文件头注释警告的"两份 schema 各自漂移"的最坏形态，只不过是**松紧不一**。
+ *
+ * 判据取"非空"而非"trim 后非空"：主进程用的是 `!(x as string)`，只挡 `''`。
+ * schema 比信封更严是安全的（编辑器拒收更多），更松则不安全，故此处与信封取齐。
  */
+const nonEmpty = () => v.pipe(v.string(), v.minLength(1));
+
 export const SourceRulesSchema = v.object({
-  siteName: v.string(),
-  searchPath: v.string(),
+  siteName: nonEmpty(),
+  searchPath: nonEmpty(),
   searchMethod: v.optional(v.picklist(SEARCH_METHODS), 'GET'),
   searchBodyParams: v.optional(v.array(SearchBodyParamSchema), []),
   searchContentType: v.optional(v.string()),
   searchRawBody: v.optional(v.string(), ''),
-  searchItemPattern: v.string(),
+  searchItemPattern: nonEmpty(),
   searchAuthorPattern: v.optional(v.string(), ''),
   searchCategoryPattern: v.optional(v.string(), ''),
-  bookTitlePattern: v.string(),
-  bookAuthorPattern: v.string(),
-  chapterItemPattern: v.string(),
-  contentPattern: v.string(),
+  bookTitlePattern: nonEmpty(),
+  bookAuthorPattern: nonEmpty(),
+  chapterItemPattern: nonEmpty(),
+  contentPattern: nonEmpty(),
   contentReplaceRules: v.optional(v.array(ContentReplaceRuleSchema), []),
   // 这两项的模板缺省是 `DEFAULT_PATTERNS.*` 而不是空串（`smart-rules.ts:497/499`），
   // 缺省写 '' 会让「没填」与「显式留空」混淆：前者模板会回填默认选择器，后者才是"不提取"。

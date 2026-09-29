@@ -289,3 +289,38 @@ describe('safeFileName：裸 . 与 ..', () => {
     }
   });
 });
+
+/**
+ * 必填 7 项的**非空**判据 —— 必须与渲染端 `SourceRulesSchema` 对齐
+ *
+ * 真实故障：两边对"必填项能否为空串"判定不一致 —— schema 放行 `''`、信封拒绝，
+ * 于是编辑器把 7 项全空的文档写进 booksources/，列表页立刻标「规则损坏」。
+ * 渲染端侧的对应测试在
+ * `src/app/core/models/book-source-doc.model.spec.ts`（describe「必填 7 项必须非空」）。
+ *
+ * 两边不能共享常量（D4/D8：主进程禁止 import `src/`），所以各钉一份并互相引用。
+ * 下面的清单必须与 `booksource-meta.ts` 的 `REQUIRED_RULE_KEYS` 逐项一致。
+ */
+const MANDATORY_RULE_KEYS = [
+  'siteName',
+  'searchPath',
+  'searchItemPattern',
+  'bookTitlePattern',
+  'bookAuthorPattern',
+  'chapterItemPattern',
+  'contentPattern',
+] as const;
+
+describe('信封与渲染端 schema 的非空判据必须一致', () => {
+  it.each(MANDATORY_RULE_KEYS)('%s = "" 必须报信封错误（否则列表页不会标「规则损坏」）', (key) => {
+    const doc = JSON.parse(validDoc());
+    doc.rules[key] = '';
+    expect(jsonEnvelopeError(doc)).toContain(`rules.${key}`);
+  });
+
+  it('" "（仅空格）放行 —— 与渲染端 schema 口径相同，都只挡空串', () => {
+    const doc = JSON.parse(validDoc());
+    doc.rules.contentPattern = ' ';
+    expect(jsonEnvelopeError(doc)).toBeNull();
+  });
+});

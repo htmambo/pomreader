@@ -191,3 +191,56 @@ describe('往返：generateSourceCode → parseJsSource', () => {
     expect(parsed.baseUrl).toBe('https://example.com');
   });
 });
+
+/**
+ * 必填 7 项的**非空**约束 —— 必须与主进程 `jsonEnvelopeError` 同判据
+ *
+ * ## 为什么单独钉
+ *
+ * 真实故障：编辑器存盘前用本 schema 校验，主进程用 `jsonEnvelopeError` 判「规则损坏」。
+ * 两者曾对必填项一个放行 `''`、一个拒绝，于是编辑器把一份 7 项全空的文档写进了
+ * `booksources/`，列表页立刻标红「规则损坏」——而编辑器那句「不合规不会写盘」是假的。
+ *
+ * ## 为什么两边各写一份清单（而不是共享一个常量）
+ *
+ * D4/D8：主进程**不能** import `src/`（`tsconfig.electron.json` 的 rootDir 锁死
+ * `electron/` 且 `exclude: ["../src"]`，import 报 TS6059 且会就地输出污染 `src/`）；
+ * 反向从 `src/` import `electron/` 同样越界（渲染端 bundle 不该含 fs/path/crypto）。
+ * 故只能两边各钉一份，并用 `REQUIRED_RULE_KEYS` 的定义处互相注释引用 ——
+ * 改一边必须同步另一边，改动会被下面两条测试各自顶红。
+ */
+const MANDATORY_RULE_KEYS = [
+  'siteName',
+  'searchPath',
+  'searchItemPattern',
+  'bookTitlePattern',
+  'bookAuthorPattern',
+  'chapterItemPattern',
+  'contentPattern',
+] as const;
+
+describe('必填 7 项必须非空（与主进程 jsonEnvelopeError 对齐）', () => {
+  it.each(MANDATORY_RULE_KEYS)(
+    '%s = "" 必须判非法（否则会被写盘后立刻标成「规则损坏」）',
+    (key) => {
+      const base = validDoc();
+      const doc = { ...base, rules: { ...base.rules, [key]: '' } };
+      const parsed = v.safeParse(BookSourceDocSchema, doc);
+      expect(parsed.success, `${key} 置空竟然通过了 schema`).toBe(false);
+      // 报错要指向具体字段，而不是一个笼统的 "Invalid input"
+      expect(JSON.stringify(parsed.issues ?? [])).toContain(key);
+    },
+  );
+
+  it('7 项齐全的非空值必须通过 —— 收紧不能误杀合法源', () => {
+    expect(v.safeParse(BookSourceDocSchema, validDoc()).success).toBe(true);
+  });
+
+  it('" "（仅空格）仍按主进程口径放行：信封只挡 ""，schema 不比它更严', () => {
+    // 刻意不收紧到 trim：主进程用 `!(x as string)`，只挡空串。
+    // schema 更松才会写出坏文档；更严只是多拒收，不安全但会与信封产生口径差。
+    const base = validDoc();
+    const doc = { ...base, rules: { ...base.rules, contentPattern: ' ' } };
+    expect(v.safeParse(BookSourceDocSchema, doc).success).toBe(true);
+  });
+});
