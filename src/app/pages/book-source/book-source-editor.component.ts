@@ -15,6 +15,7 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzInputNumberModule } from 'ng-zorro-antd/input-number';
+import { NzSwitchModule } from 'ng-zorro-antd/switch';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { RulesPanelComponent } from '../../shared/components/rules-panel/rules-panel.component';
 import { PageHeaderService } from '../../core/services/page-header.service';
@@ -60,6 +61,7 @@ import {
     NzSelectModule,
     NzSpinModule,
     NzInputNumberModule,
+    NzSwitchModule,
     RulesPanelComponent,
   ],
   templateUrl: './book-source-editor.component.html',

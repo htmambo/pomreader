@@ -7,6 +7,7 @@ import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzDropdownModule } from 'ng-zorro-antd/dropdown';
+import { NzMenuModule } from 'ng-zorro-antd/menu';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { ImportOnlineComponent } from '../../../modals/import-online/import-online.component';
 import { ImportLocalTxtComponent } from '../../../modals/import-local-txt/import-local-txt.component';
@@ -22,7 +23,7 @@ import { PageHeaderService } from '../../../core/services/page-header.service';
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-page-header',
-  imports: [NzTagModule, NzButtonModule, NzIconModule, NzDropdownModule],
+  imports: [NzTagModule, NzButtonModule, NzIconModule, NzDropdownModule, NzMenuModule],
   template: `
     <div class="page-header">
       @if (header.title() || header.subtitle()) {

@@ -13,7 +13,8 @@
     "src/app/core/book-source/js-source/multi-mirror.service.ts",
     "src/app/core/book-source/js-source/worker-pool.ts",
     "src/app/core/book-source/js-source/header-parser.ts",
-    "src/app/core/book-source/json-rule/differential/legacy-runner.ts"
+    "src/app/core/book-source/json-rule/differential/legacy-runner.ts",
+    "src/app/__fixtures__/ts-source-mask.ts"
   ],
   "angularCompilerOptions": {
     "extendedDiagnostics": {
