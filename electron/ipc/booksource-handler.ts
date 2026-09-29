@@ -1,5 +1,5 @@
 /**
- * 书源 JS 文件 IPC handler（CRUD + 流式列表 + HTTP 代理 + eval）
+ * 书源文件 IPC handler（CRUD + 流式列表 + HTTP 代理；JSON 书源 channel 见 §3.4）
  *
  * - 主目录 `<userData>/booksources/`；草稿 `<userData>/booksources_drafts/`
  * - 流式列表：setImmediate 后台扫描 + `app.emit('pom:booksource-batch')` 分批推送
@@ -323,12 +323,4 @@ export function registerBookSourceHandler(ipcMain: IpcMain, userData: string): v
       };
     },
   );
-
-  // eval（健康检测 / 调试）：主进程仅返回文件路径；实际沙箱执行在 Renderer Worker（T-002）
-  ipcMain.handle('pom:booksource-eval', (_e, fileName: string, _code?: string) => {
-    const p = resolvePath(userData, fileName, null);
-    if (!p) throw new Error('非法 fileName');
-    if (!fs.existsSync(p)) throw new Error(`书源文件不存在: ${fileName}`);
-    return p;
-  });
 }

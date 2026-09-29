@@ -10,6 +10,16 @@
   <button nz-button nzType="primary" (click)="openLegadoImport()">
     <span nz-icon nzType="import"></span> 导入 Legado 源
   </button>
+  <!-- 引擎运行时开关（方案 §3.3，调试用，P4 随 JS 链路一并删除）：rule=仅 JSON / js=仅 JS / both=并存 -->
+  <div class="engine-switch">
+    <span class="engine-switch-label">引擎</span>
+    <nz-segmented
+      [ngModel]="engine()"
+      (ngModelChange)="onEngineChange($event)"
+      [nzOptions]="engineOptions"
+      nzSize="small"
+    ></nz-segmented>
+  </div>
 </div>
 
 @if (firstLoading()) {
@@ -17,14 +27,20 @@
   <nz-spin nzSimple></nz-spin>
   <p>加载中...</p>
 </div>
-} @else if (state.sources().length === 0) {
+} @else if (state.sources().length === 0 && state.legacies().length === 0) {
 <nz-empty nzNotFoundContent="暂无书源"></nz-empty>
 } @else {
 <div class="source-list">
   @for (src of filtered(); track src.fileName) {
   <div class="source-card">
     <div class="source-info">
-      <h3>{{ src.name }}</h3>
+      <h3>
+        {{ src.name }} @if (src.rulesInvalid) {
+        <nz-tag class="invalid-tag" nzColor="error" [nzTooltipTitle]="src.rulesInvalid" nzTooltipPlacement="top"
+          >规则无效</nz-tag
+        >
+        }
+      </h3>
       <p class="meta">{{ src.author || '未知作者' }} · {{ src.url || '无 URL' }}</p>
       @if (src.description) {
       <p class="desc">{{ src.description }}</p>
@@ -40,6 +56,26 @@
       <button nz-button nzSize="small" (click)="openEditor(src)">编辑</button>
       <button nz-button nzSize="small" (click)="openDebug(src)">调试</button>
       <button nz-button nzSize="small" nzDanger (click)="confirmDelete(src)">删除</button>
+    </div>
+  </div>
+  }
+  <!-- needs-manual legacy 源（§4.3）：标灰渲染在列表末尾，仅「查看原始 JS」「删除」两个动作 -->
+  @for (item of state.legacies(); track item.fileName) {
+  <div class="source-card source-card--legacy">
+    <div class="source-info">
+      <h3>
+        {{ item.fileName }}
+        <nz-tag
+          nzTooltipPlacement="top"
+          [nzTooltipTitle]="item.reason ? '无法自动转换：' + item.reason : '无法自动转换（可能含自定义 JS）'"
+          >无法自动转换</nz-tag
+        >
+      </h3>
+      <p class="meta">未迁移的 JS 书源 · {{ item.enabled ? '原已启用' : '原已禁用' }}</p>
+    </div>
+    <div class="source-actions">
+      <button nz-button nzSize="small" (click)="viewLegacySource(item)">查看原始 JS</button>
+      <button nz-button nzSize="small" nzDanger (click)="confirmDeleteLegacy(item)">删除</button>
     </div>
   </div>
   }

@@ -19,6 +19,7 @@ import { GlobalErrorHandler } from './core/services/global-error-handler';
 import { BookService } from './core/services/book.service';
 import { BookSourceRegistry } from './core/book-source/book-source.registry';
 import { SandboxService } from './core/book-source/js-source/sandbox.service';
+import { RuleEngineService } from './core/book-source/json-rule/rule-engine.service';
 import { CfPromptService } from './core/services/cf-prompt.service';
 import { XbiqugeAdapter } from './core/book-source/adapters/xbiquge.adapter';
 import { HeuristicAdapter } from './core/book-source/adapters/heuristic.adapter';
@@ -32,9 +33,13 @@ function initBooks(books: BookService) {
 function initBookSources(
   registry: BookSourceRegistry,
   sandbox: SandboxService,
+  ruleEngine: RuleEngineService,
   _cfPrompt: CfPromptService,
 ) {
-  // _cfPrompt 仅用于启动时实例化（构造函数向 SandboxService 注册 cfChallengeHook）
+  // _cfPrompt 仅用于启动时实例化：
+  //  - JS 沙箱链路：构造函数向 SandboxService 注册 cfChallengeHook（P4 删沙箱时消亡）
+  //  - JSON 规则链路：引擎在 booksourceHttpProxy 返回 cfChallenge 时直接调 prompt()
+  //  （过渡期两条链路共存，方案 §3.2 配套 a/b）
   return async () => {
     registry.register(new XbiqugeAdapter());
     registry.register(new HeuristicAdapter()); // 通用兜底（任意 URL 可试）
@@ -42,6 +47,8 @@ function initBookSources(
     // 显式传入 sandbox（不能由 loadAllJsAdapters 内 inject —— APP_INITIALIZER 的 async
     // 函数 await 后脱离 Angular 注入上下文，会抛 NG0203）
     await registry.loadAllJsAdapters(sandbox);
+    // JSON 规则书源（方案 §3.3）：与 JS 链路并列，各自受运行时开关门控（内部已早返回）
+    await registry.loadAllRuleAdapters(ruleEngine);
     return registry.supportedSources();
   };
 }
@@ -66,7 +73,7 @@ export const appConfig: ApplicationConfig = {
     {
       provide: APP_INITIALIZER,
       useFactory: initBookSources,
-      deps: [BookSourceRegistry, SandboxService, CfPromptService],
+      deps: [BookSourceRegistry, SandboxService, RuleEngineService, CfPromptService],
       multi: true,
     },
   ],

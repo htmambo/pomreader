@@ -40,4 +40,6 @@ export interface BookSourceMeta {
   tags: string[];
   minDelayMs: number;
   requireUrls: string[];
+  /** JSON 源规则校验失败原因（scanJsonDir 产出；非空时列表页红标，方案 §3.4） */
+  rulesInvalid?: string;
 }

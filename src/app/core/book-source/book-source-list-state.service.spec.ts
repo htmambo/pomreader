@@ -8,7 +8,7 @@ import { BookSourceMeta } from './source-meta.types';
 
 function makeMeta(overrides: Partial<BookSourceMeta> = {}): BookSourceMeta {
   return {
-    fileName: 'test.js',
+    fileName: 'test.json',
     name: 'Test',
     enabled: true,
     ...overrides,
@@ -22,9 +22,9 @@ describe('BookSourceListStateService', () => {
 
   beforeEach(() => {
     pomApiMock = {
-      booksourceList: vi.fn(async () => []),
-      booksourceToggle: vi.fn(async () => undefined),
-      booksourceDelete: vi.fn(async () => undefined),
+      booksourceListJson: vi.fn(async () => []),
+      booksourceToggleJson: vi.fn(async () => undefined),
+      booksourceDeleteJson: vi.fn(async () => undefined),
     };
 
     (globalThis as any).window = { pomAPI: pomApiMock };
@@ -33,8 +33,8 @@ describe('BookSourceListStateService', () => {
 
   describe('refresh', () => {
     it('首次 refresh 应设置 sources + loaded=true', async () => {
-      const sources = [makeMeta({ fileName: 'a.js' }), makeMeta({ fileName: 'b.js' })];
-      pomApiMock.booksourceList.mockResolvedValueOnce(sources);
+      const sources = [makeMeta({ fileName: 'a.json' }), makeMeta({ fileName: 'b.json' })];
+      pomApiMock.booksourceListJson.mockResolvedValueOnce(sources);
       await svc.refresh(true);
       expect(svc.sources()).toEqual(sources);
       expect(svc.loaded()).toBe(true);
@@ -42,14 +42,14 @@ describe('BookSourceListStateService', () => {
     });
 
     it('IPC 返回非数组时应兜底为 []', async () => {
-      pomApiMock.booksourceList.mockResolvedValueOnce(null);
+      pomApiMock.booksourceListJson.mockResolvedValueOnce(null);
       await svc.refresh(true);
       expect(svc.sources()).toEqual([]);
     });
 
     it('refresh(showLoading=false) 应跳过 loading 但仍走后台刷新', async () => {
-      const sources = [makeMeta({ fileName: 'a.js' })];
-      pomApiMock.booksourceList.mockResolvedValueOnce(sources);
+      const sources = [makeMeta({ fileName: 'a.json' })];
+      pomApiMock.booksourceListJson.mockResolvedValueOnce(sources);
       await svc.refresh(false);
       expect(svc.refreshing()).toBe(false); // finally 清理
       expect(svc.sources()).toEqual(sources);
@@ -65,17 +65,17 @@ describe('BookSourceListStateService', () => {
 
   describe('toggle 乐观更新 + 回滚', () => {
     it('成功切换 enabled 后应持久化新值', async () => {
-      svc.sources.set([makeMeta({ fileName: 'a.js', enabled: true })]);
-      await svc.toggle(makeMeta({ fileName: 'a.js', enabled: true }), false);
+      svc.sources.set([makeMeta({ fileName: 'a.json', enabled: true })]);
+      await svc.toggle(makeMeta({ fileName: 'a.json', enabled: true }), false);
       expect(svc.sources()[0].enabled).toBe(false);
-      expect(pomApiMock.booksourceToggle).toHaveBeenCalledWith('a.js', false, undefined);
+      expect(pomApiMock.booksourceToggleJson).toHaveBeenCalledWith('a.json', false, undefined);
     });
 
     it('IPC 抛错时 enabled 应回滚到原值并向上传播', async () => {
-      svc.sources.set([makeMeta({ fileName: 'a.js', enabled: true })]);
-      pomApiMock.booksourceToggle.mockRejectedValueOnce(new Error('IPC failed'));
+      svc.sources.set([makeMeta({ fileName: 'a.json', enabled: true })]);
+      pomApiMock.booksourceToggleJson.mockRejectedValueOnce(new Error('IPC failed'));
       await expect(
-        svc.toggle(makeMeta({ fileName: 'a.js', enabled: true }), false),
+        svc.toggle(makeMeta({ fileName: 'a.json', enabled: true }), false),
       ).rejects.toThrow('IPC failed');
       expect(svc.sources()[0].enabled).toBe(true); // 回滚
     });
@@ -91,16 +91,16 @@ describe('BookSourceListStateService', () => {
 
   describe('remove', () => {
     it('成功删除后应从 sources 中移除', async () => {
-      svc.sources.set([makeMeta({ fileName: 'a.js' }), makeMeta({ fileName: 'b.js' })]);
-      await svc.remove(makeMeta({ fileName: 'a.js' }));
-      expect(svc.sources().map((s) => s.fileName)).toEqual(['b.js']);
-      expect(pomApiMock.booksourceDelete).toHaveBeenCalledWith('a.js', undefined);
+      svc.sources.set([makeMeta({ fileName: 'a.json' }), makeMeta({ fileName: 'b.json' })]);
+      await svc.remove(makeMeta({ fileName: 'a.json' }));
+      expect(svc.sources().map((s) => s.fileName)).toEqual(['b.json']);
+      expect(pomApiMock.booksourceDeleteJson).toHaveBeenCalledWith('a.json', undefined);
     });
 
     it('IPC 抛错时 sources 应保留条目并向上抛错', async () => {
-      svc.sources.set([makeMeta({ fileName: 'a.js' })]);
-      pomApiMock.booksourceDelete.mockRejectedValueOnce(new Error('IPC failed'));
-      await expect(svc.remove(makeMeta({ fileName: 'a.js' }))).rejects.toThrow('IPC failed');
+      svc.sources.set([makeMeta({ fileName: 'a.json' })]);
+      pomApiMock.booksourceDeleteJson.mockRejectedValueOnce(new Error('IPC failed'));
+      await expect(svc.remove(makeMeta({ fileName: 'a.json' }))).rejects.toThrow('IPC failed');
       expect(svc.sources()).toHaveLength(1); // 未删除
     });
 

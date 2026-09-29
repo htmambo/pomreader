@@ -58,6 +58,25 @@
   align-items: center;
   flex-shrink: 0;
 }
+/* needs-manual legacy 源（§4.3）：整卡标灰，仅保留查看/删除两个动作 */
+.source-card--legacy {
+  opacity: 0.55;
+  border-style: dashed;
+}
+.invalid-tag {
+  cursor: help;
+}
+.engine-switch {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.engine-switch-label {
+  color: var(--pom-text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
 .state-block {
   text-align: center;
   padding: 48px 0;

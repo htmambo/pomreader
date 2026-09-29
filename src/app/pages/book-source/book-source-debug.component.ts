@@ -1,4 +1,5 @@
 import { Component, ChangeDetectionStrategy, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
@@ -10,7 +11,13 @@ import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { ToastService } from '../../core/services/toast.service';
-import { SandboxService, type SandboxFn } from '../../core/book-source/js-source/sandbox.service';
+import { RuleEngineService } from '../../core/book-source/json-rule/rule-engine.service';
+import {
+  type RuleBookInfo,
+  type RuleChapterItem,
+  type RuleSearchItem,
+  type RuleTrace,
+} from '../../core/book-source/json-rule/engine';
 import { type BookSourceMeta } from '../../core/book-source/source-meta.types';
 import {
   pickBookUrl,
@@ -19,12 +26,10 @@ import {
 import { randomTestKeyword } from '../../core/book-source/smart-add/smart-rules';
 
 type PomAdmin = {
-  booksourceList?: () => Promise<BookSourceMeta[]>;
-  booksourceRead?: (fileName: string, sourceDir?: string | null) => Promise<string>;
+  booksourceListJson?: () => Promise<BookSourceMeta[]>;
 };
 
-type DebugMode =
-  'idle' | 'text' | 'search' | 'bookInfo' | 'chapterList' | 'chapterContent' | 'explore';
+type DebugMode = 'idle' | 'text' | 'search' | 'bookInfo' | 'chapterList' | 'chapterContent';
 
 interface RawItem {
   name?: string;
@@ -37,9 +42,15 @@ interface RawItem {
   coverUrl?: string;
 }
 
+/** trace 日志上限（调试页展示用，超出截断保留最近） */
+const TRACE_LIMIT = 200;
+
 /**
- * 调试书源页（迁移自 legado DebugSourceTab）
- * 选定书源 → 逐函数调用（搜索/详情/目录/正文/发现）→ 预览 + 原始 JSON 对照
+ * 调试书源页（迁移自 legado DebugSourceTab；P3 切 JSON 规则引擎，方案 §5）
+ * 选定 JSON 书源 → 逐入口调用（搜索/详情/目录/正文）→ 预览 + 原始 JSON 对照
+ * - JS 沙箱 → RuleEngineService（沙箱 P4 删除；explore 入口按 D3 移除）
+ * - 进度日志区渲染 RuleTrace（订阅 RuleEngineService.traces$，替代 sandbox.progress，F11）：
+ *   阶段 / 请求 URL+method / HTTP 状态 / 命中规则 / 提取条数 / 耗时
  * 差异：原项目的「浏览器探测」依赖 Tauri browser probe 命令，pomreader 无对应设施，未迁移；
  * 书籍详情抽屉/章节阅读弹窗用目录点击填充 + 正文预览替代
  */
@@ -101,11 +112,6 @@ interface RawItem {
         margin: 8px 0 12px;
         flex-wrap: wrap;
       }
-      .cat-row {
-        display: flex;
-        gap: 6px;
-        flex-wrap: wrap;
-      }
       .raw-json,
       .content-text {
         max-height: 56vh;
@@ -121,12 +127,12 @@ interface RawItem {
         white-space: pre-wrap;
         word-break: break-all;
       }
-      /* 沙箱进度日志面板(暗色适配: 用半透明背景 + 浅色文本 + 行间色标) */
-      .sandbox-progress {
+      /* 引擎 trace 日志面板(暗色适配: 用半透明背景 + 浅色文本 + 行间色标) */
+      .trace-log {
         margin: 8px 0;
         font-size: 12px;
       }
-      .sandbox-progress summary {
+      .trace-log summary {
         cursor: pointer;
         color: var(--pom-text-muted);
         padding: 4px 0;
@@ -156,7 +162,7 @@ interface RawItem {
         background: #1f1f1f;
         border-color: #444;
       }
-      :host-context(.dark) ::ng-deep .sandbox-progress summary {
+      :host-context(.dark) ::ng-deep .trace-log summary {
         color: #aaa;
       }
       .preview-list {
@@ -212,8 +218,6 @@ export class BookSourceDebugComponent {
   readonly chapters = signal<RawItem[]>([]);
   readonly bookInfo = signal<Record<string, unknown>>({});
   readonly contentText = signal('');
-  readonly exploreCategories = signal<string[]>([]);
-  readonly activeCategory = signal('');
 
   selectedFileName = '';
   testKeyword = randomTestKeyword();
@@ -227,27 +231,32 @@ export class BookSourceDebugComponent {
     return this.sources().find((s) => s.fileName === this.selectedFileName) ?? null;
   }
 
-  private readonly sandbox = inject(SandboxService);
-  /** 沙箱进度日志 signal(直接显示在 UI,不再依赖 console) */
-  readonly sandboxProgress = this.sandbox.progress;
-  readonly sandboxProgressText = computed(() => this.sandboxProgress().join('\n'));
+  private readonly engine = inject(RuleEngineService);
+  /** 引擎 trace 日志（替代 sandbox.progress，F11）：订阅 traces$，截断保留最近 TRACE_LIMIT 条 */
+  readonly traces = signal<RuleTrace[]>([]);
+  readonly traceLines = computed(() => this.traces().map((t) => this.formatTrace(t)));
+  readonly traceLogText = computed(() => this.traceLines().join('\n'));
   private readonly toast = inject(ToastService);
   private readonly route = inject(ActivatedRoute);
 
   constructor() {
+    this.engine.traces$
+      .pipe(takeUntilDestroyed())
+      .subscribe((t) => this.traces.update((arr) => [...arr, t].slice(-TRACE_LIMIT)));
     void this.load();
   }
 
+  /** 从 JSON 源列表选择调试对象（方案 §5：booksourceList → booksourceListJson） */
   async load(): Promise<void> {
     const api = (window as unknown as { pomAPI?: PomAdmin }).pomAPI;
-    if (!api?.booksourceList) {
+    if (!api?.booksourceListJson) {
       this.toast.error('IPC 不可用');
       return;
     }
     try {
-      const list = await api.booksourceList();
+      const list = await api.booksourceListJson();
       this.sources.set(Array.isArray(list) ? list : []);
-      // 支持 ?source=xx.js 预选（智能添加保存后跳转）
+      // 支持 ?source=xx.json 预选（智能添加保存后跳转）
       const pre = this.route.snapshot.queryParamMap.get('source');
       if (pre && this.sources().some((s) => s.fileName === pre)) {
         this.selectedFileName = pre;
@@ -266,33 +275,43 @@ export class BookSourceDebugComponent {
     this.resetResult();
   }
 
-  /** 每次调用前确保书源已加载进沙箱 */
-  private async ensureLoaded(): Promise<void> {
-    const meta = this.selectedMeta;
-    if (!meta) throw new Error('请先选择书源');
-    const api = (window as unknown as { pomAPI?: PomAdmin }).pomAPI;
-    if (!api?.booksourceRead) throw new Error('booksourceRead IPC 不可用');
-    const source = await api.booksourceRead(meta.fileName, meta.sourceDir || null);
-    await this.sandbox.load(meta.fileName, source);
+  /** RuleTrace → 单行日志（阶段 / URL+method / HTTP 状态 / 命中规则 / 提取条数 / 耗时） */
+  private formatTrace(t: RuleTrace): string {
+    const head = `[${t.phase}]`;
+    if (t.stage === 'http') {
+      return `${head} HTTP ${t.method ?? 'GET'} ${t.url ?? ''} → ${t.status ?? '?'}（${t.durationMs}ms）`;
+    }
+    if (t.stage === 'extract') {
+      const extra =
+        t.itemCount !== undefined
+          ? `，提取 ${t.itemCount} 条`
+          : t.contentLength !== undefined
+            ? `，正文 ${t.contentLength} 字符`
+            : '';
+      return `${head} 命中规则 ${t.ruleField ?? ''}${t.rule ? ` = ${t.rule}` : ''}${extra}`;
+    }
+    return t.error
+      ? `${head} ✗ 失败：${t.error}（${t.durationMs}ms）`
+      : `${head} ✓ 完成（${t.durationMs}ms）`;
   }
 
-  /** 通用执行：装载 → 调用 → 写状态/预览数据/原始 JSON */
+  /** 通用执行：清空 trace → 调引擎入口 → 写状态/预览数据/原始 JSON */
   private async exec<T>(
-    fn: SandboxFn,
-    args: unknown[],
+    run: (meta: BookSourceMeta) => Promise<T>,
     m: DebugMode,
     okText: (v: T) => string,
     apply: (v: T) => void,
   ): Promise<void> {
+    const meta = this.selectedMeta;
+    if (!meta) {
+      this.toast.warn('请先选择书源');
+      return;
+    }
     this.loading.set(true);
     this.resetResult();
-    this.sandbox.clearProgress();
-    this.sandboxProgress.update(() =>
-      [`▶ 开始执行 ${fn}(...)`, ...this.sandboxProgress()].slice(0, 100),
-    );
+    this.traces.set([]);
     try {
-      await this.ensureLoaded();
-      const raw = await this.sandbox.call<T>(this.selectedFileName, fn, args);
+      const raw = await run(meta);
       apply(raw);
       this.rawJson.set(JSON.stringify(raw, null, 2));
       this.statusOk.set(true);
@@ -309,53 +328,42 @@ export class BookSourceDebugComponent {
   }
 
   runSearch(): void {
-    void this.exec<unknown[]>(
+    const keyword = this.testKeyword.trim();
+    void this.exec<RuleSearchItem[]>(
+      (meta) => this.engine.search(meta, keyword, 1),
       'search',
-      [this.testKeyword.trim(), 1],
-      'search',
-      (v) => `✓ 搜索成功，找到 ${Array.isArray(v) ? v.length : 0} 条结果`,
-      (v) => this.items.set(Array.isArray(v) ? (v as RawItem[]) : []),
+      (v) => `✓ 搜索成功，找到 ${v.length} 条结果`,
+      (v) => this.items.set(v),
     );
   }
 
   runBookInfo(): void {
-    void this.exec<Record<string, unknown>>(
-      'bookInfo',
-      [this.bookUrl.trim()],
+    const url = this.bookUrl.trim();
+    void this.exec<RuleBookInfo>(
+      (meta) => this.engine.bookInfo(meta, url),
       'bookInfo',
       () => '✓ 书籍详情获取成功',
-      (v) => this.bookInfo.set(v && typeof v === 'object' ? v : {}),
+      (v) => this.bookInfo.set(v as unknown as Record<string, unknown>),
     );
   }
 
   runChapterList(): void {
-    void this.exec<unknown[]>(
+    const url = this.bookUrl.trim();
+    void this.exec<RuleChapterItem[]>(
+      (meta) => this.engine.chapterList(meta, url),
       'chapterList',
-      [this.bookUrl.trim()],
-      'chapterList',
-      (v) => `✓ 目录获取成功，共 ${Array.isArray(v) ? v.length : 0} 章`,
-      (v) => this.chapters.set(Array.isArray(v) ? (v as RawItem[]) : []),
+      (v) => `✓ 目录获取成功，共 ${v.length} 章`,
+      (v) => this.chapters.set(v),
     );
   }
 
   runChapterContent(): void {
+    const url = this.chapterUrl.trim();
     void this.exec<string>(
+      (meta) => this.engine.chapterContent(meta, url),
       'chapterContent',
-      [this.chapterUrl.trim()],
-      'chapterContent',
-      (v) => `✓ 正文获取成功（${typeof v === 'string' ? v.length : 0} 字符）`,
+      (v) => `✓ 正文获取成功（${v.length} 字符）`,
       (v) => this.contentText.set(typeof v === 'string' ? v : JSON.stringify(v, null, 2)),
-    );
-  }
-
-  runExploreCategory(category: string): void {
-    this.activeCategory.set(category);
-    void this.exec<unknown[]>(
-      'explore',
-      [category, 1, true],
-      'explore',
-      (v) => `✓ 分类「${category}」加载成功，共 ${Array.isArray(v) ? v.length : 0} 本`,
-      (v) => this.items.set(Array.isArray(v) ? (v as RawItem[]) : []),
     );
   }
 
@@ -383,7 +391,5 @@ export class BookSourceDebugComponent {
     this.chapters.set([]);
     this.bookInfo.set({});
     this.contentText.set('');
-    this.exploreCategories.set([]);
-    this.activeCategory.set('');
   }
 }

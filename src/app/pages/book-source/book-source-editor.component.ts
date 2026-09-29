@@ -12,21 +12,18 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputModule } from 'ng-zorro-antd/input';
+import { NzSwitchModule } from 'ng-zorro-antd/switch';
+import * as v from 'valibot';
 import { RulesPanelComponent } from '../../shared/components/rules-panel/rules-panel.component';
 import { PageHeaderService } from '../../core/services/page-header.service';
 import { ToastService } from '../../core/services/toast.service';
-import { parseHeaderMeta } from '../../core/book-source/js-source/header-parser';
-import {
-  generateSourceCode,
-  type SearchMethod,
-  type SearchBodyParam,
-  type ContentReplaceRule,
-} from '../../core/book-source/smart-add/smart-rules';
+import { BookSourceDocSchema, type BookSourceDoc } from '../../core/models/book-source-doc.model';
+import { extractBaseUrl, extractHeaders, extractRulesFromJs } from '../../core/logic/rule-parse';
 
 /** PomAPI 子集(全局 Window.pomAPI 在 page-fetcher.service.ts 声明)。 */
 type PomBooksourceEditor = {
   booksourceRead?: (fileName: string, sourceDir?: string) => Promise<string>;
-  booksourceSave?: (fileName: string, content: string, sourceDir?: string) => Promise<void>;
+  booksourceSaveJson?: (fileName: string, doc: unknown, sourceDir?: string) => Promise<void>;
 };
 
 function pomApi(): PomBooksourceEditor | null {
@@ -34,53 +31,72 @@ function pomApi(): PomBooksourceEditor | null {
   return (window.pomAPI as unknown as PomBooksourceEditor | undefined) ?? null;
 }
 
+/** meta 表单字段（signals 集中管理；rules 由 RulesPanel 持有，保存时 getRules() 合并） */
+interface MetaForm {
+  name: string;
+  author: string;
+  description: string;
+  homepage: string;
+  /** 额外镜像 URL（一行一个；homepage 恒为 urls[0]） */
+  extraUrls: string;
+  /** 标签（逗号分隔） */
+  tags: string;
+  enabled: boolean;
+  /** 自定义请求头（JSON 文本，原 HEADERS 常量） */
+  headersText: string;
+}
+
 /**
- * 书源编辑器(实施计划 T-005)
- * - 路由 /edit/:fileName 编辑现有书源
- * - 上方:RulesPanelComponent —— 加载源后从 const 行解析 15 规则回填,提供可视化编辑 + 4 阶段真实命中测试
- * - 下方:左侧源码 textarea;右侧实时解析预览
- * - 「应用规则到源码」:仅替换规则常量(保留 explore 等用户自定义代码;源里没有的常量行如 CONTENT_REPLACE_RULES 不会新增)
- * - 「从规则生成代码」:用 generateSourceCode 覆盖整个源码(谨慎,自定义代码会丢失)
- * - 保存调 booksourceSave,失败 toast
+ * 书源编辑器（P3 JSON 链路改造，方案 §5）
+ * - 路由 /edit/:fileName 编辑现有 JSON 书源（.json）
+ * - 主体 = RulesPanelComponent（规则 16 字段）+ meta 表单（name/author/urls/tags/enabled/headers）
+ * - 打开：booksourceRead → JSON.parse → valibot safeParse → 填表单；保存走 booksourceSaveJson
+ * - 保留「高级：查看 JSON」只读视图（当前表单 + 面板规则实时组装的 doc JSON）
+ * - 直接打开旧 .js（迁移后列表不再出现，仅剩 drafts/手动 URL 场景）：
+ *   用 rule-parse 抽取规则按 JSON 编辑，保存落盘为同名 .json（uuid 沿用原 .js 文件名，
+ *   保住 Book.bookSourceUuid 引用）；原 .js 不删（legacy 文件永不删，§3.1）
  */
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-book-source-editor',
-  imports: [FormsModule, NzButtonModule, NzIconModule, NzInputModule, RulesPanelComponent],
+  imports: [
+    FormsModule,
+    NzButtonModule,
+    NzIconModule,
+    NzInputModule,
+    NzSwitchModule,
+    RulesPanelComponent,
+  ],
   templateUrl: './book-source-editor.component.html',
   styleUrl: './book-source-editor.component.scss',
 })
 export class BookSourceEditorComponent {
   fileName = '';
-  readonly source = signal('');
+  /** 保存目标文件名（.js 打开时换 .json 落盘） */
+  private saveFileName = '';
+  /** 加载时保留的 doc 原字段（uuid/sourceVersion/legadoRaw 等不在表单内的字段原样回写） */
+  private baseDoc: Partial<BookSourceDoc> = {};
+  /** 面板规则加载前值（computed 在 viewChild 就绪前求值用） */
+  private loadedRules: BookSourceDoc['rules'] | null = null;
+
   readonly saving = signal(false);
-  /** 从源 const BASE_URL 提取的测试基址(测试 search 时供 RulesPanel 用) */
-  readonly ruleBaseUrl = signal('');
+  readonly form = signal<MetaForm>({
+    name: '',
+    author: '',
+    description: '',
+    homepage: '',
+    extraUrls: '',
+    tags: '',
+    enabled: true,
+    headersText: '{}',
+  });
 
   private readonly panel = viewChild<RulesPanelComponent>('panel');
 
-  /** 实时解析头部:用于右侧预览,编辑时即时反馈 */
-  readonly metaPreview = computed(() => {
-    const content = this.source();
-    if (!content.trim()) return '// 空内容';
-    try {
-      const meta = parseHeaderMeta(content, this.fileName || 'new.js', '', 0, 0, null);
-      return JSON.stringify(
-        {
-          name: meta.name,
-          url: meta.url,
-          urls: meta.urls,
-          author: meta.author,
-          tags: meta.tags,
-          sourceType: meta.sourceType,
-          enabled: meta.enabled,
-        },
-        null,
-        2,
-      );
-    } catch (e) {
-      return `解析失败:${(e as Error).message}`;
-    }
+  /** 「高级：查看 JSON」只读视图：当前表单 + 面板规则实时组装的 doc */
+  readonly jsonPreview = computed(() => {
+    const doc = this.assembleDoc();
+    return doc ? JSON.stringify(doc, null, 2) : '// 请求头 JSON 解析失败，请先修正';
   });
 
   private readonly route = inject(ActivatedRoute);
@@ -98,7 +114,7 @@ export class BookSourceEditorComponent {
     });
   }
 
-  /** 编辑模式:拉取书源 JS 内容 */
+  /** 编辑模式：拉取书源内容（.json 直接 parse；.js 走 rule-parse 抽取，见类注释） */
   private async loadExisting(): Promise<void> {
     if (!this.fileName) return;
     const api = pomApi();
@@ -108,164 +124,152 @@ export class BookSourceEditorComponent {
     }
     try {
       const content = await api.booksourceRead(this.fileName);
-      this.source.set(content ?? '');
-      this.parseRulesFromSource(content ?? '');
+      if (/\.js$/i.test(this.fileName)) {
+        this.loadFromJs(content ?? '');
+      } else {
+        this.loadFromJson(content ?? '');
+      }
     } catch (e) {
       this.toast.error(`读取失败:${(e as Error).message}`);
     }
   }
 
-  /** 从源码中解析 15 个规则常量 + BASE_URL → 回填到 RulesPanel */
-  private parseRulesFromSource(content: string): void {
-    const extract = (name: string): string => {
-      const m = new RegExp(`(?:const|let|var)\\s+${name}\\s*=\\s*(.+?)\\s*$`, 'm').exec(content);
-      if (!m) return '';
-      let raw = m[1].trim();
-      raw = raw.replace(/;$/, '').trim();
-      if (
-        (raw.startsWith('"') && raw.endsWith('"')) ||
-        (raw.startsWith("'") && raw.endsWith("'")) ||
-        (raw.startsWith('`') && raw.endsWith('`'))
-      ) {
-        try {
-          return JSON.parse(raw);
-        } catch {
-          /* backtick: 取内 */
-        }
-        if (raw.startsWith('`')) return raw.slice(1, -1);
-      }
-      return raw;
-    };
-    /** 解析对象数组常量（SEARCH_BODY_PARAMS / CONTENT_REPLACE_RULES）
-     *  - 盘上格式统一为对象数组：[{"key":"q","value":"{keyword}"},...] /
-     *    [{"rule":"正则","replace":"替换为"},...]
-     *  - 缺省或解析失败一律回退 []：单个常量写坏不应让整个规则面板空白
-     *    （此前直接 JSON.parse 会抛，被 loadExisting 的 catch 吞成「读取失败」）*/
-    const extractObjArray = <T>(name: string): T[] => {
-      const raw = extract(name);
-      if (!raw) return [];
-      try {
-        const arr = JSON.parse(raw) as unknown;
-        return Array.isArray(arr) ? (arr as T[]) : [];
-      } catch {
-        return [];
-      }
-    };
-    const methodRaw = extract('SEARCH_METHOD').replace(/^["']|["']$/g, '');
-    const method: SearchMethod = (['GET', 'POST', 'POST_RAW'] as SearchMethod[]).includes(
-      methodRaw as SearchMethod,
-    )
-      ? (methodRaw as SearchMethod)
-      : 'GET';
-    // @name 头 → siteName:整包「从规则生成代码」时保留书源名称(无 @name 则留空,运行时回退文件名)
-    const siteName = /^\s*\/\/\s*@name\s+(.+?)\s*$/m.exec(content)?.[1] ?? '';
-    this.panel()?.setRules({
-      siteName,
-      searchPath: extract('SEARCH_PATH'),
-      searchMethod: method,
-      searchBodyParams: extractObjArray<SearchBodyParam>('SEARCH_BODY_PARAMS'),
-      searchContentType: extract('SEARCH_CONTENT_TYPE') || 'application/x-www-form-urlencoded',
-      searchRawBody: extract('SEARCH_RAW_BODY'),
-      searchItemPattern: extract('SEARCH_ITEM_RULE'),
-      // 可选增强规则：源里没写这两个常量时 extract 返回 ''，等价于「不提取」
-      searchAuthorPattern: extract('SEARCH_AUTHOR_RULE'),
-      searchCategoryPattern: extract('SEARCH_CATEGORY_RULE'),
-      bookTitlePattern: extract('BOOK_TITLE_RULE'),
-      coverUrlPattern: extract('COVER_RULE'),
-      bookAuthorPattern: extract('BOOK_AUTHOR_RULE'),
-      chapterItemPattern: extract('CHAPTER_ITEM_RULE'),
-      contentPattern: extract('CONTENT_RULE'),
-      contentReplaceRules: extractObjArray<ContentReplaceRule>('CONTENT_REPLACE_RULES'),
-      bookCategoryPattern: extract('BOOK_CATEGORY_RULE'),
-    });
-    this.ruleBaseUrl.set(extract('BASE_URL'));
-  }
-
-  /** 应用规则到源码 —— 仅替换 15 个规则常量(保留 explore 等用户自定义代码) */
-  applyRulesToSource(): void {
-    const p = this.panel();
-    if (!p) return;
-    const content = this.source();
-    const updates = this.buildRuleReplacements(p.getRules());
-    const updated = this.replaceRulesInSource(content, updates);
-    this.source.set(updated);
-    this.toast.success(`✓ 规则已应用(已替换 ${Object.keys(updates).length} 个常量)`);
-  }
-
-  /** 构造 const 名 → 序列化值的映射(SEARCH_BODY_PARAMS 输出 JS 数组字面量,其他走 JSON.stringify) */
-  private buildRuleReplacements(
-    rules: ReturnType<RulesPanelComponent['getRules']>,
-  ): Record<string, string | { literal: string }> {
-    return {
-      SEARCH_PATH: rules.searchPath,
-      SEARCH_METHOD: rules.searchMethod ?? 'GET',
-      SEARCH_BODY_PARAMS: { literal: JSON.stringify(rules.searchBodyParams ?? []) },
-      SEARCH_CONTENT_TYPE: rules.searchContentType ?? 'application/x-www-form-urlencoded',
-      SEARCH_RAW_BODY: rules.searchRawBody ?? '',
-      SEARCH_ITEM_RULE: rules.searchItemPattern,
-      SEARCH_AUTHOR_RULE: rules.searchAuthorPattern ?? '',
-      SEARCH_CATEGORY_RULE: rules.searchCategoryPattern ?? '',
-      BOOK_TITLE_RULE: rules.bookTitlePattern,
-      COVER_RULE: rules.coverUrlPattern ?? 'css:img',
-      BOOK_AUTHOR_RULE: rules.bookAuthorPattern,
-      CHAPTER_ITEM_RULE: rules.chapterItemPattern,
-      CONTENT_RULE: rules.contentPattern,
-      CONTENT_REPLACE_RULES: { literal: JSON.stringify(rules.contentReplaceRules ?? []) },
-      BOOK_CATEGORY_RULE: rules.bookCategoryPattern ?? '',
-    };
-  }
-
-  /** 编辑器:从规则生成完整代码 —— 用 generateSourceCode 覆盖整个源码
-   *  (与「应用规则到源码」的区别:本方法替换整个 source,包括 explore 函数 —— 用户自定义代码会丢失)
-   */
-  generateCodeFromRules(): void {
-    if (!this.ruleBaseUrl().trim()) {
-      this.toast.warn('请先填写 BASE_URL');
+  /** .json 打开：JSON.parse + valibot safeParse（失败按 issues 摘要报错，不填表单） */
+  private loadFromJson(content: string): void {
+    let json: unknown;
+    try {
+      json = JSON.parse(content);
+    } catch (e) {
+      this.toast.error(`JSON 解析失败:${(e as Error).message}`);
       return;
     }
-    const p = this.panel();
-    if (!p) return;
+    const parsed = v.safeParse(BookSourceDocSchema, json);
+    if (!parsed.success) {
+      const summary = parsed.issues
+        .map((i) => `${i.path?.map((p) => String(p.key)).join('.') || '(root)'}: ${i.message}`)
+        .join('; ');
+      this.toast.error(`书源文档校验失败:${summary}`);
+      return;
+    }
+    const doc = parsed.output;
+    this.baseDoc = doc;
+    this.saveFileName = this.fileName;
+    this.loadedRules = doc.rules;
+    this.form.set({
+      name: doc.name,
+      author: doc.author ?? '',
+      description: doc.description ?? '',
+      homepage: doc.homepage,
+      extraUrls: doc.urls.slice(1).join('\n'),
+      tags: doc.tags.join(', '),
+      enabled: doc.enabled,
+      headersText: JSON.stringify(doc.headers, null, 2),
+    });
+    this.panel()?.setRules(doc.rules);
+  }
+
+  /** .js 打开（ drafts / 手动 URL）：rule-parse 抽取后按 JSON 编辑，保存落盘同名 .json */
+  private loadFromJs(content: string): void {
+    const rules = extractRulesFromJs(content);
+    if (!rules) {
+      this.toast.error('JS 书源规则抽取失败（必填规则缺失），请手工转换');
+      return;
+    }
+    const homepage = extractBaseUrl(content);
+    this.saveFileName = this.fileName.replace(/\.js$/i, '.json');
+    // uuid 沿用原 .js 文件名（带扩展名）—— 迁移同口径，保住 Book.bookSourceUuid 引用（§3.1 D6）
+    this.baseDoc = { uuid: this.fileName };
+    this.loadedRules = rules;
+    this.form.set({
+      name: rules.siteName,
+      author: '',
+      description: '',
+      homepage,
+      extraUrls: '',
+      tags: '',
+      enabled: false, // 人工转换默认禁用，验证后手动启用
+      headersText: JSON.stringify(extractHeaders(content), null, 2),
+    });
+    this.panel()?.setRules(rules);
+    this.toast.info(
+      `已按 JSON 模式打开 JS 书源，保存将落盘为 ${this.saveFileName}（原 .js 保留不动）`,
+    );
+  }
+
+  /** 表单 + 面板规则 → BookSourceDoc；headersText 非法 JSON 时返回 null（保存时拦截） */
+  private assembleDoc(): BookSourceDoc | null {
+    const f = this.form();
+    let headers: Record<string, string>;
     try {
-      const code = generateSourceCode(this.ruleBaseUrl().trim(), p.getRules());
-      this.source.set(code);
-      this.toast.success('✓ 已从规则生成完整代码(覆盖了整个源码)');
-    } catch (e) {
-      this.toast.error(`生成失败:${(e as Error).message}`);
+      const parsed: unknown = JSON.parse(f.headersText.trim() || '{}');
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+      headers = Object.fromEntries(Object.entries(parsed).map(([k, val]) => [k, String(val)]));
+    } catch {
+      return null;
     }
+    const panelRules = this.panel()?.getRules() ?? this.loadedRules;
+    if (!panelRules) return null;
+    // siteName 与 name 同源（面板不显示 siteName，保存时以表单名称为准）
+    const rules = { ...panelRules, siteName: f.name.trim() || panelRules.siteName };
+    const homepage = f.homepage.trim();
+    const extraUrls = f.extraUrls
+      .split('\n')
+      .map((u) => u.trim())
+      .filter((u) => u && u !== homepage);
+    return {
+      format: 'pomreader.booksource',
+      schemaVersion: 1,
+      uuid: this.baseDoc.uuid ?? this.saveFileName,
+      name: f.name.trim(),
+      ...(f.author.trim() ? { author: f.author.trim() } : {}),
+      ...(this.baseDoc.logo ? { logo: this.baseDoc.logo } : {}),
+      ...(f.description.trim() ? { description: f.description.trim() } : {}),
+      homepage,
+      urls: [homepage, ...extraUrls],
+      enabled: f.enabled,
+      sourceType: this.baseDoc.sourceType ?? 'novel',
+      ...(this.baseDoc.sourceVersion ? { sourceVersion: this.baseDoc.sourceVersion } : {}),
+      ...(this.baseDoc.updateUrl ? { updateUrl: this.baseDoc.updateUrl } : {}),
+      tags: f.tags
+        .split(/[,，]/)
+        .map((t) => t.trim())
+        .filter(Boolean),
+      minDelayMs: this.baseDoc.minDelayMs ?? 0,
+      requireUrls: this.baseDoc.requireUrls ?? [],
+      headers,
+      rules,
+      ...(this.baseDoc.legadoRaw ? { legadoRaw: this.baseDoc.legadoRaw } : {}),
+    };
   }
 
-  /** 把规则值替换到源码对应 const 行(只替换 const/let/var <NAME> = ... 这一行)
-   *  - 默认 value 走 JSON.stringify 当字符串字面量
-   *  - { literal: '...' } 直接写出 JS 字面量(用于 SEARCH_BODY_PARAMS 这类数组字面量) */
-  private replaceRulesInSource(
-    content: string,
-    rules: Record<string, string | { literal: string }>,
-  ): string {
-    let out = content;
-    for (const [name, v] of Object.entries(rules)) {
-      const rendered = typeof v === 'string' ? JSON.stringify(v) : v.literal;
-      const re = new RegExp(`^(\\s*(?:const|let|var)\\s+${name}\\s*=\\s*)(.+?)(\\s*;?\\s*)$`, 'm');
-      out = out.replace(re, (_m, head, _old, tail) => `${head}${rendered}${tail}`);
-    }
-    return out;
+  patchForm(patch: Partial<MetaForm>): void {
+    this.form.update((f) => ({ ...f, ...patch }));
   }
 
-  /** 保存(保留原 fileName) */
+  /** 保存（.json 覆盖原文件；.js 打开时落盘同名 .json） */
   async save(): Promise<void> {
-    const content = this.source();
-    if (!content.trim()) {
-      this.toast.warn('内容为空,无法保存');
+    const doc = this.assembleDoc();
+    if (!doc) {
+      this.toast.warn('自定义请求头不是合法 JSON，无法保存');
+      return;
+    }
+    const parsed = v.safeParse(BookSourceDocSchema, doc);
+    if (!parsed.success) {
+      const summary = parsed.issues
+        .map((i) => `${i.path?.map((p) => String(p.key)).join('.') || '(root)'}: ${i.message}`)
+        .join('; ');
+      this.toast.error(`校验失败:${summary}`);
       return;
     }
     const api = pomApi();
-    if (!api?.booksourceSave) {
+    if (!api?.booksourceSaveJson) {
       this.toast.error('IPC 不可用');
       return;
     }
     this.saving.set(true);
     try {
-      await api.booksourceSave(this.fileName, content);
-      this.toast.success(`保存成功:${this.fileName}`);
+      await api.booksourceSaveJson(this.saveFileName, doc);
+      this.toast.success(`保存成功:${this.saveFileName}`);
       void this.router.navigateByUrl('/book-sources');
     } catch (e) {
       this.toast.error(`保存失败:${(e as Error).message}`);

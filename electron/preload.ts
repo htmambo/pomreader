@@ -51,7 +51,7 @@ contextBridge.exposeInMainWorld('pomAPI', {
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
 
-  // ── 书源 HTTP 代理（沙箱 legado.http） ────────────────────────────────
+  // ── 书源 HTTP 代理（规则引擎 legado.http 同款通道） ─────────────────────
   booksourceHttpProxy: (req: {
     url: string;
     method?: string;
@@ -63,10 +63,6 @@ contextBridge.exposeInMainWorld('pomAPI', {
     body: string;
     cfChallenge?: boolean;
   }> => ipcRenderer.invoke('pom:booksource-http-proxy', req),
-
-  /** 书源 eval（健康检测 / 调试）；主进程仅返回文件路径，函数名解析由 Renderer Worker 负责 */
-  booksourceEval: (fileName: string, code?: string): Promise<string> =>
-    ipcRenderer.invoke('pom:booksource-eval', fileName, code ?? ''),
 
   // ── 封面缓存 ──────────────────────────────────────────────────────────
   coverResolveCache: (req: {
@@ -127,36 +123,10 @@ contextBridge.exposeInMainWorld('pomAPI', {
   booksourceMigrationReport: (): Promise<unknown | null> =>
     ipcRenderer.invoke('pom:booksource-migration-report'),
 
-  /** 常驻扫描 booksources_legacy/（needs-manual 行内状态数据源，§4.3） */
-  booksourceLegacyList: (): Promise<{ fileName: string; enabled: boolean; reason?: string }[]> =>
-    ipcRenderer.invoke('pom:booksource-legacy-list'),
-
-  // ── 健康检测（主进程 stub：返回文件路径 + 元数据，详细检测由 Renderer 沙箱执行） ──
-  sourceHealthCheck: async (
-    fileName: string,
-  ): Promise<{
-    fileName: string;
-    capabilities: string[];
-    testedAt: number;
-    filePath?: string;
-  }> => {
-    // 主进程仅提供文件存在性校验；实际能力列表走 booksourceEval → Renderer 沙箱
-    try {
-      const filePath = await ipcRenderer.invoke('pom:booksource-eval', fileName, '');
-      return {
-        fileName,
-        capabilities: [],
-        testedAt: Date.now(),
-        filePath: String(filePath),
-      };
-    } catch {
-      return {
-        fileName,
-        capabilities: [],
-        testedAt: Date.now(),
-      };
-    }
-  },
+  /** 常驻扫描 booksources_legacy/（needs-manual 行内状态数据源，§4.3）；sourceDir = legacy 目录绝对路径 */
+  booksourceLegacyList: (): Promise<
+    { fileName: string; enabled: boolean; sourceDir: string; reason?: string }[]
+  > => ipcRenderer.invoke('pom:booksource-legacy-list'),
 
   // ── 自动导入监控（万能搜索 webview .txt/压缩包 → 自动入书架） ────────
   /** 主进程检测到可导入文件并完成解码/解压后推送；返回取消订阅函数 */

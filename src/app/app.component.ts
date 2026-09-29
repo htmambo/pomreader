@@ -59,6 +59,11 @@ import { PageHeaderComponent } from './shared/components/page-header/page-header
 import { PageHeaderService } from './core/services/page-header.service';
 import { SidebarComponent } from './shared/components/sidebar/sidebar.component';
 import { SettingsService } from './core/services/settings.service';
+import { NzModalService } from 'ng-zorro-antd/modal';
+import {
+  BookSourceMigrationReportComponent,
+  type MigrationReportView,
+} from './modals/book-source-migration-report/book-source-migration-report.component';
 import { UniversalSearchComponent } from './pages/universal-search/universal-search.component';
 
 @Component({
@@ -184,6 +189,7 @@ export class AppComponent {
   private readonly router = inject(Router);
   private readonly settings = inject(SettingsService);
   private readonly pageHeader = inject(PageHeaderService);
+  private readonly modal = inject(NzModalService);
 
   /** 当前路由是否在 reader 页面（用于全屏） */
   readonly isReader = toSignal(
@@ -236,6 +242,34 @@ export class AppComponent {
         // subtitle 没在路由里显式声明 → 留空(具体页面如果有动态副标题,会在 effect 里覆写)
         this.pageHeader.subtitle.set(data['subtitle'] ?? '');
       });
+
+    // 书源迁移一次性告知（方案 §4.2 流程末尾）：主进程启动迁移后落报告，渲染端读后删，
+    // 有归档项时弹汇总 Modal；挂 app 级而非书源列表页 —— 语义是「启动后一次性告知」，与路由无关
+    void this.showMigrationReportOnce();
+  }
+
+  /** 读一次性迁移报告（pom:booksource-migration-report，主进程读后删）；有迁移/归档项时弹汇总 */
+  private async showMigrationReportOnce(): Promise<void> {
+    const api = (
+      window as unknown as {
+        pomAPI?: { booksourceMigrationReport?: () => Promise<MigrationReportView | null> };
+      }
+    ).pomAPI?.booksourceMigrationReport;
+    if (!api) return; // preload 未注册 / 非 Electron 环境
+    try {
+      const report = await api();
+      if (!report) return;
+      if (report.totals.migrated === 0 && report.totals.needsManual === 0) return;
+      this.modal.create({
+        nzTitle: '书源迁移完成',
+        nzContent: BookSourceMigrationReportComponent,
+        nzData: report,
+        nzFooter: null,
+        nzWidth: 560,
+      });
+    } catch {
+      // 报告读取失败静默（不阻断启动；报告文件已被主进程读后删）
+    }
   }
 
   /** 从 routerState.root 沿 firstChild 链走到叶子,合并所有层级的 data(子覆盖父) */

@@ -354,9 +354,12 @@ describe('migrateBookSources（迁移四态，§7.2）', () => {
     const manual = legacy.find((l) => l.fileName === 'sample-manual.js')!;
     expect(manual.enabled).toBe(false); // legacy 内 .disabled marker
     expect(manual.reason).toContain('含模板外语句');
+    // sourceDir = legacy 目录绝对路径（渲染端「查看原始 JS」/「删除」复用 booksource-read/delete 需传入）
+    expect(manual.sourceDir).toBe(path.join(tmpUserData, 'booksources_legacy'));
     const ok = legacy.find((l) => l.fileName === 'sample-regex.js')!;
     expect(ok.enabled).toBe(true); // 无 marker → 头部 @enabled true
     expect(ok.reason).toBeUndefined();
+    expect(ok.sourceDir).toBe(manual.sourceDir);
   });
 });
 
@@ -412,10 +415,12 @@ describe('迁移 channel（§3.4 新增 3 个）', () => {
     const legacy = (await call('pom:booksource-legacy-list')) as {
       fileName: string;
       enabled: boolean;
+      sourceDir: string;
       reason?: string;
     }[];
     expect(legacy).toHaveLength(1);
     expect(legacy[0].fileName).toBe('sample-manual.js');
     expect(legacy[0].reason).toContain('含模板外语句');
+    expect(legacy[0].sourceDir).toBe(path.join(tmpUserData, 'booksources_legacy'));
   });
 });

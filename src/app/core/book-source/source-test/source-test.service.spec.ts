@@ -46,19 +46,21 @@ describe('extractChapters', () => {
   });
 });
 
-// ========== SourceTestService.runTest 步骤链 ==========
+// ========== SourceTestService.runTest 步骤链（P3：JS 沙箱 → RuleEngineService） ==========
 
 type BooksourceRead = (fileName: string, sourceDir?: string | null) => Promise<string>;
 
-interface MockSandbox {
-  load: (fileName: string, source: string) => Promise<{ fileName: string; fns: string[] }>;
-  call: (fileName: string, fn: string, args: unknown[]) => Promise<unknown>;
+interface MockEngine {
+  search: (meta: BookSourceMeta, keyword: string, page: number) => Promise<unknown[]>;
+  bookInfo: (meta: BookSourceMeta, bookUrl: string) => Promise<unknown>;
+  chapterList: (meta: BookSourceMeta, bookUrl: string) => Promise<unknown[]>;
+  chapterContent: (meta: BookSourceMeta, chapterUrl: string) => Promise<string>;
 }
 
-/** 与 ImportViaSourceService.forTest 同模式：Object.create 绕开 inject()，手动注入 mock sandbox */
-function makeService(sandbox: MockSandbox): SourceTestService {
+/** 与 ImportViaSourceService.forTest 同模式：Object.create 绕开 inject()，手动注入 mock 引擎 */
+function makeService(engine: MockEngine): SourceTestService {
   const svc = Object.create(SourceTestService.prototype) as SourceTestService;
-  (svc as unknown as { sandbox: MockSandbox }).sandbox = sandbox;
+  (svc as unknown as { engine: MockEngine }).engine = engine;
   return svc;
 }
 
@@ -66,7 +68,7 @@ function makeMeta(): BookSourceMeta {
   return {
     sourceKey: 'uuid-test',
     uuid: 'uuid-test',
-    fileName: 'test.js',
+    fileName: 'test.json',
     name: 'test',
     url: 'https://example.com',
     urls: ['https://example.com'],
@@ -82,17 +84,29 @@ function makeMeta(): BookSourceMeta {
   };
 }
 
-/** mock 沙箱：load 返回固定 fns；call 按 fn 名分发到 handlers（未 mock 的调用抛错防漏配） */
-function makeSandbox(
-  fns: string[],
-  handlers: Record<string, (args: unknown[]) => unknown> = {},
-): MockSandbox {
+/** mock 引擎：按入口名分发到 handlers（未 mock 的入口抛错防漏配） */
+function makeEngine(handlers: {
+  search?: (keyword: string) => unknown;
+  bookInfo?: (bookUrl: string) => unknown;
+  chapterList?: (bookUrl: string) => unknown;
+  chapterContent?: (chapterUrl: string) => unknown;
+}): MockEngine {
   return {
-    load: async (fileName) => ({ fileName, fns }),
-    call: async (_file, fn, args) => {
-      const h = handlers[fn];
-      if (!h) throw new Error(`未 mock 的沙箱调用: ${fn}`);
-      return h(args);
+    search: async (_m, keyword) => {
+      if (!handlers.search) throw new Error('未 mock 的引擎调用: search');
+      return handlers.search(keyword) as unknown[];
+    },
+    bookInfo: async (_m, bookUrl) => {
+      if (!handlers.bookInfo) throw new Error('未 mock 的引擎调用: bookInfo');
+      return handlers.bookInfo(bookUrl);
+    },
+    chapterList: async (_m, bookUrl) => {
+      if (!handlers.chapterList) throw new Error('未 mock 的引擎调用: chapterList');
+      return handlers.chapterList(bookUrl) as unknown[];
+    },
+    chapterContent: async (_m, chapterUrl) => {
+      if (!handlers.chapterContent) throw new Error('未 mock 的引擎调用: chapterContent');
+      return handlers.chapterContent(chapterUrl) as string;
     },
   };
 }
@@ -114,13 +128,13 @@ async function withPomApi<T>(
   }
 }
 
-const read: BooksourceRead = async () => '// source';
+const read: BooksourceRead = async () => '{"format":"pomreader.booksource"}';
 
 describe('SourceTestService.runTest', () => {
-  it('window.pomAPI 缺失 → load 步骤失败，不进入沙箱', async () => {
-    const svc = makeService(makeSandbox(['search']));
+  it('window.pomAPI 缺失 → load 步骤失败，不进入引擎', async () => {
+    const svc = makeService(makeEngine({}));
     const result = await withPomApi(undefined, () => svc.runTest(makeMeta(), '庆余年'));
-    expect(result.fileName).toBe('test.js');
+    expect(result.fileName).toBe('test.json');
     expect(result.allPassed).toBe(false);
     expect(result.steps).toEqual([
       { step: 'load', passed: false, message: 'booksourceRead IPC 不可用', durationMs: 0 },
@@ -128,7 +142,7 @@ describe('SourceTestService.runTest', () => {
   });
 
   it('booksourceRead 抛错 → load 步骤失败并透传错误消息', async () => {
-    const svc = makeService(makeSandbox(['search']));
+    const svc = makeService(makeEngine({}));
     const result = await withPomApi(
       {
         booksourceRead: async () => {
@@ -143,14 +157,14 @@ describe('SourceTestService.runTest', () => {
     ]);
   });
 
-  it('书源未定义 search() → search 失败；无 bookUrl 时 chapterContent 标记无章节 URL 可测', async () => {
-    const svc = makeService(makeSandbox([]));
+  it('search 失败（无结果）→ 后续步骤跳过，chapterContent 标记无章节 URL 可测', async () => {
+    const svc = makeService(makeEngine({ search: () => [] }));
     const result = await withPomApi({ booksourceRead: read }, () =>
       svc.runTest(makeMeta(), '庆余年'),
     );
     expect(result.allPassed).toBe(false);
     expect(result.steps.map((s) => [s.step, s.passed, s.message])).toEqual([
-      ['search', false, '书源未定义 search()'],
+      ['search', false, '搜索「庆余年」无结果'],
       ['chapterContent', false, '无章节 URL 可测'],
     ]);
   });
@@ -158,25 +172,20 @@ describe('SourceTestService.runTest', () => {
   it('search 校验分支：非数组 / 空数组 / 结果项缺 url 分别报对应错误', async () => {
     await withPomApi({ booksourceRead: read }, async () => {
       const meta = makeMeta();
-      const r1 = await makeService(makeSandbox(['search'], { search: () => 'not-array' })).runTest(
-        meta,
-        'kw',
-      );
+      const r1 = await makeService(makeEngine({ search: () => 'not-array' })).runTest(meta, 'kw');
       expect(r1.steps[0]).toMatchObject({ step: 'search', passed: false, message: '返回值非数组' });
 
-      const r2 = await makeService(makeSandbox(['search'], { search: () => [] })).runTest(
-        meta,
-        'kw',
-      );
+      const r2 = await makeService(makeEngine({ search: () => [] })).runTest(meta, 'kw');
       expect(r2.steps[0]).toMatchObject({
         step: 'search',
         passed: false,
         message: '搜索「kw」无结果',
       });
 
-      const r3 = await makeService(
-        makeSandbox(['search'], { search: () => [{ name: 'a' }] }),
-      ).runTest(meta, 'kw');
+      const r3 = await makeService(makeEngine({ search: () => [{ name: 'a' }] })).runTest(
+        meta,
+        'kw',
+      );
       expect(r3.steps[0]).toMatchObject({
         step: 'search',
         passed: false,
@@ -189,7 +198,7 @@ describe('SourceTestService.runTest', () => {
     await withPomApi({ booksourceRead: read }, async () => {
       const meta = makeMeta();
       const r1 = await makeService(
-        makeSandbox(['search'], {
+        makeEngine({
           search: () => {
             throw new Error('网络超时');
           },
@@ -198,7 +207,7 @@ describe('SourceTestService.runTest', () => {
       expect(r1.steps[0]).toMatchObject({ step: 'search', passed: false, message: '网络超时' });
 
       const r2 = await makeService(
-        makeSandbox(['search'], {
+        makeEngine({
           search: () => {
             throw '字符串错误';
           },
@@ -208,27 +217,30 @@ describe('SourceTestService.runTest', () => {
     });
   });
 
-  it('有 bookUrl 但未定义 bookInfo() → 标记未定义；回退 toc() + content() 链路成功', async () => {
+  it('bookInfo 失败 → 回退 chapterList 入口 + chapterContent 链路仍可成功', async () => {
     const svc = makeService(
-      makeSandbox(['search', 'toc', 'content'], {
+      makeEngine({
         search: () => [{ name: '书A', url: 'https://a/b/1' }],
-        toc: () => [{ name: '第1章', url: 'https://a/c/1' }],
-        content: () => '正文内容',
+        bookInfo: () => {
+          throw new Error('详情页 404');
+        },
+        chapterList: () => [{ name: '第1章', url: 'https://a/c/1' }],
+        chapterContent: () => '正文内容',
       }),
     );
     const result = await withPomApi({ booksourceRead: read }, () => svc.runTest(makeMeta(), 'kw'));
     expect(result.allPassed).toBe(false); // bookInfo 失败 → 不全通过
     expect(result.steps.map((s) => [s.step, s.passed, s.message])).toEqual([
       ['search', true, '命中 1 条'],
-      ['bookInfo', false, '书源未定义 bookInfo()'],
+      ['bookInfo', false, '详情页 404'],
       ['chapterList', true, '共 1 章'],
       ['chapterContent', true, '正文 4 字符'],
     ]);
   });
 
-  it('全链路成功：bookInfo 含章节 → chapterList 复用 bookInfo 结果，explore 通过', async () => {
+  it('全链路成功：bookInfo 含章节 → chapterList 复用 bookInfo 结果', async () => {
     const svc = makeService(
-      makeSandbox(['search', 'bookInfo', 'chapterContent', 'explore'], {
+      makeEngine({
         search: () => [{ name: '书A', bookUrl: 'https://a/b/1' }],
         bookInfo: () => ({
           title: '测试书',
@@ -236,7 +248,6 @@ describe('SourceTestService.runTest', () => {
           chapters: [{ name: '第1章', url: 'https://a/c/1' }],
         }),
         chapterContent: () => 'abc',
-        explore: () => [{ name: '分类' }],
       }),
     );
     const result = await withPomApi({ booksourceRead: read }, () => svc.runTest(makeMeta(), 'kw'));
@@ -246,13 +257,12 @@ describe('SourceTestService.runTest', () => {
       ['bookInfo', true, '《测试书》 测试作者'],
       ['chapterList', true, '共 1 章（来自 bookInfo）'],
       ['chapterContent', true, '正文 3 字符'],
-      ['explore', true, 'explore 可调用'],
     ]);
   });
 
   it('bookInfo 仅有 name 字段（无 title/author）也通过校验，ok 消息回退 name', async () => {
     const svc = makeService(
-      makeSandbox(['search', 'bookInfo', 'chapterContent'], {
+      makeEngine({
         search: () => [{ url: 'https://a/b/1' }],
         bookInfo: () => ({ name: '无名书', chapters: [{ url: 'https://a/c/1' }] }),
         chapterContent: () => 'x',
@@ -268,16 +278,17 @@ describe('SourceTestService.runTest', () => {
     await withPomApi({ booksourceRead: read }, async () => {
       const meta = makeMeta();
       const base = { search: () => [{ url: 'https://a/b/1' }] };
-      const r1 = await makeService(
-        makeSandbox(['search', 'bookInfo'], { ...base, bookInfo: () => 'str' }),
-      ).runTest(meta, 'kw');
+      const r1 = await makeService(makeEngine({ ...base, bookInfo: () => 'str' })).runTest(
+        meta,
+        'kw',
+      );
       expect(r1.steps.find((s) => s.step === 'bookInfo')).toMatchObject({
         passed: false,
         message: '返回值非对象',
       });
 
       const r2 = await makeService(
-        makeSandbox(['search', 'bookInfo'], { ...base, bookInfo: () => ({ author: 'a' }) }),
+        makeEngine({ ...base, bookInfo: () => ({ author: 'a' }) }),
       ).runTest(meta, 'kw');
       expect(r2.steps.find((s) => s.step === 'bookInfo')).toMatchObject({
         passed: false,
@@ -286,24 +297,26 @@ describe('SourceTestService.runTest', () => {
     });
   });
 
-  it('bookInfo 无章节 → 回退 chapterList()：非数组与空目录分别报错', async () => {
+  it('bookInfo 无章节 → 回退 chapterList 入口：非数组与空目录分别报错', async () => {
     await withPomApi({ booksourceRead: read }, async () => {
       const meta = makeMeta();
       const base = {
         search: () => [{ url: 'https://a/b/1' }],
         bookInfo: () => ({ title: '书A' }),
       };
-      const r1 = await makeService(
-        makeSandbox(['search', 'bookInfo', 'chapterList'], { ...base, chapterList: () => null }),
-      ).runTest(meta, 'kw');
+      const r1 = await makeService(makeEngine({ ...base, chapterList: () => null })).runTest(
+        meta,
+        'kw',
+      );
       expect(r1.steps.find((s) => s.step === 'chapterList')).toMatchObject({
         passed: false,
         message: '返回值非数组',
       });
 
-      const r2 = await makeService(
-        makeSandbox(['search', 'bookInfo', 'chapterList'], { ...base, chapterList: () => [] }),
-      ).runTest(meta, 'kw');
+      const r2 = await makeService(makeEngine({ ...base, chapterList: () => [] })).runTest(
+        meta,
+        'kw',
+      );
       expect(r2.steps.find((s) => s.step === 'chapterList')).toMatchObject({
         passed: false,
         message: '目录为空',
@@ -311,29 +324,7 @@ describe('SourceTestService.runTest', () => {
     });
   });
 
-  it('chapterList 回退成功 + explore 返回 null 失败但不计入 allPassed', async () => {
-    const svc = makeService(
-      makeSandbox(['search', 'bookInfo', 'chapterList', 'chapterContent', 'explore'], {
-        search: () => [{ url: 'https://a/b/1' }],
-        bookInfo: () => ({ title: '书A' }),
-        chapterList: () => [{ name: '第1章', url: 'https://a/c/1' }],
-        chapterContent: () => '正文',
-        explore: () => null,
-      }),
-    );
-    const result = await withPomApi({ booksourceRead: read }, () => svc.runTest(makeMeta(), 'kw'));
-    expect(result.steps.find((s) => s.step === 'chapterList')).toMatchObject({
-      passed: true,
-      message: '共 1 章',
-    });
-    expect(result.steps.find((s) => s.step === 'explore')).toMatchObject({
-      passed: false,
-      message: '返回 null',
-    });
-    expect(result.allPassed).toBe(true); // explore 不参与 allPassed
-  });
-
-  it('chapterContent 校验分支：非字符串 / 空白字符串 / 未定义 content 函数', async () => {
+  it('chapterContent 校验分支：非字符串 / 空白字符串', async () => {
     await withPomApi({ booksourceRead: read }, async () => {
       const meta = makeMeta();
       const base = {
@@ -341,31 +332,20 @@ describe('SourceTestService.runTest', () => {
         bookInfo: () => ({ title: '书A', chapters: [{ url: 'https://a/c/1' }] }),
       };
       const r1 = await makeService(
-        makeSandbox(['search', 'bookInfo', 'chapterContent'], {
-          ...base,
-          chapterContent: () => 42,
-        }),
+        makeEngine({ ...base, chapterContent: () => 42 as unknown as string }),
       ).runTest(meta, 'kw');
       expect(r1.steps.find((s) => s.step === 'chapterContent')).toMatchObject({
         passed: false,
         message: '返回值非字符串',
       });
 
-      const r2 = await makeService(
-        makeSandbox(['search', 'bookInfo', 'chapterContent'], {
-          ...base,
-          chapterContent: () => '   ',
-        }),
-      ).runTest(meta, 'kw');
+      const r2 = await makeService(makeEngine({ ...base, chapterContent: () => '   ' })).runTest(
+        meta,
+        'kw',
+      );
       expect(r2.steps.find((s) => s.step === 'chapterContent')).toMatchObject({
         passed: false,
         message: '正文为空',
-      });
-
-      const r3 = await makeService(makeSandbox(['search', 'bookInfo'], base)).runTest(meta, 'kw');
-      expect(r3.steps.find((s) => s.step === 'chapterContent')).toMatchObject({
-        passed: false,
-        message: '书源未定义 chapterContent()/content()',
       });
     });
   });
@@ -373,7 +353,7 @@ describe('SourceTestService.runTest', () => {
   it('单项超时：search 悬挂 → withTimeout 按剩余时间拒绝并报步骤超时', async () => {
     vi.useFakeTimers();
     try {
-      const svc = makeService(makeSandbox(['search'], { search: () => new Promise(() => {}) }));
+      const svc = makeService(makeEngine({ search: () => new Promise(() => {}) }));
       const promise = withPomApi({ booksourceRead: read }, () => svc.runTest(makeMeta(), 'kw', 30));
       await vi.advanceTimersByTimeAsync(30_000);
       const result = await promise;
@@ -387,9 +367,9 @@ describe('SourceTestService.runTest', () => {
     }
   });
 
-  it('总超时：deadline 已过 → run 直接失败且不调用沙箱函数', async () => {
+  it('总超时：deadline 已过 → run 直接失败且不调用引擎入口', async () => {
     const searchSpy = vi.fn(() => [{ url: 'https://a/b/1' }]);
-    const svc = makeService(makeSandbox(['search'], { search: searchSpy }));
+    const svc = makeService(makeEngine({ search: searchSpy }));
     const result = await withPomApi({ booksourceRead: read }, () =>
       svc.runTest(makeMeta(), 'kw', -1),
     );

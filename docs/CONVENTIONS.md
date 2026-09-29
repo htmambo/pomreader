@@ -275,6 +275,11 @@ rg "<ComponentName>\|<file-name>\|<selector>" src/ electron/
 | 14 | sidebar.component.ts | `src/app/shared/components/sidebar/` | monitored | monitored | 路由订阅 + 导航逻辑 | NFR-13 | 2026-09-27 |
 | 15 | import-local-txt.component.ts | `src/app/modals/import-local-txt/` | monitored | monitored | 既有 import 流程弹窗，未来可能加 OnPush | NFR-13 | 2026-09-27 |
 
+**死代码删除留痕（§7.2）**：
+
+- 2026-09-29 — `src/app/core/book-source/js-source/header-parser.ts` + `header-parser.spec.ts`：曾经存在，已删。理由：P3 书源编辑器切 JSON 链路后零引用（`rg "header-parser" src/` 零命中）；渲染端 parseHeaderMeta 只扫前 100 行、enabled 判定与主进程版不同（F16），JSON 路径不再需要（方案 §10）。
+- 2026-09-29 — preload `booksourceEval` / `sourceHealthCheck` + IPC channel `pom:booksource-eval`（`electron/ipc/booksource-handler.ts`）：曾经存在，已删。理由：调试/测试页切 RuleEngineService 后零引用（`rg "booksourceEval\|sourceHealthCheck\|booksource-eval" src/ electron/` 仅剩 source-health.service.ts 的留痕注释），沙箱时代遗物（方案 §3.4）。
+
 ---
 
 ## §escape-hatch (preserveWhitespaces false 例外)

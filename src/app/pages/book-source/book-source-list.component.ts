@@ -16,17 +16,38 @@ import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzModalModule, NzModalService } from 'ng-zorro-antd/modal';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
+import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
+import { NzSegmentedModule } from 'ng-zorro-antd/segmented';
 import { PageHeaderService } from '../../core/services/page-header.service';
 import { ToastService } from '../../core/services/toast.service';
 import { type BookSourceMeta } from '../../core/book-source/source-meta.types';
-import { BookSourceListStateService } from '../../core/book-source/book-source-list-state.service';
+import {
+  BookSourceListStateService,
+  type LegacySourceItem,
+} from '../../core/book-source/book-source-list-state.service';
 import { ImportLegadoComponent } from '../../modals/import-legado/import-legado.component';
+import {
+  getBookSourceEngine,
+  setBookSourceEngine,
+  type BookSourceEngine,
+} from '../../core/book-source/feature-flag';
+import { signal } from '@angular/core';
+
+type PomRead = {
+  booksourceRead?: (fileName: string, sourceDir?: string) => Promise<string>;
+};
+
+function pomApi(): PomRead | null {
+  if (typeof window === 'undefined') return null;
+  return (window.pomAPI as unknown as PomRead | undefined) ?? null;
+}
 
 /**
- * 书源管理列表页（实施计划 T-005）
- * - 拉取全部书源元数据，本地过滤
- * - 启停 / 编辑 / 删除（删除二次确认）
- * - 启停调 pomAPI.booksourceToggle，失败回滚 UI（DM-3）
+ * 书源管理列表页（实施计划 T-005；P3 切 JSON 链路，方案 §5）
+ * - 数据源 = booksourceListJson（state 服务内）；meta.rulesInvalid 非空 → 行内红标
+ * - needs-manual legacy 源（§4.3）：列表末尾标灰 + 「查看原始 JS」「删除」
+ * - 顶栏引擎开关（§3.3，调试用，P4 删）：rule / js / both
+ * - 启停 / 编辑 / 删除（删除二次确认）；启停失败回滚 UI（DM-3）
  * - Esc 逐级回退：Modal 层交给 ng-zorro → 清空过滤词 → 停在列表页（见 onKeydown）
  *
  * 会话级现场由 BookSourceListStateService 持有（root）：过滤词/列表，
@@ -44,6 +65,8 @@ import { ImportLegadoComponent } from '../../modals/import-legado/import-legado.
     NzModalModule,
     NzEmptyModule,
     NzSpinModule,
+    NzTooltipModule,
+    NzSegmentedModule,
   ],
   templateUrl: './book-source-list.component.html',
   styleUrl: './book-source-list.component.scss',
@@ -54,6 +77,14 @@ export class BookSourceListComponent {
   private readonly modal = inject(NzModalService);
   private readonly router = inject(Router);
   private readonly pageHeader = inject(PageHeaderService);
+
+  /** 引擎运行时开关（§3.3）：切换只影响下次 adapter 加载（registry 在启动时读开关） */
+  readonly engine = signal<BookSourceEngine>(getBookSourceEngine());
+  readonly engineOptions: { label: string; value: BookSourceEngine }[] = [
+    { label: 'JSON 规则', value: 'rule' },
+    { label: 'JS 沙箱', value: 'js' },
+    { label: '并存', value: 'both' },
+  ];
 
   /** 是否还在首次加载（首次成功前显示 spinner，已加载过则走后台刷新不阻塞） */
   readonly firstLoading = computed(() => !this.state.loaded());
@@ -116,6 +147,56 @@ export class BookSourceListComponent {
         try {
           await this.state.remove(src);
           this.toast.success(`已删除：${src.name}`);
+        } catch (e) {
+          this.toast.error(`删除失败：${(e as Error).message}`);
+        }
+      },
+    });
+  }
+
+  /** 引擎切换（§3.3）：写 localStorage；adapter 注册在启动时读开关，故提示重启并原地刷新列表 */
+  onEngineChange(value: string | number): void {
+    const next = value as BookSourceEngine;
+    setBookSourceEngine(next);
+    this.engine.set(next);
+    this.toast.info('引擎开关已保存，重启应用后生效（列表已原地刷新）');
+    void this.refresh(false);
+  }
+
+  /** 「查看原始 JS」（§4.3）：读 legacy 文件内容，Modal 只读展示 */
+  async viewLegacySource(item: LegacySourceItem): Promise<void> {
+    const api = pomApi();
+    if (!api?.booksourceRead) {
+      this.toast.error('IPC 不可用');
+      return;
+    }
+    try {
+      const content = await api.booksourceRead(item.fileName, item.sourceDir);
+      // nzContent 字符串走 innerHTML 渲染 → 必须转义（源码含 <> & 字符）
+      const escaped = content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      this.modal.info({
+        nzTitle: `原始 JS：${item.fileName}`,
+        nzContent: `<pre style="max-height:60vh;overflow:auto;white-space:pre-wrap;word-break:break-all;font-size:12px;">${escaped}</pre>`,
+        nzWidth: 720,
+        nzOkText: '关闭',
+      });
+    } catch (e) {
+      this.toast.error(`读取失败：${(e as Error).message}`);
+    }
+  }
+
+  /** 「删除」legacy 源（§4.3）：二次确认后复用通用 delete channel（按路径删 + 清 marker） */
+  confirmDeleteLegacy(item: LegacySourceItem): void {
+    this.modal.confirm({
+      nzTitle: `删除未迁移书源：${item.fileName}？`,
+      nzContent: '该文件位于 booksources_legacy/，删除后无法恢复。',
+      nzOkText: '删除',
+      nzOkDanger: true,
+      nzCancelText: '取消',
+      nzOnOk: async () => {
+        try {
+          await this.state.removeLegacy(item);
+          this.toast.success(`已删除：${item.fileName}`);
         } catch (e) {
           this.toast.error(`删除失败：${(e as Error).message}`);
         }

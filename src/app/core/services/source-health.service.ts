@@ -6,7 +6,8 @@
  * - 现改为「JSON 合法性 + 必填规则非空」校验：读 .json → JSON.parse → BookSourceDocSchema
  *   safeParse；全通过 → 四入口能力全开；任一失败 → 空能力（列表页健康角标语义不变）
  * - detectBatch 接口保留（BATCH_CONCURRENCY 并发，单源失败不影响其他）
- * - preload sourceHealthCheck / IPC booksource-eval 与本服务无关，随沙箱在 P4 删除
+ * - preload sourceHealthCheck / IPC booksource-eval 与本服务无关，已于 P3 随调试/测试页
+ *   切走 SandboxService 一并删除（preload 暴露 + pom:booksource-eval channel）
  */
 import { Injectable } from '@angular/core';
 import * as v from 'valibot';

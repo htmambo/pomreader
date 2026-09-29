@@ -16,7 +16,7 @@ import {
   type TestStepResult,
 } from '../../core/book-source/source-test/source-test.service';
 
-type PomList = { booksourceList?: () => Promise<BookSourceMeta[]> };
+type PomList = { booksourceListJson?: () => Promise<BookSourceMeta[]> };
 
 interface TestSourceState {
   fileName: string;
@@ -32,13 +32,12 @@ const STEP_LABELS: Record<string, string> = {
   bookInfo: '详情',
   chapterList: '目录',
   chapterContent: '正文',
-  explore: '发现',
 };
 
 /**
- * 书源测试页（迁移自 legado TestSourcesTab）
- * 差异：原项目测试引擎是 Rust stub（未实现），此处走 pomreader 沙箱（SourceTestService）；
- * 原项目 script:http 实时日志依赖引擎事件总线，pomreader 沙箱无此通道 → 日志粒度为步骤级
+ * 书源测试页（迁移自 legado TestSourcesTab；P3 起走 JSON 规则引擎，方案 §5）
+ * 差异：原项目测试引擎是 Rust stub（未实现），此处走 SourceTestService（RuleEngineService）；
+ * 原项目 script:http 实时日志依赖引擎事件总线 → 日志粒度为步骤级
  */
 @Component({
   selector: 'app-book-source-test',
@@ -247,13 +246,13 @@ export class BookSourceTestComponent {
 
   async load(): Promise<void> {
     const api = (window as unknown as { pomAPI?: PomList }).pomAPI;
-    if (!api?.booksourceList) {
+    if (!api?.booksourceListJson) {
       this.toast.error('IPC 不可用');
       return;
     }
     this.loading.set(true);
     try {
-      const list = await api.booksourceList();
+      const list = await api.booksourceListJson();
       this.sources.set(Array.isArray(list) ? list : []);
     } catch (e) {
       this.toast.error(`加载失败：${(e as Error).message}`);

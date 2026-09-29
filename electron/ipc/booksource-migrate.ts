@@ -352,6 +352,8 @@ export interface LegacyItem {
   fileName: string;
   /** 由 legacy 目录内 marker（<fileName>.enabled/.disabled）+ 头部 @enabled 得出 */
   enabled: boolean;
+  /** legacy 目录绝对路径（渲染端「查看原始 JS」/「删除」复用 booksource-read/delete 时需传入） */
+  sourceDir: string;
   /** 不可自动转换的原因（重新分类得出）；可转换/已正常归档的条目无此字段 */
   reason?: string;
 }
@@ -723,7 +725,7 @@ export function scanLegacyDir(userData: string): LegacyItem[] {
       content = fs.readFileSync(full, 'utf-8');
       stat = fs.statSync(full);
     } catch {
-      out.push({ fileName: entry.name, enabled: false, reason: '读取失败' });
+      out.push({ fileName: entry.name, enabled: false, sourceDir: legacyDir, reason: '读取失败' });
       continue;
     }
     const meta = parseHeaderMeta(
@@ -738,6 +740,7 @@ export function scanLegacyDir(userData: string): LegacyItem[] {
     out.push({
       fileName: entry.name,
       enabled: meta.enabled === true,
+      sourceDir: legacyDir,
       ...(classified.kind === 'needs-manual' ? { reason: classified.reason } : {}),
       ...(classified.kind === 'skeleton'
         ? { reason: 'legado 骨架源（已转换为禁用的 JSON 书源）' }
