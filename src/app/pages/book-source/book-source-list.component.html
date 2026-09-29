@@ -36,7 +36,7 @@
     <div class="source-info">
       <h3>
         {{ src.name }} @if (src.rulesInvalid) {
-        <nz-tag class="invalid-tag" nzColor="error" [nzTooltipTitle]="src.rulesInvalid" nzTooltipPlacement="top"
+        <nz-tag class="invalid-tag" nzColor="error" nz-tooltip [nzTooltipTitle]="src.rulesInvalid" nzTooltipPlacement="top"
           >规则无效</nz-tag
         >
         }
@@ -66,6 +66,7 @@
       <h3>
         {{ item.fileName }}
         <nz-tag
+          nz-tooltip
           nzTooltipPlacement="top"
           [nzTooltipTitle]="item.reason ? '无法自动转换：' + item.reason : '无法自动转换（可能含自定义 JS）'"
           >无法自动转换</nz-tag
