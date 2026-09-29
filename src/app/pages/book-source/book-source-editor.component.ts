@@ -10,8 +10,10 @@ import {
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { NzButtonModule } from 'ng-zorro-antd/button';
+import { NzCollapseModule } from 'ng-zorro-antd/collapse';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputModule } from 'ng-zorro-antd/input';
+import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzSwitchModule } from 'ng-zorro-antd/switch';
 import * as v from 'valibot';
 import { RulesPanelComponent } from '../../shared/components/rules-panel/rules-panel.component';
@@ -39,8 +41,8 @@ interface MetaForm {
   homepage: string;
   /** 额外镜像 URL（一行一个；homepage 恒为 urls[0]） */
   extraUrls: string;
-  /** 标签（逗号分隔） */
-  tags: string;
+  /** 标签（可视化标签输入，数组直存） */
+  tags: string[];
   enabled: boolean;
   /** 自定义请求头（JSON 文本，原 HEADERS 常量） */
   headersText: string;
@@ -62,8 +64,10 @@ interface MetaForm {
   imports: [
     FormsModule,
     NzButtonModule,
+    NzCollapseModule,
     NzIconModule,
     NzInputModule,
+    NzSelectModule,
     NzSwitchModule,
     RulesPanelComponent,
   ],
@@ -80,13 +84,15 @@ export class BookSourceEditorComponent {
   private loadedRules: BookSourceDoc['rules'] | null = null;
 
   readonly saving = signal(false);
+  /** 基础信息面板展开态（默认展开，可收起给规则面板腾空间） */
+  readonly metaOpen = signal(true);
   readonly form = signal<MetaForm>({
     name: '',
     author: '',
     description: '',
     homepage: '',
     extraUrls: '',
-    tags: '',
+    tags: [],
     enabled: true,
     headersText: '{}',
   });
@@ -161,7 +167,7 @@ export class BookSourceEditorComponent {
       description: doc.description ?? '',
       homepage: doc.homepage,
       extraUrls: doc.urls.slice(1).join('\n'),
-      tags: doc.tags.join(', '),
+      tags: [...doc.tags],
       enabled: doc.enabled,
       headersText: JSON.stringify(doc.headers, null, 2),
     });
@@ -186,7 +192,7 @@ export class BookSourceEditorComponent {
       description: '',
       homepage,
       extraUrls: '',
-      tags: '',
+      tags: [],
       enabled: false, // 人工转换默认禁用，验证后手动启用
       headersText: JSON.stringify(extractHeaders(content), null, 2),
     });
@@ -230,10 +236,7 @@ export class BookSourceEditorComponent {
       sourceType: this.baseDoc.sourceType ?? 'novel',
       ...(this.baseDoc.sourceVersion ? { sourceVersion: this.baseDoc.sourceVersion } : {}),
       ...(this.baseDoc.updateUrl ? { updateUrl: this.baseDoc.updateUrl } : {}),
-      tags: f.tags
-        .split(/[,，]/)
-        .map((t) => t.trim())
-        .filter(Boolean),
+      tags: f.tags.map((t) => t.trim()).filter(Boolean),
       minDelayMs: this.baseDoc.minDelayMs ?? 0,
       requireUrls: this.baseDoc.requireUrls ?? [],
       headers,

@@ -1,9 +1,14 @@
-/* 编辑器布局 —— meta 表单 + 只读 JSON 预览; 规则面板样式见 src/styles/rules-panel.scss */
-.meta-form {
+/* 编辑器布局 —— 基础信息可收缩面板 + 只读 JSON 预览; 规则面板样式见 src/styles/rules-panel.scss */
+.meta-collapse {
   margin: 12px 0;
+}
+.meta-form {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+.tags-select {
+  width: auto;
 }
 .form-row {
   display: flex;

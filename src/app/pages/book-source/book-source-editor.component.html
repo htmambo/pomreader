@@ -1,80 +1,85 @@
-<!-- meta 表单（BookSourceDoc 顶层字段；rules 由下面板持有） -->
-<div class="meta-form">
-  <div class="form-row">
-    <label class="form-label">名称</label>
-    <input
-      nz-input
-      class="grow"
-      [ngModel]="form().name"
-      (ngModelChange)="patchForm({ name: $event })"
-      placeholder="书源名称（@name）"
-    />
-    <label class="form-label">启用</label>
-    <nz-switch [ngModel]="form().enabled" (ngModelChange)="patchForm({ enabled: $event })"></nz-switch>
-  </div>
-  <div class="form-row">
-    <label class="form-label">作者</label>
-    <input
-      nz-input
-      class="grow"
-      [ngModel]="form().author"
-      (ngModelChange)="patchForm({ author: $event })"
-      placeholder="作者（可空）"
-    />
-    <label class="form-label">标签</label>
-    <input
-      nz-input
-      class="grow"
-      [ngModel]="form().tags"
-      (ngModelChange)="patchForm({ tags: $event })"
-      placeholder="逗号分隔（可空）"
-    />
-  </div>
-  <div class="form-row">
-    <label class="form-label">主页</label>
-    <input
-      nz-input
-      class="grow"
-      [ngModel]="form().homepage"
-      (ngModelChange)="patchForm({ homepage: $event })"
-      placeholder="主站 origin（原 BASE_URL / @url 第一条）"
-    />
-  </div>
-  <div class="form-row form-row--top">
-    <label class="form-label">镜像</label>
-    <textarea
-      nz-input
-      class="grow"
-      rows="2"
-      [ngModel]="form().extraUrls"
-      (ngModelChange)="patchForm({ extraUrls: $event })"
-      placeholder="额外镜像 URL，一行一个（可空）"
-    ></textarea>
-  </div>
-  <div class="form-row form-row--top">
-    <label class="form-label">描述</label>
-    <textarea
-      nz-input
-      class="grow"
-      rows="2"
-      [ngModel]="form().description"
-      (ngModelChange)="patchForm({ description: $event })"
-      placeholder="描述（可空）"
-    ></textarea>
-  </div>
-  <div class="form-row form-row--top">
-    <label class="form-label">请求头</label>
-    <textarea
-      nz-input
-      class="grow mono"
-      rows="3"
-      spellcheck="false"
-      [ngModel]="form().headersText"
-      (ngModelChange)="patchForm({ headersText: $event })"
-      placeholder='自定义请求头 JSON（原 HEADERS 常量），如 {"User-Agent":"..."}'
-    ></textarea>
-  </div>
-</div>
+<!-- meta 表单（BookSourceDoc 顶层字段；rules 由下面板持有），可收缩面板 -->
+<nz-collapse class="meta-collapse">
+  <nz-collapse-panel nzHeader="基础信息" [nzActive]="metaOpen()" (nzActiveChange)="metaOpen.set($event)">
+    <div class="meta-form">
+      <div class="form-row">
+        <label class="form-label">名称</label>
+        <input
+          nz-input
+          class="grow"
+          [ngModel]="form().name"
+          (ngModelChange)="patchForm({ name: $event })"
+          placeholder="书源名称（@name）"
+        />
+        <label class="form-label">启用</label>
+        <nz-switch [ngModel]="form().enabled" (ngModelChange)="patchForm({ enabled: $event })"></nz-switch>
+      </div>
+      <div class="form-row">
+        <label class="form-label">作者</label>
+        <input
+          nz-input
+          class="grow"
+          [ngModel]="form().author"
+          (ngModelChange)="patchForm({ author: $event })"
+          placeholder="作者（可空）"
+        />
+        <label class="form-label">标签</label>
+        <nz-select
+          class="grow tags-select"
+          nzMode="tags"
+          nzPlaceHolder="回车或逗号新增标签（可空）"
+          [nzTokenSeparators]="[',', '，']"
+          [ngModel]="form().tags"
+          (ngModelChange)="patchForm({ tags: $event })"
+        ></nz-select>
+      </div>
+      <div class="form-row">
+        <label class="form-label">主页</label>
+        <input
+          nz-input
+          class="grow"
+          [ngModel]="form().homepage"
+          (ngModelChange)="patchForm({ homepage: $event })"
+          placeholder="主站 origin（原 BASE_URL / @url 第一条）"
+        />
+      </div>
+      <div class="form-row form-row--top">
+        <label class="form-label">镜像</label>
+        <textarea
+          nz-input
+          class="grow"
+          rows="2"
+          [ngModel]="form().extraUrls"
+          (ngModelChange)="patchForm({ extraUrls: $event })"
+          placeholder="额外镜像 URL，一行一个（可空）"
+        ></textarea>
+      </div>
+      <div class="form-row form-row--top">
+        <label class="form-label">描述</label>
+        <textarea
+          nz-input
+          class="grow"
+          rows="2"
+          [ngModel]="form().description"
+          (ngModelChange)="patchForm({ description: $event })"
+          placeholder="描述（可空）"
+        ></textarea>
+      </div>
+      <div class="form-row form-row--top">
+        <label class="form-label">请求头</label>
+        <textarea
+          nz-input
+          class="grow mono"
+          rows="3"
+          spellcheck="false"
+          [ngModel]="form().headersText"
+          (ngModelChange)="patchForm({ headersText: $event })"
+          placeholder='自定义请求头 JSON（原 HEADERS 常量），如 {"User-Agent":"..."}'
+        ></textarea>
+      </div>
+    </div>
+  </nz-collapse-panel>
+</nz-collapse>
 
 <!-- 规则编辑 + 测试面板 —— 与智能添加页共用 RulesPanelComponent -->
 <app-rules-panel #panel [baseUrl]="form().homepage" />
