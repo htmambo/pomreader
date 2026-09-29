@@ -141,6 +141,36 @@ export class BookSourceListComponent {
     });
   }
 
+  /** 已转换出同名 .json 的 legacy 文件名集合（legacy 行标签判定用） */
+  private readonly convertedJsonNames = computed(
+    () => new Set(this.state.sources().map((s) => s.fileName)),
+  );
+
+  /**
+   * legacy 行状态标签（§4.3）：
+   * - 同名 .json 已在书源目录 → 「已转换」（尝试转换保存后/启动迁移成功的残留原件）
+   * - scanLegacyDir 重判有 reason → 「无法自动转换」（reason 进 tooltip）
+   * - 否则 → 「可自动转换」（此前误判或规则已修好，引导点「尝试转换」）
+   */
+  legacyTag(item: LegacySourceItem): { text: string; tooltip: string; color?: string } {
+    const jsonFileName = item.fileName.replace(/\.js$/i, '.json');
+    if (this.convertedJsonNames().has(jsonFileName)) {
+      return {
+        text: '已转换',
+        tooltip: `已转换为 booksources/${jsonFileName}；原始 .js 保留在 legacy 目录，可手动删除`,
+        color: 'green',
+      };
+    }
+    if (item.reason) {
+      return { text: '无法自动转换', tooltip: `无法自动转换：${item.reason}` };
+    }
+    return {
+      text: '可自动转换',
+      tooltip: '扫描判定可转换（可能此前误判或规则已修复），点「尝试转换」查看详情并保存',
+      color: 'blue',
+    };
+  }
+
   /** 「查看原始 JS」（§4.3）：读 legacy 文件内容，Modal 只读展示 */
   async viewLegacySource(item: LegacySourceItem): Promise<void> {
     const api = pomApi();

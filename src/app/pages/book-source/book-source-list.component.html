@@ -62,13 +62,11 @@
   <div class="source-card source-card--legacy">
     <div class="source-info">
       <h3>
-        {{ item.fileName }}
-        <nz-tag
-          nz-tooltip
-          nzTooltipPlacement="top"
-          [nzTooltipTitle]="item.reason ? '无法自动转换：' + item.reason : '无法自动转换（可能含自定义 JS）'"
-          >无法自动转换</nz-tag
+        {{ item.fileName }} @if (legacyTag(item); as tag) {
+        <nz-tag nz-tooltip nzTooltipPlacement="top" [nzTooltipTitle]="tag.tooltip" [nzColor]="tag.color"
+          >{{ tag.text }}</nz-tag
         >
+        }
       </h3>
       <p class="meta">未迁移的 JS 书源 · {{ item.enabled ? '原已启用' : '原已禁用' }}</p>
     </div>
