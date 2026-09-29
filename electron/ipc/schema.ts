@@ -114,3 +114,92 @@ export const SetWebviewEncodingArgsSchema = v.tuple([
   v.picklist(['auto', 'utf-8', 'gbk']),
 ]);
 export type SetWebviewEncodingArgs = v.InferOutput<typeof SetWebviewEncodingArgsSchema>;
+
+/* ── booksource-handler.ts schemas（书源 JSON 规则化 P2.4） ───────────── */
+
+/**
+ * 书源文件名：与 `booksource-meta.safeFileName` **同口径**（防路径穿越）
+ *
+ * 这层 schema 是**早失败**：渲染端传错名字时在这里就报出 channel + 字段，
+ * 而不是等 handler 里 `throw new Error('非法 fileName')` 丢上下文。
+ *
+ * 口径必须与运行时 `safeFileName` 逐条对齐（外部评审 R1 抓到过漂移：初版 schema 只挡
+ * `..` 前缀、漏了 `..` 中缀与控制字符，而运行时是 `includes('..')` + 控制字符全挡）。
+ * 后果不是当下的漏洞（handler 仍调 `safeFileName`，两层都在），而是 P3.2 接线后有人
+ * 看到"schema 已经拦了"就把运行时那层删掉，于是两处都松。**`safeFileName` 始终是最终裁决者。**
+ */
+const safeName = (label: string) =>
+  v.pipe(
+    v.string(),
+    v.minLength(1, `${label} must be non-empty`),
+    v.regex(/^[^/\\]*$/, `${label} must not contain path separators`),
+    v.regex(/^(?!.*\.\.)/, `${label} must not contain ..`),
+    // 本条规则**就是**「禁控制字符」：必须显式写出控制符区间才是它要拦的东西
+    //（控制符会破坏日志 / 终端 / 文件名），故 no-control-regex 在此处属误报
+    // eslint-disable-next-line no-control-regex
+    v.regex(/^[^\u0000-\u001F\u007F]*$/, `${label} must not contain control characters`),
+    v.check((s) => s !== '.', `${label} must not be a bare dot`),
+  );
+
+/** sourceDir：可选，必须是绝对路径（与 `resolveDir` 契约一致） */
+const sourceDirArg = v.optional(
+  v.nullish(
+    v.pipe(v.string(), v.regex(/^([A-Za-z]:[\\/]|\/)/, 'sourceDir must be an absolute path')),
+    null,
+  ),
+);
+
+/** pom:booksource-read args: (fileName, sourceDir?) */
+export const BooksourceReadArgsSchema = v.tuple([safeName('fileName'), sourceDirArg]);
+export type BooksourceReadArgs = v.InferOutput<typeof BooksourceReadArgsSchema>;
+
+/** pom:booksource-save args: (fileName, content, sourceDir?) */
+export const BooksourceSaveArgsSchema = v.tuple([safeName('fileName'), v.string(), sourceDirArg]);
+export type BooksourceSaveArgs = v.InferOutput<typeof BooksourceSaveArgsSchema>;
+
+/** pom:booksource-delete args: (fileName, sourceDir?) */
+export const BooksourceDeleteArgsSchema = v.tuple([safeName('fileName'), sourceDirArg]);
+export type BooksourceDeleteArgs = v.InferOutput<typeof BooksourceDeleteArgsSchema>;
+
+/** pom:booksource-toggle args: (fileName, enabled, sourceDir?) */
+export const BooksourceToggleArgsSchema = v.tuple([
+  safeName('fileName'),
+  v.boolean(),
+  sourceDirArg,
+]);
+export type BooksourceToggleArgs = v.InferOutput<typeof BooksourceToggleArgsSchema>;
+
+/**
+ * pom:booksource-convert args: (jsFileName, json, sourceDir?)
+ *
+ * `.js` 后缀是 handler 的硬约束（`convert` 只接受旧 JS 源），在 schema 这层就拦住，
+ * 少一次主进程往返就能给出可定位的错误。
+ */
+export const BooksourceConvertArgsSchema = v.tuple([
+  v.pipe(safeName('jsFileName'), v.regex(/\.js$/i, 'jsFileName must end with .js')),
+  // 内容本身由 handler 解析 + 校验 format（结构化数据交给结构化校验，不在 schema 复述规则）
+  v.string(),
+  sourceDirArg,
+]);
+export type BooksourceConvertArgs = v.InferOutput<typeof BooksourceConvertArgsSchema>;
+
+/**
+ * pom:booksource-archive args: (jsFileName, reason, sourceDir?)
+ *
+ * needs-manual 源的归档通道（只搬 `.js` + marker，不产 JSON）。
+ * `reason` 只作留痕用（列表页 tooltip 展示），故意不参与任何路径计算 ——
+ * 原因文案可能含用户站点名，拿它拼路径是自找的路径穿越面。
+ */
+export const BooksourceArchiveArgsSchema = v.tuple([
+  v.pipe(safeName('jsFileName'), v.regex(/\.js$/i, 'jsFileName must end with .js')),
+  v.string(),
+  sourceDirArg,
+]);
+export type BooksourceArchiveArgs = v.InferOutput<typeof BooksourceArchiveArgsSchema>;
+
+/** pom:booksource-migration-report-write args: (report) —— 零参读取用 strictTuple([]) */
+export const MigrationReportWriteArgsSchema = v.tuple([v.unknown()]);
+export type MigrationReportWriteArgs = v.InferOutput<typeof MigrationReportWriteArgsSchema>;
+
+export const MigrationReportReadArgsSchema = v.strictTuple([]);
+export const BooksourceLegacyListArgsSchema = v.strictTuple([]);

@@ -2,6 +2,7 @@ import { Injectable, NgZone, inject } from '@angular/core';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { type PageFetcher } from './book-source.adapter';
 import { FetchError } from './fetch-error';
+import { type BookSourceMeta } from './source-meta.types';
 
 declare global {
   interface Window {
@@ -34,17 +35,19 @@ declare global {
       }>;
       /** 书源文件读取（T-004 js-source.adapter.ts 用） */
       booksourceRead?: (fileName: string, sourceDir?: string) => Promise<string>;
-      /** 书源列表（T-004 registry 用） */
-      booksourceList?: () => Promise<
-        Array<{
-          fileName: string;
-          name: string;
-          url: string;
-          enabled: boolean;
-          sourceDir?: string;
-          [key: string]: unknown;
-        }>
-      >;
+      /**
+       * 全量书源元数据（`.js` + `.json`；`format: 'json'` 用于分派，T-004 registry 用）
+       *
+       * 返回类型是 `BookSourceMeta` 而非 `unknown[]`：这里类型对了，调用方
+       * （`BookSourceRegistry.loadAllRuleAdapters`）就不必再 `as unknown as` 绕一圈。
+       */
+      booksourceList?: () => Promise<BookSourceMeta[]>;
+      /** 归档目录（`booksources_legacy/`）里的旧 `.js` 清单 —— needs-manual 源常驻展示 */
+      booksourceLegacyList?: () => Promise<BookSourceMeta[]>;
+      booksourceToggle?: (fileName: string, enabled: boolean, sourceDir?: string) => Promise<void>;
+      booksourceDelete?: (fileName: string, sourceDir?: string) => Promise<void>;
+      /** 整份写回（编辑器保存：主进程只做原子写，schema 校验在渲染端，见 D8） */
+      booksourceSave?: (fileName: string, content: string, sourceDir?: string) => Promise<void>;
       /** 封面缓存 IPC（T-008 CoverService 用） */
       coverResolveCache?: (req: {
         url: string;
@@ -56,6 +59,17 @@ declare global {
       }>;
       coverCacheSize?: () => Promise<number>;
       coverCacheClear?: () => Promise<number>;
+      /** 书源 `.js` → `.json` 转换落盘（P3.1 迁移用；主进程只做 IO，规则解析在渲染端） */
+      booksourceConvert?: (jsFileName: string, json: string, sourceDir?: string) => Promise<string>;
+      /** needs-manual 源归档：把 `.js` + 启停 marker 移进 `booksources_legacy/` */
+      booksourceArchive?: (
+        jsFileName: string,
+        reason: string,
+        sourceDir?: string,
+      ) => Promise<string>;
+      /** 迁移报告：读一次即删；无报告返回 null */
+      booksourceMigrationReportRead?: () => Promise<unknown>;
+      booksourceMigrationReportWrite?: (report: unknown) => Promise<void>;
       /** 设置 webview 编码（universal-search.component.ts:364 用） */
       setWebviewEncoding?: (webContentsId: string, mode: 'auto' | 'utf-8' | 'gbk') => Promise<void>;
     };

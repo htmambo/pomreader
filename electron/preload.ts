@@ -64,10 +64,6 @@ contextBridge.exposeInMainWorld('pomAPI', {
     cfChallenge?: boolean;
   }> => ipcRenderer.invoke('pom:booksource-http-proxy', req),
 
-  /** 书源 eval（健康检测 / 调试）；主进程仅返回文件路径，函数名解析由 Renderer Worker 负责 */
-  booksourceEval: (fileName: string, code?: string): Promise<string> =>
-    ipcRenderer.invoke('pom:booksource-eval', fileName, code ?? ''),
-
   // ── 封面缓存 ──────────────────────────────────────────────────────────
   coverResolveCache: (req: {
     url: string;
@@ -102,32 +98,30 @@ contextBridge.exposeInMainWorld('pomAPI', {
   booksourceSaveDraft: (fileName: string, content: string): Promise<void> =>
     ipcRenderer.invoke('pom:booksource-save-draft', fileName, content),
 
-  // ── 健康检测（主进程 stub：返回文件路径 + 元数据，详细检测由 Renderer 沙箱执行） ──
-  sourceHealthCheck: async (
-    fileName: string,
-  ): Promise<{
-    fileName: string;
-    capabilities: string[];
-    testedAt: number;
-    filePath?: string;
-  }> => {
-    // 主进程仅提供文件存在性校验；实际能力列表走 booksourceEval → Renderer 沙箱
-    try {
-      const filePath = await ipcRenderer.invoke('pom:booksource-eval', fileName, '');
-      return {
-        fileName,
-        capabilities: [],
-        testedAt: Date.now(),
-        filePath: String(filePath),
-      };
-    } catch {
-      return {
-        fileName,
-        capabilities: [],
-        testedAt: Date.now(),
-      };
-    }
-  },
+  /**
+   * 旧 `.js` 书源 → 新 `.json`（主进程只做落盘：原子写 + 移走源文件 + 拒绝覆盖）
+   * 规则解析在渲染端完成（主进程不能 import `src/`，见方案 D4/D8）
+   * @returns 落盘后的 `.json` 文件名
+   */
+  booksourceConvert: (jsFileName: string, json: string, sourceDir?: string): Promise<string> =>
+    ipcRenderer.invoke('pom:booksource-convert', jsFileName, json, sourceDir ?? null),
+
+  /**
+   * needs-manual 源：把 `.js`（连同启停 marker）移进 `booksources_legacy/`，不产 JSON
+   * @param reason 留痕用（列表页 tooltip 展示），主进程不拿它拼任何路径
+   */
+  booksourceArchive: (jsFileName: string, reason: string, sourceDir?: string): Promise<string> =>
+    ipcRenderer.invoke('pom:booksource-archive', jsFileName, reason, sourceDir ?? null),
+
+  /** 迁移报告：读一次即删；无报告返回 null */
+  booksourceMigrationReportRead: (): Promise<unknown> =>
+    ipcRenderer.invoke('pom:booksource-migration-report-read'),
+
+  booksourceMigrationReportWrite: (report: unknown): Promise<void> =>
+    ipcRenderer.invoke('pom:booksource-migration-report-write', report),
+
+  /** 归档目录里的旧 `.js` 书源清单（只读展示，不参与匹配） */
+  booksourceLegacyList: (): Promise<unknown[]> => ipcRenderer.invoke('pom:booksource-legacy-list'),
 
   // ── 自动导入监控（万能搜索 webview .txt/压缩包 → 自动入书架） ────────
   /** 主进程检测到可导入文件并完成解码/解压后推送；返回取消订阅函数 */

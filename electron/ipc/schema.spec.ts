@@ -9,6 +9,14 @@ import {
   GetFetchUaArgsSchema,
   SetFetchUaArgsSchema,
   SetWebviewEncodingArgsSchema,
+  BooksourceReadArgsSchema,
+  BooksourceSaveArgsSchema,
+  BooksourceToggleArgsSchema,
+  BooksourceDeleteArgsSchema,
+  BooksourceConvertArgsSchema,
+  MigrationReportReadArgsSchema,
+  MigrationReportWriteArgsSchema,
+  BooksourceLegacyListArgsSchema,
 } from './schema';
 
 /**
@@ -215,5 +223,78 @@ describe('SetWebviewEncodingArgsSchema', () => {
     expect(v.safeParse(SetWebviewEncodingArgsSchema, ['session_123-abc', 'auto']).success).toBe(
       true,
     );
+  });
+});
+
+describe('书源 channel schemas（P2.4）', () => {
+  it('read/toggle/delete/save：合法文件名放行', () => {
+    expect(v.safeParse(BooksourceReadArgsSchema, ['a.json']).success).toBe(true);
+    expect(v.safeParse(BooksourceReadArgsSchema, ['a.json', null]).success).toBe(true);
+    expect(v.safeParse(BooksourceReadArgsSchema, ['a.js', undefined]).success).toBe(true);
+    expect(v.safeParse(BooksourceToggleArgsSchema, ['a.json', false]).success).toBe(true);
+    expect(v.safeParse(BooksourceToggleArgsSchema, ['a.js', true, null]).success).toBe(true);
+    expect(v.safeParse(BooksourceDeleteArgsSchema, ['a.json']).success).toBe(true);
+    expect(v.safeParse(BooksourceSaveArgsSchema, ['a.json', '{}']).success).toBe(true);
+  });
+
+  it('路径穿越形态一律拒绝（与 safeFileName 双层防护，前置早失败）', () => {
+    expect(v.safeParse(BooksourceReadArgsSchema, ['../evil.json']).success).toBe(false);
+    expect(v.safeParse(BooksourceReadArgsSchema, ['a/b.json']).success).toBe(false);
+    expect(v.safeParse(BooksourceReadArgsSchema, ['a\\b.json']).success).toBe(false);
+    expect(v.safeParse(BooksourceReadArgsSchema, ['']).success).toBe(false);
+  });
+
+  it('`..` 中缀也拒绝（外部评审 R1：初版只挡前缀，与运行时 includes 口径不一致）', () => {
+    expect(v.safeParse(BooksourceReadArgsSchema, ['a..b.json']).success).toBe(false);
+    expect(v.safeParse(BooksourceReadArgsSchema, ['x..']).success).toBe(false);
+  });
+
+  it('控制字符一律拒绝（与 safeFileName 同口径）', () => {
+    expect(v.safeParse(BooksourceReadArgsSchema, ['a\nb.json']).success).toBe(false);
+    expect(v.safeParse(BooksourceReadArgsSchema, ['a\u0000b.json']).success).toBe(false);
+    expect(v.safeParse(BooksourceReadArgsSchema, ['a.json']).success).toBe(false);
+  });
+
+  it('裸 `.` 拒绝（path.join(dir, ".") === dir，delete 会去删目录本身）', () => {
+    expect(v.safeParse(BooksourceReadArgsSchema, ['.']).success).toBe(false);
+    expect(v.safeParse(BooksourceDeleteArgsSchema, ['.']).success).toBe(false);
+  });
+
+  it('sourceDir 必须是绝对路径（相对路径在 handler 会被拒，这里提前拦）', () => {
+    expect(v.safeParse(BooksourceReadArgsSchema, ['a.json', './relative']).success).toBe(false);
+    expect(v.safeParse(BooksourceReadArgsSchema, ['a.json', '/abs/dir']).success).toBe(true);
+    expect(v.safeParse(BooksourceReadArgsSchema, ['a.json', 'C:\\abs']).success).toBe(true);
+  });
+
+  it('toggle 的 enabled 必须是真布尔（不接 truthy 字符串）', () => {
+    expect(v.safeParse(BooksourceToggleArgsSchema, ['a.json', 'true']).success).toBe(false);
+    expect(v.safeParse(BooksourceToggleArgsSchema, ['a.json', 1]).success).toBe(false);
+  });
+
+  it('convert：必须是 .js 源文件', () => {
+    expect(v.safeParse(BooksourceConvertArgsSchema, ['old.js', '{}']).success).toBe(true);
+    expect(v.safeParse(BooksourceConvertArgsSchema, ['old.JS', '{}']).success).toBe(true);
+    expect(v.safeParse(BooksourceConvertArgsSchema, ['old.json', '{}']).success).toBe(false);
+    expect(v.safeParse(BooksourceConvertArgsSchema, ['old', '{}']).success).toBe(false);
+  });
+
+  it('convert：内容是任意字符串（结构校验交给 handler，不在 schema 复述）', () => {
+    expect(v.safeParse(BooksourceConvertArgsSchema, ['old.js', '']).success).toBe(true);
+    expect(v.safeParse(BooksourceConvertArgsSchema, ['old.js', 'not json at all']).success).toBe(
+      true,
+    );
+  });
+
+  it('零参 channel 用 strictTuple：恰好零参才通过', () => {
+    expect(v.safeParse(MigrationReportReadArgsSchema, []).success).toBe(true);
+    expect(v.safeParse(MigrationReportReadArgsSchema, ['多余']).success).toBe(false);
+    expect(v.safeParse(BooksourceLegacyListArgsSchema, []).success).toBe(true);
+    expect(v.safeParse(BooksourceLegacyListArgsSchema, [1]).success).toBe(false);
+  });
+
+  it('migration-report-write：report 是 unknown（任意结构，null 也放行）', () => {
+    expect(v.safeParse(MigrationReportWriteArgsSchema, [{ migrated: 1 }]).success).toBe(true);
+    expect(v.safeParse(MigrationReportWriteArgsSchema, [null]).success).toBe(true);
+    expect(v.safeParse(MigrationReportWriteArgsSchema, ['str']).success).toBe(true);
   });
 });
