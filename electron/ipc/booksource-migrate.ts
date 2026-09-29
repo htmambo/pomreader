@@ -294,6 +294,32 @@ function extractRulesFromJs(source: string): SourceRulesDoc | null {
   return rules;
 }
 
+/** 必填字段 ← 来源对照（诊断文案用；与 extractRulesFromJs 的抽取口径一致，改动需同步） */
+const REQUIRED_FIELD_SOURCES: Array<[(typeof REQUIRED_FIELDS)[number], string, string]> = [
+  ['siteName', '// @name 头注释', ''],
+  ['searchPath', 'SEARCH_PATH 常量', 'SEARCH_PATH'],
+  ['searchItemPattern', 'SEARCH_ITEM_RULE 常量', 'SEARCH_ITEM_RULE'],
+  ['bookTitlePattern', 'BOOK_TITLE_RULE 常量', 'BOOK_TITLE_RULE'],
+  ['bookAuthorPattern', 'BOOK_AUTHOR_RULE 常量', 'BOOK_AUTHOR_RULE'],
+  ['chapterItemPattern', 'CHAPTER_ITEM_RULE 常量', 'CHAPTER_ITEM_RULE'],
+  ['contentPattern', 'CONTENT_RULE 常量', 'CONTENT_RULE'],
+];
+
+/**
+ * 诊断缺失/为空的必填规则清单（extractRulesFromJs 返回 null 时调用，逐项复跑同款抽取）。
+ * 纯诊断辅助，不改变抽取语义（故不在 rule-parse.ts 双向同步范围内）。
+ */
+function diagnoseMissingRules(source: string): string[] {
+  const missing: string[] = [];
+  for (const [field, label, constName] of REQUIRED_FIELD_SOURCES) {
+    const value = constName
+      ? extractString(source, constName)
+      : (/^\s*\/\/\s*@name\s+(.+?)\s*$/m.exec(source)?.[1] ?? '');
+    if (!value) missing.push(`${field}（${label}）`);
+  }
+  return missing;
+}
+
 /**
  * 抽 `const HEADERS = {...}`（F7）。缺失 / JSON.parse 失败 / 非对象 → {}：
  * header 是增强项，写坏不应让整个迁移失败
@@ -584,9 +610,10 @@ function classifyContent(
   }
   const rules = extractRulesFromJs(content);
   if (!rules) {
+    const missing = diagnoseMissingRules(content);
     return {
       kind: 'needs-manual',
-      reason: '必填规则缺失或为空（siteName/searchPath/条目/详情/目录/正文）',
+      reason: `必填规则缺失或为空: ${missing.join('、')}`,
     };
   }
   if (strArr(meta.urls).length === 0) {

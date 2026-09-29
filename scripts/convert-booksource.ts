@@ -188,7 +188,7 @@ async function main(): Promise<void> {
     try {
       content = fs.readFileSync(jsPath, 'utf-8');
     } catch (e) {
-      console.error(`✗ ${fileName}  读取失败: ${(e as Error).message}`);
+      console.error(`✗ ${fileName}（${jsPath}）读取失败: ${(e as Error).message}`);
       needsManual++;
       hasFailure = true;
       continue;
@@ -199,7 +199,11 @@ async function main(): Promise<void> {
     console.log(`\n═══ ${fileName} → ${conv.jsonFileName} ═══`);
 
     if (conv.outcome === 'needs-manual') {
-      console.log(`✗ 需人工转换: ${conv.reason}`);
+      console.log(`✗ 需人工转换（${jsPath}）: ${conv.reason}`);
+      console.log('  建议: 按上述原因补全头注释/规则常量后重跑本脚本；');
+      console.log(
+        '  或在应用「书源管理」打开该 .js 人工转换（编辑器按 JSON 模式打开，保存落盘同名 .json）',
+      );
       needsManual++;
       hasFailure = true;
       continue;
