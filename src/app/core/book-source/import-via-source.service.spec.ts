@@ -10,7 +10,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { BookSourceAdapter, PageFetcher, ResolvedBook } from './book-source.adapter';
 import { BookSourceRegistry } from './book-source.registry';
 import { JsSourceAdapter } from './js-source/js-source.adapter';
-import { BookSourceMeta } from './js-source/source-meta.types';
+import { BookSourceMeta } from './source-meta.types';
 import { ImportViaSourceService } from './import-via-source.service';
 import { UNIVERSAL_BOOK_SOURCE_UUID } from './book-source.constants';
 

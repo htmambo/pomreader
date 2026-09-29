@@ -11,7 +11,12 @@ import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { ToastService } from '../../core/services/toast.service';
 import { SandboxService, type SandboxFn } from '../../core/book-source/js-source/sandbox.service';
-import { type BookSourceMeta } from '../../core/book-source/js-source/source-meta.types';
+import {
+  RuleEngineService,
+  type RuleEntry,
+} from '../../core/book-source/json-rule/rule-engine.service';
+import { isJsonSourceMeta, type BookSourceMeta } from '../../core/book-source/source-meta.types';
+import type { BookSourceDoc } from '../../core/models/book-source-doc.model';
 import {
   pickBookUrl,
   pickChapterUrl,
@@ -156,8 +161,55 @@ interface RawItem {
         background: #1f1f1f;
         border-color: #444;
       }
-      :host-context(.dark) ::ng-deep .sandbox-progress summary {
+      :host-context([data-pom-theme='6']) ::ng-deep .sandbox-progress summary {
         color: #aaa;
+      }
+      /* RuleTrace 轨迹表：状态码是排障第一眼，错误行整行标红 */
+      .trace-table {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .trace-row {
+        padding: 8px 10px;
+        border: 1px solid var(--pom-border);
+        border-radius: 4px;
+        background: var(--pom-card);
+      }
+      .trace-row--err {
+        border-color: #ff4d4f;
+      }
+      .trace-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .trace-source {
+        color: var(--pom-text);
+        font-size: 12px;
+      }
+      .trace-error {
+        margin-top: 4px;
+        color: #ff4d4f;
+        font-size: 12px;
+        word-break: break-all;
+      }
+      .trace-requests {
+        margin: 6px 0 0;
+        padding-left: 18px;
+        font-size: 12px;
+      }
+      .trace-requests li {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .trace-url {
+        color: var(--pom-text);
+        word-break: break-all;
       }
       .preview-list {
         max-height: 56vh;
@@ -228,11 +280,23 @@ export class BookSourceDebugComponent {
   }
 
   private readonly sandbox = inject(SandboxService);
-  /** 沙箱进度日志 signal(直接显示在 UI,不再依赖 console) */
-  readonly sandboxProgress = this.sandbox.progress;
-  readonly sandboxProgressText = computed(() => this.sandboxProgress().join('\n'));
+  private readonly ruleEngine = inject(RuleEngineService);
   private readonly toast = inject(ToastService);
   private readonly route = inject(ActivatedRoute);
+
+  /**
+   * 调试图：规则源看 RuleTrace，旧 JS 源看沙箱进度
+   *
+   * 两者的"过程信息"不是一回事：沙箱的 `progress` 是用户代码自己 `log()` 出来的自由文本，
+   * RuleTrace 是引擎**每次 HTTP 往返**的结构化记录（URL / 状态码 / 耗时 / 条数）。
+   * 规则源下前者恒为空（模板不 log），后者才是排障真正要看的"这次请求打到哪、返回了什么"。
+   */
+  readonly traces = this.ruleEngine.traces;
+  readonly sandboxProgress = this.sandbox.progress;
+  readonly isRuleSource = computed(() => {
+    const meta = this.selectedMeta;
+    return meta !== null && isJsonSourceMeta(meta);
+  });
 
   constructor() {
     void this.load();
@@ -266,19 +330,58 @@ export class BookSourceDebugComponent {
     this.resetResult();
   }
 
-  /** 每次调用前确保书源已加载进沙箱 */
-  private async ensureLoaded(): Promise<void> {
+  /**
+   * 每次调用前解析出「这个源的执行面」
+   *
+   * 规则源：读 JSON 文件 + valibot 校验 → 文档（每次重读，保住"改完立即生效"）
+   * JS 源：读 `.js` 原文 → 编译进沙箱
+   *
+   * 为什么每次调用都重来而不是缓存：调试页的使用姿势就是"改规则 → 立刻重跑"，
+   * 缓存会让用户看到上一轮的规则在起作用，排障方向直接被带偏。
+   */
+  private async resolveTarget(): Promise<{ call: <T>(fn: string, args: unknown[]) => Promise<T> }> {
     const meta = this.selectedMeta;
     if (!meta) throw new Error('请先选择书源');
+    if (isJsonSourceMeta(meta)) {
+      const doc: BookSourceDoc = await this.ruleEngine.readDoc(meta.fileName, meta.sourceDir);
+      return {
+        call: <T>(fn: string, args: unknown[]): Promise<T> => this.callRuleEngine<T>(fn, doc, args),
+      };
+    }
     const api = (window as unknown as { pomAPI?: PomAdmin }).pomAPI;
     if (!api?.booksourceRead) throw new Error('booksourceRead IPC 不可用');
     const source = await api.booksourceRead(meta.fileName, meta.sourceDir || null);
     await this.sandbox.load(meta.fileName, source);
+    return {
+      call: <T>(fn: string, args: unknown[]): Promise<T> =>
+        this.sandbox.call<T>(meta.fileName, fn as SandboxFn, args),
+    };
+  }
+
+  /** 规则引擎的四入口（`explore` 无对应概念，由 `RuleEntry` 类型挡住） */
+  private callRuleEngine<T>(fn: string, doc: BookSourceDoc, args: unknown[]): Promise<T> {
+    const entry = fn as RuleEntry;
+    switch (entry) {
+      case 'search':
+        return this.ruleEngine.search(
+          doc,
+          String(args[0] ?? ''),
+          Number(args[1] ?? 1),
+        ) as Promise<T>;
+      case 'bookInfo':
+        return this.ruleEngine.bookInfo(doc, String(args[0] ?? '')) as Promise<T>;
+      case 'chapterList':
+        return this.ruleEngine.chapterList(doc, String(args[0] ?? '')) as Promise<T>;
+      case 'chapterContent':
+        return this.ruleEngine.chapterContent(doc, String(args[0] ?? '')) as Promise<T>;
+      default:
+        return Promise.reject(new Error(`规则引擎不支持入口 ${fn}`));
+    }
   }
 
   /** 通用执行：装载 → 调用 → 写状态/预览数据/原始 JSON */
   private async exec<T>(
-    fn: SandboxFn,
+    fn: string,
     args: unknown[],
     m: DebugMode,
     okText: (v: T) => string,
@@ -287,12 +390,14 @@ export class BookSourceDebugComponent {
     this.loading.set(true);
     this.resetResult();
     this.sandbox.clearProgress();
+    // 规则源清 RuleTrace：上一轮的请求留在表里会让人误以为是本轮打的
+    this.ruleEngine.clearTraces();
     this.sandboxProgress.update(() =>
       [`▶ 开始执行 ${fn}(...)`, ...this.sandboxProgress()].slice(0, 100),
     );
     try {
-      await this.ensureLoaded();
-      const raw = await this.sandbox.call<T>(this.selectedFileName, fn, args);
+      const target = await this.resolveTarget();
+      const raw = await target.call<T>(fn, args);
       apply(raw);
       this.rawJson.set(JSON.stringify(raw, null, 2));
       this.statusOk.set(true);

@@ -9,7 +9,7 @@ import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzInputNumberModule } from 'ng-zorro-antd/input-number';
 import { ToastService } from '../../core/services/toast.service';
-import { type BookSourceMeta } from '../../core/book-source/js-source/source-meta.types';
+import { type BookSourceMeta } from '../../core/book-source/source-meta.types';
 import {
   SourceTestService,
   DEFAULT_TEST_KEYWORD,

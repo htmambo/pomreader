@@ -1,5 +1,5 @@
 import { Injectable, signal } from '@angular/core';
-import { type BookSourceMeta } from './js-source/source-meta.types';
+import { type BookSourceMeta } from './source-meta.types';
 
 /**
  * 书源管理列表页会话级状态（root service，路由切换不销毁）
@@ -15,6 +15,8 @@ type PomAdmin = {
   booksourceList?: () => Promise<BookSourceMeta[]>;
   booksourceToggle?: (fileName: string, enabled: boolean, sourceDir?: string) => Promise<void>;
   booksourceDelete?: (fileName: string, sourceDir?: string) => Promise<void>;
+  /** 归档目录（`booksources_legacy/`）里的旧 `.js` 清单 —— needs-manual 源常驻展示用 */
+  booksourceLegacyList?: () => Promise<BookSourceMeta[]>;
 };
 
 function pomApi(): PomAdmin | null {
@@ -28,6 +30,14 @@ export class BookSourceListStateService {
   readonly filter = signal('');
   /** 书源列表 */
   readonly sources = signal<BookSourceMeta[]>([]);
+  /**
+   * 归档目录里的旧 `.js`（needs-manual 源）
+   *
+   * **常驻**而非一次性弹窗：needs-manual 意味着"这个源现在用不了"，用户可能过几天
+   * 才想起来处理，弹窗一关就再也找不到了（方案 §4.3）。归档目录只读，条目不可启停
+   * （它们不在 `booksources/` 里，启停对它们没有意义），只提供"查看原始 JS"与删除。
+   */
+  readonly legacySources = signal<BookSourceMeta[]>([]);
   /** 是否已至少成功加载过一次 */
   readonly loaded = signal(false);
   /** 当前是否在后台刷新（缓存已展示，不阻塞 UI） */
@@ -49,8 +59,23 @@ export class BookSourceListStateService {
       const list = await api.booksourceList();
       this.sources.set(Array.isArray(list) ? list : []);
       this.loaded.set(true);
+      // 归档清单与主列表**同时**拉，但失败不影响主列表 —— 主列表挂了才是真问题，
+      // 归档目录读不到只是少显示一个区块
+      void this.loadLegacy();
     } finally {
       this.refreshing.set(false);
+    }
+  }
+
+  /** 拉取归档目录里的旧 `.js`；通道不存在（老 preload）或读失败一律静默 */
+  private async loadLegacy(): Promise<void> {
+    const api = pomApi();
+    if (!api?.booksourceLegacyList) return;
+    try {
+      const list = await api.booksourceLegacyList();
+      this.legacySources.set(Array.isArray(list) ? list : []);
+    } catch (e) {
+      console.warn('[booksource-list] 读归档目录失败（不影响主列表）:', e);
     }
   }
 

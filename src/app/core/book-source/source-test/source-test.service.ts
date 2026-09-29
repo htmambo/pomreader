@@ -1,6 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { SandboxService, type SandboxFn } from '../js-source/sandbox.service';
-import { type BookSourceMeta } from '../js-source/source-meta.types';
+import { RuleEngineService } from '../json-rule/rule-engine.service';
+import { isJsonSourceMeta, type BookSourceMeta } from '../source-meta.types';
+import type { BookSourceDoc } from '../../models/book-source-doc.model';
 
 /** 单个测试步骤的结果 */
 export interface TestStepResult {
@@ -96,15 +98,104 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
 }
 
 /**
- * 书源测试引擎（对应 legado TestSourcesTab 调用的 booksource_run_tests —— 原项目 Rust 侧为 stub，
- * 此处为 pomreader 的 TypeScript 实现，直接走渲染端 SandboxService）
+ * 一次测试的**执行面**（search / bookInfo / … 怎么调）
  *
- * 步骤链：search → bookInfo → chapterList → chapterContent（→ explore，书源定义了才跑）
+ * ## 为什么要抽这一层
+ *
+ * P3 起同一个测试页要面对两种源：JSON 规则源（`RuleEngineService`）与旧 `.js` 源
+ * （`SandboxService`）。若把两套调用直接塞进 `runTest`，每一步都要写一遍
+ * `if (是 JSON 源) … else …` —— 四步就是八处分支，且**步骤顺序、校验口径、
+ * 超时/记账逻辑会被复制两份**，改一处忘另一处就会出现"规则源和 JS 源测试结论不一致"。
+ * 故把"步骤链"与"怎么调"分开：步骤链只有一份，两个实现各 10 行。
+ */
+interface TestExecutor {
+  /** 源是否实现了某个入口（JSON 规则源恒为 true —— 四入口是引擎的固定 API） */
+  has(fn: string): boolean;
+  /**
+   * 返回 `unknown` 而**不是** `call<T>(): Promise<T>`（外部评审 R1）
+   *
+   * 泛型版本把断言推给调用方：`call<BookInfo>('search', …)` 编译通过、运行炸。
+   * 这里不给任何类型出口 —— 调用方只能在 `validate` 里用 `Array.isArray` / `typeof`
+   * 真正收窄（收窄失败就记成该步失败，正是想要的）。两个实现因此都**不含**类型断言。
+   */
+  call(fn: string, args: unknown[]): Promise<unknown>;
+}
+
+/**
+ * 搜索页码归一
+ *
+ * `Number(x ?? 1)` 在 `x === ''` 时得到 **0**（空串不是 nullish，逃得过 `??`），
+ * 页码 0 会被拼成 `/s.php?page=0` 拿到空结果 —— 症状是"源能用但搜不出来"。
+ * 今天两个调用点都传字面量 `1`，故这是防御性收口，不是现存缺陷。
+ */
+function toPage(raw: unknown): number {
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1;
+}
+
+/** 旧 `.js` 源：走沙箱 */
+class SandboxExecutor implements TestExecutor {
+  constructor(
+    private readonly sandbox: SandboxService,
+    private readonly fileName: string,
+    private readonly fns: string[],
+  ) {}
+  static async create(
+    sandbox: SandboxService,
+    meta: BookSourceMeta,
+    read: NonNullable<PomRead['booksourceRead']>,
+  ): Promise<SandboxExecutor> {
+    const source = await read(meta.fileName, meta.sourceDir || null);
+    const mod = await sandbox.load(meta.fileName, source);
+    return new SandboxExecutor(sandbox, meta.fileName, mod.fns);
+  }
+  has(fn: string): boolean {
+    return this.fns.includes(fn as SandboxFn);
+  }
+  async call(fn: string, args: unknown[]): Promise<unknown> {
+    return await this.sandbox.call(this.fileName, fn as SandboxFn, args);
+  }
+}
+
+/** JSON 规则源：走规则引擎（四入口固定存在，explore 无对应概念） */
+class RuleExecutor implements TestExecutor {
+  constructor(
+    private readonly engine: RuleEngineService,
+    private readonly doc: BookSourceDoc,
+  ) {}
+  has(fn: string): boolean {
+    return fn === 'search' || fn === 'bookInfo' || fn === 'chapterList' || fn === 'chapterContent';
+  }
+  async call(fn: string, args: unknown[]): Promise<unknown> {
+    switch (fn) {
+      case 'search':
+        return await this.engine.search(this.doc, String(args[0] ?? ''), toPage(args[1]));
+      case 'bookInfo':
+        return await this.engine.bookInfo(this.doc, String(args[0] ?? ''));
+      case 'chapterList':
+        return await this.engine.chapterList(this.doc, String(args[0] ?? ''));
+      case 'chapterContent':
+        return await this.engine.chapterContent(this.doc, String(args[0] ?? ''));
+      default:
+        // 契约上不该走到（`has` 已挡）；抛而不是静默返回 undefined
+        throw new Error(`规则引擎不支持入口 ${fn}`);
+    }
+  }
+}
+
+/**
+ * 书源测试引擎（对应 legado TestSourcesTab 调用的 booksource_run_tests —— 原项目 Rust 侧为 stub，
+ * 此处为 pomreader 的 TypeScript 实现）
+ *
+ * 步骤链：search → bookInfo → chapterList → chapterContent（→ explore，旧 JS 源定义了才跑）
  * 任一失败则后续步骤跳过（无输入可跑），最终 allPassed = 全部步骤通过
+ *
+ * 两种源走同一套步骤链（见 `TestExecutor`），差别只在执行面。
  */
 @Injectable({ providedIn: 'root' })
 export class SourceTestService {
   private readonly sandbox = inject(SandboxService);
+  private readonly ruleEngine = inject(RuleEngineService);
 
   async runTest(
     meta: BookSourceMeta,
@@ -153,7 +244,7 @@ export class SourceTestService {
       }
     };
 
-    // ── 加载模块到沙箱 ─────────────────────────────────────────────
+    // ── 装配执行面（JSON 规则源 vs 旧 JS 源）──────────────────────
     const read = pomRead()?.booksourceRead;
     if (!read) {
       steps.push({
@@ -164,23 +255,28 @@ export class SourceTestService {
       });
       return { fileName: meta.fileName, steps, allPassed: false };
     }
-    let fns: string[] = [];
+    let exec: TestExecutor;
     try {
-      const source = await read(meta.fileName, meta.sourceDir || null);
-      const mod = await this.sandbox.load(meta.fileName, source);
-      fns = mod.fns;
+      exec = isJsonSourceMeta(meta)
+        ? new RuleExecutor(
+            this.ruleEngine,
+            await this.ruleEngine.readDoc(meta.fileName, meta.sourceDir),
+          )
+        : await SandboxExecutor.create(this.sandbox, meta, read);
     } catch (e) {
+      // 读文档 / 编译失败都归到 load 步：用户看到的第一行就是"为什么这个源测不了"
       steps.push({ step: 'load', passed: false, message: (e as Error).message, durationMs: 0 });
       return { fileName: meta.fileName, steps, allPassed: false };
     }
-    const has = (fn: SandboxFn) => fns.includes(fn);
+    const has = (fn: string) => exec.has(fn);
+    const call = (fn: string, args: unknown[]): Promise<unknown> => exec.call(fn, args);
 
     // ── search ────────────────────────────────────────────────────
     let bookUrl = '';
     if (has('search')) {
       const items = await run(
         STEP_SEARCH,
-        () => this.sandbox.call<unknown[]>(meta.fileName, 'search', [keyword, 1]),
+        () => call('search', [keyword, 1]),
         (v) =>
           !Array.isArray(v)
             ? '返回值非数组'
@@ -189,9 +285,10 @@ export class SourceTestService {
               : !pickBookUrl(v)
                 ? '结果项缺 url/bookUrl'
                 : null,
-        (v) => `命中 ${(v as unknown[]).length} 条`,
+        // 不再盲转：okMessage 自己也收窄（validate 已确保是数组，这里只是不再依赖它）
+        (v) => `命中 ${Array.isArray(v) ? v.length : 0} 条`,
       );
-      if (items) bookUrl = pickBookUrl(items);
+      if (Array.isArray(items)) bookUrl = pickBookUrl(items);
     } else {
       steps.push({
         step: STEP_SEARCH,
@@ -206,7 +303,7 @@ export class SourceTestService {
     if (bookUrl && has('bookInfo')) {
       const info = await run(
         STEP_BOOK_INFO,
-        () => this.sandbox.call<unknown>(meta.fileName, 'bookInfo', [bookUrl]),
+        () => call('bookInfo', [bookUrl]),
         (v) => {
           if (!v || typeof v !== 'object') return '返回值非对象';
           const r = v as Record<string, unknown>;
@@ -229,14 +326,14 @@ export class SourceTestService {
 
     // ── chapterList（bookInfo 未给出章节时回退 toc/chapterList 函数） ──
     if (bookUrl && chapters.length === 0 && (has('chapterList') || has('toc'))) {
-      const fn: SandboxFn = has('chapterList') ? 'chapterList' : 'toc';
+      const fn = has('chapterList') ? 'chapterList' : 'toc';
       const list = await run(
         STEP_CHAPTER_LIST,
-        () => this.sandbox.call<unknown[]>(meta.fileName, fn, [bookUrl]),
+        () => call(fn, [bookUrl]),
         (v) => (!Array.isArray(v) ? '返回值非数组' : v.length === 0 ? '目录为空' : null),
-        (v) => `共 ${(v as unknown[]).length} 章`,
+        (v) => `共 ${Array.isArray(v) ? v.length : 0} 章`,
       );
-      if (list) chapters = list;
+      if (Array.isArray(list)) chapters = list;
     } else if (chapters.length > 0) {
       // bookInfo 已含章节：chapterList 步骤标记通过（复用 bookInfo 结果）
       steps.push({
@@ -249,7 +346,7 @@ export class SourceTestService {
 
     // ── chapterContent ────────────────────────────────────────────
     const chapterUrl = pickChapterUrl(chapters);
-    const contentFn: SandboxFn | null = has('chapterContent')
+    const contentFn: string | null = has('chapterContent')
       ? 'chapterContent'
       : has('content')
         ? 'content'
@@ -257,7 +354,7 @@ export class SourceTestService {
     if (chapterUrl && contentFn) {
       await run(
         STEP_CHAPTER_CONTENT,
-        () => this.sandbox.call<string>(meta.fileName, contentFn, [chapterUrl]),
+        () => call(contentFn, [chapterUrl]),
         (v) =>
           typeof v !== 'string' ? '返回值非字符串' : v.trim().length === 0 ? '正文为空' : null,
         (v) => `正文 ${(v as string).length} 字符`,
@@ -282,7 +379,7 @@ export class SourceTestService {
     if (has('explore')) {
       await run(
         STEP_EXPLORE,
-        () => this.sandbox.call<unknown>(meta.fileName, 'explore', ['', 1]),
+        () => call('explore', ['', 1]),
         (v) => (v == null ? '返回 null' : null),
         () => 'explore 可调用',
       );

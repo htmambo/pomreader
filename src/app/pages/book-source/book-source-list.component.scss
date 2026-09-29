@@ -66,3 +66,32 @@
 .state-block p {
   margin-top: 12px;
 }
+
+/* 规则损坏的源：左侧红条 + 淡红底。不用整卡变灰 —— 灰会和「已禁用」混淆，
+   而两者的处置完全不同（禁用是用户主动的，损坏要用户去修） */
+.source-card.invalid {
+  border-left: 3px solid #ff4d4f;
+  background: rgba(255, 77, 79, 0.06);
+}
+
+/* needs-manual 归档区：整块标灰，视觉上明确「不在生效集合里」 */
+.legacy-block {
+  margin-top: 24px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--pom-border);
+}
+.legacy-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.legacy-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  border: 1px solid var(--pom-border);
+  border-radius: 6px;
+  opacity: 0.65;
+}

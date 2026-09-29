@@ -1,36 +1,125 @@
-<!-- 规则编辑 + 测试面板 —— 与智能添加页共用 RulesPanelComponent -->
-<app-rules-panel #panel [baseUrl]="ruleBaseUrl()" [showTestBehaviorHint]="true" />
+<!--
+  元信息 + 规则面板 + 只读 JSON 预览（P3.2：编辑的是规则文档，不再是 JS 源码）
 
-<div class="actions full-row" style="margin-top: 8px">
-  <button nz-button (click)="applyRulesToSource()"><span nz-icon nzType="import"></span> 应用规则到源码</button>
-  <button nz-button nzType="primary" (click)="generateCodeFromRules()">
-    <span nz-icon nzType="thunderbolt"></span> 从规则生成代码
-  </button>
-  <span class="muted"
-    >—— "应用"仅替换 12 个 const 值(保留 explore 等);"生成"用 generateSourceCode 覆盖整个源码(谨慎)</span
-  >
-</div>
+  折叠区用原生 <details> 而**不是** nz-collapse：
+  nz-collapse 全站只有本处在用，ng-zorro-overrides.scss 里没有它的主题规则，
+  于是它按 ng-zorro 默认亮色渲染，暗色模式下是一块白底 —— 与周围的 pom token 配色
+  脱节。为一个页面新增一份全局覆盖不划算，直接用本项目惯用的 token 自绘。
+  原生 <details> 还白送键盘可达性与 AT 语义。
+-->
+@if (loading()) {
+<nz-spin nzSimple></nz-spin>
+} @else {
+<section class="meta-form">
+  <details open>
+    <summary>基础信息</summary>
+    <div class="form-grid">
+      <label>
+        <span>名称</span>
+        <input nz-input [ngModel]="name()" (ngModelChange)="name.set($event)" placeholder="书源名称" />
+      </label>
+      <label>
+        <span>作者</span>
+        <input nz-input [ngModel]="author()" (ngModelChange)="author.set($event)" placeholder="可选" />
+      </label>
+      <label class="span-2">
+        <span>主站地址（homepage）</span>
+        <input
+          nz-input
+          [ngModel]="homepage()"
+          (ngModelChange)="homepage.set($event)"
+          placeholder="https://example.com"
+        />
+      </label>
+      <label class="span-2">
+        <span>镜像地址（一行一个，留空表示只用主站）</span>
+        <textarea
+          nz-input
+          rows="3"
+          [ngModel]="urlsText()"
+          (ngModelChange)="urlsText.set($event)"
+          placeholder="https://mirror.example.com"
+        ></textarea>
+      </label>
+      <label>
+        <span>类型</span>
+        <nz-select [ngModel]="sourceType()" (ngModelChange)="sourceType.set($event)" style="width: 100%">
+          @for (t of sourceTypes; track t) {
+          <nz-option [nzValue]="t" [nzLabel]="t"></nz-option>
+          }
+        </nz-select>
+      </label>
+      <label>
+        <span>版本</span>
+        <input nz-input [ngModel]="version()" (ngModelChange)="version.set($event)" placeholder="1.0.0" />
+      </label>
+      <label class="span-2">
+        <span>标签（空格或逗号分隔）</span>
+        <input nz-input [ngModel]="tagsText()" (ngModelChange)="tagsText.set($event)" />
+      </label>
+      <label class="span-2">
+        <span>简介</span>
+        <textarea nz-input rows="2" [ngModel]="description()" (ngModelChange)="description.set($event)"></textarea>
+      </label>
+      <label class="span-2">
+        <span>订阅更新地址（updateUrl）</span>
+        <input
+          nz-input
+          [ngModel]="updateUrl()"
+          (ngModelChange)="updateUrl.set($event)"
+          placeholder="https://example.com/source.json"
+        />
+      </label>
+      <label>
+        <span>请求间隔（毫秒，0 = 不限）</span>
+        <nz-input-number
+          [ngModel]="minDelayMs()"
+          (ngModelChange)="minDelayMs.set($event ?? 0)"
+          [nzMin]="0"
+          [nzStep]="500"
+          style="width: 100%"
+        ></nz-input-number>
+      </label>
+      <label>
+        <span>启用</span>
+        <nz-switch [ngModel]="enabled()" (ngModelChange)="enabled.set($event)"></nz-switch>
+      </label>
+    </div>
+  </details>
 
-<div class="editor">
-  <textarea
-    class="source-text"
-    rows="30"
-    spellcheck="false"
-    placeholder="// @name 我的书源&#10;// @url https://example.com&#10;..."
-    [ngModel]="source()"
-    (ngModelChange)="source.set($event)"
-    [disabled]="saving()"
-  ></textarea>
+  <details>
+    <summary>访问规则</summary>
+    <div class="form-grid">
+      <label class="span-2">
+        <span>必填地址（requireUrls，一行一个；无则留空）</span>
+        <textarea
+          nz-input
+          rows="2"
+          [ngModel]="requireUrlsText()"
+          (ngModelChange)="requireUrlsText.set($event)"
+        ></textarea>
+      </label>
+    </div>
+  </details>
+</section>
 
-  <div class="meta-preview">
-    <h4>解析预览</h4>
-    <pre>{{ metaPreview() }}</pre>
-  </div>
-</div>
+<!-- 规则编辑 + 4 阶段真实命中测试 —— 与智能添加页共用 RulesPanelComponent -->
+<app-rules-panel #panel [baseUrl]="ruleBaseUrl()" />
+
+<span class="muted">
+  保存前会做一次完整 schema 校验；不合规不会写盘（写进去的文件会立刻被列表页标成「规则损坏」）
+</span>
+
+<details class="preview">
+  <summary>规则文档预览（保存时写盘的内容）</summary>
+  <pre>{{ jsonPreview() }}</pre>
+</details>
 
 <div class="actions">
   <button nz-button (click)="cancel()" [disabled]="saving()">取消</button>
   <button nz-button nzType="primary" [disabled]="saving()" (click)="save()">
+    <span nz-icon nzType="save"></span>
     {{ saving() ? '保存中...' : '保存' }}
   </button>
 </div>
+}

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { BookSourceListStateService } from './book-source-list-state.service';
-import { BookSourceMeta } from './js-source/source-meta.types';
+import { BookSourceMeta } from './source-meta.types';
 
 /**
  * BookSourceListStateService spec 锁定 stale-while-revalidate + 乐观更新回滚

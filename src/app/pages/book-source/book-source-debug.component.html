@@ -47,13 +47,48 @@
 <div class="status" [class.status--ok]="statusOk()" [class.status--err]="!statusOk()">{{ statusText() }}</div>
 }
 
-<!-- 沙箱进度日志(显示执行到哪一步,卡哪一步) -->
-@if (sandboxProgress().length > 0) {
+<!--
+  过程信息：规则源看 RuleTrace，旧 JS 源看沙箱进度日志
+  两者不是一回事 —— 沙箱 progress 是用户代码自己 log() 的自由文本（模板不 log，规则源下恒空），
+  RuleTrace 是引擎每次 HTTP 往返的结构化记录（URL / 状态码 / 耗时 / 提取条数），才是排障要看的。
+-->
+@if (isRuleSource()) { @if (traces().length > 0) {
+<details class="sandbox-progress" open>
+  <summary>请求轨迹（最近 {{ traces().length }} 次调用）</summary>
+  <div class="trace-table">
+    @for (t of traces(); track $index) {
+    <div class="trace-row" [class.trace-row--err]="!!t.error">
+      <div class="trace-head">
+        <nz-tag [nzColor]="t.error ? 'error' : 'blue'">{{ t.entry }}</nz-tag>
+        <span class="trace-source">{{ t.source }}</span>
+        <span class="muted">提取 {{ t.resultCount }} 条 · {{ t.ms }}ms</span>
+      </div>
+      @if (t.error) {
+      <div class="trace-error">{{ t.error }}</div>
+      } @if (t.requests.length > 0) {
+      <ul class="trace-requests">
+        @for (r of t.requests; track $index) {
+        <li>
+          <span class="muted">{{ r.method }} {{ r.status }}</span>
+          <span class="trace-url">{{ r.url }}</span>
+          <span class="muted">{{ r.ms }}ms</span>
+          @if (r.cfChallenge) {
+          <nz-tag nzColor="warning">CF 过盾</nz-tag>
+          }
+        </li>
+        }
+      </ul>
+      }
+    </div>
+    }
+  </div>
+</details>
+} } @else { @if (sandboxProgress().length > 0) {
 <details class="sandbox-progress" open>
   <summary>沙箱进度（最近 {{ sandboxProgress().length }} 条）</summary>
-  <pre class="progress-log">{{ sandboxProgressText() }}</pre>
+  <pre class="progress-log">{{ sandboxProgress().join('\n') }}</pre>
 </details>
-} @if (mode() !== 'idle') {
+} } @if (mode() !== 'idle') {
 <div class="view-toggle">
   <nz-radio-group [(ngModel)]="viewMode" nzSize="small">
     <label nz-radio-button nzValue="preview">预览</label>

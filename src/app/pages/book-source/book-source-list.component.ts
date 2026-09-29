@@ -5,6 +5,7 @@ import {
   computed,
   effect,
   inject,
+  signal,
 } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
@@ -16,11 +17,16 @@ import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzModalModule, NzModalService } from 'ng-zorro-antd/modal';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
+import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
+import { NzAlertModule } from 'ng-zorro-antd/alert';
+import { NzIconModule } from 'ng-zorro-antd/icon';
 import { PageHeaderService } from '../../core/services/page-header.service';
 import { ToastService } from '../../core/services/toast.service';
-import { type BookSourceMeta } from '../../core/book-source/js-source/source-meta.types';
+import { type BookSourceMeta } from '../../core/book-source/source-meta.types';
 import { BookSourceListStateService } from '../../core/book-source/book-source-list-state.service';
 import { ImportLegadoComponent } from '../../modals/import-legado/import-legado.component';
+import { BookSourceEngineSwitchComponent } from '../../shared/components/book-source-engine-switch/book-source-engine-switch.component';
+import { BookSourceMigrateService } from '../../core/services/book-source-migrate.service';
 
 /**
  * 书源管理列表页（实施计划 T-005）
@@ -31,6 +37,11 @@ import { ImportLegadoComponent } from '../../modals/import-legado/import-legado.
  *
  * 会话级现场由 BookSourceListStateService 持有（root）：过滤词/列表，
  * 路由切走再回来直接展示；后台再走一次 IPC 同步磁盘真实状态
+ *
+ * P3.2 新增三块：
+ * ① 引擎运行时开关（`BookSourceEngineSwitchComponent`）—— 排障期不重启切链路
+ * ② `rulesInvalid` 红标 —— 坏规则的源**仍在列表里**（用户要看得见要修），但明确标出
+ * ③ needs-manual 归档区（常驻，不是弹窗）+ 首次进入的迁移汇总弹窗
  */
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -44,6 +55,10 @@ import { ImportLegadoComponent } from '../../modals/import-legado/import-legado.
     NzModalModule,
     NzEmptyModule,
     NzSpinModule,
+    NzTooltipModule,
+    NzAlertModule,
+    NzIconModule,
+    BookSourceEngineSwitchComponent,
   ],
   templateUrl: './book-source-list.component.html',
   styleUrl: './book-source-list.component.scss',
@@ -54,9 +69,13 @@ export class BookSourceListComponent {
   private readonly modal = inject(NzModalService);
   private readonly router = inject(Router);
   private readonly pageHeader = inject(PageHeaderService);
+  private readonly migrate = inject(BookSourceMigrateService);
 
   /** 是否还在首次加载（首次成功前显示 spinner，已加载过则走后台刷新不阻塞） */
   readonly firstLoading = computed(() => !this.state.loaded());
+
+  /** needs-manual 归档区是否展开（默认收起：绝大多数用户没有这类源） */
+  readonly legacyExpanded = signal(false);
 
   readonly filtered = computed<BookSourceMeta[]>(() => {
     const q = this.state.filter().trim().toLowerCase();
@@ -77,11 +96,38 @@ export class BookSourceListComponent {
     } else {
       void this.refresh(true);
     }
+    // 迁移汇总弹窗：读一次即删（主进程侧语义），下次进来不再打扰
+    void this.showMigrationReport();
     // 副标题随 sources 数量变化 —— 「共 N 个书源」由本组件单独维护
     // 两个 signal 不同源，不会形成循环；Angular 22 起 effect 写 signal 默认允许
     // （allowSignalWrites flag 已废弃为空操作，故不再传）
     effect(() => {
       this.pageHeader.subtitle.set(`共 ${this.state.sources().length} 个书源`);
+    });
+  }
+
+  /**
+   * 迁移汇总（一次）：有 needs-manual / failed 条目时弹窗列出
+   *
+   * **只在"确有需要用户处理的事"时弹**：`converted` 是系统自己干的事，不需要打扰用户；
+   * `needsManual` 与 `failed` 才是"你的书源出了状况"，不弹就等于没告知。
+   */
+  private async showMigrationReport(): Promise<void> {
+    const report = await this.migrate.readReport();
+    if (!report) return;
+    const needsAttention = report.needsManual.length + report.failed.length;
+    if (needsAttention === 0) return;
+    const lines = [
+      ...report.needsManual.map(
+        (i) => `需手动处理：${i.fileName}${i.reason ? `（${i.reason}）` : ''}`,
+      ),
+      ...report.failed.map((i) => `处理失败：${i.fileName}（${i.reason}）`),
+    ];
+    this.modal.warning({
+      nzTitle: '部分书源未能迁移到规则文档',
+      nzContent: lines.join('\n'),
+      nzOkText: '知道了',
+      nzFooter: null,
     });
   }
 
@@ -151,6 +197,34 @@ export class BookSourceListComponent {
   }
 
   /**
+   * 查看归档目录里某个 `.js` 的原文
+   *
+   * needs-manual 的源没有 JSON 文档，**唯一的救回路径**就是看原始 JS 再手动改写规则
+   * （T-13 的重写指引会基于这个弹窗补）。用只读 textarea 展示而非下载：用户要的是
+   * "照着改"，不是"存一份"。源文件可能被删（用户清了 legacy 目录），故读失败要有话可说。
+   */
+  viewLegacySource(src: BookSourceMeta): void {
+    const pom = typeof window !== 'undefined' ? window.pomAPI : undefined;
+    if (!pom?.booksourceRead) {
+      this.toast.error('IPC 不可用，无法读取归档书源');
+      return;
+    }
+    void pom
+      .booksourceRead(src.fileName, src.sourceDir)
+      .then((content) => {
+        this.modal.info({
+          nzTitle: `${src.name}（${src.fileName}）`,
+          nzContent: `<pre style="max-height:60vh;overflow:auto;white-space:pre-wrap;font-size:12px">${escapeHtml(
+            clipForPreview(content),
+          )}</pre>`,
+          nzWidth: 760,
+          nzFooter: null,
+        });
+      })
+      .catch((e: unknown) => this.toast.error(`读取失败：${(e as Error).message}`));
+  }
+
+  /**
    * Esc 逐级回退（与阅读页 reader.component.ts 的 Esc 栈同构）
    *
    * 回退栈（到达本页基态即停，不跨模块跳书架）：
@@ -181,4 +255,37 @@ export class BookSourceListComponent {
     }
     // 第 ③ 层：已达基态 —— 终态即本页，不再回退
   }
+}
+
+/**
+ * HTML 转义 —— 弹窗内容走 `innerHTML`（`nzContent` 接受字符串）
+ *
+ * 书源 `.js` 是**用户自己的文件**，但内容来自磁盘、也可能来自第三方分享的链接：
+ * 直接塞进 `innerHTML` 就是一条 XSS 执行路径（`<img onerror=…>` 就能跑）。
+ * 存根里不引 `DomSanitizer`（`bypassSecurityTrustHtml` 正是要避免的东西），
+ * 用纯转义函数最省事也最安全。
+ */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/** 预览上限：超过就截断（外部评审 R1 P3） */
+const LEGACY_PREVIEW_MAX = 200_000;
+
+/**
+ * 归档 JS 预览的截断
+ *
+ * 内容走 `innerHTML`，一个几 MB 的 `.js` 会生成同等体量的文本节点 + 一次同步布局，
+ * 表现为"点开就卡住"。截断时明确告知还剩多少 —— 静默截断会让用户以为那就是全文。
+ * 完整内容用户仍可从 `booksources_legacy/` 用文件管理器打开。
+ */
+function clipForPreview(text: string): string {
+  if (text.length <= LEGACY_PREVIEW_MAX) return text;
+  const kept = text.slice(0, LEGACY_PREVIEW_MAX);
+  return `${kept}\n\n… （已截断：全文共 ${text.length} 字符，完整文件在 booksources_legacy/ 目录）`;
 }

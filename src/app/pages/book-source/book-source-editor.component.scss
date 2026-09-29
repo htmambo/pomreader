@@ -1,51 +1,77 @@
-/* 编辑器布局 —— textarea + 解析预览并排; 规则面板样式见 src/styles/rules-panel.scss */
-.editor {
+/* 编辑器布局 —— 元信息表单 + 规则面板 + 只读 JSON 预览（规则面板样式见 src/styles/rules-panel.scss） */
+
+/*
+ * 配色一律走 --pom-* token：暗色主题由 <html data-pom-theme="6"> 覆盖这些变量
+ * （app.component.ts 同步 settings.theme），所以同一份样式自动跟随主题。
+ * ⚠️ 不要写 :host-context(.dark) —— 全仓没有任何代码加过 `.dark` 类，
+ * 那种选择器永远匹配不到（`book-source-editor` 旧版与 rules-panel 里有几处历史遗留）。
+ */
+
+.meta-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.meta-form details,
+.preview {
+  border: 1px solid var(--pom-border);
+  border-radius: 4px;
+  background: var(--pom-card);
+  padding: 8px 12px;
+}
+.meta-form summary,
+.preview summary {
+  cursor: pointer;
+  color: var(--pom-text);
+  font-size: 13px;
+  font-weight: 500;
+  user-select: none;
+}
+.meta-form summary::marker,
+.preview summary::marker {
+  color: var(--pom-text-muted);
+}
+
+.form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin: 8px 0;
+  gap: 10px 16px;
+  margin-top: 10px;
 }
-.source-text {
-  min-height: 360px;
-  padding: 10px 12px;
-  background: var(--pom-card);
-  color: var(--pom-text);
-  border: 1px solid var(--pom-border);
-  border-radius: 4px;
-  font-family: 'Cascadia Code', Consolas, monospace;
-  font-size: 12px;
-  line-height: 1.5;
-  resize: vertical;
+.form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--pom-text-muted);
 }
-:host-context(.dark) .source-text {
-  background: #1f1f1f;
-  border-color: #444;
+.form-grid .span-2 {
+  grid-column: span 2;
 }
-.meta-preview {
-  border: 1px solid var(--pom-border);
-  border-radius: 4px;
-  background: var(--pom-card);
-  padding: 10px 12px;
+@media (max-width: 720px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .form-grid .span-2 {
+    grid-column: span 1;
+  }
+}
+
+/* JSON 预览：默认折叠。它现在**说的是真话**（serializeSourceDoc 的直接输出，
+   与写盘内容逐字节相同），所以值得给用户看 —— 但绝大多数时候他只想改规则。 */
+.preview {
+  margin: 12px 0;
+}
+.preview pre {
+  margin: 8px 0 0;
+  max-height: 400px;
   overflow: auto;
-}
-:host-context(.dark) .meta-preview {
-  background: #1f1f1f;
-  border-color: #444;
-}
-.meta-preview h4 {
-  margin: 0 0 8px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--pom-text);
-}
-.meta-preview pre {
-  margin: 0;
   font-family: 'Cascadia Code', Consolas, monospace;
   font-size: 12px;
   line-height: 1.5;
   color: var(--pom-text);
-  white-space: pre-wrap;
-  word-break: break-all;
+  white-space: pre;
 }
 
 /* 底部按钮行 */

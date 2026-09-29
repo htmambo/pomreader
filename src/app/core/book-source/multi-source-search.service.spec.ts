@@ -167,7 +167,7 @@ describe('MultiSourceSearchService', () => {
   it('JsSourceAdapter 接入 registry 后能被聚合搜索识别并按 name|作者 去重', async () => {
     const { JsSourceAdapter } = await import('./js-source/js-source.adapter');
     /* eslint-disable @typescript-eslint/no-unused-vars, no-undef */
-    const { BookSourceMeta } = await import('./js-source/source-meta.types');
+    const { BookSourceMeta } = await import('./source-meta.types');
     // mock pomAPI.booksourceRead（ensureLoaded 内部 readSource 调用）
     const w = window as unknown as { pomAPI?: { booksourceRead: (fn: string) => Promise<string> } };
     const origPom = w.pomAPI;

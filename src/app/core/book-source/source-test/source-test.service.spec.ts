@@ -5,7 +5,7 @@ import {
   pickChapterUrl,
   extractChapters,
 } from './source-test.service';
-import { type BookSourceMeta } from '../js-source/source-meta.types';
+import { type BookSourceMeta } from '../source-meta.types';
 
 describe('pickBookUrl', () => {
   it('优先取 bookUrl，回退 url', () => {
@@ -55,10 +55,23 @@ interface MockSandbox {
   call: (fileName: string, fn: string, args: unknown[]) => Promise<unknown>;
 }
 
-/** 与 ImportViaSourceService.forTest 同模式：Object.create 绕开 inject()，手动注入 mock sandbox */
-function makeService(sandbox: MockSandbox): SourceTestService {
+/**
+ * 与 ImportViaSourceService.forTest 同模式：Object.create 绕开 inject()，手动注入 mock
+ *
+ * `ruleEngine` 也必须给 —— `runTest` 构造 `RuleExecutor` 时会读它，缺字段的话
+ * 注入的是 `undefined`，报错会出现在与真正原因（漏注入）无关的地方。
+ */
+function makeService(
+  sandbox: MockSandbox,
+  ruleEngine: unknown = {
+    readDoc: async () => {
+      throw new Error('不应调用规则引擎');
+    },
+  },
+): SourceTestService {
   const svc = Object.create(SourceTestService.prototype) as SourceTestService;
   (svc as unknown as { sandbox: MockSandbox }).sandbox = sandbox;
+  (svc as unknown as { ruleEngine: unknown }).ruleEngine = ruleEngine;
   return svc;
 }
 
@@ -401,5 +414,111 @@ describe('SourceTestService.runTest', () => {
       message: '超出单项总超时 -1s',
       durationMs: 0,
     });
+  });
+});
+
+// ========== JSON 规则源：走 RuleEngineService 而不是沙箱（P3.2）==========
+
+interface MockRuleEngine {
+  readDoc: (fileName: string, sourceDir?: string | null) => Promise<unknown>;
+  search: (doc: unknown, keyword: string, page: number) => Promise<unknown[]>;
+  bookInfo: (doc: unknown, bookUrl: string) => Promise<unknown>;
+  chapterList: (doc: unknown, bookUrl: string) => Promise<unknown[]>;
+  chapterContent: (doc: unknown, chapterUrl: string) => Promise<string>;
+}
+
+function makeRuleEngine(over: Partial<MockRuleEngine> = {}): MockRuleEngine {
+  return {
+    readDoc: async () => ({ uuid: 'uuid-test', name: 'test' }),
+    search: async () => [],
+    bookInfo: async () => ({ title: 't', chapters: [] }),
+    chapterList: async () => [],
+    chapterContent: async () => '',
+    ...over,
+  };
+}
+
+function makeJsonMeta(over: Partial<BookSourceMeta> = {}): BookSourceMeta {
+  return { ...makeMeta(), fileName: 'test.json', format: 'json', ...over };
+}
+
+describe('SourceTestService.runTest —— JSON 规则源', () => {
+  it('完整链路走规则引擎，全程不碰沙箱', async () => {
+    const sandboxLoad = vi.fn();
+    const engine = makeRuleEngine({
+      // vi.fn 包一层：断言"引擎被调到了"需要 spy，纯 async 函数没有调用记录
+      search: vi.fn(async () => [{ url: 'https://example.com/b/1' }]),
+      bookInfo: vi.fn(async () => ({ title: '《书名》', author: '作者', chapters: [] })),
+      chapterList: vi.fn(async () => [{ url: 'https://example.com/c/1', name: '第1章' }]),
+      chapterContent: vi.fn(async () => '正文内容'),
+    });
+    const svc = makeService({ load: sandboxLoad, call: vi.fn() } as unknown as MockSandbox, engine);
+    const result = await withPomApi({ booksourceRead: read }, () =>
+      svc.runTest(makeJsonMeta(), 'kw'),
+    );
+    expect(result.allPassed).toBe(true);
+    expect(engine.search).toHaveBeenCalledWith(expect.anything(), 'kw', 1);
+    expect(engine.chapterContent).toHaveBeenCalledWith(
+      expect.anything(),
+      'https://example.com/c/1',
+    );
+    expect(sandboxLoad).not.toHaveBeenCalled();
+  });
+
+  it('书源未定义 search() 的分支在规则源下不会出现（四入口恒在）', async () => {
+    const engine = makeRuleEngine({
+      search: async () => [{ url: 'https://example.com/b/1' }],
+      bookInfo: async () => ({ title: '《书名》', chapters: [{ url: 'https://example.com/c/1' }] }),
+      chapterContent: async () => '正文',
+    });
+    const svc = makeService({ load: vi.fn(), call: vi.fn() } as unknown as MockSandbox, engine);
+    const result = await withPomApi({ booksourceRead: read }, () =>
+      svc.runTest(makeJsonMeta(), 'kw'),
+    );
+    expect(result.steps.find((s) => s.step === 'search')?.passed).toBe(true);
+  });
+
+  it('规则源没有 explore 概念：不产生该步骤，且不算进 allPassed', async () => {
+    const engine = makeRuleEngine({
+      search: async () => [{ url: 'https://example.com/b/1' }],
+      bookInfo: async () => ({ title: '《书名》', chapters: [{ url: 'https://example.com/c/1' }] }),
+      chapterContent: async () => '正文',
+    });
+    const svc = makeService({ load: vi.fn(), call: vi.fn() } as unknown as MockSandbox, engine);
+    const result = await withPomApi({ booksourceRead: read }, () =>
+      svc.runTest(makeJsonMeta(), 'kw'),
+    );
+    expect(result.steps.some((s) => s.step === 'explore')).toBe(false);
+    expect(result.allPassed).toBe(true);
+  });
+
+  it('文档读不出来 → 归到 load 步并说清原因（而不是崩在第一步入参上）', async () => {
+    const engine = makeRuleEngine({
+      readDoc: async () => {
+        throw new Error('书源 test.json 规则非法（rules.searchPath）：字段缺失');
+      },
+    });
+    const svc = makeService({ load: vi.fn(), call: vi.fn() } as unknown as MockSandbox, engine);
+    const result = await withPomApi({ booksourceRead: read }, () =>
+      svc.runTest(makeJsonMeta(), 'kw'),
+    );
+    expect(result.steps).toHaveLength(1);
+    expect(result.steps[0]).toMatchObject({ step: 'load', passed: false });
+    expect(result.steps[0]?.message).toContain('rules.searchPath');
+    expect(result.allPassed).toBe(false);
+  });
+
+  it('引擎抛错按步骤记账并中断后续（与 JS 源同口径）', async () => {
+    const engine = makeRuleEngine({
+      search: async () => {
+        throw new Error('HTTP 404');
+      },
+    });
+    const svc = makeService({ load: vi.fn(), call: vi.fn() } as unknown as MockSandbox, engine);
+    const result = await withPomApi({ booksourceRead: read }, () =>
+      svc.runTest(makeJsonMeta(), 'kw'),
+    );
+    expect(result.steps[0]).toMatchObject({ step: 'search', passed: false, message: 'HTTP 404' });
+    expect(result.allPassed).toBe(false);
   });
 });
