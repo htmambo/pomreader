@@ -5,7 +5,8 @@
 
 ## Active Tasks
 
-- （无）
+- [书源 JSON 规则化 — 二期及后续跟进项](Active/BOOKSOURCE_JSON_RULES_FOLLOWUPS.md) — 跟踪主方案（[2026-09-29 书源 JSON 规则化改造方案 v2.1](../Architecture/2026-09-29-BOOKSOURCE-JSON-RULES-PLAN.md)）v1 明确不做的 17 项（T-1..T-17，表达力扩展 / 引擎运行时 / 生态工具 / 机制验证），含触发条件与激活规则
+  - 主方案 v2.1 已过两轮评审（17 条事实基线 + 结构白名单迁移判据 + 离线差分测试）；其中 T-12（导入导出 bundle）**前置未完成** —— [2026-09-28 导入导出设计](../Architecture/2026-09-28-BOOKSOURCE_IMPORT_EXPORT_DESIGN.md) 仍按旧 `.js` 契约，需先修订
 
 ## Completed Tasks (Archive)
 
