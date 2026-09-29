@@ -174,3 +174,22 @@ export const BooksourceDeleteJsonArgsSchema = v.tuple([
   OptionalSourceDirSchema,
 ]);
 export type BooksourceDeleteJsonArgs = v.InferOutput<typeof BooksourceDeleteJsonArgsSchema>;
+
+/* ── booksource-bundle-handler.ts（书源导入/导出 bundle，设计 §5，Phase 1） ── */
+
+/** pom:booksource-bundle-export args tuple: (fileNames: string[]) */
+export const BooksourceBundleExportArgsSchema = v.tuple([v.array(JsonFileNameSchema)]);
+export type BooksourceBundleExportArgs = v.InferOutput<typeof BooksourceBundleExportArgsSchema>;
+
+/** pom:booksource-bundle-open args: void（strictTuple 拒多余参数，见 GetFetchUaArgsSchema 注释） */
+export const BooksourceBundleOpenArgsSchema = v.strictTuple([]);
+export type BooksourceBundleOpenArgs = v.InferOutput<typeof BooksourceBundleOpenArgsSchema>;
+
+/**
+ * pom:booksource-bundle-apply args tuple: (decisions: {fileName, content}[])
+ * content 的 JSON 结构校验在 handler 写前全量预校验做（§8 取舍 1），schema 只钉形状
+ */
+export const BooksourceBundleApplyArgsSchema = v.tuple([
+  v.array(v.looseObject({ fileName: JsonFileNameSchema, content: v.string() })),
+]);
+export type BooksourceBundleApplyArgs = v.InferOutput<typeof BooksourceBundleApplyArgsSchema>;

@@ -104,6 +104,27 @@ contextBridge.exposeInMainWorld('pomAPI', {
   booksourceDeleteJson: (fileName: string, sourceDir?: string): Promise<void> =>
     ipcRenderer.invoke('pom:booksource-delete-json', fileName, sourceDir ?? null),
 
+  // ── 书源导入/导出 bundle（设计 §5，Phase 1） ─────────────────────────────
+  // DiffEntry 形状见 electron/ipc/booksource-bundle.ts（含每条 content 原文）
+  booksourceBundleExport: (fileNames: string[]): Promise<{ path: string; count: number } | null> =>
+    ipcRenderer.invoke('pom:booksource-bundle-export', fileNames),
+
+  booksourceBundleOpen: (): Promise<{
+    error: string | null;
+    entries: {
+      kind: 'new' | 'identical' | 'update' | 'conflict';
+      uuid: string;
+      fileName: string;
+      matchedFileName: string | null;
+      content: string;
+    }[];
+  } | null> => ipcRenderer.invoke('pom:booksource-bundle-open'),
+
+  booksourceBundleApply: (
+    decisions: { fileName: string; content: string }[],
+  ): Promise<{ written: string[]; failed: { fileName: string; error: string }[] }> =>
+    ipcRenderer.invoke('pom:booksource-bundle-apply', decisions),
+
   // ── 书源迁移（方案 §4.2/§3.4，P3） ─────────────────────────────────────
   /** 手动批量重触发存量 .js → .json 迁移（主进程内完成，原子写）；返回迁移报告 */
   booksourceConvert: (): Promise<unknown> => ipcRenderer.invoke('pom:booksource-convert'),

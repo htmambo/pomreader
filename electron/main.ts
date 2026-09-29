@@ -6,6 +6,7 @@ import { applyUaEverywhere, migrateLegacySearchCookies } from './ipc/fetch-sessi
 import { registerRenderHandler } from './ipc/render-handler';
 import { registerExternalHandler } from './ipc/external-handler';
 import { registerBookSourceHandler } from './ipc/booksource-handler';
+import { registerBookSourceBundleHandler } from './ipc/booksource-bundle-handler';
 import { migrateBookSources, registerBookSourceMigrationHandlers } from './ipc/booksource-migrate';
 import { registerCoverHandler } from './ipc/cover-handler';
 import { registerCfGuardHandler } from './ipc/cf-guard';
@@ -123,6 +124,7 @@ app.whenReady().then(() => {
     console.warn('[booksource-migrate] 启动迁移失败（不阻断启动）:', err);
   }
   registerBookSourceHandler(ipcMain, userData);
+  registerBookSourceBundleHandler(ipcMain, userData, () => mainWindow);
   registerBookSourceMigrationHandlers(ipcMain, userData);
   registerCoverHandler(ipcMain, userData);
   registerCfGuardHandler(ipcMain, () => mainWindow);
