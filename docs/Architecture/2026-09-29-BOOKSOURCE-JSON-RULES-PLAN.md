@@ -77,7 +77,7 @@
 | D1 | 手改 JS 逃生舱 | **保留文件（`booksources_legacy/`）、停止执行、可导出**，列表行内常驻降级提示 | 编辑器当前明确支持手改；静默删是功能回退；停止执行保证安全边界 |
 | D2 | 规则表达能力 | **v1 严格等价**：`rules` = 现有 `SourceRules` 16 字段（对应 15 个规则常量 + `// @name`），不新增 DSL | 先等价替换并用差分测试证明；扩表达力是独立议题 |
 | D3 | explore / 发现页 | **不做** | 现状两条路径都没有，不是本方案造成的回退 |
-| D4 | 存量迁移 | **主进程启动时迁移（无竞态）+ convert channel 手动重触发**，`.js` 备份到 `booksources_legacy/` 永不删 | 渲染端触发有「列表先于迁移被读」竞态；原始文件保留可回滚 |
+| D4 | 存量迁移 | **渲染端启动时迁移（`provideAppInitializer`，顺序由框架保证）+ convert channel 手动重触发**，`.js` 备份到 `booksources_legacy/` 永不删 | ⚠️ **Round 4 修订**（原选"主进程启动"）。主进程**无法** import `src/`：`build:electron` 是 `tsc -p electron/tsconfig.electron.json`，`rootDir` 锁死 `electron/`、`exclude: ["../src"]`（tsc 探针实证 `TS6059`），而迁移需要 `rule-migrate.ts` / `rule-parse.ts` 这两个**渲染端纯函数**。改用 `provideAppInitializer` 后顺序不再是"靠时序碰巧"，而是**框架级保证**：appInitializer 未 resolve 前 Angular 不 bootstrap，任何组件都无法先读列表 → 原竞态从根上消失，且纯函数保持单一来源、零构建改动 |
 | D5 | 代码位置 | 新增 `src/app/core/book-source/json-rule/`；纯函数下沉 `core/logic/rule-parse.ts` | 与既有 `js-source/`、`legado/` 子域同构，registry/import 路径变动最小 |
 | D6 | uuid 语义 | `Book.bookSourceUuid` 语义不变，迁移**必须保持 uuid 一致** | 该字段已落库（`import-via-source.service.ts`），uuid 变了所有已添加的书要重抓 |
 | D7 | 等价边界 | `encoding` 新字段、`minDelayMs` 主链路强制限流、**多镜像 failover** **均移出 v1** | 现状 minDelayMs 仅镜像间限流、代理层固定 auto 编码；`tryMirrors` 零生产调用方（现状 `js-source.adapter.ts` 只取 `urls[0]`），接上即新增行为，违反等价原则 |
@@ -365,7 +365,7 @@ src/app/core/book-source/feature-flag.ts
 | **本文件不能整体删除** | `electron/window-state.ts:12` 从本文件 import `atomicWrite`（窗口位置/尺寸持久化在用）→ P4 只删 `parseHeaderMeta` / `scanDir` / `.js` 分支，**保留 `safeFileName` + `atomicWrite`** |
 | 迁移报告落盘位置 | 报告写 `<userData>/booksource-migration-report.json`（**在 `booksources/` 之外**）——放目录内会被 `scanJsonDir` 按 `.json` 扫成幽灵书源 |
 
-新增 3 个 channel：`pom:booksource-convert`（手动批量重触发迁移，主进程内完成，原子写）、`pom:booksource-migration-report`（读一次性迁移报告，读后删）、`pom:booksource-legacy-list`（**常驻**扫描 `booksources_legacy/`，支撑 §4.3 的 needs-manual 行内状态；报告读后删无法支撑常驻列表）。
+新增 3 个 channel：`pom:booksource-convert`（渲染端 `provideAppInitializer` 与手动重触发共用；**逻辑在渲染端**，主进程只做原子写与文件移动）、`pom:booksource-migration-report`（读一次性迁移报告，读后删）、`pom:booksource-legacy-list`（**常驻**扫描 `booksources_legacy/`，支撑 §4.3 的 needs-manual 行内状态；报告读后删无法支撑常驻列表）。
 删除：`pom:booksource-eval` 及 preload `booksourceEval`/`sourceHealthCheck`（沙箱时代遗物，健康检测改渲染端完成后不再需要）。
 
 ---
@@ -384,7 +384,24 @@ src/app/core/book-source/feature-flag.ts
 
 ### 4.2 迁移算法
 
-**触发时机**：主进程启动时（`app.whenReady` 后、首次 `scanDir` 前）执行 —— 渲染端触发有「列表先于迁移被读」的竞态，主进程无此问题。`pom:booksource-convert` channel 保留供手动重触发。失败只告警不阻断启动。
+**触发时机**：**渲染端** `provideAppInitializer` 中 `await` 执行（app shell 启动、任何页面能读列表之前）。主进程只提供 IO channel（读 `.js` / 写 `.json` / 移动文件），**不含任何规则逻辑**。
+
+> ⚠️ **Round 4 修订：宿主从主进程改为渲染端。** 原方案选主进程是为消除"列表先于迁移被读"的竞态，但那条路**在当前构建下走不通**：
+> `build:electron` 用 `tsc -p electron/tsconfig.electron.json`（`rootDir: "."` = `electron/`、`exclude: ["../src"]`），
+> 主进程 import `src/` 下的 `rule-migrate.ts` / `rule-parse.ts` 会直接报
+> `TS6059: File ... is not under 'rootDir'`（已用探针文件实证并清理）。
+> **且不止报错**：一旦 electron 工程拉入 `src/` 下的文件，tsc 会在报错的同时**无视 `--noEmit`、把该文件就地
+> 输出到 `src/` 原位**（实测：单跑 `tsc -p electron/tsconfig.electron.json --noEmit` 即在
+> `src/app/core/book-source/smart-add/` 生成 `smart-rules.js` + `.js.map`）。这两个产物**不在 `.gitignore`**，
+> 会被误提交。→ 任何人**不要在 `electron/` 里写 import `src/` 的代码**；本条正是 D4 选渲染端的直接依据。
+>
+> 改用 `provideAppInitializer` 后，**竞态的消除方式从"靠时序碰巧"升级为"框架级保证"**：
+> Angular 在 appInitializer 的 Promise resolve 前不 bootstrap，因此**任何组件都不可能先于迁移完成而读取列表** ——
+> 原方案担心的问题并未被绕过，而是被架构消除。
+> 代价：首次升级启动多等一个 IPC 往返（一次性），可接受。
+> 连带修订：`electron/main.ts` 不再挂接迁移；`electron/ipc/booksource-migrate.ts` 退化为纯 IO（无规则逻辑）。
+
+失败只告警不阻断启动（appInitializer 用 `catch` 兜住，不 reject）。
 ⚠️ **迁移不受 `pom.bookSource.engine` 开关约束（预期行为，不是 bug）**：该开关只作用于渲染端的 adapter 选择（§3.3），而 `booksources_legacy/` 的产出是**一次性文件级转换**。切回 `'js'` 后 legacy 目录依然存在，needs-manual 源仍会在列表里标灰可见（§4.3）—— 回滚 JS 链路的用户看到的是「多了一批标灰行」，不是「书源消失」。
 
 **meta 解析用哪一份**：一律用**主进程**的 `parseHeaderMeta`（`electron/ipc/booksource-meta.ts:51`，扫全部行）。不用渲染端 `header-parser.ts` 那份（只扫前 100 行、`enabled` 判定不同，F16）。
@@ -625,14 +642,14 @@ worker 协议原生支持本地打桩：`sandbox.worker.ts:210,216` 定义了入
 src/app/core/models/book-source-doc.model.ts        # 含 BookSourceDocSchema（valibot）
 src/app/core/book-source/json-rule/{engine,guard,json-rule.adapter,rule-engine.service}.ts
 src/app/core/book-source/json-rule/*.spec.ts
-src/app/core/book-source/rule-migrate.ts            # 存量 JS → BookSourceDoc 纯函数（主/渲染可共用）
+src/app/core/book-source/rule-migrate.ts            # 存量 JS → BookSourceDoc 纯函数（**仅渲染端**，见 D4 Round 4 修订）
 src/app/core/book-source/rule-migrate.spec.ts
 src/app/core/book-source/source-meta.types.ts       # ← 从 js-source/ 迁出（目录外 8 处 import）
 src/app/core/services/cf-prompt.service.ts(+spec)   # ← 从 js-source/ 迁出（CF Tier 2 人工过盾）
 src/app/core/services/source-health.service.ts(+spec) # ← 从 js-source/ 迁出
 src/app/core/logic/rule-parse.ts                   # 旧 JS 常量 → SourceRules（从 editor 抽出共用）
 src/app/core/logic/rule-parse.spec.ts
-electron/ipc/booksource-migrate.ts                 # 启动迁移（纯函数 + IO 分离）
+electron/ipc/booksource-migrate.ts                 # 迁移的**纯 IO**（读 .js / 原子写 .json / 移动 legacy）——**不含规则逻辑**，逻辑在渲染端 rule-migrate.ts（D4 Round 4 修订）
 electron/ipc/booksource-handler.spec.ts             # handler 目前 0 用例，迁出时补
 scripts/audit-booksources.ts                        # P0 盘点
 fixtures/booksources/**  fixtures/html/**
@@ -651,7 +668,8 @@ electron/preload.ts                       # + booksourceConvert / booksourceMigr
                                           # + booksourceLegacyList（§3.4 三个新增 channel 之一：
                                           #   legacy 常驻扫描用，支撑 §4.3 的 needs-manual 行内状态）
                                           # - booksourceEval / sourceHealthCheck
-electron/main.ts                          # + 启动迁移挂接
+app.config.ts                                       # + provideAppInitializer 挂接迁移（D4 Round 4 修订：宿主在渲染端）
+                                                 # ⚠️ 不再改 electron/main.ts（主进程无法 import src/，TS6059）
 package.json                              # P4 - build:worker 脚本
 src/app/core/book-source/book-source.registry.ts   # + registerRuleAdapters
 src/app/core/book-source/feature-flag.ts  # 编译期 → 运行时（P4 删）

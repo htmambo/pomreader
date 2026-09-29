@@ -60,19 +60,21 @@ npm run dev
 src/
 ├── app/
 │   ├── core/
-│   │   ├── logic/         # 纯函数：chapter-split / text-format / bookshelf-sort / bookshelf-filter / bookshelf-group-name / auto-import-url / convert-chinese / settings-store
+│   │   ├── logic/         # 纯函数：chapter-split / text-format / bookshelf-sort / bookshelf-filter / bookshelf-group-name / auto-import-url / convert-chinese / settings-store / rule-parse（JS→规则）/ rule-migrate（存量迁移判定）/ source-doc-build（文档拼装）
 │   │   ├── models/        # Book / Chapter / Settings / BookshelfGroup
-│   │   ├── services/      # BookService / BookshelfGroupService / DbService (PouchDB) / ReaderService / SettingsService 等
-│   │   ├── book-source/   # 书源体系：适配器注册表 + JS 书源沙箱 + legado 订阅源导入
+│   │   ├── services/      # BookService / BookshelfGroupService / DbService (PouchDB) / ReaderService / SettingsService / CfPromptService（CF 人工过盾）/ BookSourceMigrateService（存量 .js → .json 迁移编排）等
+│   │   ├── book-source/   # 书源体系：适配器注册表 + JSON 规则引擎 + JS 书源沙箱（过渡期并存，P4 删）+ legado 订阅源导入
 │   │   │   ├── adapters/  # 专用站（笔趣阁）/ 启发式密度算法兜底
-│   │   │   ├── js-source/ # sandbox.worker（网络出口屏蔽 + 原型冻结）+ 健康检查/多镜像
+│   │   │   ├── js-source/ # sandbox.worker（网络出口屏蔽 + 原型冻结）+ 多镜像（P4 整目录删）
+│   │   │   ├── json-rule/ # JSON 规则引擎：engine / guard / json-rule.adapter / rule-engine.service（带 RuleTrace）/ differential（差分测试基座）
+│   │   │   ├── source-meta.types.ts # 书源元数据类型（描述 .json 与 legacy 两类，format 字段分派）
 │   │   │   ├── legado/    # Legado 订阅源 JSON 解析/翻译/导入
 │   │   │   ├── smart-add/ # 智能添加规则引擎
 │   │   │   └── source-test/# 书源五步测试
 │   │   ├── data/          # 跨 book-source 子模块共享数据（good-sites 等）
 │   │   ├── db/            # PouchDB 工具（bulk-result 错误分类、IpcPouchBackend 抽象）
 │   │   └── cover/         # 封面缓存 / generators（程序生成封面）
-│   ├── shared/components/ # 11 个子目录: book-card / book-group-dialog / bookshelf-group-dialog / change-book-source-dialog / cover-generator-dialog / cover-img / edit-book-info-dialog / jump-chapter-dialog / page-header / rules-panel / sidebar
+│   ├── shared/components/ # 12 个子目录: book-card / book-group-dialog / bookshelf-group-dialog / book-source-engine-switch / change-book-source-dialog / cover-generator-dialog / cover-img / edit-book-info-dialog / jump-chapter-dialog / page-header / rules-panel / sidebar
 │   ├── pages/             # bookshelf / universal-search / reader / disclaimer
 │   │   ├── book-source/   # 书源管理 6 子页: list / search / smart-add / debug / test / editor
 │   │   └── settings/      # 缓存管理
@@ -136,7 +138,11 @@ docs/
 
 - `core/logic/chapter-split.ts` — TXT 章节切分（核心算法）
 - `core/services/book.service.ts` — 书架/章节中枢：导入、PouchDB 读写、章节内存缓存
-- `core/book-source/js-source/sandbox.worker.ts` — JS 书源沙箱（屏蔽网络出口 + 冻结原型链 + window/document/localStorage 删除）
+- `core/book-source/json-rule/engine.ts` — JSON 规则引擎（search / bookInfo / chapterList / chapterContent 四入口）
+- `core/book-source/json-rule/rule-engine.service.ts` — 引擎服务：HTTP 通道 + **RuleTrace** 请求轨迹（调试页排障依据）
+- `core/logic/rule-migrate.ts` — 存量 `.js` → `.json` 迁移判定（纯函数：幂等 → 骨架源 → 手改检测 → 必填规则 → schema）
+- `core/services/book-source-migrate.service.ts` — 迁移编排与 IO；串在 `app.config.ts` 的 `initBookSources` **内部**（Angular 的 `APP_INITIALIZER` 是 `Promise.all`，单独挂一个无顺序保证）
+- `core/book-source/js-source/sandbox.worker.ts` — JS 书源沙箱（屏蔽网络出口 + 冻结原型链 + window/document/localStorage 删除）。**过渡期**：与规则引擎并存，运行时开关 `pom.bookSource.engine` 可切；P4 整目录删
 - `core/services/settings.service.ts` — 阅读设置持久化与校验；主题经 `app.component.ts` 打在 `<html data-pom-theme>`
 - `core/services/global-error-handler.ts` — 全局异常兜底 → ToastService
 - `core/db/bulk-result.ts` — PouchDB bulkDocs 错误分类工具
