@@ -57,7 +57,7 @@
     </div>
   </div>
   }
-  <!-- needs-manual legacy 源（§4.3）：标灰渲染在列表末尾，仅「查看原始 JS」「删除」两个动作 -->
+  <!-- needs-manual legacy 源（§4.3）：标灰渲染在列表末尾，「查看原始 JS」「尝试转换」「删除」三个动作 -->
   @for (item of state.legacies(); track item.fileName) {
   <div class="source-card source-card--legacy">
     <div class="source-info">
@@ -74,6 +74,7 @@
     </div>
     <div class="source-actions">
       <button nz-button nzSize="small" (click)="viewLegacySource(item)">查看原始 JS</button>
+      <button nz-button nzSize="small" (click)="tryConvertLegacy(item)">尝试转换</button>
       <button nz-button nzSize="small" nzDanger (click)="confirmDeleteLegacy(item)">删除</button>
     </div>
   </div>

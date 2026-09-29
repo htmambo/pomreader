@@ -181,6 +181,10 @@ contextBridge.exposeInMainWorld('pomAPI', {
     { fileName: string; enabled: boolean; sourceDir: string; reason?: string }[]
   > => ipcRenderer.invoke('pom:booksource-legacy-list'),
 
+  /** 单个 legacy .js 的只读转换尝试（不写盘）；返回转换结果或 needs-manual 详细原因 */
+  booksourceLegacyConvertTry: (fileName: string): Promise<unknown> =>
+    ipcRenderer.invoke('pom:booksource-legacy-convert-try', fileName),
+
   // ── 自动导入监控（万能搜索 webview .txt/压缩包 → 自动入书架） ────────
   /** 主进程检测到可导入文件并完成解码/解压后推送；返回取消订阅函数 */
   onAutoImport: (

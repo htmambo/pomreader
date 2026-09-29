@@ -10,6 +10,8 @@ import {
   readMigrationReportOnce,
   registerBookSourceMigrationHandlers,
   scanLegacyDir,
+  tryConvertLegacySource,
+  type JsConversion,
   type MigrationReport,
 } from './booksource-migrate';
 import { scanJsonDir, validateBookSourceDocStructure } from './booksource-meta';
@@ -516,5 +518,83 @@ describe('迁移 channel（§3.4 新增 3 个）', () => {
     expect(legacy[0].fileName).toBe('sample-manual.js');
     expect(legacy[0].reason).toContain('含模板外语句');
     expect(legacy[0].sourceDir).toBe(path.join(tmpUserData, 'booksources_legacy'));
+  });
+});
+
+describe('tryConvertLegacySource + pom:booksource-legacy-convert-try（列表页「尝试转换」）', () => {
+  type HandlerFn = (event: unknown, ...args: unknown[]) => unknown;
+
+  let tmpUserData: string;
+  let handlers: Map<string, HandlerFn>;
+  let legacyDir: string;
+
+  const call = (channel: string, ...args: unknown[]): Promise<unknown> =>
+    Promise.resolve(handlers.get(channel)!({}, ...args));
+
+  beforeEach(() => {
+    tmpUserData = fs.mkdtempSync(path.join(os.tmpdir(), 'booksource-convert-try-test-'));
+    legacyDir = path.join(tmpUserData, 'booksources_legacy');
+    fs.mkdirSync(legacyDir, { recursive: true });
+    const map = new Map<string, HandlerFn>();
+    registerBookSourceMigrationHandlers(
+      { handle: (ch: string, fn: HandlerFn) => map.set(ch, fn) } as any,
+      tmpUserData,
+    );
+    handlers = map;
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpUserData, { recursive: true, force: true });
+  });
+
+  it('应注册 pom:booksource-legacy-convert-try', () => {
+    expect(handlers.has('pom:booksource-legacy-convert-try')).toBe(true);
+  });
+
+  it('纯模板源 → outcome ok 且带完整 doc（enabled 取头注释/缺省 true，与启动迁移同口径）', async () => {
+    fs.writeFileSync(path.join(legacyDir, 'sample-regex.js'), readFixture('sample-regex.js'));
+    const r = (await call('pom:booksource-legacy-convert-try', 'sample-regex.js')) as JsConversion;
+    expect(r.outcome).toBe('ok');
+    expect(r.jsonFileName).toBe('sample-regex.json');
+    expect(r.uuid).toBe('sample-regex.js');
+    expect(r.doc?.enabled).toBe(true);
+    expect(r.doc?.rules.siteName).toBe('样本正则站');
+    // 只读语义：legacy 原文件仍在，booksources/ 未产 .json
+    expect(fs.existsSync(path.join(legacyDir, 'sample-regex.js'))).toBe(true);
+    expect(fs.existsSync(path.join(tmpUserData, 'booksources', 'sample-regex.json'))).toBe(false);
+  });
+
+  it('手改源 → needs-manual 且原因列违规声明；损坏源 → 原因逐字段点名', async () => {
+    fs.writeFileSync(path.join(legacyDir, 'sample-manual.js'), readFixture('sample-manual.js'));
+    const manual = (await call(
+      'pom:booksource-legacy-convert-try',
+      'sample-manual.js',
+    )) as JsConversion;
+    expect(manual.outcome).toBe('needs-manual');
+    expect(manual.reason).toContain('含模板外语句');
+    expect(manual.reason).toContain('CUSTOM_BLACKLIST');
+
+    fs.writeFileSync(
+      path.join(legacyDir, 'broken.js'),
+      '// @url https://broken.invalid\nconst SEARCH_PATH = "/s";\n',
+    );
+    const broken = (await call('pom:booksource-legacy-convert-try', 'broken.js')) as JsConversion;
+    expect(broken.outcome).toBe('needs-manual');
+    expect(broken.reason).toContain('必填规则缺失或为空');
+    expect(broken.reason).toContain('CONTENT_RULE 常量');
+    expect(broken.reason).toContain('// @name 头注释');
+  });
+
+  it('路径穿越 / 非 .js / 不存在文件 → needs-manual 原因；非 .js 入参被 schema 拒', async () => {
+    const traversal = tryConvertLegacySource(tmpUserData, '../etc/passwd.js');
+    expect(traversal.outcome).toBe('needs-manual');
+    expect(traversal.reason).toBe('文件名非法');
+
+    const missing = tryConvertLegacySource(tmpUserData, 'not-exist.js');
+    expect(missing.outcome).toBe('needs-manual');
+    expect(missing.reason).toContain('读取失败');
+
+    await expect(call('pom:booksource-legacy-convert-try', 'foo.json')).rejects.toThrow();
+    await expect(call('pom:booksource-legacy-convert-try', '')).rejects.toThrow();
   });
 });

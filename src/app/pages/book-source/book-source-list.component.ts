@@ -28,6 +28,7 @@ import { ImportLegadoComponent } from '../../modals/import-legado/import-legado.
 import { ExportBookSourcesComponent } from '../../modals/export-book-sources/export-book-sources.component';
 import { ImportBookSourceBundleComponent } from '../../modals/import-book-source-bundle/import-book-source-bundle.component';
 import { BookSourceSubscriptionsComponent } from '../../modals/book-source-subscriptions/book-source-subscriptions.component';
+import { LegacyConvertTryComponent } from '../../modals/legacy-convert-try/legacy-convert-try.component';
 
 type PomRead = {
   booksourceRead?: (fileName: string, sourceDir?: string) => Promise<string>;
@@ -160,6 +161,23 @@ export class BookSourceListComponent {
     } catch (e) {
       this.toast.error(`读取失败：${(e as Error).message}`);
     }
+  }
+
+  /** 「尝试转换」（§4.3）：主进程只读转换尝试 + 渲染端格式验证，弹窗展示详细结果，可一键保存 */
+  tryConvertLegacy(item: LegacySourceItem): void {
+    const jsonFileName = item.fileName.replace(/\.js$/i, '.json');
+    const existingJson = this.state.sources().some((s) => s.fileName === jsonFileName);
+    const ref = this.modal.create({
+      nzTitle: `尝试转换：${item.fileName}`,
+      nzContent: LegacyConvertTryComponent,
+      nzData: { fileName: item.fileName, existingJson },
+      nzFooter: null,
+      nzWidth: 720,
+      nzMaskClosable: false,
+    });
+    ref.afterClose.subscribe((result: unknown) => {
+      if (result === 'saved') void this.refresh(false);
+    });
   }
 
   /** 「删除」legacy 源（§4.3）：二次确认后复用通用 delete channel（按路径删 + 清 marker） */

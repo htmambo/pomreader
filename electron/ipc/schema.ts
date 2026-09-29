@@ -137,6 +137,13 @@ const JsonFileNameSchema = v.pipe(
   v.regex(/\.json$/i, 'fileName must end with .json'),
 );
 
+/** .js 书源文件名（legacy 转换尝试；handler 内还有 safeFileName） */
+const JsFileNameSchema = v.pipe(
+  v.string(),
+  v.minLength(1, 'fileName must be non-empty'),
+  v.regex(/\.js$/i, 'fileName must end with .js'),
+);
+
 /** sourceDir 可选；preload 侧传 `sourceDir ?? null`，故用 nullish 对齐现有风格 */
 const OptionalSourceDirSchema = v.nullish(v.string(), null);
 
@@ -229,3 +236,9 @@ export const BooksourceSubCheckArgsSchema = v.tuple([
   v.pipe(v.string(), v.minLength(1, 'id must be non-empty')),
 ]);
 export type BooksourceSubCheckArgs = v.InferOutput<typeof BooksourceSubCheckArgsSchema>;
+
+/** pom:booksource-legacy-convert-try args tuple: (fileName.js)（strictTuple 拒多余参数） */
+export const BooksourceLegacyConvertTryArgsSchema = v.strictTuple([JsFileNameSchema]);
+export type BooksourceLegacyConvertTryArgs = v.InferOutput<
+  typeof BooksourceLegacyConvertTryArgsSchema
+>;

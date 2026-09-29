@@ -21,7 +21,9 @@
 import type { IpcMain } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
-import { atomicWrite, validateBookSourceDocStructure } from './booksource-meta';
+import { atomicWrite, safeFileName, validateBookSourceDocStructure } from './booksource-meta';
+import { safeHandleWithMeta } from './schema';
+import { BooksourceLegacyConvertTryArgsSchema } from './schema';
 
 /* ════════════════════════════════════════════════════════════════════════
  * parseHeaderMeta（自 booksource-meta.ts 迁入，P4：该文件的 .js 扫描链路已删，
@@ -918,13 +920,50 @@ export function scanLegacyDir(userData: string): LegacyItem[] {
 }
 
 /**
- * 注册迁移相关 IPC channel（§3.4 新增 3 个）：
+ * 单个 legacy .js 的转换尝试（pom:booksource-legacy-convert-try，列表页「尝试转换」数据源）。
+ * 只读：不写盘、不移动任何文件；enabledOverride = null（与启动迁移同口径：头注释/缺省 true）。
+ */
+export function tryConvertLegacySource(userData: string, fileName: string): JsConversion {
+  const safe = safeFileName(fileName);
+  if (!safe || !/\.js$/i.test(safe)) {
+    return {
+      outcome: 'needs-manual',
+      uuid: fileName,
+      jsonFileName: fileName,
+      reason: '文件名非法',
+    };
+  }
+  const full = path.join(userData, LEGACY_DIR, safe);
+  let content: string;
+  try {
+    content = fs.readFileSync(full, 'utf-8');
+  } catch (err) {
+    return {
+      outcome: 'needs-manual',
+      uuid: safe,
+      jsonFileName: safe.replace(/\.js$/i, '.json'),
+      reason: `读取失败: ${(err as Error).message}`,
+    };
+  }
+  return convertJsContent(content, safe, null);
+}
+
+/**
+ * 注册迁移相关 IPC channel（§3.4 新增 3 个 + 转换尝试 1 个）：
  * - pom:booksource-convert：手动批量重触发迁移（主进程内完成，原子写），返回报告
  * - pom:booksource-migration-report：读一次性迁移报告（读后删），无报告返回 null
  * - pom:booksource-legacy-list：常驻扫描 booksources_legacy/
+ * - pom:booksource-legacy-convert-try：单个 legacy .js 的只读转换尝试（详细原因供行内展示）
  */
 export function registerBookSourceMigrationHandlers(ipcMain: IpcMain, userData: string): void {
   ipcMain.handle('pom:booksource-convert', () => migrateBookSources(userData));
   ipcMain.handle('pom:booksource-migration-report', () => readMigrationReportOnce(userData));
   ipcMain.handle('pom:booksource-legacy-list', () => scanLegacyDir(userData));
+  safeHandleWithMeta(
+    ipcMain,
+    'pom:booksource-legacy-convert-try',
+    'BooksourceLegacyConvertTryArgsSchema',
+    BooksourceLegacyConvertTryArgsSchema,
+    (_event, [fileName]) => tryConvertLegacySource(userData, fileName),
+  );
 }
