@@ -16,7 +16,8 @@ import {
  *
  * 覆盖：编解码往返；parseBundle 整体拒绝（未知 format / 缺字段 / content 结构非法 /
  * 超单条 2MB / 超总 20MB / 恶意 fileName）；diffBundle 五类判定（new/identical/
- * update/conflict）、uuid 优先匹配、fileName 兜底、baseline hash 变化触发 conflict
+ * update/conflict）、uuid 优先匹配、fileName 兜底、baseline 比较**本地** hash
+ * （本地被改才产 conflict，§6.2）
  */
 
 function makeDoc(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -207,19 +208,44 @@ describe('diffBundle 分类（§5.3）', () => {
     expect(e.matchedFileName).toBe('a.json');
   });
 
-  it('conflict：带 baseline 且远端 hash ≠ applied[uuid]', () => {
-    const baseline = { 'uuid-a': sha256(makeContent({ name: '上次订阅写入的版本' })) };
-    const [e] = diffBundle([incChanged], [localA], baseline);
-    expect(e.kind).toBe('conflict');
-  });
-
-  it('带 baseline 但远端 hash == applied[uuid] → update（本地未改可安全覆盖）', () => {
-    const baseline = { 'uuid-a': sha256(incChanged.content) };
+  it('baseline 比较**本地** hash：本地未改 + 远端变 → update（可安全自动写入，§6.2）', () => {
+    // applied = 上次订阅写入时的 content hash，本地仍是那一版（未被用户改）
+    const baseline = { 'uuid-a': sha256(localA.content) };
     const [e] = diffBundle([incChanged], [localA], baseline);
     expect(e.kind).toBe('update');
   });
 
-  it('baseline 中无此 uuid → update（无基线按 §6.2 末条处理）', () => {
+  it('本地未改 + 远端同 → identical（baseline 无关，逐字节相同短路）', () => {
+    const baseline = { 'uuid-a': sha256(localA.content) };
+    const [e] = diffBundle([incSame], [localA], baseline);
+    expect(e.kind).toBe('identical');
+  });
+
+  it('本地已改 + 远端变 → conflict（不写盘，交用户裁决，§6.2）', () => {
+    // applied 是上次订阅写入的版本，但本地 content 已被用户改过（hash ≠ applied）
+    const localEdited: BundleSourceEntry = {
+      ...localA,
+      content: makeContent({ name: '用户本地改' }),
+    };
+    const baseline = { 'uuid-a': sha256(localA.content) };
+    const [e] = diffBundle([incChanged], [localEdited], baseline);
+    expect(e.kind).toBe('conflict');
+    expect(e.matchedFileName).toBe('a.json');
+  });
+
+  it('本地已改 + 远端同 → identical（逐字节相同优先于 baseline 判定）', () => {
+    const localEdited: BundleSourceEntry = {
+      ...localA,
+      content: makeContent({ name: '用户本地改' }),
+    };
+    const incSameAsLocal: BundleSourceEntry = { ...localEdited };
+    // baseline 是更老的版本，本地 hash ≠ applied，但远端与本地逐字节同 → 无需动作
+    const baseline = { 'uuid-a': sha256(localA.content) };
+    const [e] = diffBundle([incSameAsLocal], [localEdited], baseline);
+    expect(e.kind).toBe('identical');
+  });
+
+  it('baseline 中无此 uuid + 本地有匹配 → update（无基线按 §6.2 第 4 条处理）', () => {
     const [e] = diffBundle([incChanged], [localA], { 'uuid-x': 'deadbeef' });
     expect(e.kind).toBe('update');
   });

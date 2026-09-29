@@ -172,9 +172,10 @@ export function serializeBundle(bundle: BookSourceBundle): string {
  *
  * - new：无本地匹配项
  * - identical：content 逐字节相同
- * - update：同源、content 不同、无基线或远端 hash == applied[uuid]
- * - conflict：同源、content 不同、带 baseline 且远端 hash ≠ applied[uuid]
- *   （仅订阅场景传入 baseline；本地导入不传，不会产出 conflict）
+ * - update：同源、content 不同、无基线或本地 content hash == applied[uuid]
+ * - conflict：同源、content 不同、带 baseline 且**本地** content hash ≠ applied[uuid]
+ *   （本地自上次订阅写入后被用户改过 → 不写盘，交用户；仅订阅场景传入 baseline，
+ *   本地导入不传，不会产出 conflict）
  */
 export function diffBundle(
   incoming: BundleSourceEntry[],
@@ -198,7 +199,10 @@ export function diffBundle(
     if (!match) return { kind: 'new', ...base };
     if (match.content === inc.content) return { kind: 'identical', ...base };
     const applied = baseline?.[inc.uuid];
-    if (applied !== undefined && sha256(inc.content) !== applied) {
+    // 基线比较的是**本地** content hash（§6.2）：本地自上次订阅写入后未被改 →
+    // update（可安全自动写入）；本地被用户改过 → conflict（不写盘，交用户）。
+    // baseline 中无此 uuid → 无基线，按 update 处理（§6.2 第 4 条）。
+    if (applied !== undefined && sha256(match.content) !== applied) {
       return { kind: 'conflict', ...base };
     }
     return { kind: 'update', ...base };

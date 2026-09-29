@@ -6,6 +6,7 @@
 
 **修订记录**
 
+- 2026-09-30：更正 §6.2 第一条笔误 —— 冲突判定基线比较的是**本地** content hash 与 `applied[uuid]`（原文误写「远端 hash 等于 applied」）；diffBundle 实现已同步修正。语义不变：本地自上次订阅写入后未被改 → 可安全自动写入（update）；本地被用户改过 → conflict 交用户。
 - 2026-09-29：按「书源 JSON 化方案 v2.1」（`2026-09-29-BOOKSOURCE-JSON-RULES-PLAN.md` §10）修订。主要变更：
   - bundle `sources[].content` 语义：内嵌 JS 全文 → 内嵌 **BookSourceDoc JSON 全文**（导入侧以 `BookSourceDocSchema` 做 valibot 校验，失败按损坏条目处理）；
   - 移除 `parseHeaderMeta` 依赖（新载体无 `// @key` 头注释，meta 在文档字段里）；
@@ -166,10 +167,10 @@ IPC pom:booksource-bundle-open()
 
 ### 6.2 `applied` 基线机制
 
-`applied[uuid]` = 上次该订阅成功写入时，`content`（BookSourceDoc JSON 全文）的 sha256；uuid 取 `doc.uuid`，缺省回退带扩展名文件名（`foo.json`，与 §4.1 同口径）。下次拉取时对每个远端源：
+`applied[uuid]` = 上次该订阅成功写入时，`content`（BookSourceDoc JSON 全文）的 sha256；uuid 取 `doc.uuid`，缺省回退带扩展名文件名（`foo.json`，与 §4.1 同口径）。下次拉取时对每个远端源（与本地逐字节不同的前提下）：
 
-- 远端 hash **等于** `applied[uuid]` → 本地自上次写入后未被外部改动 → 可安全自动写入（`update`）
-- 远端 hash **不等** → 远端更新了，但本地可能也改过 → 判 `conflict`，交给用户
+- **本地** content hash **等于** `applied[uuid]` → 本地自上次写入后未被外部改动 → 可安全自动写入（`update`）
+- **本地** content hash **不等** → 本地在上次订阅写入后被用户改过 → 判 `conflict`，交给用户
 - `applied` 中无此 uuid 且本地无此源 → `new`
 - 本地有源但 `applied` 无记录（手工导入的书源）→ 无基线，按 `update` 处理
 
