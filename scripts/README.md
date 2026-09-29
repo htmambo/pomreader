@@ -1,4 +1,34 @@
-# e2e / smoke 脚本
+# 脚本
+
+## 书源存量盘点（`audit-booksources.cjs`）
+
+书源 JSON 规则化改造的 **P0 只读盘点**（无 puppeteer / Chrome 依赖，可单独运行）：
+
+```bash
+node scripts/audit-booksources.cjs                       # 默认扫 ~/.config/pomreader/booksources
+node scripts/audit-booksources.cjs /path/to/booksources  # 指定目录
+node scripts/audit-booksources.cjs --json                # 机器可读输出
+BOOKSOURCES_DIR=/path/to/booksources node scripts/audit-booksources.cjs
+```
+
+产出：源总数 / 启用数、逐常量完整度、手改检测（结构白名单，非字节比对）、特殊模式
+（灾难性回溯粗筛、`{{`、`$.jsonpath`、超长规则 >512、骨架源）、uuid 清单。
+
+退出码：`0` = 盘点完成（无论有无告警）；`1` = 目录不存在等参数/IO 错误。
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `BOOKSOURCES_DIR` | `~/.config/pomreader/booksources` | 书源目录 |
+
+⚠️ 三点注意：① **只读**，不写不删不移；② `Book.bookSourceUuid` 跨库引用核对**做不到**
+（书库是 pouchdb-browser + IndexedDB，Node 不可达），报告只输出 uuid 清单供应用内对拍；
+③ ReDoS 检测是**粗筛**，不可原样搬进未来的 `guard.ts` 拒绝条件。
+
+详见 [实施任务计划 P0](../docs/Task/Active/BOOKSOURCE_JSON_RULES_IMPLEMENTATION_PLAN.md)。
+
+---
+
+## e2e / smoke 脚本
 
 需要 puppeteer-core（已在 devDeps）+ 系统 Chrome。先起 dev server（默认 4200）：
 
