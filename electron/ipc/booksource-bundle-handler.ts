@@ -15,7 +15,7 @@
 import { app, BrowserWindow, dialog, IpcMain } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
-import { atomicWrite, safeJsonFileName } from './booksource-meta';
+import { atomicWrite, readLocalSources, safeJsonFileName } from './booksource-meta';
 import { resolveJsonPath } from './booksource-handler';
 import {
   BUNDLE_MAX_BYTES,
@@ -58,31 +58,9 @@ function ymd(date: Date): string {
 }
 
 /**
- * 读本地 booksources 目录现状（diff 的 local 侧）。uuid 口径与内核一致：
- * doc.uuid ?? 带扩展名 fileName；本地损坏文件 uuid 回退 fileName，仍参与 fileName 兜底匹配。
+ * 读本地 booksources 目录现状（diff 的 local 侧）：已移至 booksource-meta.ts 的
+ * readLocalSources（booksource-subscription.ts 复用，避免本文件的 dialog 依赖链进入订阅模块）。
  */
-function readLocalSources(dir: string): BundleSourceEntry[] {
-  if (!fs.existsSync(dir)) return [];
-  const out: BundleSourceEntry[] = [];
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (!entry.isFile() || path.extname(entry.name).toLowerCase() !== '.json') continue;
-    let content: string;
-    try {
-      content = fs.readFileSync(path.join(dir, entry.name), 'utf-8');
-    } catch {
-      continue;
-    }
-    let uuid = entry.name;
-    try {
-      const doc = JSON.parse(content) as Record<string, unknown>;
-      if (typeof doc.uuid === 'string' && doc.uuid) uuid = doc.uuid;
-    } catch {
-      /* 本地损坏 JSON：uuid 回退 fileName */
-    }
-    out.push({ uuid, fileName: entry.name, content });
-  }
-  return out;
-}
 
 export function registerBookSourceBundleHandler(
   ipcMain: IpcMain,

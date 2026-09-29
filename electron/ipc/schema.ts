@@ -193,3 +193,39 @@ export const BooksourceBundleApplyArgsSchema = v.tuple([
   v.array(v.looseObject({ fileName: JsonFileNameSchema, content: v.string() })),
 ]);
 export type BooksourceBundleApplyArgs = v.InferOutput<typeof BooksourceBundleApplyArgsSchema>;
+
+/* ── booksource-subscription.ts（书源订阅自动更新，设计 §6，Phase 2） ── */
+
+/** pom:booksource-sub-list args: void（strictTuple 拒多余参数，见 GetFetchUaArgsSchema 注释） */
+export const BooksourceSubListArgsSchema = v.strictTuple([]);
+export type BooksourceSubListArgs = v.InferOutput<typeof BooksourceSubListArgsSchema>;
+
+/**
+ * pom:booksource-sub-save args tuple: (item: SubscriptionItem)
+ * id 缺省/空串 = 新增（主进程生成随机 id）；url 仅钉非空，协议与 SSRF 校验在
+ * safeNetRequest 拉取时做（与设计 §7 订阅 URL 边界一致）
+ */
+export const BooksourceSubSaveArgsSchema = v.tuple([
+  v.looseObject({
+    id: v.optional(v.string()),
+    name: v.pipe(v.string(), v.minLength(1, 'name must be non-empty')),
+    url: v.pipe(v.string(), v.minLength(1, 'url must be non-empty')),
+    enabled: v.boolean(),
+    intervalHours: v.pipe(v.number(), v.minValue(1, 'intervalHours must be >= 1')),
+    lastCheckedAt: v.nullish(v.number()),
+    lastError: v.nullish(v.string()),
+  }),
+]);
+export type BooksourceSubSaveArgs = v.InferOutput<typeof BooksourceSubSaveArgsSchema>;
+
+/** pom:booksource-sub-delete args tuple: (id: string) */
+export const BooksourceSubDeleteArgsSchema = v.tuple([
+  v.pipe(v.string(), v.minLength(1, 'id must be non-empty')),
+]);
+export type BooksourceSubDeleteArgs = v.InferOutput<typeof BooksourceSubDeleteArgsSchema>;
+
+/** pom:booksource-sub-check args tuple: (id: string) */
+export const BooksourceSubCheckArgsSchema = v.tuple([
+  v.pipe(v.string(), v.minLength(1, 'id must be non-empty')),
+]);
+export type BooksourceSubCheckArgs = v.InferOutput<typeof BooksourceSubCheckArgsSchema>;

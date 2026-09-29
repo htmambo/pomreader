@@ -7,6 +7,7 @@ import { registerRenderHandler } from './ipc/render-handler';
 import { registerExternalHandler } from './ipc/external-handler';
 import { registerBookSourceHandler } from './ipc/booksource-handler';
 import { registerBookSourceBundleHandler } from './ipc/booksource-bundle-handler';
+import { registerBookSourceSubscriptionHandler } from './ipc/booksource-subscription';
 import { migrateBookSources, registerBookSourceMigrationHandlers } from './ipc/booksource-migrate';
 import { registerCoverHandler } from './ipc/cover-handler';
 import { registerCfGuardHandler } from './ipc/cf-guard';
@@ -125,6 +126,13 @@ app.whenReady().then(() => {
   }
   registerBookSourceHandler(ipcMain, userData);
   registerBookSourceBundleHandler(ipcMain, userData, () => mainWindow);
+  // 书源订阅自动更新（设计 §6，Phase 2）：调度在主进程，窗口最小化/后台仍运行；
+  // 广播逐个窗口发（getAllWindows），will-quit 清 timer
+  const booksourceSubScheduler = registerBookSourceSubscriptionHandler(ipcMain, userData, () =>
+    BrowserWindow.getAllWindows(),
+  );
+  booksourceSubScheduler.start();
+  app.on('will-quit', () => booksourceSubScheduler.stop());
   registerBookSourceMigrationHandlers(ipcMain, userData);
   registerCoverHandler(ipcMain, userData);
   registerCfGuardHandler(ipcMain, () => mainWindow);

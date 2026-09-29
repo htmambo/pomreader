@@ -125,6 +125,49 @@ contextBridge.exposeInMainWorld('pomAPI', {
   ): Promise<{ written: string[]; failed: { fileName: string; error: string }[] }> =>
     ipcRenderer.invoke('pom:booksource-bundle-apply', decisions),
 
+  // ── 书源订阅自动更新（设计 §6，Phase 2） ─────────────────────────────
+  // 更新广播：用上方通用 on('pom:booksource-updated', listener) 订阅，
+  // payload { source: 'subscription', subscriptionId, changed, conflicts }
+  booksourceSubList: (): Promise<
+    {
+      id: string;
+      name: string;
+      url: string;
+      enabled: boolean;
+      intervalHours: number;
+      lastCheckedAt: number | null;
+      lastError: string | null;
+    }[]
+  > => ipcRenderer.invoke('pom:booksource-sub-list'),
+
+  /** 保存/更新订阅；无 id（或空串）视为新增，主进程生成随机 id；返回落盘后的条目 */
+  booksourceSubSave: (item: {
+    id?: string;
+    name: string;
+    url: string;
+    enabled: boolean;
+    intervalHours: number;
+    lastCheckedAt?: number | null;
+    lastError?: string | null;
+  }): Promise<{
+    id: string;
+    name: string;
+    url: string;
+    enabled: boolean;
+    intervalHours: number;
+    lastCheckedAt: number | null;
+    lastError: string | null;
+  }> => ipcRenderer.invoke('pom:booksource-sub-save', item),
+
+  booksourceSubDelete: (id: string): Promise<void> =>
+    ipcRenderer.invoke('pom:booksource-sub-delete', id),
+
+  /** 立即检查该订阅（跑调度同款拉取/diff/写盘逻辑） */
+  booksourceSubCheck: (
+    id: string,
+  ): Promise<{ changed: number; conflicts: number; error: string | null }> =>
+    ipcRenderer.invoke('pom:booksource-sub-check', id),
+
   // ── 书源迁移（方案 §4.2/§3.4，P3） ─────────────────────────────────────
   /** 手动批量重触发存量 .js → .json 迁移（主进程内完成，原子写）；返回迁移报告 */
   booksourceConvert: (): Promise<unknown> => ipcRenderer.invoke('pom:booksource-convert'),

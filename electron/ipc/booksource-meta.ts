@@ -61,6 +61,40 @@ export function atomicWrite(target: string, content: string): void {
   }
 }
 
+/** 本地书源条目（diff 的 local 侧；与 booksource-bundle.ts 的 BundleSourceEntry 结构同构） */
+export interface LocalSourceEntry {
+  uuid: string;
+  fileName: string;
+  content: string;
+}
+
+/**
+ * 读本地 booksources 目录现状（导入/订阅 diff 的 local 侧）。uuid 口径与 bundle 内核一致：
+ * doc.uuid ?? 带扩展名 fileName；本地损坏文件 uuid 回退 fileName，仍参与 fileName 兜底匹配。
+ */
+export function readLocalSources(dir: string): LocalSourceEntry[] {
+  if (!fs.existsSync(dir)) return [];
+  const out: LocalSourceEntry[] = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isFile() || path.extname(entry.name).toLowerCase() !== '.json') continue;
+    let content: string;
+    try {
+      content = fs.readFileSync(path.join(dir, entry.name), 'utf-8');
+    } catch {
+      continue;
+    }
+    let uuid = entry.name;
+    try {
+      const doc = JSON.parse(content) as Record<string, unknown>;
+      if (typeof doc.uuid === 'string' && doc.uuid) uuid = doc.uuid;
+    } catch {
+      /* 本地损坏 JSON：uuid 回退 fileName */
+    }
+    out.push({ uuid, fileName: entry.name, content });
+  }
+  return out;
+}
+
 /* ── JSON 书源（BookSourceDoc）扫描（方案 §3.4，P2 新增） ────────────────── */
 
 const SOURCE_TYPES = new Set(['novel', 'comic', 'video', 'music', 'webpage']);
