@@ -138,6 +138,43 @@ describe('RuleEngineService', () => {
     expect(text).toContain('正文第一段');
   });
 
+  it('chapterContent：首尾「删广告」规则执行后去除重新暴露的空白行', async () => {
+    // 回归用例：广告在正文首尾各一处、被 <br> 包裹。stripTags 先 trim 掉了边缘换行，
+    // 随后的 contentReplaceRules 把广告文字删掉，被 trim 掉的换行重新暴露 → 产出 \n\n正文\n\n。
+    // 本方法是全应用唯一引擎正文入口（adapter / 书源测试 / 书源调试页共用），收口必须在这里。
+    const adDoc = {
+      ...validDoc,
+      rules: {
+        ...validDoc.rules,
+        contentReplaceRules: [{ rule: '一秒记住【笔趣阁】', replace: '' }],
+      },
+    };
+    const adHtml =
+      '<div class="content"><br/>一秒记住【笔趣阁】<br/><br/>' +
+      '正文第一段<br/><br/>正文第二段<br/>一秒记住【笔趣阁】<br/></div>';
+    (window as unknown as { pomAPI?: unknown }).pomAPI = {
+      booksourceRead: vi.fn(async () => JSON.stringify(adDoc)),
+      booksourceHttpProxy: vi.fn(async () => ({ status: 200, headers: {}, body: adHtml })),
+    };
+    const text = await svc.chapterContent(meta, 'https://example.com/b/1/c1');
+    expect(text).toBe('正文第一段\n\n正文第二段');
+    expect(text).not.toMatch(/^\n|\n$/);
+  });
+
+  it('chapterContent：只剥边缘空白行，正文内部的段间空行不受影响', async () => {
+    // 防「过度剥离」回归：段间空行（\n\n）是正文排版的一部分，
+    // 边缘清理必须只动首尾，不能把内部段落间隔一起吃掉。
+    // 注：全角缩进（U+3000）不在此断言 —— stripTags 的 [^\S\n]+→' ' 已把它转成半角，
+    // 段首缩进统一由渲染层 normalizeParagraphIndent 补。
+    const paraHtml = '<div class="content">\n\n正文第一段<br/><br/>正文第二段\n\n</div>';
+    (window as unknown as { pomAPI?: unknown }).pomAPI = {
+      booksourceRead: vi.fn(async () => JSON.stringify(validDoc)),
+      booksourceHttpProxy: vi.fn(async () => ({ status: 200, headers: {}, body: paraHtml })),
+    };
+    const text = await svc.chapterContent(meta, 'https://example.com/b/1/c1');
+    expect(text).toBe('正文第一段\n\n正文第二段');
+  });
+
   it('valibot parse 失败抛 parse-failed 且带字段路径', async () => {
     const bad = { ...validDoc, uuid: '' };
     installPomApi({ booksourceRead: vi.fn(async () => JSON.stringify(bad)) });

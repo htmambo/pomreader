@@ -42,7 +42,7 @@ import {
 } from '../../core/models/settings.model';
 import { type Chapter } from '../../core/models/chapter.model';
 import { type Book } from '../../core/models/book.model';
-import { normalizeParagraphIndent } from '../../core/logic/text-format';
+import { normalizeParagraphIndent, stripEdgeBlankLines } from '../../core/logic/text-format';
 import {
   getChineseConverter,
   loadChineseConverter,
@@ -377,9 +377,17 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     () => this.chapters()[this.chapterIndex()],
   );
 
-  /** 渲染用正文：段首缩进规范化兜底（旧库数据中首段缩进被 trim 剥掉的也能正确显示）+ 简繁转换（仅渲染层，不写回原文） */
+  /**
+   * 渲染用正文（仅渲染层规范化，不写回原文）：
+   * 1. stripEdgeBlankLines 去掉首尾空白行 —— 兜底旧库数据。首尾空行在模板里会各变成
+   *    一个带段落间距的 `<span class="line">`，表现为正文上下多出一整块空白。
+   * 2. normalizeParagraphIndent 段首缩进规范化（旧库数据中首段缩进被剥掉的也能正确显示）。
+   * 3. 简繁转换。
+   */
   readonly displayContent = computed(() => {
-    const text = normalizeParagraphIndent(this.currentChapter()?.content ?? '');
+    const text = normalizeParagraphIndent(
+      stripEdgeBlankLines(this.currentChapter()?.content ?? ''),
+    );
     const conv = this.chineseConverter();
     return conv ? conv(text) : text;
   });

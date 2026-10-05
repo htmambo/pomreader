@@ -7,10 +7,14 @@
  * 不能用 String.trim()：它会连首段开头的全角空格一起剥掉，破坏"段首空两字"排版。
  */
 export function stripEdgeBlankLines(text: string): string {
-  return text
-    .replace(/^(?:[^\S\n]*\n)+/, '') // 开头：整行皆为空白（含全角空格）的行
-    .replace(/(?:\n[^\S\n]*)+$/, '') // 结尾：整行皆为空白的行
-    .replace(/[^\S\n]+$/, ''); // 末尾残留的行内空白（无换行）
+  return (
+    text
+      .replace(/^(?:[^\S\n]*\n)+/, '') // 开头：整行皆为空白（含全角空格）的行
+      .replace(/(?:\n[^\S\n]*)+$/, '') // 结尾：整行皆为空白的行
+      // 末尾残留的行内空白（无换行）。不能收尾再补 String.trim()：
+      // trim() 会把首段开头的全角空格（U+3000，\s 命中）一起剥掉，破坏"段首空两字"排版
+      .replace(/[^\S\n]+$/, '')
+  );
 }
 
 /**

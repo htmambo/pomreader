@@ -28,6 +28,7 @@ import { Subject, type Observable } from 'rxjs';
 import * as v from 'valibot';
 import { BookSourceDocSchema, type BookSourceDoc } from '../../models/book-source-doc.model';
 import { FetchError } from '../fetch-error';
+import { stripEdgeBlankLines } from '../../logic/text-format';
 import { CfPromptService } from '../../services/cf-prompt.service';
 import { type BookSourceMeta } from '../source-meta.types';
 import {
@@ -70,10 +71,23 @@ export class RuleEngineService {
     return engine.chapterList(doc, bookUrl, onTrace);
   }
 
+  /**
+   * 章节正文 —— 全应用唯一的引擎正文入口（adapter / 书源测试 / 书源调试页都走这里），
+   * 故边缘空白行的收口放在这一层，三个消费方一次覆盖。
+   *
+   * 为什么引擎自己不做：engine.ts 的 stripTags 确实已 trim 过一次，但**之后**才跑
+   * contentReplaceRules（engine.ts:528→536）。首尾那类「删广告 / 水印」的替换规则把
+   * 边缘文字删掉后，原本被 trim 掉的换行会重新暴露，产出 `\n\n正文\n\n`。规则无法预知
+   * 删完边缘是否还有内容，只能由调用方统一收口。
+   *
+   * 刻意只做 stripEdgeBlankLines 而非 finalizeChapterContent：段首缩进归渲染层
+   * normalizeParagraphIndent（幂等），这里不越权改排版语义。底层 JsonRuleEngine 保持
+   * 与历史 JS 模板逐字段等价，本方法不侵入引擎。
+   */
   async chapterContent(meta: BookSourceMeta, chapterUrl: string): Promise<string> {
     const doc = await this.loadDoc(meta);
     const { engine, onTrace } = this.createEngine();
-    return engine.chapterContent(doc, chapterUrl, onTrace);
+    return stripEdgeBlankLines(await engine.chapterContent(doc, chapterUrl, onTrace));
   }
 
   /**

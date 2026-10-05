@@ -21,6 +21,7 @@ import {
   randomTestKeyword,
   stripTags,
 } from '../../../core/book-source/smart-add/smart-rules';
+import { stripEdgeBlankLines } from '../../../core/logic/text-format';
 
 /**
  * 打包一组分页子字段：区域规则为空 = 未启用（不输出该字段，即使填了白名单/页数）；
@@ -455,10 +456,14 @@ export class RulesPanelComponent {
       const html = await this.fetcher.fetchHtml(url);
       const rawHtml = pickHtml(this.content(), html);
       if (rawHtml) {
-        // 与生成的 chapterContent() 严格同链路:stripTags(去标签 + 实体解码) → 按顺序执行净化规则。
-        // 注意规则在 stripTags 之后执行 —— 想匹配 &nbsp; 等实体是匹配不到的(已转空格),规则应面向解码后文本
+        // 与生成的 chapterContent() 严格同链路:stripTags(去标签 + 实体解码) → 按顺序执行净化规则
+        // → stripEdgeBlankLines(去首尾空白行，与 RuleEngineService.chapterContent 收口一致)。
+        // 注意规则在 stripTags 之后执行 —— 想匹配 &nbsp; 等实体是匹配不到的(已转空格),规则应面向解码后文本。
+        // 末步不可省:首尾「删广告」规则执行后,被 stripTags trim 掉的换行会重新暴露。
         const replaceRules = this.contentReplaceRules().filter((r) => r.rule.trim());
-        const cleaned = applyContentReplaceRules(stripTags(rawHtml), replaceRules);
+        const cleaned = stripEdgeBlankLines(
+          applyContentReplaceRules(stripTags(rawHtml), replaceRules),
+        );
         this.contentPreview.set(cleaned.slice(0, 2000) + (cleaned.length > 2000 ? '…' : ''));
         this.contentStage.set({
           running: false,

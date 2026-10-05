@@ -122,7 +122,35 @@
       "target": "dmg"
     },
     "pacman": {
-      "afterInstall": "electron/scripts/after-install.sh"
+      "afterInstall": "electron/scripts/after-install.sh",
+      "depends": [
+        "alsa-lib",
+        "at-spi2-core",
+        "cairo",
+        "cups",
+        "dbus",
+        "expat",
+        "glib2",
+        "gtk3",
+        "hicolor-icon-theme",
+        "libnotify",
+        "libpulse",
+        "libx11",
+        "libxcb",
+        "libxcomposite",
+        "libxcursor",
+        "libxdamage",
+        "libxext",
+        "libxfixes",
+        "libxkbcommon",
+        "libxrandr",
+        "mesa",
+        "nspr",
+        "nss",
+        "pango",
+        "systemd-libs",
+        "xdg-utils"
+      ]
     }
   }
 }

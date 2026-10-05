@@ -95,6 +95,10 @@ export class JsonRuleAdapter implements BookSourceAdapter {
     };
   }
 
+  /**
+   * 正文：引擎产物经 RuleEngineService.chapterContent 规范化（去首尾空白行）后返回，
+   * 非 string 返回 ''。边缘空白行不在本层处理 —— 收口在 service 上，书源测试 / 调试页共用。
+   */
   async fetchChapter(entry: CatalogEntry, _fetcher: PageFetcher): Promise<string> {
     const result = await this.engineService.chapterContent(this.meta, entry.url);
     return typeof result === 'string' ? result : '';
