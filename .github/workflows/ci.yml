@@ -39,8 +39,6 @@ jobs:
             cache-electron-playwright-${{ runner.os }}-
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - name: Build sandbox worker (esbuild)
-        run: npm run build:worker
       - name: Prettier format check
         run: npm run format:check
       - name: Vitest unit + coverage
@@ -89,8 +87,6 @@ jobs:
             cache-electron-playwright-${{ runner.os }}-
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - name: Build sandbox worker
-        run: npm run build:worker
       - name: Build db-window renderer
         run: npm run build:db-window
       - name: Run Playwright specs
