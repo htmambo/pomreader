@@ -27,7 +27,7 @@
       <button
         type="button"
         class="item"
-        [class.active]="sourcesOpen()"
+        [class.active]="sourcesOpen() || sourcesRouteActive()"
         [attr.aria-expanded]="sourcesOpen()"
         [title]="expanded() ? null : '书源管理'"
         (click)="toggleSources()"
@@ -45,7 +45,7 @@
             [routerLink]="item.path"
             routerLinkActive="active"
             [routerLinkActiveOptions]="{ exact: item.exact ?? false }"
-            (click)="closePanel()"
+            (click)="closePanel(true)"
           >
             <span class="icon"><span nz-icon [nzType]="item.icon"></span></span>
             <span class="label">{{ item.label }}</span>

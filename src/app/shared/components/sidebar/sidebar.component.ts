@@ -1,7 +1,16 @@
-import { ChangeDetectionStrategy, Component, signal, type OnDestroy } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  signal,
+  type OnDestroy,
+} from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 
-import { RouterLink, RouterLinkActive } from '@angular/router';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { NzIconModule } from 'ng-zorro-antd/icon';
+import { filter, map, startWith } from 'rxjs';
 
 /** 导航项（顶层） */
 interface NavItem {
@@ -19,6 +28,7 @@ interface NavItem {
  * - 默认折叠为 64px 图标轨，文字标签被 overflow 裁掉；「书源管理」子菜单默认收起
  * - 鼠标移入轨道 → 面板宽度动画到 200px 并**悬浮覆盖**主内容（内容不位移），带投影
  * - 鼠标移出后延迟 180ms 收起，避免展开/收起动画期间指针落在面板外导致闪烁
+ * - 「书源管理」子菜单初始收起；用户点开后展开态持久，面板宽度收缩不重置它
  *
  * 图标映射（沿用历史注释里的挑选结论：顶层轮廓最大化差异，子菜单互不相似）：
  * - 书架 read / 书源管理 database / 万能搜索 global / 设置 setting / 免责声明 file-text
@@ -206,6 +216,19 @@ export class SidebarComponent implements OnDestroy {
   /** 书源管理子菜单展开态：默认隐藏 */
   readonly sourcesOpen = signal(false);
 
+  private readonly router = inject(Router);
+  private readonly currentUrl = toSignal(
+    this.router.events.pipe(
+      filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+      map((e) => e.urlAfterRedirects),
+      startWith(this.router.url),
+    ),
+    { initialValue: this.router.url },
+  );
+
+  /** 任一书源子路由激活时主菜单保持高亮（点子项会收起子菜单，active 不能只绑展开态） */
+  readonly sourcesRouteActive = computed(() => this.currentUrl().startsWith('/book-sources'));
+
   /** 收起延迟：展开动画 180ms，指针在动画中途移出会落在面板外，留缓冲避免抖动 */
   private collapseTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -233,7 +256,8 @@ export class SidebarComponent implements OnDestroy {
     this.clearCollapseTimer();
     this.collapseTimer = setTimeout(() => {
       this.expanded.set(false);
-      this.sourcesOpen.set(false);
+      /* 不重置 sourcesOpen：子菜单展开态由用户显式 toggle 控制，
+         面板宽度收缩不应丢失它，否则下次悬停要重新点开 */
     }, 180);
   }
 
@@ -245,10 +269,13 @@ export class SidebarComponent implements OnDestroy {
     this.sourcesOpen.update((open) => !open);
   }
 
-  /** 顶部导航点击后收起悬浮面板（内容区已在指针右侧，避免指针悬停导致面板常驻） */
-  closePanel(): void {
+  /** 顶部导航点击后收起悬浮面板（内容区已在指针右侧，避免指针悬停导致面板常驻）。
+      keepSources：点击书源子项时传 true —— 子菜单保持展开，激活子项才能继续可见 */
+  closePanel(keepSources = false): void {
     this.expanded.set(false);
-    this.sourcesOpen.set(false);
+    if (!keepSources) {
+      this.sourcesOpen.set(false);
+    }
   }
 
   private clearCollapseTimer(): void {
