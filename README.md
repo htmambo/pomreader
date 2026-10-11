@@ -18,6 +18,7 @@ npm run build
 #   • ng build            → electron/www/
 #   • electron            → release/linux-unpacked/（仅 dist 模式）
 # 完整 Electron 包：npm run dist → release/
+#   macOS 分架构一键打包（Intel + Apple Silicon）：npm run dist:mac
 
 # 4. 单元测试（Vitest；含 src/ + electron/ 两侧单测）
 npm test
@@ -188,6 +189,55 @@ docs/
 
 - 加 CDP 截图对比原 app（视觉保真验证）
 - 书源生态：完善 `smart-add` CSS 选择器 + `source-test` 自动化结果保存
+
+## 打包与发布
+
+### macOS（一键，区分 Intel / Apple Silicon）
+
+```bash
+npm run dist:mac              # 一键：Intel x64 + Apple Silicon arm64 各出一份 dmg
+npm run dist:mac:x64          # 只打 Intel
+npm run dist:mac:arm64        # 只打 Apple Silicon（M1/M2/M3/M4）
+npm run dist:mac:universal    # 只打 universal（单文件双架构，体积约 2 倍）
+```
+
+入口脚本 [`scripts/build-mac.sh`](scripts/build-mac.sh)：`ng build` + `build:electron`（两架构共用，**只跑一次**）→ 逐架构 `electron-builder --mac --<arch>`。
+
+产物按架构独立目录，互不覆盖；文件名带 `-mac-<arch>` 后缀，分发时不会拿错：
+
+| 架构 | 输出目录 | 产物 |
+|---|---|---|
+| Intel x64 | `release/mac-x64/` | `pomreader-<version>-mac-x64.dmg` |
+| Apple Silicon arm64 | `release/mac-arm64/` | `pomreader-<version>-mac-arm64.dmg` |
+| universal | `release/mac-universal/` | `pomreader-<version>-mac-universal.dmg` |
+
+其它开关：
+
+| 参数 | 作用 |
+|---|---|
+| `--skip-build` | 复用已有 `electron/www` + `dist-electron`，只重跑打包（改图标/配置时省掉前端构建） |
+| `--keep-going` | 某架构失败后继续跑另一个（默认遇错即停） |
+
+**交叉编译**：electron-builder 按目标架构拉取对应 Electron 发行版，打包过程不执行目标二进制，因此 **Intel 机器可打 arm64、Apple Silicon 可打 x64**，无需对应真机。静态验架构（dmg 是压缩镜像，需先挂载；卷名由 electron-builder 生成，含版本号）：
+
+```bash
+hdiutil attach -nobrowse -readonly release/mac-x64/pomreader-1.0.0-mac-x64.dmg
+lipo -info "/Volumes/白虎阅读 1.0.0/白虎阅读.app/Contents/MacOS/白虎阅读"        # 期望 x86_64
+hdiutil detach "/Volumes/白虎阅读 1.0.0"
+
+hdiutil attach -nobrowse -readonly release/mac-arm64/pomreader-1.0.0-mac-arm64.dmg
+lipo -info "/Volumes/白虎阅读 1.0.0-arm64/白虎阅读.app/Contents/MacOS/白虎阅读"  # 期望 arm64
+hdiutil detach "/Volumes/白虎阅读 1.0.0-arm64"
+```
+
+**签名**：当前 `build.mac` 未配 Developer ID，产物为未签名 + 未公证。接收方首次打开需右键 →「打开」，或 `xattr -cr /Applications/白虎阅读.app`。正式分发需补证书 `CSC_LINK` / `CSC_KEY_PASSWORD`（p12），公证 `APPLE_ID` / `APPLE_APP_SPECIFIC_PASSWORD` / `APPLE_TEAM_ID`。
+
+### 其它平台
+
+```bash
+npm run dist        # 按当前宿主平台打包 → release/
+npm run dist:linux  # Linux：tar.gz + pacman
+```
 
 ## 排错（Linux 打包 / 运行）
 

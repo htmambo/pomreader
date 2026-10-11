@@ -27,6 +27,10 @@
     "dev:file": "npm run build:db-window && rm -rf electron/www && concurrently -k -n web,ele \"ng build --watch --configuration development\" \"npm run watch:electron\" \"wait-on electron/www/browser/index.html && electron .\"",
     "dist": "npm run build && npm run build:electron && electron-builder",
     "dist:linux": "npm run build && npm run build:electron && electron-builder --linux",
+    "dist:mac": "bash scripts/build-mac.sh",
+    "dist:mac:x64": "bash scripts/build-mac.sh --arch x64",
+    "dist:mac:arm64": "bash scripts/build-mac.sh --arch arm64",
+    "dist:mac:universal": "bash scripts/build-mac.sh --arch universal",
     "convert:booksource": "node scripts/convert-booksource.ts"
   },
   "private": true,
@@ -119,7 +123,8 @@
       "target": "nsis"
     },
     "mac": {
-      "target": "dmg"
+      "target": "dmg",
+      "artifactName": "${name}-${version}-mac-${arch}.${ext}"
     },
     "pacman": {
       "afterInstall": "electron/scripts/after-install.sh",
