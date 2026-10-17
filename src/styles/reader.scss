@@ -383,6 +383,12 @@
 .reader-page .right-bar-list:focus-within {
   transform: translateX(0);
 }
+/* 目录/设置面板与左栏视为同一 hover 区域：面板悬停/聚焦时左栏保持展开，
+ * 避免窄窗口下指针移向面板时左栏收回、.act 按钮与面板间的连接线断开 */
+.reader-page:has(.panel-wrap:hover) .left-bar-list,
+.reader-page:has(.panel-wrap:focus-within) .left-bar-list {
+  transform: translateX(0);
+}
 /* 空间足够时完全展开、不隐藏：
  * left/right 不被 max(4px, …) 钳制 ⟺ 100vw ≥ 页宽 + 144px
  * （页宽档位见 settings.model.ts PAGE_WIDTHS） */
@@ -391,6 +397,23 @@
     .reader-page.w#{$w} .left-bar-list,
     .reader-page.w#{$w} .right-bar-list {
       transform: none;
+    }
+  }
+}
+/* 左栏自动隐藏区间（上方 min-width 展开规则的互补区间）：栏与面板都未
+ * hover/focus 时，面板随左栏一起隐藏（淡出后 visibility 移除命中）；
+ * 悬停抓手或面板任一即恢复 —— 仅视觉隐藏，catalogOpen/settingsOpen 不关，
+ * 设置面板未保存的草稿不会因此丢失 */
+@each $w in 640, 800, 900, 1280, 1440, 1680, 1840 {
+  @media (max-width: #{$w + 143}px) {
+    .reader-page.w#{$w}
+      .left-bar-list:not(:hover):not(:focus-within)
+      ~ .panel-wrap:not(:hover):not(:focus-within) {
+      opacity: 0;
+      visibility: hidden;
+      transition:
+        opacity 0.25s ease,
+        visibility 0s 0.25s;
     }
   }
 }
@@ -511,6 +534,9 @@
   left: max(73px, calc(50% - var(--r-page-w) / 2 + 1px));
   background: var(--r-panel-bg) var(--r-panel-img) repeat;
   box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+  /* 隐藏态解除时淡入；visibility 无过渡 → 恢复显示即时生效
+   *（隐藏态自身的 transition 在前文 max-width 规则内声明） */
+  transition: opacity 0.25s ease;
 }
 .reader-page .panel-wrap.catalog {
   width: min(798px, calc(100vw - 130px));
