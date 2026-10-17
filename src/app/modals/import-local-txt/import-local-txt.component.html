@@ -1,0 +1,65 @@
+<div class="import-local-txt">
+  <p>将 TXT 文件拖到下方或点击选择（≤ 50MB）：</p>
+  <nz-upload
+    nzType="drag"
+    [nzMultiple]="false"
+    [nzBeforeUpload]="beforeUpload"
+    [nzShowUploadList]="false"
+    nzAccept=".txt"
+  >
+    <p class="ant-upload-text">点击或拖动 TXT 到此区域</p>
+    <p class="ant-upload-hint">仅支持单文件，大小不超过 50MB</p>
+  </nz-upload>
+
+  <div class="encoding-row">
+    <span>文件编码：</span>
+    <nz-select [(ngModel)]="encodingModel" (ngModelChange)="onEncodingChange($event)" nzSize="small">
+      <nz-option nzValue="auto" nzLabel="自动检测"></nz-option>
+      <nz-option nzValue="utf-8" nzLabel="UTF-8"></nz-option>
+      <nz-option nzValue="gbk" nzLabel="GBK / GB2312"></nz-option>
+    </nz-select>
+    @if (encodingLabel()) {
+    <span class="hint-inline">当前解码：{{ encodingLabel() }}</span>
+    }
+  </div>
+
+  @if (filename()) {
+  <p class="hint">已选择：{{ filename() }}（约 {{ lineCount() }} 行，{{ fileSize() }}）</p>
+  } @if (chapters().length > 0) {
+  <h4>
+    识别到 {{ chapters().length }} 个章节
+    <small class="hint-inline">（{{ chaptersPreview().length }} 预览 / {{ chapters().length }} 总数）</small>
+    @if (chapters().length > DEFAULT_DISPLAY_COUNT) {
+    <button nz-button nzType="link" nzSize="small" (click)="toggleShowAll()">
+      {{ showAll() ? '收起' : '展开全部' }}
+    </button>
+    }
+  </h4>
+  <cdk-virtual-scroll-viewport itemSize="64" class="chapter-list">
+    <div
+      *cdkVirtualFor="let item of chaptersPreview(); let i = index"
+      class="chapter-item"
+      [class.expanded]="selectedIndex() === i"
+      (click)="togglePreview(i)"
+    >
+      <div class="chapter-row">
+        <strong>{{ i + 1 }}.</strong>
+        <span class="title">{{ item.title }}</span>
+        <span class="range">（{{ item.endLine - item.startLine + 1 }} 行）</span>
+      </div>
+      @if (selectedIndex() === i) {
+      <pre class="preview">{{ previewOf(i) }}</pre>
+      }
+    </div>
+  </cdk-virtual-scroll-viewport>
+  <p class="hint-tip">
+    <span nz-icon nzType="info-circle"></span>
+    点击章节可预览前 ~500 字
+  </p>
+  } @else if (filename()) {
+  <p class="hint warn">
+    <span nz-icon nzType="warning"></span>
+    未识别到章节标题，将作为单章"全文"导入。
+  </p>
+  }
+</div>
