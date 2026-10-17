@@ -42,7 +42,8 @@ export class LocalTxtImportService {
     source: BookSource = 'local-txt',
   ): Promise<TxtImportResult> {
     const chs = splitChapters(text);
-    const id = `txt-${Date.now()}`;
+    // 批量导入同一毫秒内可能多次调用：时间戳 + 随机后缀保证 id 唯一（PouchDB 主键冲突即导入失败）
+    const id = `txt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     const baseTitle = this.titleOf(fileName);
     const book: Book = {
       id,

@@ -122,7 +122,16 @@ describe('LocalTxtImportService', () => {
 
     it('id 应以 txt- 前缀避免与 PouchDB 其它来源冲突', async () => {
       const result = await svc.importText('id.txt', '第一章\n正文');
-      expect(result.book.id).toMatch(/^txt-\d+$/);
+      expect(result.book.id).toMatch(/^txt-/);
+    });
+
+    it('批量导入同一毫秒内多次调用 id 不得重复', async () => {
+      const ids = new Set<string>();
+      for (let i = 0; i < 20; i++) {
+        const result = await svc.importText(`b${i}.txt`, '第一章\n正文');
+        ids.add(result.book.id);
+      }
+      expect(ids.size).toBe(20);
     });
   });
 });

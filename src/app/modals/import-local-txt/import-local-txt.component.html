@@ -1,33 +1,62 @@
 <div class="import-local-txt">
-  <p>将 TXT 文件拖到下方或点击选择（≤ 50MB）：</p>
+  <p>将 TXT 文件拖到下方或点击选择（可多选，每个文件 ≤ 50MB，每个文件导入为一本书）：</p>
   <nz-upload
     nzType="drag"
-    [nzMultiple]="false"
+    [nzMultiple]="true"
     [nzBeforeUpload]="beforeUpload"
     [nzShowUploadList]="false"
     nzAccept=".txt"
   >
-    <p class="ant-upload-text">点击或拖动 TXT 到此区域</p>
-    <p class="ant-upload-hint">仅支持单文件，大小不超过 50MB</p>
+    <p class="ant-upload-text">点击或拖动 TXT 到此区域（可多选）</p>
+    <p class="ant-upload-hint">每个文件不超过 50MB，按文件名导入为独立书籍</p>
   </nz-upload>
 
   <div class="encoding-row">
     <span>文件编码：</span>
-    <nz-select [(ngModel)]="encodingModel" (ngModelChange)="onEncodingChange($event)" nzSize="small">
+    <nz-select
+      [(ngModel)]="encodingModel"
+      (ngModelChange)="onEncodingChange($event)"
+      [nzDisabled]="importing() || reencoding()"
+      nzSize="small"
+    >
       <nz-option nzValue="auto" nzLabel="自动检测"></nz-option>
       <nz-option nzValue="utf-8" nzLabel="UTF-8"></nz-option>
       <nz-option nzValue="gbk" nzLabel="GBK / GB2312"></nz-option>
     </nz-select>
     @if (encodingLabel()) {
-    <span class="hint-inline">当前解码：{{ encodingLabel() }}</span>
+    <span class="hint-inline">当前文件解码：{{ encodingLabel() }}</span>
     }
   </div>
 
-  @if (filename()) {
-  <p class="hint">已选择：{{ filename() }}（约 {{ lineCount() }} 行，{{ fileSize() }}）</p>
+  @if (entries().length > 0) {
+  <div class="file-list">
+    @for (e of entries(); track e.name + $index; let i = $index) {
+    <div class="file-item" [class.selected]="selectedFile() === i" (click)="selectFile(i)">
+      <span class="name">{{ e.name }}</span>
+      <span class="meta">
+        {{ e.sizeLabel }} @if (e.encoding) { · {{ encodingLabelOf(e) }} } @if (e.chapters.length > 0) { · {{
+        e.chapters.length }} 章 }
+      </span>
+      @if (e.error) {
+      <span class="badge error">{{ e.error }}</span>
+      } @else if (e.status === 'imported') {
+      <span class="badge ok">已导入</span>
+      } @else if (e.status === 'failed') {
+      <span class="badge error">导入失败</span>
+      } @else if (isDuplicate(e.name)) {
+      <span class="badge warn">重复，将跳过</span>
+      }
+      <span class="remove" nz-icon nzType="close" (click)="removeFile(i); $event.stopPropagation()"></span>
+    </div>
+    }
+  </div>
+  <p class="hint-tip">
+    <span nz-icon nzType="info-circle"></span>
+    共 {{ entries().length }} 个文件，待导入 {{ importableCount() }} 本；点击文件预览章节
+  </p>
   } @if (chapters().length > 0) {
   <h4>
-    识别到 {{ chapters().length }} 个章节
+    {{ selectedEntry()?.name }}：识别到 {{ chapters().length }} 个章节
     <small class="hint-inline">（{{ chaptersPreview().length }} 预览 / {{ chapters().length }} 总数）</small>
     @if (chapters().length > DEFAULT_DISPLAY_COUNT) {
     <button nz-button nzType="link" nzSize="small" (click)="toggleShowAll()">
@@ -35,7 +64,11 @@
     </button>
     }
   </h4>
-  <cdk-virtual-scroll-viewport itemSize="64" class="chapter-list">
+  <cdk-virtual-scroll-viewport
+    itemSize="37"
+    class="chapter-list"
+    [style.height.px]="selectedIndex() === null ? 320 : 160"
+  >
     <div
       *cdkVirtualFor="let item of chaptersPreview(); let i = index"
       class="chapter-item"
@@ -47,16 +80,16 @@
         <span class="title">{{ item.title }}</span>
         <span class="range">（{{ item.endLine - item.startLine + 1 }} 行）</span>
       </div>
-      @if (selectedIndex() === i) {
-      <pre class="preview">{{ previewOf(i) }}</pre>
-      }
     </div>
   </cdk-virtual-scroll-viewport>
+  @if (selectedIndex() !== null) {
+  <pre class="preview">{{ previewText() }}</pre>
+  }
   <p class="hint-tip">
     <span nz-icon nzType="info-circle"></span>
     点击章节可预览前 ~500 字
   </p>
-  } @else if (filename()) {
+  } @else if (selectedEntry() && !selectedEntry()?.error) {
   <p class="hint warn">
     <span nz-icon nzType="warning"></span>
     未识别到章节标题，将作为单章"全文"导入。
