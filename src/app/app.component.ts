@@ -18,6 +18,7 @@ import {
   FileTextOutline,
   ArrowLeftOutline,
   ArrowRightOutline,
+  ArrowDownOutline,
   MenuOutline,
   SettingOutline,
   CloseOutline,
@@ -95,6 +96,7 @@ import { UniversalSearchComponent } from './pages/universal-search/universal-sea
       CheckOutline,
       MinusOutline,
       ArrowUpOutline,
+      ArrowDownOutline, // 净化规则行 上移/下移
       ReloadOutline,
       DownloadOutline,
       TranslationOutline,

@@ -210,6 +210,9 @@ export class BookSourceSmartAddComponent {
       this.toast.warn('文件名需为 字母/数字/下划线/中划线/中文 + .json 后缀');
       return;
     }
+    // 保存关口：净化规则「短规则排在长规则前」时先弹确认（按长度排序 / 保持原序 / 取消）
+    const panel = this.panel();
+    if (panel && !(await panel.confirmReplaceRuleOrder())) return;
     this.saving.set(true);
     try {
       await api.booksourceSaveJson(fileName, this.buildDoc());

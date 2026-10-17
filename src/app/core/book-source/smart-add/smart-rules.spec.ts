@@ -15,6 +15,7 @@ import {
   buildRules,
   buildFormBody,
   applyContentReplaceRules,
+  findReplaceOrderViolation,
   DEFAULT_PATTERNS,
 } from './smart-rules';
 
@@ -292,6 +293,44 @@ describe('正文净化规则', () => {
   });
   it('applyContentReplaceRules:rules 缺省原样返回', () => {
     expect(applyContentReplaceRules('原文', undefined)).toBe('原文');
+  });
+
+  it('findReplaceOrderViolation:长度降序/等长/空列表/缺省 → null（无违规）', () => {
+    expect(findReplaceOrderViolation(undefined)).toBeNull();
+    expect(findReplaceOrderViolation([])).toBeNull();
+    expect(findReplaceOrderViolation([{ rule: 'aa', replace: '' }])).toBeNull();
+    expect(
+      findReplaceOrderViolation([
+        { rule: 'ccc', replace: '' },
+        { rule: 'bb', replace: '' },
+        { rule: 'a', replace: '' },
+      ]),
+    ).toBeNull();
+    // 等长不算违规（稳定序）
+    expect(
+      findReplaceOrderViolation([
+        { rule: 'aa', replace: '' },
+        { rule: 'bb', replace: '' },
+      ]),
+    ).toBeNull();
+  });
+
+  it('findReplaceOrderViolation:短规则排在长规则前 → 返回该相邻对下标；空 rule 行忽略', () => {
+    expect(
+      findReplaceOrderViolation([
+        { rule: 'a', replace: '' },
+        { rule: 'ccc', replace: '' },
+      ]),
+    ).toEqual([0, 1]);
+    // 空 rule 行（含纯空白）被过滤后再比较，下标基于过滤后的有效规则
+    expect(
+      findReplaceOrderViolation([
+        { rule: 'ccc', replace: '' },
+        { rule: '  ', replace: '' },
+        { rule: 'a', replace: '' },
+        { rule: 'bbbb', replace: '' },
+      ]),
+    ).toEqual([1, 2]);
   });
 });
 

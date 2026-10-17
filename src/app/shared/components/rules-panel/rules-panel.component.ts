@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputModule } from 'ng-zorro-antd/input';
+import { NzModalService } from 'ng-zorro-antd/modal';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { PageFetcherService } from '../../../core/book-source/page-fetcher.service';
 import {
@@ -13,6 +14,7 @@ import {
   applyContentReplaceRules,
   buildFormBody,
   absUrl,
+  findReplaceOrderViolation,
   matchLinkItems,
   matchSearchItems,
   pickAttr,
@@ -192,6 +194,7 @@ export class RulesPanelComponent {
   });
 
   private readonly fetcher = inject(PageFetcherService);
+  private readonly modal = inject(NzModalService);
 
   // ── Public API ──
 
@@ -314,6 +317,72 @@ export class RulesPanelComponent {
     this.contentReplaceRules.update((arr) =>
       arr.map((r, i) => (i === index ? { ...r, [field]: value } : r)),
     );
+  }
+
+  /** 正文净化规则 —— 上移/下移一行（delta=-1 上移 / +1 下移；越界 no-op）。执行顺序 = 数组顺序 */
+  moveContentReplaceRule(index: number, delta: -1 | 1): void {
+    this.contentReplaceRules.update((arr) => {
+      const j = index + delta;
+      if (j < 0 || j >= arr.length) return arr;
+      const next = [...arr];
+      [next[index], next[j]] = [next[j], next[index]];
+      return next;
+    });
+  }
+
+  /** 正文净化规则 —— 按 rule 字符串长度降序稳定排序（等长保持原相对顺序；空规则行自然沉底） */
+  sortContentReplaceRulesByLength(): void {
+    this.contentReplaceRules.update((arr) =>
+      [...arr].sort((a, b) => b.rule.length - a.rule.length),
+    );
+  }
+
+  /**
+   * 保存关口：净化规则存在「短规则排在长规则前」时弹确认（短规则先执行可能破坏
+   * 长规则的匹配目标）。返回是否继续保存：
+   * - 按长度排序并保存 → 面板行就地重排后放行（所见即所得，预览与落盘同序）
+   * - 保持当前顺序保存 → 放行（留给有意的「先归一化后匹配」管线）
+   * - 取消 → 中止保存
+   */
+  confirmReplaceRuleOrder(): Promise<boolean> {
+    const rules = this.contentReplaceRules().filter((r) => r.rule.trim());
+    const violation = findReplaceOrderViolation(rules);
+    if (!violation) return Promise.resolve(true);
+    const [shortIdx, longIdx] = violation;
+    const modal = this.modal;
+    return new Promise<boolean>((resolve) => {
+      const ref = modal.create({
+        nzTitle: '净化规则顺序提醒',
+        nzContent: `净化规则按从上到下的顺序执行。第 ${shortIdx + 1} 条（长度 ${rules[shortIdx].rule.length}）排在了更长的第 ${longIdx + 1} 条（长度 ${rules[longIdx].rule.length}）之前——短规则先执行可能破坏长规则的匹配目标。`,
+        nzFooter: [
+          {
+            label: '取消',
+            onClick: () => {
+              ref.destroy();
+              resolve(false);
+            },
+          },
+          {
+            label: '保持当前顺序保存',
+            onClick: () => {
+              ref.destroy();
+              resolve(true);
+            },
+          },
+          {
+            label: '按长度排序并保存',
+            type: 'primary',
+            onClick: () => {
+              this.sortContentReplaceRulesByLength();
+              ref.destroy();
+              resolve(true);
+            },
+          },
+        ],
+        nzWidth: 440,
+        nzKeyboard: false,
+      });
+    });
   }
 
   /** 搜索路径 placeholder 随请求方式变化(GET 强调 ?keyword=,POST 强调 /api/...) */

@@ -7,6 +7,7 @@ import {
 } from '@angular/platform-browser-dynamic/testing';
 import { RulesPanelComponent } from './rules-panel.component';
 import { PageFetcherService } from '../../../core/book-source/page-fetcher.service';
+import { NzModalService } from 'ng-zorro-antd/modal';
 import { type SourceRules } from '../../../core/book-source/smart-add/smart-rules';
 
 /**
@@ -47,7 +48,10 @@ describe('RulesPanelComponent — 面板 ↔ JSON 字段 round-trip', () => {
     // 单测内多次实例化需先 reset（TestBed 已 instantiated 后不能再 configure）
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
-      providers: [{ provide: PageFetcherService, useValue: { fetchHtml: vi.fn() } }],
+      providers: [
+        { provide: PageFetcherService, useValue: { fetchHtml: vi.fn() } },
+        { provide: NzModalService, useValue: { create: vi.fn() } },
+      ],
     });
     return TestBed.runInInjectionContext(() => new RulesPanelComponent());
   }
@@ -147,5 +151,37 @@ describe('RulesPanelComponent — 面板 ↔ JSON 字段 round-trip', () => {
     const panel2 = makePanel();
     panel2.setRules(persisted);
     expect(panel2.getRules()).toEqual(rules);
+  });
+
+  it('moveContentReplaceRule 上移/下移交换相邻行，越界 no-op', () => {
+    const panel = makePanel();
+    panel.contentReplaceRules.set([
+      { rule: 'a', replace: '1' },
+      { rule: 'bb', replace: '2' },
+      { rule: 'ccc', replace: '3' },
+    ]);
+    panel.moveContentReplaceRule(1, -1);
+    expect(panel.contentReplaceRules().map((r) => r.rule)).toEqual(['bb', 'a', 'ccc']);
+    panel.moveContentReplaceRule(0, -1); // 越界 no-op
+    expect(panel.contentReplaceRules().map((r) => r.rule)).toEqual(['bb', 'a', 'ccc']);
+    panel.moveContentReplaceRule(1, 1);
+    expect(panel.contentReplaceRules().map((r) => r.rule)).toEqual(['bb', 'ccc', 'a']);
+    panel.moveContentReplaceRule(2, 1); // 越界 no-op
+    expect(panel.contentReplaceRules().map((r) => r.rule)).toEqual(['bb', 'ccc', 'a']);
+    // replace 字段随行一起移动
+    expect(panel.contentReplaceRules()[2]).toEqual({ rule: 'a', replace: '1' });
+  });
+
+  it('sortContentReplaceRulesByLength 按 rule 长度降序稳定排序（等长保持原顺序，空行沉底）', () => {
+    const panel = makePanel();
+    panel.contentReplaceRules.set([
+      { rule: 'aa', replace: 'x' },
+      { rule: 'ccccc', replace: '' },
+      { rule: 'b', replace: '' },
+      { rule: 'dd', replace: 'y' },
+      { rule: '', replace: '' },
+    ]);
+    panel.sortContentReplaceRulesByLength();
+    expect(panel.contentReplaceRules().map((r) => r.rule)).toEqual(['ccccc', 'aa', 'dd', 'b', '']);
   });
 });

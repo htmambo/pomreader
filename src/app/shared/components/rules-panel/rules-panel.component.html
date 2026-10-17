@@ -346,7 +346,19 @@
     <div class="body-params">
       <div class="body-params-header">
         <span class="body-params-title">净化规则</span>
-        <span class="body-params-hint">正文提取后按顺序执行:匹配规则(正则) → 替换为(留空 = 删除匹配文本)</span>
+        <span class="body-params-hint"
+          >正文提取后按从上到下的顺序执行:匹配规则(正则) → 替换为(留空 = 删除匹配文本)</span
+        >
+        <button
+          nz-button
+          nzSize="small"
+          nzType="link"
+          [disabled]="contentReplaceRules().length < 2"
+          (click)="sortContentReplaceRulesByLength()"
+          title="按匹配规则的字符串长度从长到短重排（等长保持原顺序）"
+        >
+          按长度排序
+        </button>
       </div>
       @for (r of contentReplaceRules(); track $index; let i = $index; let last = $last) {
       <div class="body-param-row">
@@ -364,6 +376,26 @@
           placeholder="替换为(留空 = 删除)"
           class="mono param-value"
         />
+        <button
+          nz-button
+          nzSize="small"
+          nzType="text"
+          [disabled]="i === 0"
+          (click)="moveContentReplaceRule(i, -1)"
+          title="上移（先执行）"
+        >
+          <span nz-icon nzType="arrow-up"></span>
+        </button>
+        <button
+          nz-button
+          nzSize="small"
+          nzType="text"
+          [disabled]="last"
+          (click)="moveContentReplaceRule(i, 1)"
+          title="下移（后执行）"
+        >
+          <span nz-icon nzType="arrow-down"></span>
+        </button>
         @if (contentReplaceRules().length > 1) {
         <button nz-button nzSize="small" nzType="text" nzDanger (click)="removeContentReplaceRule(i)" title="删除">
           <span nz-icon nzType="delete"></span>

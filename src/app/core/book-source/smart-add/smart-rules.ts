@@ -447,6 +447,22 @@ export function applyContentReplaceRules(
   return out;
 }
 
+/**
+ * 净化规则顺序检查（保存关口用）：找出第一处「短规则排在长规则前」的相邻对。
+ * 返回 [较短规则下标, 较长规则下标]；整体满足 rule 字符串长度降序时返回 null。
+ * 启发式说明：正则串长度只是匹配范围的代理（短正则可能匹配长文本），误报存在，
+ * 因此结果只用于弹确认、交用户裁决 —— 引擎永远按存储数组顺序执行，不做运行时重排。
+ */
+export function findReplaceOrderViolation(
+  rules: ContentReplaceRule[] | undefined,
+): [number, number] | null {
+  const rs = (rules ?? []).filter((r) => r && r.rule && r.rule.trim());
+  for (let i = 0; i < rs.length - 1; i++) {
+    if (rs[i].rule.length < rs[i + 1].rule.length) return [i, i + 1];
+  }
+  return null;
+}
+
 /** 抓取到的首页 HTML → 初始规则集 */
 export function buildRules(url: string, html: string): SourceRules {
   const host = new URL(url).hostname.replace(/^www\./, '');

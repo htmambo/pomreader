@@ -270,6 +270,9 @@ export class BookSourceEditorComponent {
 
   /** 保存（.json 覆盖原文件；.js 打开时落盘同名 .json） */
   async save(): Promise<void> {
+    // 保存关口：净化规则「短规则排在长规则前」时先弹确认（按长度排序 / 保持原序 / 取消）
+    const panel = this.panel();
+    if (panel && !(await panel.confirmReplaceRuleOrder())) return;
     const doc = this.assembleDoc();
     if (!doc) {
       this.toast.warn('书源规则未就绪，无法保存');
