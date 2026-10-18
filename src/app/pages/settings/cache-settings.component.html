@@ -9,6 +9,37 @@
 </div>
 
 <div class="sort-panel">
+  <h3>电源</h3>
+  <nz-switch
+    [ngModel]="keepAwakeWhenReading"
+    (ngModelChange)="keepAwakeWhenReading = $event"
+    nzCheckedChildren="开"
+    nzUnCheckedChildren="关"
+  ></nz-switch>
+  <p class="sort-hint">
+    开启后，在阅读界面（书籍正文页）时阻止系统进入睡眠、息屏与自动锁屏；离开阅读页自动恢复系统默认行为。
+  </p>
+  @if (powerSupported()) {
+  <p class="sort-hint status-hint">
+    当前平台：{{ powerPlatform() || '未知' }} @if (powerActive()) {
+    <span class="ok">· 防睡眠已生效</span>
+    } @else {
+    <span>· 未在阅读页，暂未生效</span>
+    }
+  </p>
+  } @else {
+  <p class="sort-hint status-hint">
+    <span class="warn">· 当前环境不支持（Linux 需 systemd-logind；浏览器调试模式无主进程）</span>
+  </p>
+  }
+  <p class="sort-hint">
+    实现说明：主进程经 Chromium 唤醒锁映射到系统原生接口 —— Windows
+    <code>SetThreadExecutionState</code>、macOS <code>IOPMAssertion</code>、Linux
+    <code>logind Inhibit</code>。无法阻止合盖休眠、电源键休眠与手动休眠，长时间阅读请注意电量。
+  </p>
+</div>
+
+<div class="sort-panel">
   <h3>抓取 User-Agent</h3>
   <input
     nz-input

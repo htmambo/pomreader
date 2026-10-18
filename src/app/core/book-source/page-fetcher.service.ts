@@ -16,6 +16,11 @@ declare global {
       /** 抓取 UA 设置（设置页用） */
       getFetchUA?: () => Promise<{ ua: string; defaultUa: string }>;
       setFetchUA?: (ua: string | null) => Promise<{ ua: string }>;
+      /** 防睡眠 / 防锁屏（PowerBlockerService 用；supported=false 表示平台不支持） */
+      powerBlockerGet?: () => Promise<{ active: boolean; supported: boolean; platform: string }>;
+      powerBlockerSet?: (
+        active: boolean,
+      ) => Promise<{ active: boolean; supported: boolean; platform: string }>;
       openExternal: (url: string) => Promise<void>;
       /** 书源 HTTP 代理（T-002 书源链路用；RuleEngineService 经此出网） */
       booksourceHttpProxy?: (req: {

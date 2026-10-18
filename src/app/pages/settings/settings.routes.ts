@@ -10,7 +10,7 @@ export const SETTINGS_ROUTES: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'cache' },
   {
     path: 'cache',
-    data: { subtitle: '书架排序与封面缓存管理' },
+    data: { subtitle: '书架排序、电源与封面缓存管理' },
     loadComponent: () => import('./cache-settings.component').then((m) => m.CacheSettingsComponent),
   },
 ];

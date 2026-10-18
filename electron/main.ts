@@ -13,6 +13,11 @@ import { registerCoverHandler } from './ipc/cover-handler';
 import { registerCfGuardHandler } from './ipc/cf-guard';
 import { registerAutoImport } from './auto-import';
 import { registerDbHandler } from './db/db-window';
+import {
+  registerPowerBlockerHandler,
+  stopBlockerOnQuit,
+  watchWebContents,
+} from './ipc/power-blocker';
 import { loadWindowState, trackWindowState } from './window-state';
 
 // 沿用原 vendor 兼容补丁 ⑤：防双实例 IndexedDB 锁争用
@@ -73,6 +78,8 @@ function createWindow(userData: string): void {
 
   if (state.isMaximized) mainWindow.maximize();
   trackWindowState(mainWindow, userData);
+  // 窗口关闭 / 渲染进程崩溃时兜底释放唤醒锁（macOS 关窗不退应用、崩溃后 reload 均不经 ngOnDestroy）
+  watchWebContents(mainWindow.webContents);
 
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
@@ -137,6 +144,8 @@ app.whenReady().then(() => {
   registerCoverHandler(ipcMain, userData);
   registerCfGuardHandler(ipcMain, () => mainWindow);
   registerAutoImport(ipcMain, userData, () => mainWindow);
+  // 阅读时防睡眠/防锁屏（renderer PowerBlockerService 经 IPC 驱动）
+  registerPowerBlockerHandler(ipcMain);
   // 书库 DB：隐藏窗口统一持有 PouchDB（详见 db/db-window.ts 头注释）
   registerDbHandler(ipcMain);
   // 旧 webview session（persist:universal-search）的 cookie 迁移进共享抓取 session
@@ -165,4 +174,9 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
+});
+
+// 退出前显式释放唤醒锁：阅读页可能仍持有，不释放会让系统在应用退出后仍被阻止休眠
+app.on('before-quit', () => {
+  stopBlockerOnQuit();
 });

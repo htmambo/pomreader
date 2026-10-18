@@ -112,6 +112,11 @@ export namespace SettingsStore {
       convertMode: CONVERT_MODES.includes(parsed.convertMode!)
         ? parsed.convertMode!
         : DEFAULT_SETTINGS.convertMode,
+      // 老版本 localStorage 无此字段 → 严格 boolean 校验后回退默认（默认开启）
+      keepAwakeWhenReading:
+        typeof parsed.keepAwakeWhenReading === 'boolean'
+          ? parsed.keepAwakeWhenReading
+          : DEFAULT_SETTINGS.keepAwakeWhenReading,
     };
   }
 

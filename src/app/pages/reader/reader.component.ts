@@ -23,6 +23,7 @@ import { NzMessageService } from 'ng-zorro-antd/message';
 import { BookService } from '../../core/services/book.service';
 import { ReaderService } from '../../core/services/reader.service';
 import { SettingsService } from '../../core/services/settings.service';
+import { PowerBlockerService } from '../../core/services/power-blocker.service';
 import { JumpChapterDialogComponent } from '../../shared/components/jump-chapter-dialog/jump-chapter-dialog.component';
 import {
   PAGE_WIDTHS,
@@ -75,6 +76,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly books = inject(BookService);
   protected readonly reader = inject(ReaderService);
   protected readonly settings = inject(SettingsService);
+  private readonly powerBlocker = inject(PowerBlockerService);
   private readonly modal = inject(NzModalService);
   private readonly msg = inject(NzMessageService);
 
@@ -426,6 +428,8 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
       this.router.navigate(['/bookshelf']);
       return;
     }
+    // 书已确认存在才占用防睡眠：上面的 not-found 分支会立即跳走，不该让机器保持常亮
+    this.powerBlocker.acquire();
     if (chapterId >= book.chapterCount) chapterId = 0;
 
     // 恢复阅读进度：
@@ -467,6 +471,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.destroyed = true;
+    this.powerBlocker.release();
     this.scrollEl?.removeEventListener('scroll', this.onScroll);
     this.resizeObserver?.disconnect();
     cancelAnimationFrame(this.measureRaf);

@@ -7,8 +7,10 @@ import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzModalModule, NzModalService } from 'ng-zorro-antd/modal';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
+import { NzSwitchModule } from 'ng-zorro-antd/switch';
 import { CoverService } from '../../core/cover/cover.service';
 import { SettingsService } from '../../core/services/settings.service';
+import { PowerBlockerService } from '../../core/services/power-blocker.service';
 import { type BookshelfSort } from '../../core/models/settings.model';
 import { ToastService } from '../../core/services/toast.service';
 
@@ -27,6 +29,7 @@ import { ToastService } from '../../core/services/toast.service';
     NzModalModule,
     NzRadioModule,
     NzSpinModule,
+    NzSwitchModule,
   ],
   templateUrl: './cache-settings.component.html',
   styleUrls: ['./cache-settings.component.scss'],
@@ -36,6 +39,7 @@ export class CacheSettingsComponent implements OnInit {
   private modal = inject(NzModalService);
   private toast = inject(ToastService);
   private settingsService = inject(SettingsService);
+  private readonly powerBlocker = inject(PowerBlockerService);
 
   loading = signal(false);
   size = signal(0);
@@ -46,6 +50,8 @@ export class CacheSettingsComponent implements OnInit {
 
   ngOnInit() {
     void this.refresh();
+    // 平台能力探测：非 systemd Linux / 浏览器调试下 supported=false，用于提示降级
+    void this.powerBlocker.refresh();
     // 从主进程读当前生效 UA 与默认值（渲染端 localStorage 只存自定义值）
     void window.pomAPI?.getFetchUA?.().then((r) => {
       this.defaultUa = r.defaultUa;
@@ -79,6 +85,21 @@ export class CacheSettingsComponent implements OnInit {
     this.settingsService.update('bookshelfSort', v);
     this.toast.success('书架排序已更新');
   }
+
+  /** 阅读时阻止系统睡眠/锁屏（读取页经 PowerBlockerService 应用到主进程） */
+  get keepAwakeWhenReading(): boolean {
+    return this.settingsService.settings().keepAwakeWhenReading;
+  }
+  set keepAwakeWhenReading(v: boolean) {
+    this.settingsService.update('keepAwakeWhenReading', v);
+  }
+
+  /** 当前平台是否支持阻止睡眠（false = 开关保留但不生效，如非 systemd Linux / 浏览器调试） */
+  readonly powerSupported = this.powerBlocker.supported;
+  /** 当前平台展示名（空串 = 未知） */
+  readonly powerPlatform = this.powerBlocker.platform;
+  /** 防睡眠是否正处于生效状态（仅阅读页激活时为 true） */
+  readonly powerActive = this.powerBlocker.active;
 
   /** 重新读取缓存大小 */
   async refresh(): Promise<void> {

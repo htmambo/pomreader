@@ -41,6 +41,7 @@ export interface Settings {
   paragraphLineHeight: number; // 段落行高 1.0-3.0（步长 0.1）
   paragraphSpacing: number; // 段落间距 0-2.0 em（步长 0.1）
   convertMode: ConvertMode; // 简繁转换档位
+  keepAwakeWhenReading: boolean; // 阅读时阻止系统睡眠/息屏/自动锁屏（主进程 powerSaveBlocker）
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -56,4 +57,5 @@ export const DEFAULT_SETTINGS: Settings = {
   paragraphLineHeight: 1.8,
   paragraphSpacing: 0.2,
   convertMode: 'off',
+  keepAwakeWhenReading: true,
 };

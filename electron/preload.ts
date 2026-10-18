@@ -43,6 +43,16 @@ contextBridge.exposeInMainWorld('pomAPI', {
   setFetchUA: (ua: string | null): Promise<{ ua: string }> =>
     ipcRenderer.invoke('pom:set-fetch-ua', ua),
 
+  // ── 防睡眠 / 防锁屏（阅读页用） ───────────────────────────────────────
+  /** 查询防睡眠状态：{ active 是否生效, supported 平台是否支持, platform 展示名 } */
+  powerBlockerGet: (): Promise<{ active: boolean; supported: boolean; platform: string }> =>
+    ipcRenderer.invoke('pom:power-blocker-get'),
+  /** 幂等开关防睡眠：true 申请 prevent-display-sleep，false 释放 */
+  powerBlockerSet: (
+    active: boolean,
+  ): Promise<{ active: boolean; supported: boolean; platform: string }> =>
+    ipcRenderer.invoke('pom:power-blocker-set', active),
+
   // ── 流式事件订阅（ASSUMPTION-15：先 on 注册再 invoke，避免漏事件） ──
   /** 订阅主进程推送事件；返回取消订阅函数 */
   on: (channel: string, listener: (...args: any[]) => void): (() => void) => {
