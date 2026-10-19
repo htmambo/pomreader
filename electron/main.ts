@@ -78,7 +78,7 @@ function createWindow(userData: string): void {
 
   if (state.isMaximized) mainWindow.maximize();
   trackWindowState(mainWindow, userData);
-  // 窗口关闭 / 渲染进程崩溃时兜底释放唤醒锁（macOS 关窗不退应用、崩溃后 reload 均不经 ngOnDestroy）
+  // 窗口关闭 / 渲染进程崩溃时兜底释放唤醒锁（关窗、崩溃后 reload 均不经 ngOnDestroy）
   watchWebContents(mainWindow.webContents);
 
   mainWindow.once('ready-to-show', () => {
@@ -167,13 +167,16 @@ app.whenReady().then(() => {
     });
   });
 
+  // 安全网：关窗即退出后此分支通常不可达；保留以防未来 before-quit 阻止退出
+  // 或引入托盘保活时，点击 Dock 图标无法重建窗口
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow(userData);
   });
 });
 
+// 全平台关窗即退出（含 macOS 打包版），不留 Dock
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  app.quit();
 });
 
 // 退出前显式释放唤醒锁：阅读页可能仍持有，不释放会让系统在应用退出后仍被阻止休眠
