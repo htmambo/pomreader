@@ -433,3 +433,80 @@
 
 **Review Loop 状态：CLOSE（2 轮，两轮均 APPROVED，未触发 5 轮上限）**
 
+---
+
+# P1/P2 收尾：db.service.ts 批量取正文 + 导入 e2e 真实浏览器回归（2026-10-24）
+
+> 承接 [Archive/2026-10/PROJECT_PERFORMANCE_OPTIMIZATION_PLAN.md](./Archive/2026-10/PROJECT_PERFORMANCE_OPTIMIZATION_PLAN.md)
+> 的 P1（章节扫描改元数据）/ P2（孤儿按需清理）遗留项。范围：`db.service.ts` + 其单测（scope A）、
+> `e2e/import-local-txt.spec.ts` 与 `e2e/import-online.spec.ts`（scope B）。
+
+## Round 1/10 — 2026-10-24
+
+**Provider:** coding-bridge
+**Kind:** code
+**VERDICT:** ⚠️ **NEEDS_CHANGES**
+
+### Risks 与处置
+
+| # | Severity | Summary | 处置 |
+|---|---|---|---|
+| A1 | P中 | `typeof PouchDBStatic` 断言被指为「破坏构建」（TS2693） | ❌ **驳回，不改**。`npx tsc -p tsconfig.app.json --noEmit` exit 0，另用独立探针文件复现同一构造亦通过——该风险的事实前提不成立。构造仍被移除，但理由是「只声明最小构造契约、不引入包的静态 API」的简化，不是修编译错误 |
+| A2 | P中 | e2e 定位器用 `hasText: '导入'` 子串匹配，可能命中「导入在线书页」/「导入本地 TXT」 | ✅ **采纳**。改为精确匹配正则（`/^\s*导入\s*$/` 等），并用临时 Playwright DOM 探针核对真实渲染结构（按钮内含 `aria-label="plus"` 图标 + 带空格的文本 span） |
+| A3 | P中 | e2e 断言「无 `window.pomAPI`」的布尔方向与另一处不一致；`indexedDB.databases()` 断言无等待 | ✅ **采纳**。两处 pomAPI 断言统一为 `=== undefined → toBe(true)`；IndexedDB 库名断言改用 `expect.poll` 等待注册完成 |
+
+## Round 2/10 — 2026-10-24
+
+**Provider:** coding-bridge
+**Kind:** code
+**VERDICT:** ⚠️ **NEEDS_CHANGES**
+
+按 Round 1 建议改成精确匹配正则后，e2e 出现 `element(s) not found`。经临时 DOM 探针定位为**正则过严**：
+真实 DOM 文本节点带前后空格，且按钮内含图标 `aria-label`。据此把 `\s*` 容错加回正则并保留精确锚点
+（`/^\s*导入\s*$/` 而非子串匹配），e2e 恢复全绿。**教训**：定位器正则须以真实 DOM 为依据，
+不能从「精确匹配」这一目标直接推导出严格正则。
+
+## Round 3/10 — 2026-10-24
+
+**Provider:** coding-bridge
+**Kind:** code
+**VERDICT:** ⚠️ **NEEDS_CHANGES**（scope A）/ ✅ **APPROVED**（scope B）
+
+### scope A（`db.service.ts`）Risks 与处置
+
+| # | Severity | Summary | 处置 |
+|---|---|---|---|
+| A1 | P高 | `BrowserPouchBackend.destroy()` 销毁后仍复用已销毁的实例 | ✅ 修复：`destroy()` 后置 `this.instance = null`，下次调用重新打开同名空库；新增单测「浏览器后端 destroy 后应丢弃已销毁实例并重新打开」 |
+| A2 | P中 | 孤儿候选逐个 `get()` 往返（N 次 IO），且必须读正文才能校验 `type` 与取最新 `_rev` | ✅ 修复：改为 `allDocs({keys, include_docs:true})` 一次批量取正文，请求数固定为 2；`type === 'chapter'` 校验保留（该校验非冗余，见既有单测「同前缀非 chapter 文档不应作为孤儿删除」） |
+| A3 | P中 | 旧 id 迁移同样逐个 `get()` 取正文 | ✅ 修复：同上，范围扫描收集 `legacyIds` → 一次批量取正文 |
+
+## Round 4/10 — 2026-10-24
+
+**Provider:** coding-bridge
+**Kind:** code
+**VERDICT:** ✅ **APPROVED**（scope A 与 scope B 同轮复审，risks 均为 none）
+
+- **scope A**：逐条确认 A1–A3 已修复；并确认 409 冲突语义、「同前缀非 chapter 文档不删除」保证、
+  「范围扫描后候选被删」的竞态处理（已删 → `doc=null`；查无此 id → error 行）均无回归。
+  2 条非阻塞建议（`rowDoc` 返回类型可更精确；超大 `keys` 数组未分片）留作后续。
+- **scope B**：确认定位器正则精确、断言均可失败、`expect.poll` 消除 IndexedDB 注册时序抖动、
+  模块级 `titleSeq` / `tempDirs` 在 Playwright 同文件串行模型下安全。
+  3 条非阻塞建议（`tempDirs` 改 `afterEach` 逐用例清理；modal 的 `hasText` 未用正则；
+  「识别到 2 个章节」未加 `exact`）留作后续。
+
+### PouchDB 语义实证（真实 Chromium + 本仓打包的 `pouchdb-browser@9.0.0`）
+
+以临时探针在真实浏览器内核对 `allDocs` 语义（单测用的是 mock bridge，语义需独立取证）：
+
+- 范围模式（`startkey/endkey`）**不返回**已打墓碑的文档
+- keys 模式命中已删文档 → 仍返回一行，`value.deleted === true` 且 `doc === null`
+- keys 模式查无此 id → `{ key, error: 'not_found' }`，无 `doc` 属性
+- keys 模式命中行带 `doc._rev`
+
+### 验证基线
+
+`npx tsc -p tsconfig.app.json --noEmit` exit 0；`npx vitest run` 1193 passed / 75 files；
+`npm run e2e` 21/21；改动文件 ESLint 0 问题（仓库既有 43 条 `no-undef` 全在 book-source 模块，与本次无关）。
+
+**Review Loop 状态：CLOSE（4 轮，末轮两个 scope 均 APPROVED，未触发 10 轮上限）**
+
