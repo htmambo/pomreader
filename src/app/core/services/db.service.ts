@@ -1,6 +1,4 @@
 import { Injectable } from '@angular/core';
-// 仅取类型：运行时改为动态 import，避免 pouchdb-browser 进入主 chunk
-import type PouchDBStatic from 'pouchdb-browser';
 import { type Book } from '../models/book.model';
 import { type Chapter } from '../models/chapter.model';
 import { type BookshelfGroup } from '../models/bookshelf-group.model';
@@ -63,6 +61,11 @@ type StoredBookDoc = BookDoc & PouchDB.Core.RevisionIdMeta;
 type StoredChapterDoc = ChapterDoc & PouchDB.Core.RevisionIdMeta;
 type StoredGroupDoc = GroupDoc & PouchDB.Core.RevisionIdMeta;
 
+/** pouchdb-browser 的构造器签名。
+ *  该包是 CommonJS `export =`，运行时经打包器互操作后以 default 暴露构造器；
+ *  只声明所需的最小构造契约（`new (name)` → 实例），不引入包的静态 API。 */
+type PouchDbConstructor = new (name: string) => PouchDB.Database<BookDoc | ChapterDoc>;
+
 const DB_NAME = 'pomreader';
 const BOOK_PREFIX = 'book:';
 const CHAPTER_PREFIX = 'chapter:';
@@ -75,6 +78,16 @@ const CHAPTER_SEP = '';
 const HIGH_CHAR = '￰';
 
 /**
+ * keys 模式的返回行有两类：命中行（带 doc）与「id 查无此文档」的 error 行（无 doc）。
+ * 统一取出正文：error 行 → undefined（调用方按“查不到”处理）。
+ */
+function rowDoc<Content extends object>(
+  row: PouchDB.Core.AllDocsWithKeysResponse<Content>['rows'][number],
+): unknown {
+  return 'doc' in row ? row.doc : undefined;
+}
+
+/**
  * PouchDB 最小操作面——DbService 实际用到的 5 个方法。
  * 显式定义（而非 Pick PouchDB 重载签名）以便 IPC 代理实现。
  */
@@ -82,6 +95,14 @@ interface PouchBackend {
   allDocs<Content extends object>(
     options: PouchDB.Core.AllDocsWithinRangeOptions,
   ): Promise<PouchDB.Core.AllDocsResponse<Content>>;
+  /**
+   * 按 id 批量取文档（含正文）：PouchDB 的 allDocs({keys, include_docs}) 在一次事务里
+   * 返回全部命中文档——缺失 id 返回无 doc 的 error 行，已删文档返回 doc=null。
+   * 用于「先元数据扫描定位候选、再一次性取正文」，把 N 次 get 往返压成 1 次。
+   */
+  allDocsByKeys<Content extends object>(
+    keys: string[],
+  ): Promise<PouchDB.Core.AllDocsWithKeysResponse<Content>>;
   get<Content extends object>(
     docId: string,
   ): Promise<PouchDB.Core.Document<Content> & PouchDB.Core.GetMeta>;
@@ -121,6 +142,12 @@ class IpcPouchBackend implements PouchBackend {
     options: PouchDB.Core.AllDocsWithinRangeOptions,
   ): Promise<PouchDB.Core.AllDocsResponse<Content>> {
     return this.call('allDocs', [options]);
+  }
+
+  allDocsByKeys<Content extends object>(
+    keys: string[],
+  ): Promise<PouchDB.Core.AllDocsWithKeysResponse<Content>> {
+    return this.call('allDocs', [{ keys, include_docs: true }]);
   }
 
   get<Content extends object>(
@@ -186,6 +213,15 @@ class BrowserPouchBackend implements PouchBackend {
       PouchDB.Core.GetMeta;
   }
 
+  async allDocsByKeys<Content extends object>(
+    keys: string[],
+  ): Promise<PouchDB.Core.AllDocsWithKeysResponse<Content>> {
+    const db = await this.db();
+    const options: PouchDB.Core.AllDocsWithKeysOptions = { keys, include_docs: true };
+    const res = await db.allDocs<Content>(options);
+    return res as unknown as PouchDB.Core.AllDocsWithKeysResponse<Content>;
+  }
+
   async put<Content extends object>(
     doc: PouchDB.Core.PutDocument<Content>,
   ): Promise<PouchDB.Core.Response> {
@@ -207,6 +243,8 @@ class BrowserPouchBackend implements PouchBackend {
   async destroy(): Promise<void> {
     const db = await this.db();
     await db.destroy();
+    // 销毁后的实例不可再用：清空缓存，下次调用重新打开一个同名空库
+    this.instance = null;
   }
 }
 
@@ -214,11 +252,11 @@ class BrowserPouchBackend implements PouchBackend {
 function openBrowserDatabase(): Promise<PouchDB.Database<BookDoc | ChapterDoc>> {
   return import('pouchdb-browser').then((module) => {
     // CommonJS `export =` 包经 esbuild/Vite 互操作后以 default 暴露构造器
-    const ctor = (module as unknown as { default?: typeof PouchDBStatic }).default;
+    const ctor = (module as unknown as { default?: PouchDbConstructor }).default;
     if (!ctor) {
       throw new Error('pouchdb-browser default export is unavailable');
     }
-    return new ctor<BookDoc | ChapterDoc>(DB_NAME);
+    return new ctor(DB_NAME);
   });
 }
 
@@ -458,11 +496,13 @@ export class DbService {
 
     // 换源场景：新章节集合 < 旧集合时，剩余的旧章节文档需标记 _deleted
     // （否则 PouchDB 里残留孤儿 chapter 文档，长期占用空间）。
-    // 保留章节只传元数据；孤儿候选按需读取，以校验类型并取得最新 _rev。
+    // 两步走：先按范围扫描元数据（只传 id），再一次性按 id 批量取候选正文，
+    // 用于校验类型并取得最新 _rev——请求数固定为 2，不随候选数增长。
     // 单次 bulkDocs 同时打 newDocs + orphans，原子性按文档级保证
     const bookIds = Array.from(new Set(chapters.map((c) => c.bookId)));
     type RemoveDoc = { _id: string; _rev: string; _deleted: true };
     const orphans: RemoveDoc[] = [];
+    const orphanIds: string[] = [];
     for (const bid of bookIds) {
       const start = CHAPTER_PREFIX + bid + CHAPTER_SEP;
       const res = await this.db.allDocs<ChapterDoc>({
@@ -471,17 +511,17 @@ export class DbService {
         endkey: start + HIGH_CHAR,
       });
       for (const row of res.rows) {
-        if (newIds.has(row.id)) continue;
-        let oldDoc: StoredChapterDoc;
-        try {
-          oldDoc = (await this.db.get<ChapterDoc>(row.id)) as StoredChapterDoc;
-        } catch (e: unknown) {
-          if (this.isNotFound(e)) continue;
-          throw e;
-        }
-        if (oldDoc.type === 'chapter') {
-          orphans.push({ _id: oldDoc._id, _rev: oldDoc._rev, _deleted: true });
-        }
+        if (!newIds.has(row.id)) orphanIds.push(row.id);
+      }
+    }
+    if (orphanIds.length > 0) {
+      const candRes = await this.db.allDocsByKeys<ChapterDoc>(orphanIds);
+      for (const row of candRes.rows) {
+        const oldDoc = rowDoc(row) as StoredChapterDoc | null | undefined;
+        // 已删文档在 PouchDB 里返回 doc=null；扫描后被删的 id 查不到正文，同样跳过
+        if (!oldDoc || oldDoc.type !== 'chapter') continue;
+        if ((oldDoc as { _deleted?: boolean })._deleted) continue;
+        orphans.push({ _id: oldDoc._id, _rev: oldDoc._rev, _deleted: true });
       }
     }
     // 显式联合类型：替代双重 as unknown as 断言（与 migrateLegacyChapterIds 同模式）
@@ -515,7 +555,7 @@ export class DbService {
    * 迁移旧 chapter _id（`chapter:{bookId}:{idx}` 冒号分隔）到新格式
    * （`chapter:{bookId}{idx}` Unit Separator 分隔）。
    * Round 2 review 指出：CHAPTER_SEP 改为 U+001F 是 breaking change。
-   * 新库启动只传 ID/revision 元数据；旧格式候选按需读取完整文档，避免拉取全部章节正文。
+   * 新库启动只传 ID/revision 元数据；旧格式候选一次性按 id 批量取正文，避免拉取全部章节正文。
    * 检查 bulkDocs 返回结果过滤非 409 失败（R3-3）。
    * 上层读操作通过 ensureMigrated() await 避免迁移窗口期重复章节（R3-2）。
    */
@@ -526,19 +566,19 @@ export class DbService {
         endkey: CHAPTER_PREFIX + HIGH_CHAR,
         include_docs: false,
       });
-      const oldDocs: StoredChapterDoc[] = [];
-      for (const row of res.rows) {
-        if (row.id.includes(CHAPTER_SEP)) continue;
-        let doc: StoredChapterDoc;
-        try {
-          doc = (await this.db.get<ChapterDoc>(row.id)) as StoredChapterDoc;
-        } catch (e: unknown) {
-          if (this.isNotFound(e)) continue;
-          throw e;
-        }
-        if (doc.type !== 'chapter' || (doc as { _deleted?: boolean })._deleted) continue;
-        oldDocs.push(doc);
-      }
+      // 旧格式候选（_id 不含 Unit Separator）：先定位 id，再一次性批量取正文，
+      // 请求数固定为 2，不随候选数增长（旧实现是逐个 get 往返）。
+      const legacyIds = res.rows
+        .filter((row) => !row.id.includes(CHAPTER_SEP))
+        .map((row) => row.id);
+      if (legacyIds.length === 0) return;
+      const candRes = await this.db.allDocsByKeys<ChapterDoc>(legacyIds);
+      const oldDocs = candRes.rows
+        .map((row) => rowDoc(row) as StoredChapterDoc | null | undefined)
+        .filter(
+          (d): d is StoredChapterDoc =>
+            !!d && d.type === 'chapter' && !(d as { _deleted?: boolean })._deleted,
+        );
       if (oldDocs.length === 0) return;
 
       const migrated = oldDocs

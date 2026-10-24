@@ -66,7 +66,23 @@ describe('DbService', () => {
             include_docs?: boolean;
             startkey?: string;
             endkey?: string;
+            keys?: string[];
           };
+          if (opts.keys) {
+            // keys 模式：命中返回该文档；缺失 id 返回无 doc 的 error 行
+            // （真实 PouchDB 语义：已删文档返回 doc=null，缺失 key 返回 error 行）
+            const rows = opts.keys.map((key) => {
+              const doc = store.get(key);
+              if (!doc) return { key, error: 'not_found' };
+              return {
+                id: doc._id,
+                key: doc._id,
+                value: { rev: doc._rev },
+                ...(opts.include_docs ? { doc } : {}),
+              };
+            });
+            return ok({ rows });
+          }
           const docs = Array.from(store.values()).filter((d) => {
             if (opts.startkey && d._id < opts.startkey) return false;
             if (opts.endkey && d._id >= opts.endkey) return false;
@@ -461,15 +477,19 @@ describe('DbService', () => {
       expect(opCalls('allDocs')[0][1]).toEqual([expect.objectContaining({ include_docs: false })]);
     });
 
-    it('缩短集合时只读取孤儿候选', async () => {
+    it('缩短集合时只批量读取孤儿候选', async () => {
       await svc.chapterPutMany([makeChapter('b1', 0), makeChapter('b1', 1), makeChapter('b1', 2)]);
       bridge.dbRequest.mockClear();
       await svc.chapterPutMany([makeChapter('b1', 0)]);
       expect(opCalls('allDocs')[0][1]).toEqual([expect.objectContaining({ include_docs: false })]);
-      expect(opCalls('get').map((call) => call[1])).toEqual([
-        [`chapter:b1${SEP}1`],
-        [`chapter:b1${SEP}2`],
+      // 候选正文一次性批量取：一次请求覆盖全部孤儿，不逐个 get
+      expect(opCalls('allDocs')[1][1]).toEqual([
+        expect.objectContaining({
+          keys: [`chapter:b1${SEP}1`, `chapter:b1${SEP}2`],
+          include_docs: true,
+        }),
       ]);
+      expect(opCalls('get')).toHaveLength(0);
     });
 
     it('同前缀非 chapter 文档不应作为孤儿删除', async () => {
@@ -486,6 +506,35 @@ describe('DbService', () => {
       const batch = opCalls('bulkDocs')[0][1][0] as Doc[];
       expect(batch.some((doc) => doc._deleted)).toBe(false);
       expect(store.has(intruderId)).toBe(true);
+    });
+
+    it('已删除的孤儿候选不应再打墓碑', async () => {
+      await svc.chapterPutMany([makeChapter('b1', 0), makeChapter('b1', 1)]);
+      const orphanId = `chapter:b1${SEP}1`;
+      // PouchDB keys 模式：已删文档返回 doc=null（正文与 _rev 均不返回）
+      bridge.dbRequest.mockImplementation(async (op: string, args: unknown[]) => {
+        const opts = (args[0] ?? {}) as { keys?: string[] };
+        if (op === 'allDocs' && opts.keys?.includes(orphanId)) {
+          return {
+            ok: true,
+            result: {
+              rows: [
+                {
+                  id: orphanId,
+                  key: orphanId,
+                  value: { rev: '2-dead', deleted: true },
+                  doc: null,
+                },
+              ],
+            },
+          };
+        }
+        return defaultImpl(op, args);
+      });
+      bridge.dbRequest.mockClear();
+      await svc.chapterPutMany([makeChapter('b1', 0)]);
+      const batch = opCalls('bulkDocs')[0][1][0] as Doc[];
+      expect(batch.some((doc) => doc._deleted)).toBe(false);
     });
 
     it('孤儿 tombstone 应使用候选读取时的最新 revision', async () => {
@@ -523,11 +572,11 @@ describe('DbService', () => {
       expect(batch.some((doc) => doc._deleted)).toBe(false);
     });
 
-    it('孤儿候选读取的非 404 错误应抛出', async () => {
+    it('孤儿候选批量读取的非 404 错误应抛出', async () => {
       await svc.chapterPutMany([makeChapter('b1', 0), makeChapter('b1', 1)]);
-      const orphanId = `chapter:b1${SEP}1`;
       bridge.dbRequest.mockImplementation(async (op: string, args: unknown[]) => {
-        if (op === 'get' && args[0] === orphanId) {
+        const opts = (args[0] ?? {}) as { keys?: string[] };
+        if (op === 'allDocs' && opts.keys) {
           return { ok: false, error: { status: 500, name: 'io_error', message: 'read fail' } };
         }
         return defaultImpl(op, args);
@@ -695,6 +744,10 @@ describe('DbService', () => {
       expect(opCalls('allDocs')[0][1]).toEqual([expect.objectContaining({ include_docs: false })]);
       expect(opCalls('get')).toHaveLength(0);
       expect(opCalls('bulkDocs')).toHaveLength(0);
+      // 没有旧格式候选 → 不发起批量正文请求
+      expect(
+        opCalls('allDocs').some((call) => (call[1][0] as { keys?: string[] })?.keys),
+      ).toBe(false);
     });
 
     it('旧新格式混合时只读取并迁移旧格式候选', async () => {
@@ -712,7 +765,11 @@ describe('DbService', () => {
       const chs = await svc2.chapterAll('b1');
       expect(chs.map((chapter) => chapter.title)).toEqual(['new fmt', 'legacy ch1']);
       expect(chs.map((chapter) => chapter.content)).toEqual(['new content', 'legacy content 1']);
-      expect(opCalls('get').map((call) => call[1])).toEqual([['chapter:b1:1']]);
+      // 旧格式候选一次性批量取正文：一次请求，不逐个 get
+      expect(opCalls('allDocs')[1][1]).toEqual([
+        expect.objectContaining({ keys: ['chapter:b1:1'], include_docs: true }),
+      ]);
+      expect(opCalls('get')).toHaveLength(0);
       expect(opCalls('bulkDocs')).toHaveLength(1);
       expect(store.has('chapter:b1:1')).toBe(false);
       expect(store.has(`chapter:b1${SEP}1`)).toBe(true);
@@ -729,7 +786,11 @@ describe('DbService', () => {
       bridge.dbRequest.mockClear();
       const svc2 = recreateService();
       await expect(svc2.chapterAll('b1')).resolves.toEqual([]);
-      expect(opCalls('get').map((call) => call[1])).toEqual([[foreignId]]);
+      // 候选正文照常批量取，但类型不是 chapter → 不迁移、不删除
+      expect(opCalls('allDocs')[1][1]).toEqual([
+        expect.objectContaining({ keys: [foreignId], include_docs: true }),
+      ]);
+      expect(opCalls('get')).toHaveLength(0);
       expect(opCalls('bulkDocs')).toHaveLength(0);
       expect(store.has(foreignId)).toBe(true);
     });
@@ -747,18 +808,23 @@ describe('DbService', () => {
       const chapters = await svc2.chapterAll('b1');
       expect(chapters.map((chapter) => chapter.index)).toEqual([1]);
       expect(chapters[0].content).toBe('legacy content 1');
-      expect(opCalls('get').map((call) => call[1])).toEqual([['chapter:b1:0'], ['chapter:b1:1']]);
+      // 扫描后被删的候选在批量取正文时查不到 → 跳过，后续候选继续迁移
+      expect(opCalls('allDocs')[1][1]).toEqual([
+        expect.objectContaining({ keys: ['chapter:b1:0', 'chapter:b1:1'] }),
+      ]);
+      expect(opCalls('get')).toHaveLength(0);
       expect(store.has(`chapter:b1${SEP}0`)).toBe(false);
       expect(store.has(`chapter:b1${SEP}1`)).toBe(true);
       expect(store.has('chapter:b1:1')).toBe(false);
     });
 
-    it('迁移候选读取的非 404 错误应警告且后续书籍读写可用', async () => {
+    it('迁移候选批量读取的非 404 错误应警告且后续书籍读写可用', async () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
       try {
         store.set('chapter:b1:0', makeLegacyChapter('b1', 0));
         bridge.dbRequest.mockImplementation(async (op: string, args: unknown[]) => {
-          if (op === 'get' && args[0] === 'chapter:b1:0') {
+          const opts = (args[0] ?? {}) as { keys?: string[] };
+          if (op === 'allDocs' && opts.keys) {
             return { ok: false, error: { status: 500, name: 'io_error', message: 'read fail' } };
           }
           return defaultImpl(op, args);
@@ -905,6 +971,36 @@ describe('DbService 浏览器后端动态加载', () => {
 
     expect(ctor).toHaveBeenCalledTimes(1);
     expect(ctor).toHaveBeenCalledWith('pomreader');
+  });
+
+  it('浏览器后端 destroy 后应丢弃已销毁实例并重新打开', async () => {
+    const ctor = vi.fn();
+    vi.doMock('pouchdb-browser', () => {
+      class FakePouch {
+        constructor(name: string) {
+          ctor(name);
+        }
+        allDocs = vi.fn(async () => ({ rows: [] }));
+        get = vi.fn(async () => ({}));
+        put = vi.fn(async () => ({ ok: true, id: 'x', rev: '1-x' }));
+        bulkDocs = vi.fn(async () => []);
+        destroy = vi.fn(async () => {});
+      }
+      return { default: FakePouch };
+    });
+    (globalThis as any).window = {};
+    vi.resetModules();
+
+    const { DbService: FreshDbService } = await import('./db.service');
+    const svc = new FreshDbService();
+    await svc.bookAll();
+    expect(ctor).toHaveBeenCalledTimes(1);
+
+    // 销毁后的实例不可复用：后端须丢弃缓存，下次调用重新打开同名空库
+    await svc.destroy();
+    await svc.bookAll();
+    expect(ctor).toHaveBeenCalledTimes(2);
+    expect(ctor).toHaveBeenLastCalledWith('pomreader');
   });
 
   it('浏览器后端模块加载失败应沿 Promise 链传播', async () => {
