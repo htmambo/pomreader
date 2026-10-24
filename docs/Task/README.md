@@ -12,6 +12,13 @@
 
 ### 2026-10
 
+- ✅ [项目性能与效率检查优化](Archive/2026-10/PROJECT_PERFORMANCE_OPTIMIZATION_PLAN.md) — Completed 2026-10-24；fullauto 分片 `project-perf-optimization`
+  - P1 启动迁移改元数据扫描（`allDocs({include_docs:false})` + 旧格式候选按需 `get()`），过桥正文 20 条/120,000 B → 0 条/0 B，响应 124,061 B → 1,650 B
+  - P2 换源孤儿按需清理（只传元数据，孤儿候选逐条读取并用最新 `_rev` 构造 tombstone），缩短集合 20 → 5 条
+  - P3 浏览器后端动态 import 拆包：PouchDB 移入独立 lazy chunk（125.87 kB），main 552.33 → 425.93 kB，initial 1.78 → 1.66 MB、transfer 363.17 → 326.44 kB
+  - `npm test` 1191 用例全绿（+14）、e2e 21/21、两处构建与 format:check 通过；改动文件 ESLint 0 问题，全仓 lint 43 errors/1 warning 为存量基线
+  - 三视角验证 + 两轮外部审核全部 APPROVED；旧库迁移字节持平（+0.3%）如实记录，不宣称提速；遗留 8 条风险（含大库规模未测、真实 Electron GUI 未实测）
+
 - ✅ [阅读时阻止系统睡眠 / 锁屏](Archive/2026-10/KEEP_AWAKE_WHILE_READING_PLAN.md) — Completed 2026-10-18
   - 新增应用级设置「电源 → 阅读时阻止系统睡眠」，进入阅读页申请唤醒锁、离开自动释放
   - 技术选型：主进程 `powerSaveBlocker`（`prevent-display-sleep`），经 Chromium WakeLock 映射到
