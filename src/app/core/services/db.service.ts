@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
-import PouchDB from 'pouchdb-browser';
+// 仅取类型：运行时改为动态 import，避免 pouchdb-browser 进入主 chunk
+import type PouchDBStatic from 'pouchdb-browser';
 import { type Book } from '../models/book.model';
 import { type Chapter } from '../models/chapter.model';
 import { type BookshelfGroup } from '../models/bookshelf-group.model';
@@ -70,7 +71,7 @@ const GROUP_PREFIX = 'group:';
  *  选 ASCII Unit Separator (0x1F)：不会出现在合法 bookId（UUID / 在线时间戳）中，
  *  避免类似 `bookA` / `bookA-extra` 在 `_id` 前缀上撞车。 */
 const CHAPTER_SEP = '';
-/** Unicode 私有区最大字符，用于 allDocs 范围查询的 endkey */
+/** allDocs 范围查询的 endkey 上界：取 U+FFF0（远高于任何合法 bookId 的码位） */
 const HIGH_CHAR = '￰';
 
 /**
@@ -145,6 +146,82 @@ class IpcPouchBackend implements PouchBackend {
   }
 }
 
+/**
+ * 浏览器后端：按需动态加载 pouchdb-browser。
+ * PouchDB 体积较大，静态导入会整体进入主 chunk；动态 import 使其落入独立 lazy chunk，
+ * 仅纯浏览器环境（ng serve / 打包后的 browser 目录）需要加载。
+ * 打开数据库的 Promise 缓存在实例上：并发首次调用共享一次模块加载与一次实例化；
+ * 加载失败时清空被拒绝的 Promise，避免它毒化整个会话。
+ * 注意：清缓存只重置「本后端的加载尝试」；若失败发生在动态 import 的模块求值阶段，
+ * 模块系统可能已缓存该失败结果，后续重试仍会得到同一加载错误。
+ */
+class BrowserPouchBackend implements PouchBackend {
+  private instance: Promise<PouchDB.Database<BookDoc | ChapterDoc>> | null = null;
+
+  constructor(private readonly loader: () => Promise<PouchDB.Database<BookDoc | ChapterDoc>>) {}
+
+  private db(): Promise<PouchDB.Database<BookDoc | ChapterDoc>> {
+    if (!this.instance) {
+      this.instance = this.loader().catch((e: unknown) => {
+        this.instance = null; // 失败后清掉被拒绝的 Promise，允许下次调用重新尝试加载
+        throw e;
+      });
+    }
+    return this.instance;
+  }
+
+  async allDocs<Content extends object>(
+    options: PouchDB.Core.AllDocsWithinRangeOptions,
+  ): Promise<PouchDB.Core.AllDocsResponse<Content>> {
+    const db = await this.db();
+    // 真实实例的 Content 固定为 BookDoc | ChapterDoc，与接口的独立 Content 参数不同源
+    return (await db.allDocs<Content>(options)) as unknown as PouchDB.Core.AllDocsResponse<Content>;
+  }
+
+  async get<Content extends object>(
+    docId: string,
+  ): Promise<PouchDB.Core.Document<Content> & PouchDB.Core.GetMeta> {
+    const db = await this.db();
+    return (await db.get<Content>(docId)) as unknown as PouchDB.Core.Document<Content> &
+      PouchDB.Core.GetMeta;
+  }
+
+  async put<Content extends object>(
+    doc: PouchDB.Core.PutDocument<Content>,
+  ): Promise<PouchDB.Core.Response> {
+    const db = await this.db();
+    const res = await db.put(doc as unknown as PouchDB.Core.PutDocument<BookDoc | ChapterDoc>);
+    return res as PouchDB.Core.Response;
+  }
+
+  async bulkDocs<Content extends object>(
+    docs: PouchDB.Core.PutDocument<Content>[],
+  ): Promise<Array<PouchDB.Core.Response | PouchDB.Core.Error>> {
+    const db = await this.db();
+    const res = await db.bulkDocs(
+      docs as unknown as PouchDB.Core.PutDocument<BookDoc | ChapterDoc>[],
+    );
+    return res as Array<PouchDB.Core.Response | PouchDB.Core.Error>;
+  }
+
+  async destroy(): Promise<void> {
+    const db = await this.db();
+    await db.destroy();
+  }
+}
+
+/** 打开浏览器端数据库：动态 import 使 pouchdb-browser 落在独立 lazy chunk */
+function openBrowserDatabase(): Promise<PouchDB.Database<BookDoc | ChapterDoc>> {
+  return import('pouchdb-browser').then((module) => {
+    // CommonJS `export =` 包经 esbuild/Vite 互操作后以 default 暴露构造器
+    const ctor = (module as unknown as { default?: typeof PouchDBStatic }).default;
+    if (!ctor) {
+      throw new Error('pouchdb-browser default export is unavailable');
+    }
+    return new ctor<BookDoc | ChapterDoc>(DB_NAME);
+  });
+}
+
 /** 后端选择：Electron（pomAPI.dbRequest 存在）走 IPC；纯浏览器回落本地 IndexedDB */
 function createBackend(): PouchBackend {
   const api =
@@ -154,7 +231,7 @@ function createBackend(): PouchBackend {
   if (api?.dbRequest) {
     return new IpcPouchBackend(api.dbRequest.bind(api));
   }
-  return new PouchDB<BookDoc | ChapterDoc>(DB_NAME);
+  return new BrowserPouchBackend(() => openBrowserDatabase());
 }
 
 /**
@@ -167,7 +244,7 @@ function createBackend(): PouchBackend {
  * 后端双实现（见 PouchBackend）：
  * - Electron：经 pomAPI.dbRequest 委托给隐藏 DB 窗口（file:// origin 的 IndexedDB），
  *   HMR / dev:file / 打包三种运行方式共享同一份书库
- * - 纯浏览器（ng serve / vitest）：本地直连 IndexedDB
+ * - 纯浏览器（ng serve / vitest）：本地直连 IndexedDB，pouchdb-browser 动态加载
  */
 @Injectable({ providedIn: 'root' })
 export class DbService {
@@ -351,6 +428,10 @@ export class DbService {
   }
 
   async chapterPut(chapter: Chapter): Promise<void> {
+    // 与 chapterGet/chapterAll/chapterPutMany/bookDelete 一致：等迁移完成（N1 同源）。
+    // 迁移窗口因逐候选 get 而拉长；未门控写入会造成「tombstone 成功 + create 409」：
+    // 旧正文被删且 409 被归为良性——无告警、旧 id 已消失、无重试机会。
+    await this.ensureMigrated();
     // rest-sibling + spread 在前（N4 防御 + Round 5 顺序建议）
     const { bookId, index, ...rest } = chapter;
     const _id = CHAPTER_PREFIX + bookId + CHAPTER_SEP + index;
@@ -377,15 +458,29 @@ export class DbService {
 
     // 换源场景：新章节集合 < 旧集合时，剩余的旧章节文档需标记 _deleted
     // （否则 PouchDB 里残留孤儿 chapter 文档，长期占用空间）。
+    // 保留章节只传元数据；孤儿候选按需读取，以校验类型并取得最新 _rev。
     // 单次 bulkDocs 同时打 newDocs + orphans，原子性按文档级保证
     const bookIds = Array.from(new Set(chapters.map((c) => c.bookId)));
     type RemoveDoc = { _id: string; _rev: string; _deleted: true };
     const orphans: RemoveDoc[] = [];
     for (const bid of bookIds) {
-      const oldDocs = await this.chapterAllRaw(bid);
-      for (const od of oldDocs) {
-        if (!newIds.has(od._id)) {
-          orphans.push({ _id: od._id, _rev: od._rev, _deleted: true });
+      const start = CHAPTER_PREFIX + bid + CHAPTER_SEP;
+      const res = await this.db.allDocs<ChapterDoc>({
+        include_docs: false,
+        startkey: start,
+        endkey: start + HIGH_CHAR,
+      });
+      for (const row of res.rows) {
+        if (newIds.has(row.id)) continue;
+        let oldDoc: StoredChapterDoc;
+        try {
+          oldDoc = (await this.db.get<ChapterDoc>(row.id)) as StoredChapterDoc;
+        } catch (e: unknown) {
+          if (this.isNotFound(e)) continue;
+          throw e;
+        }
+        if (oldDoc.type === 'chapter') {
+          orphans.push({ _id: oldDoc._id, _rev: oldDoc._rev, _deleted: true });
         }
       }
     }
@@ -420,7 +515,7 @@ export class DbService {
    * 迁移旧 chapter _id（`chapter:{bookId}:{idx}` 冒号分隔）到新格式
    * （`chapter:{bookId}{idx}` Unit Separator 分隔）。
    * Round 2 review 指出：CHAPTER_SEP 改为 U+001F 是 breaking change。
-   * 用 allDocs({include_docs: true}) 一次拉取（R3-1：消除 N+1）。
+   * 新库启动只传 ID/revision 元数据；旧格式候选按需读取完整文档，避免拉取全部章节正文。
    * 检查 bulkDocs 返回结果过滤非 409 失败（R3-3）。
    * 上层读操作通过 ensureMigrated() await 避免迁移窗口期重复章节（R3-2）。
    */
@@ -429,17 +524,21 @@ export class DbService {
       const res = await this.db.allDocs<ChapterDoc>({
         startkey: CHAPTER_PREFIX,
         endkey: CHAPTER_PREFIX + HIGH_CHAR,
-        include_docs: true,
+        include_docs: false,
       });
-      const oldDocs = res.rows
-        .map((r) => r.doc)
-        .filter(
-          (d): d is StoredChapterDoc =>
-            !!d &&
-            d.type === 'chapter' &&
-            !d._id.includes(CHAPTER_SEP) &&
-            !(d as { _deleted?: boolean })._deleted,
-        );
+      const oldDocs: StoredChapterDoc[] = [];
+      for (const row of res.rows) {
+        if (row.id.includes(CHAPTER_SEP)) continue;
+        let doc: StoredChapterDoc;
+        try {
+          doc = (await this.db.get<ChapterDoc>(row.id)) as StoredChapterDoc;
+        } catch (e: unknown) {
+          if (this.isNotFound(e)) continue;
+          throw e;
+        }
+        if (doc.type !== 'chapter' || (doc as { _deleted?: boolean })._deleted) continue;
+        oldDocs.push(doc);
+      }
       if (oldDocs.length === 0) return;
 
       const migrated = oldDocs

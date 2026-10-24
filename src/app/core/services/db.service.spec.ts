@@ -50,44 +50,59 @@ describe('DbService', () => {
       error: { status, name, message },
     });
 
+    const writeDoc = (doc: Doc) => {
+      const currentRev = store.get(doc._id)?._rev as string | undefined;
+      const generation = currentRev ? Number.parseInt(currentRev, 10) + 1 : 1;
+      const stored = { ...doc, _rev: `${generation}-memory` };
+      store.set(doc._id, stored);
+      return { ok: true, id: doc._id, rev: stored._rev };
+    };
+
     defaultImpl = async (op: string, args: unknown[]) => {
       switch (op) {
         case 'allDocs': {
-          const opts = args[0] as { include_docs?: boolean; startkey?: string; endkey?: string };
+          // 缺省参数：真实 PouchDB 的 allDocs 不传 options 时返回仅元数据行
+          const opts = (args[0] ?? {}) as {
+            include_docs?: boolean;
+            startkey?: string;
+            endkey?: string;
+          };
           const docs = Array.from(store.values()).filter((d) => {
             if (opts.startkey && d._id < opts.startkey) return false;
             if (opts.endkey && d._id >= opts.endkey) return false;
             return true;
           });
           return ok({
-            rows: docs.map((doc) => ({ id: doc._id, key: doc._id, doc })),
+            rows: docs.map((doc) => ({
+              id: doc._id,
+              key: doc._id,
+              value: { rev: doc._rev },
+              ...(opts.include_docs ? { doc } : {}),
+            })),
           });
         }
         case 'get': {
           const id = args[0] as string;
           const doc = store.get(id);
           if (!doc) return fail(404, 'not_found', 'missing');
-          return ok(doc);
+          return ok({ ...doc });
         }
         case 'put': {
           const doc = args[0] as Doc;
           if (doc._deleted) {
             store.delete(doc._id);
-          } else {
-            store.set(doc._id, doc);
+            return ok({ ok: true, id: doc._id, rev: doc._rev });
           }
-          return ok({ ok: true, id: doc._id, rev: '1-fake' });
+          return ok(writeDoc(doc));
         }
         case 'bulkDocs': {
           const docs = args[0] as Doc[];
-
-          const results: any[] = docs.map((d) => {
-            if (d._deleted) {
-              store.delete(d._id);
-            } else {
-              store.set(d._id, d);
+          const results: any[] = docs.map((doc) => {
+            if (doc._deleted) {
+              store.delete(doc._id);
+              return { ok: true, id: doc._id, rev: doc._rev };
             }
-            return { ok: true, id: d._id };
+            return writeDoc(doc);
           });
           return ok(results);
         }
@@ -425,10 +440,101 @@ describe('DbService', () => {
     it('新集合小于旧集合时孤儿章节应被删除（换源场景）', async () => {
       await svc.chapterPutMany([makeChapter('b1', 0), makeChapter('b1', 1), makeChapter('b1', 2)]);
       // 换源：新源只有 1 章 → 旧 idx 1/2 成为孤儿
+      bridge.dbRequest.mockClear();
       await svc.chapterPutMany([makeChapter('b1', 0)]);
       const chs = await svc.chapterAll('b1');
       expect(chs).toHaveLength(1);
       expect(chs[0].index).toBe(0);
+      const batch = opCalls('bulkDocs')[0][1][0] as Doc[];
+      expect(batch.filter((doc) => doc._deleted).map((doc) => doc._id)).toEqual([
+        `chapter:b1${SEP}1`,
+        `chapter:b1${SEP}2`,
+      ]);
+    });
+
+    it('相同 ID 集合刷新时不读取任何已有章节正文', async () => {
+      await svc.chapterPutMany([makeChapter('b1', 0), makeChapter('b1', 1)]);
+      bridge.dbRequest.mockClear();
+      await svc.chapterPutMany([makeChapter('b1', 0), makeChapter('b1', 1)]);
+      expect(opCalls('get')).toHaveLength(0);
+      expect(opCalls('allDocs')).toHaveLength(1);
+      expect(opCalls('allDocs')[0][1]).toEqual([expect.objectContaining({ include_docs: false })]);
+    });
+
+    it('缩短集合时只读取孤儿候选', async () => {
+      await svc.chapterPutMany([makeChapter('b1', 0), makeChapter('b1', 1), makeChapter('b1', 2)]);
+      bridge.dbRequest.mockClear();
+      await svc.chapterPutMany([makeChapter('b1', 0)]);
+      expect(opCalls('allDocs')[0][1]).toEqual([expect.objectContaining({ include_docs: false })]);
+      expect(opCalls('get').map((call) => call[1])).toEqual([
+        [`chapter:b1${SEP}1`],
+        [`chapter:b1${SEP}2`],
+      ]);
+    });
+
+    it('同前缀非 chapter 文档不应作为孤儿删除', async () => {
+      await svc.chapterPutMany([makeChapter('b1', 0)]);
+      const intruderId = `chapter:b1${SEP}9`;
+      store.set(intruderId, {
+        _id: intruderId,
+        _rev: '1-intruder',
+        type: 'book',
+        id: 'intruder',
+      });
+      bridge.dbRequest.mockClear();
+      await svc.chapterPutMany([makeChapter('b1', 0)]);
+      const batch = opCalls('bulkDocs')[0][1][0] as Doc[];
+      expect(batch.some((doc) => doc._deleted)).toBe(false);
+      expect(store.has(intruderId)).toBe(true);
+    });
+
+    it('孤儿 tombstone 应使用候选读取时的最新 revision', async () => {
+      await svc.chapterPutMany([makeChapter('b1', 0), makeChapter('b1', 1)]);
+      const orphanId = `chapter:b1${SEP}1`;
+      bridge.dbRequest.mockImplementation(async (op: string, args: unknown[]) => {
+        const result = await defaultImpl(op, args);
+        if (op === 'allDocs') {
+          const current = store.get(orphanId);
+          store.set(orphanId, { ...current, _rev: '9-latest' });
+        }
+        return result;
+      });
+      bridge.dbRequest.mockClear();
+      await svc.chapterPutMany([makeChapter('b1', 0)]);
+      const batch = opCalls('bulkDocs')[0][1][0] as Doc[];
+      expect(batch).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ _id: orphanId, _rev: '9-latest', _deleted: true }),
+        ]),
+      );
+    });
+
+    it('孤儿候选扫描后 404 应幂等跳过', async () => {
+      await svc.chapterPutMany([makeChapter('b1', 0), makeChapter('b1', 1)]);
+      const orphanId = `chapter:b1${SEP}1`;
+      bridge.dbRequest.mockImplementation(async (op: string, args: unknown[]) => {
+        const result = await defaultImpl(op, args);
+        if (op === 'allDocs') store.delete(orphanId);
+        return result;
+      });
+      bridge.dbRequest.mockClear();
+      await expect(svc.chapterPutMany([makeChapter('b1', 0)])).resolves.toBeUndefined();
+      const batch = opCalls('bulkDocs')[0][1][0] as Doc[];
+      expect(batch.some((doc) => doc._deleted)).toBe(false);
+    });
+
+    it('孤儿候选读取的非 404 错误应抛出', async () => {
+      await svc.chapterPutMany([makeChapter('b1', 0), makeChapter('b1', 1)]);
+      const orphanId = `chapter:b1${SEP}1`;
+      bridge.dbRequest.mockImplementation(async (op: string, args: unknown[]) => {
+        if (op === 'get' && args[0] === orphanId) {
+          return { ok: false, error: { status: 500, name: 'io_error', message: 'read fail' } };
+        }
+        return defaultImpl(op, args);
+      });
+      await expect(svc.chapterPutMany([makeChapter('b1', 0)])).rejects.toMatchObject({
+        status: 500,
+      });
     });
 
     it('bulkDocs 返回非 409 致命错误时应抛出', async () => {
@@ -482,7 +588,12 @@ describe('DbService', () => {
   describe('allDocs 过滤与排序分支', () => {
     it('bookAll 应忽略 book: 前缀下非 book 类型文档', async () => {
       await svc.bookPut(makeBook({ id: 'b1' }));
-      store.set('book:intruder', { _id: 'book:intruder', type: 'chapter', bookId: 'x' });
+      store.set('book:intruder', {
+        _id: 'book:intruder',
+        _rev: '1-intruder',
+        type: 'chapter',
+        bookId: 'x',
+      });
       const all = await svc.bookAll();
       expect(all).toHaveLength(1);
       expect(all[0].id).toBe('b1');
@@ -496,7 +607,12 @@ describe('DbService', () => {
 
     it('chapterAll 应忽略 chapter: 前缀下非 chapter 类型文档', async () => {
       await svc.chapterPutMany([makeChapter('b1', 0)]);
-      store.set(`chapter:b1${SEP}9`, { _id: `chapter:b1${SEP}9`, type: 'book', id: 'ghost' });
+      store.set(`chapter:b1${SEP}9`, {
+        _id: `chapter:b1${SEP}9`,
+        _rev: '1-ghost',
+        type: 'book',
+        id: 'ghost',
+      });
       const chs = await svc.chapterAll('b1');
       expect(chs).toHaveLength(1);
     });
@@ -561,7 +677,7 @@ describe('DbService', () => {
       expect(store.has('chapter:weird')).toBe(false);
     });
 
-    it('已是新格式的文档不应被重复迁移（无 bulkDocs 调用）', async () => {
+    it('已是新格式的文档不应读取正文或重复迁移', async () => {
       store.set(`chapter:b1${SEP}0`, {
         _id: `chapter:b1${SEP}0`,
         _rev: '1-n',
@@ -571,11 +687,93 @@ describe('DbService', () => {
         title: 'new fmt',
         content: 'c',
       });
+      bridge.dbRequest.mockClear();
       const svc2 = recreateService();
       const chs = await svc2.chapterAll('b1');
       expect(chs).toHaveLength(1);
       expect(chs[0].title).toBe('new fmt');
-      expect(opCalls('bulkDocs')).toHaveLength(0); // oldDocs 为空 → 提前返回
+      expect(opCalls('allDocs')[0][1]).toEqual([expect.objectContaining({ include_docs: false })]);
+      expect(opCalls('get')).toHaveLength(0);
+      expect(opCalls('bulkDocs')).toHaveLength(0);
+    });
+
+    it('旧新格式混合时只读取并迁移旧格式候选', async () => {
+      const newId = `chapter:b1${SEP}0`;
+      store.set(newId, {
+        ...makeChapter('b1', 0),
+        _id: newId,
+        _rev: '1-new',
+        title: 'new fmt',
+        content: 'new content',
+      });
+      store.set('chapter:b1:1', makeLegacyChapter('b1', 1));
+      bridge.dbRequest.mockClear();
+      const svc2 = recreateService();
+      const chs = await svc2.chapterAll('b1');
+      expect(chs.map((chapter) => chapter.title)).toEqual(['new fmt', 'legacy ch1']);
+      expect(chs.map((chapter) => chapter.content)).toEqual(['new content', 'legacy content 1']);
+      expect(opCalls('get').map((call) => call[1])).toEqual([['chapter:b1:1']]);
+      expect(opCalls('bulkDocs')).toHaveLength(1);
+      expect(store.has('chapter:b1:1')).toBe(false);
+      expect(store.has(`chapter:b1${SEP}1`)).toBe(true);
+    });
+
+    it('不含新分隔符的非 chapter 文档不应迁移或删除', async () => {
+      const foreignId = 'chapter:b1:legacy';
+      store.set(foreignId, {
+        _id: foreignId,
+        _rev: '1-foreign',
+        type: 'book',
+        id: 'foreign',
+      });
+      bridge.dbRequest.mockClear();
+      const svc2 = recreateService();
+      await expect(svc2.chapterAll('b1')).resolves.toEqual([]);
+      expect(opCalls('get').map((call) => call[1])).toEqual([[foreignId]]);
+      expect(opCalls('bulkDocs')).toHaveLength(0);
+      expect(store.has(foreignId)).toBe(true);
+    });
+
+    it('迁移候选扫描后 404 应跳过并继续迁移后续章节', async () => {
+      store.set('chapter:b1:0', makeLegacyChapter('b1', 0));
+      store.set('chapter:b1:1', makeLegacyChapter('b1', 1));
+      bridge.dbRequest.mockImplementation(async (op: string, args: unknown[]) => {
+        const result = await defaultImpl(op, args);
+        if (op === 'allDocs') store.delete('chapter:b1:0');
+        return result;
+      });
+      bridge.dbRequest.mockClear();
+      const svc2 = recreateService();
+      const chapters = await svc2.chapterAll('b1');
+      expect(chapters.map((chapter) => chapter.index)).toEqual([1]);
+      expect(chapters[0].content).toBe('legacy content 1');
+      expect(opCalls('get').map((call) => call[1])).toEqual([['chapter:b1:0'], ['chapter:b1:1']]);
+      expect(store.has(`chapter:b1${SEP}0`)).toBe(false);
+      expect(store.has(`chapter:b1${SEP}1`)).toBe(true);
+      expect(store.has('chapter:b1:1')).toBe(false);
+    });
+
+    it('迁移候选读取的非 404 错误应警告且后续书籍读写可用', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        store.set('chapter:b1:0', makeLegacyChapter('b1', 0));
+        bridge.dbRequest.mockImplementation(async (op: string, args: unknown[]) => {
+          if (op === 'get' && args[0] === 'chapter:b1:0') {
+            return { ok: false, error: { status: 500, name: 'io_error', message: 'read fail' } };
+          }
+          return defaultImpl(op, args);
+        });
+        const svc2 = recreateService();
+        await expect(svc2.chapterAll('b1')).resolves.toEqual([]);
+        expect(warn).toHaveBeenCalledWith(
+          '[DbService] legacy chapter _id migration failed:',
+          expect.objectContaining({ status: 500 }),
+        );
+        await svc2.bookPut(makeBook({ id: 'b1' }));
+        await expect(svc2.bookGet('b1')).resolves.toMatchObject({ id: 'b1' });
+      } finally {
+        warn.mockRestore();
+      }
     });
 
     it('迁移 bulkDocs 出现非 409 失败应 console.warn 但不中断启动', async () => {
@@ -644,5 +842,140 @@ describe('DbService', () => {
     it('seedIfEmpty 应为 no-op 并返回 seeded:false', async () => {
       await expect(svc.seedIfEmpty()).resolves.toEqual({ seeded: false, bookCount: 0 });
     });
+  });
+});
+
+/**
+ * 浏览器后端动态加载（独立 describe）：
+ * 通过 vi.resetModules() + 动态 import 隔离模块缓存，
+ * 用 vi.doMock() / vi.doUnmock() 控制 pouchdb-browser 是否被加载。
+ */
+describe('DbService 浏览器后端动态加载', () => {
+  afterEach(() => {
+    vi.doUnmock('pouchdb-browser');
+    vi.resetModules();
+    delete (globalThis as any).window;
+  });
+
+  /** Electron 场景的 IPC bridge：allDocs 返回空行集，get 返回 404 */
+  function electronBridge() {
+    return vi.fn(async (op: string) => {
+      if (op === 'allDocs') return { ok: true, result: { rows: [] } };
+      if (op === 'get') {
+        return { ok: false, error: { status: 404, name: 'not_found', message: 'missing' } };
+      }
+      return { ok: true, result: [] };
+    });
+  }
+
+  it('Electron 环境不应加载 pouchdb-browser 模块', async () => {
+    const factory = vi.fn(() => ({ default: class FakePouch {} }));
+    vi.doMock('pouchdb-browser', factory);
+    (globalThis as any).window = { pomAPI: { dbRequest: electronBridge() } };
+    vi.resetModules();
+
+    const { DbService: FreshDbService } = await import('./db.service');
+    const svc = new FreshDbService();
+    await svc.bookAll();
+
+    expect(factory).not.toHaveBeenCalled();
+  });
+
+  it('浏览器后端并发首次调用只构造一个数据库实例', async () => {
+    const ctor = vi.fn();
+    vi.doMock('pouchdb-browser', () => {
+      class FakePouch {
+        constructor(name: string) {
+          ctor(name);
+        }
+        allDocs = vi.fn(async () => ({ rows: [] }));
+        get = vi.fn(async () => ({}));
+        put = vi.fn(async () => ({ ok: true, id: 'x', rev: '1-x' }));
+        bulkDocs = vi.fn(async () => []);
+        destroy = vi.fn(async () => {});
+      }
+      return { default: FakePouch };
+    });
+    (globalThis as any).window = {};
+    vi.resetModules();
+
+    const { DbService: FreshDbService } = await import('./db.service');
+    const svc = new FreshDbService();
+    await Promise.all([svc.bookAll(), svc.bookAll(), svc.bookAll()]);
+
+    expect(ctor).toHaveBeenCalledTimes(1);
+    expect(ctor).toHaveBeenCalledWith('pomreader');
+  });
+
+  it('浏览器后端模块加载失败应沿 Promise 链传播', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      vi.doMock('pouchdb-browser', () => {
+        throw new Error('pouchdb load failed');
+      });
+      (globalThis as any).window = {};
+      vi.resetModules();
+
+      const { DbService: FreshDbService } = await import('./db.service');
+      const svc = new FreshDbService();
+
+      // Vitest 会包装 mock 工厂抛出的错误，沿 cause 链核对原始加载失败原因
+      const error = await svc.bookAll().then(
+        () => null,
+        (e: unknown) => e,
+      );
+      const chain: string[] = [];
+      let current: unknown = error;
+      while (current && chain.length < 5) {
+        chain.push(current instanceof Error ? current.message : String(current));
+        current = current instanceof Error ? (current as { cause?: unknown }).cause : undefined;
+      }
+      expect(chain.join(' | ')).toContain('pouchdb load failed');
+      expect(warn).toHaveBeenCalledWith(
+        '[DbService] legacy chapter _id migration failed:',
+        expect.anything(),
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('浏览器后端构造失败后应允许下次调用重试', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      let attempts = 0;
+      vi.doMock('pouchdb-browser', () => {
+        class FakePouch {
+          constructor() {
+            attempts += 1;
+            // 前两次构造失败：覆盖"失败向上传播"与"失败后重试"两条路径
+            if (attempts <= 2) {
+              throw new Error('pouchdb construct failed');
+            }
+          }
+          allDocs = vi.fn(async () => ({ rows: [] }));
+          get = vi.fn(async () => ({}));
+          put = vi.fn(async () => ({ ok: true, id: 'x', rev: '1-x' }));
+          bulkDocs = vi.fn(async () => []);
+          destroy = vi.fn(async () => {});
+        }
+        return { default: FakePouch };
+      });
+      (globalThis as any).window = {};
+      vi.resetModules();
+
+      const { DbService: FreshDbService } = await import('./db.service');
+      const svc = new FreshDbService();
+
+      // 构造期迁移与紧随其后的首次读共享同一次加载尝试（并发首次只构造一次）
+      await expect(svc.bookAll()).rejects.toThrow('pouchdb construct failed');
+      // 失败后缓存被清空：再次调用会重新加载（本例仍失败）
+      await expect(svc.bookAll()).rejects.toThrow('pouchdb construct failed');
+      // 再次重试成功，证明失败不会毒化整个会话
+      await expect(svc.bookAll()).resolves.toEqual([]);
+      expect(attempts).toBe(3);
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

@@ -29,10 +29,13 @@ const globalsPatch = {
   // Electron type-only globals (auto-import.ts 用 `Electron.X` 形如 `Electron.CrossProcessCommunicationMessages`)
   // NodeJS 全局（window-state.ts:77）
   // HTMLWebViewElement（universal-search.component.ts webview 引用）
+  // PouchDB 全局类型命名空间（@types/pouchdb-core 声明；db.service.ts 仅 type-only 引入
+  //   pouchdb-browser 以把 PouchDB 移出主 chunk，故此处按环境级只读全局登记）
   Electron: 'readonly',
   NodeJS: 'readonly',
   HTMLWebViewElement: 'readonly',
   DedicatedWorkerGlobalScope: 'readonly',
+  PouchDB: 'readonly',
 };
 
 const SRC_PROJECT = './tsconfig.app.json';
@@ -50,6 +53,8 @@ module.exports = tseslint.config(
       'dist-electron/**',
       'release/**',
       'src/typings/**',
+      // .omc/ 为 agent 运行时产物（非项目源码），含基线构建副本，不纳入 lint
+      '.omc/**',
       '*.config.js',
       '*.config.ts',
     ],
