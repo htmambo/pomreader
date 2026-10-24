@@ -15,15 +15,17 @@ test.describe('在线导入 modal E2E', () => {
     await expect(page.locator('app-sidebar, nz-sider').first()).toBeVisible({ timeout: 10_000 });
 
     // 「导入」下拉应同时提供在线书页与本地 TXT 两个入口
-    const importButton = page.locator('app-page-header .actions button', { hasText: '导入' });
+    const importButton = page.locator('app-page-header .actions button', {
+      hasText: /^\s*导入\s*$/,
+    });
     await expect(importButton).toBeVisible({ timeout: 10_000 });
     await importButton.click();
-    await expect(page.locator('li[nz-menu-item]', { hasText: '导入在线书页' })).toBeVisible({
-      timeout: 10_000,
-    });
-    await expect(page.locator('li[nz-menu-item]', { hasText: '导入本地 TXT' })).toBeVisible({
-      timeout: 10_000,
-    });
+    await expect(page.locator('li[nz-menu-item]', { hasText: /^\s*导入在线书页\s*$/ })).toBeVisible(
+      { timeout: 10_000 },
+    );
+    await expect(page.locator('li[nz-menu-item]', { hasText: /^\s*导入本地 TXT\s*$/ })).toBeVisible(
+      { timeout: 10_000 },
+    );
 
     expect(errors).toEqual([]);
   });
