@@ -1,28 +1,50 @@
-// 在线导入 modal E2E 测试（EVO-8）
-// 覆盖：modal 打开 / 关闭 / URL 输入 / source 选择下拉 / 取消按钮
+// 在线导入 modal E2E 测试
+// 覆盖：书架页可达、「导入」下拉菜单含在线/本地两项、/search 的真实搜索界面
+//
+// 说明：/search 路由只渲染占位组件（app-search-placeholder，模板为空），
+// 真正的搜索界面是外壳常驻保活的 <app-universal-search>，
+// 因此断言对象是 app-universal-search 内的地址栏与「导入在线书页」按钮，而不是空占位。
 import { test, expect } from '@playwright/test';
 
 test.describe('在线导入 modal E2E', () => {
-  test('应能从侧边栏进入导入流程（路径可达）', async ({ page }) => {
-    // 直接打开导入 modal：注入式打开需要触发，但可访问 import-online 路由触发导入
-    // 这里只验证路由可达（modal 通常由 sidebar / 搜索结果触发）
-    await page.goto('#/bookshelf');
-    // 等待 sidebar 加载
-    await expect(page.locator('app-sidebar, nz-sider').first()).toBeVisible({ timeout: 10_000 });
-    // modal 默认不显示；确保无 JS error
+  test('应能从书架页进入导入流程（路径可达）', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (err) => errors.push(err.message));
-    await page.waitForTimeout(1_500);
+
+    await page.goto('#/bookshelf');
+    await expect(page.locator('app-sidebar, nz-sider').first()).toBeVisible({ timeout: 10_000 });
+
+    // 「导入」下拉应同时提供在线书页与本地 TXT 两个入口
+    const importButton = page.locator('app-page-header .actions button', { hasText: '导入' });
+    await expect(importButton).toBeVisible({ timeout: 10_000 });
+    await importButton.click();
+    await expect(page.locator('li[nz-menu-item]', { hasText: '导入在线书页' })).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(page.locator('li[nz-menu-item]', { hasText: '导入本地 TXT' })).toBeVisible({
+      timeout: 10_000,
+    });
+
     expect(errors).toEqual([]);
   });
 
-  test('应能在搜索页打开（验证 modal service 可注入）', async ({ page }) => {
+  test('应能在搜索页打开（万能搜索界面真实可见）', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (err) => errors.push(err.message));
+
     await page.goto('#/search');
     await expect(page).toHaveURL(/\/search/);
-    // 搜索页占位组件应可见
-    const placeholder = page.locator('app-search-placeholder, nz-empty, .search-placeholder');
-    if (await placeholder.count() > 0) {
-      await expect(placeholder.first()).toBeVisible();
-    }
+
+    // 外壳常驻保活的万能搜索组件在 /search 激活时可见
+    const searchPanel = page.locator('app-universal-search');
+    await expect(searchPanel).toBeVisible({ timeout: 10_000 });
+    await expect(
+      searchPanel.locator('input[placeholder="输入网址或搜索词，回车跳转"]'),
+    ).toBeVisible({ timeout: 10_000 });
+    await expect(searchPanel.locator('button[title="导入在线书页"]')).toBeVisible({
+      timeout: 10_000,
+    });
+
+    expect(errors).toEqual([]);
   });
 });
