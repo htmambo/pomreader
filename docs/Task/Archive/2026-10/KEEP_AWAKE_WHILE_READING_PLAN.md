@@ -210,7 +210,7 @@ T-1 / T-3 可并行；其余串行。
 | A-7 | `npm test` / `lint` / `format:check` | ✅ 1004 用例全绿（65 文件）/ eslint 无告警 / prettier 全通过 |
 | — | `npm run build:electron`（tsc 主进程） | ✅ 通过 |
 | — | `npm run build`（Angular AOT + strictTemplates） | ✅ 通过（仅既有 Sass `@import` 弃用与 bundle 预算告警） |
-| A-1 / A-2 / A-3 | 真机三平台行为 | ✅ Linux（Manjaro，systemd-logind）2026-10-18 真机通过；⏳ Windows / macOS 待各自真机验收 |
+| A-1 / A-2 / A-3 | 真机三平台行为 | ✅ 全部通过：Linux（Manjaro）2026-10-18；Windows / macOS 2026-10-19 真机验收通过 |
 
 ### 经验
 

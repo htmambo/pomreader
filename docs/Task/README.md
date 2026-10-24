@@ -26,7 +26,7 @@
   - 幂等 + 失效 id 自愈：主进程「已持有则直接返回」，避免 signal 抖动 / 路由重入泄漏唤醒锁
   - 降级路径：无 systemd-logind 的 Linux 与浏览器调试模式标记 `supported=false`，设置项可见但不生效
   - 主进程 19 用例 + 渲染端 14 用例；外部审核循环 2 轮收口（Round 1 生命周期漏洞已修复，Round 2 APPROVED）；`npm test` 1177 用例全绿、`format:check` / 两处构建均通过（lint 44 个问题为分支存量，与本特性无关）
-  - 真机验收：Linux（Manjaro）2026-10-18 通过；Windows / macOS 待验
+  - 真机验收：三平台全部通过 —— Linux（Manjaro）2026-10-18；Windows / macOS 2026-10-19
 
 ### 2026-09（独立仓库阶段）
 
