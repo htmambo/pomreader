@@ -78,16 +78,31 @@ done
 
 PRODUCT_NAME="$(node -p "require('./package.json').build.productName")"
 VERSION="$(node -p "require('./package.json').version")"
-HOST_ARCH="$(uname -m)"
+HOST_ARCH_RAW="$(uname -m)"
+HOST_ARCH="$HOST_ARCH_RAW"
+# Rosetta 转译进程下 uname -m 报 x86_64，但真实芯片是 Apple Silicon
+if [ "$HOST_ARCH" = "x86_64" ] && [ "$(sysctl -n sysctl.proc_translated 2>/dev/null || echo 0)" = "1" ]; then
+  HOST_ARCH="arm64"
+fi
+# 归一到 electron-builder 的架构命名（x64 / arm64）
+case "$HOST_ARCH" in
+  x86_64|amd64) HOST_ELECTRON_ARCH="x64" ;;
+  arm64|aarch64) HOST_ELECTRON_ARCH="arm64" ;;
+  *)            HOST_ELECTRON_ARCH="$HOST_ARCH" ;;
+esac
 
 step "环境"
 info "仓库      $ROOT"
 info "应用      $PRODUCT_NAME $VERSION"
-info "主机架构  $HOST_ARCH"
+if [ "$HOST_ARCH" = "$HOST_ARCH_RAW" ]; then
+  info "主机架构  ${HOST_ARCH_RAW}（打包架构 ${HOST_ELECTRON_ARCH}）"
+else
+  info "主机架构  ${HOST_ARCH_RAW}（Rosetta 转译，实际 ${HOST_ARCH} / 打包架构 ${HOST_ELECTRON_ARCH}）"
+fi
 info "目标架构  ${ARCHES[*]}"
 
 for arch in "${ARCHES[@]}"; do
-  if [ "$arch" != "$HOST_ARCH" ] && [ "$arch" != "universal" ]; then
+  if [ "$arch" != "$HOST_ELECTRON_ARCH" ] && [ "$arch" != "universal" ]; then
     warn "$arch 与主机 $HOST_ARCH 不同，走交叉编译（可行；运行验证需对应架构真机）"
   fi
 done
