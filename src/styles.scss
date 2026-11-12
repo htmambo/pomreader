@@ -7,4 +7,6 @@
 
 @import './styles/tokens.scss';
 @import './styles/ng-zorro-overrides.scss';
-@import './styles/reader.scss';
+/* 阅读页样式：与 ReaderComponent 同目录（就近维护），但走全局通道
+   —— 样式跨第三方组件内部节点（ng-zorro color-picker），组件级作用域隔离无法覆盖 */
+@import './app/pages/reader/reader.component.scss';

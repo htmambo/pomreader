@@ -1,6 +1,6 @@
 /* ============================================================
  * 设计 token（提取自原 vendor 白虎阅读 index.prod.html / styles bundle）
- * 全站固定亮色方案（阅读页主题独立，见 styles/reader.scss）
+ * 全站固定亮色方案（阅读页主题独立，见 app/pages/reader/reader.component.scss）
  * ============================================================ */
 
 :root {
@@ -41,7 +41,7 @@
   --pom-accent-hover: #ed4259;
 
   /* 亮色配色（与原 vendor #e2d1a5 / #f4eac7 / #cdc0a4 对齐）
-   * 注：阅读页纹理图位于 assets/themes/reader/（见 styles/reader.scss）
+   * 注：阅读页纹理图位于 assets/themes/reader/（见 app/pages/reader/reader.component.scss）
    */
   --pom-bg: #e2d1a5;
   --pom-bg-image: none;

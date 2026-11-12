@@ -68,6 +68,10 @@ interface ReaderViewSettings {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [FormsModule, NzIconModule, NzColorPickerModule],
   templateUrl: './reader.component.html',
+  // 阅读页样式在 reader.component.scss（与本组件同目录，便于就近维护），
+  // 由 src/styles.scss 全局引入：样式跨第三方组件内部节点（ng-zorro color-picker），
+  // 组件级作用域隔离无法覆盖，且体量（~19 kB）超出 anyComponentStyle 预算，
+  // 故走全局通道，语义与迁移前完全一致
   preserveWhitespaces: true,
 })
 export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
