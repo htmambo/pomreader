@@ -1,0 +1,88 @@
+<div class="import-legado">
+  <p class="hint">
+    阅读(Legado) 订阅源支持两种格式：JSON 对象（单源）或 JSON 数组（订阅列表）， 也支持 base64
+    编码的上述任一种。pomreader 会自动嗅探并转换其中
+    <strong>纯 CSS / 正则规则</strong> 的源；含 java.* / source.* 桥接的源会被跳过（提示用户走智能添加）。
+  </p>
+
+  <div class="mode-tabs">
+    <button
+      type="button"
+      nz-button
+      nzSize="small"
+      [nzType]="mode() === 'url' ? 'primary' : 'default'"
+      (click)="setMode('url')"
+    >
+      订阅 URL
+    </button>
+    <button
+      type="button"
+      nz-button
+      nzSize="small"
+      [nzType]="mode() === 'json' ? 'primary' : 'default'"
+      (click)="setMode('json')"
+    >
+      粘贴 JSON
+    </button>
+  </div>
+
+  @if (mode() === 'json') {
+  <textarea
+    nz-input
+    [(ngModel)]="textInput"
+    rows="6"
+    placeholder="粘贴 legado JSON 文本（单对象 / 数组 / base64）"
+    [disabled]="loading()"
+  ></textarea>
+  } @if (mode() === 'url') {
+  <input
+    nz-input
+    type="text"
+    [(ngModel)]="urlInput"
+    placeholder="https://example.com/legado-subscriptions.txt"
+    [disabled]="loading()"
+  />
+  }
+
+  <div class="actions">
+    <button nz-button (click)="cancel()">取消</button>
+    <button nz-button nzType="primary" [disabled]="!canParse()" [nzLoading]="loading()" (click)="parse()">解析</button>
+  </div>
+
+  <nz-spin [nzSpinning]="loading()">
+    @if (items().length > 0) {
+    <nz-alert nzType="info" nzShowIcon [nzMessage]="summaryMsg()" style="margin: 12px 0"></nz-alert>
+
+    <ul class="source-list">
+      @for (it of items(); track it.fileName) {
+      <li class="source-item" [class.skeleton]="it.isSkeleton">
+        <label class="source-row">
+          <input type="checkbox" nz-checkbox [checked]="isSelected(it)" (change)="toggle(it)" />
+          <span class="source-name">{{ it.source.bookSourceName }}</span>
+          @if (it.source.bookSourceGroup) {
+          <nz-tag class="tag-group"> {{ it.source.bookSourceGroup }} </nz-tag>
+          }
+          <nz-tag class="tag-status" [nzColor]="it.isSkeleton ? 'orange' : 'green'">
+            {{ it.isSkeleton ? '⚠ 需手写（草稿）' : '✓ 可转换' }}
+          </nz-tag>
+          @if (it.overwritesExisting) {
+          <nz-tag class="tag-overwrite" nzColor="orange"> 覆盖现有 </nz-tag>
+          }
+        </label>
+        @if (it.translateError) {
+        <div class="source-error">{{ it.translateError }}</div>
+        }
+      </li>
+      }
+    </ul>
+
+    <div class="actions">
+      <span class="select-hint">已选 {{ selectedCount() }} 个</span>
+      <button nz-button (click)="cancel()">取消</button>
+      <button nz-button nzType="primary" [disabled]="selectedCount() === 0" [nzLoading]="writing()" (click)="commit()">
+        导入所选
+      </button>
+    </div>
+    }
+  </nz-spin>
+</div>

@@ -1,0 +1,64 @@
+<div class="cg-dialog">
+  <div class="cg-summary">
+    <div class="cg-summary__cover">
+      @if (book.coverImageUrl) {
+      <img [src]="book.coverImageUrl" [alt]="book.title" />
+      } @else {
+      <span class="cg-empty-cover">暂无封面</span>
+      }
+    </div>
+    <div class="cg-summary__meta">
+      <h3>{{ book.title }}</h3>
+      <p>{{ book.author || '佚名' }}</p>
+      <p>共 {{ totalCount() }} 款内置封面，已生成 {{ readyCount() }} 款</p>
+    </div>
+    <button nz-button nzType="default" [disabled]="generating()" (click)="regenerate()" class="cg-regen">
+      <span nz-icon nzType="reload"></span>
+      重新生成
+    </button>
+  </div>
+
+  <section class="cg-grid">
+    @for (item of previews(); track item.id) {
+    <article
+      class="cg-card"
+      [class.cg-card--selected]="selectedId() === item.id"
+      [class.cg-card--disabled]="item.status !== 'ready'"
+      (click)="select(item)"
+    >
+      <div class="cg-card__preview">
+        @if (item.coverUrl) {
+        <img [src]="item.coverUrl" [alt]="item.name" loading="lazy" />
+        } @else if (item.status === 'generating') {
+        <div class="cg-card__state"><nz-spin nzSimple></nz-spin><span>生成中</span></div>
+        } @else if (item.status === 'error') {
+        <div class="cg-card__state cg-card__state--error"><span>生成失败</span></div>
+        } @else {
+        <div class="cg-card__state"><span>等待生成</span></div>
+        } @if (selectedId() === item.id) {
+        <div class="cg-card__badge">
+          <span nz-icon nzType="check"></span>
+        </div>
+        }
+      </div>
+      <div class="cg-card__body">
+        <h4>{{ item.name }}</h4>
+        <p>{{ item.error || item.description }}</p>
+      </div>
+    </article>
+    }
+  </section>
+
+  <footer class="cg-footer">
+    <div class="cg-footer__hint">
+      @if (selectedItem(); as sel) { 已选中：{{ sel.name }} } @else { 点击缩略图选中一款封面 }
+    </div>
+    <div class="cg-footer__actions">
+      <button nz-button nzType="default" (click)="cancel()">取消</button>
+      <button nz-button nzType="primary" [disabled]="!selectedItem()" (click)="confirm()">
+        <span nz-icon nzType="check"></span>
+        应用封面
+      </button>
+    </div>
+  </footer>
+</div>
