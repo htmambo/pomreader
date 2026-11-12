@@ -5,10 +5,30 @@
 
 ## Active Tasks
 
+- [工程基线后续优化项](Active/ENGINEERING_BASELINE_FOLLOWUPS.md) — 2026-11-12 规范债收口任务外部审查确认为真实但超出范围的 3 项预存技术债：S-1 Sass `@import`→`@use` 迁移 / S-2 CSS 资源路径改相对路径 / S-3 CI lint 与 Playwright 安装并行化，各附触发条件与「本次不做」理由
 - [书源 JSON 规则化 — 二期及后续跟进项](Active/BOOKSOURCE_JSON_RULES_FOLLOWUPS.md) — 跟踪主方案（[2026-09-29 书源 JSON 规则化改造方案 v2.1](../Architecture/2026-09-29-BOOKSOURCE-JSON-RULES-PLAN.md)）v1 明确不做的 17 项（T-1..T-17，表达力扩展 / 引擎运行时 / 生态工具 / 机制验证），含触发条件与激活规则
   - 主方案 v2.1 已过两轮评审（17 条事实基线 + 结构白名单迁移判据 + 离线差分测试）；其中 T-12（导入导出 bundle）**前置未完成** —— [2026-09-28 导入导出设计](../Architecture/2026-09-28-BOOKSOURCE_IMPORT_EXPORT_DESIGN.md) 仍按旧 `.js` 契约，需先修订
 
 ## Completed Tasks (Archive)
+
+### 2026-11
+
+- ✅ [ESLint 存量报错修复与 Angular 控制流规范化](Archive/2026-11/LINT_ERRORS_FIX_PLAN.md) — Completed 2026-11-12
+  - 控制流升级：`book-source-subscriptions.component.html` 迁移至 `@for (sub of subTable.data; track (sub.id ?? $index))`，清理组件冗余 `NgFor` import
+  - 类型检查最佳实践：在 `eslint.config.js` 中将 TS 源码与 spec 规则块的 `no-undef` 显式关闭，完全交由 TypeScript 编译器负责全局与 `.d.ts` 静态检查，消灭 41 处 `no-undef` 误报
+  - 编译器索引精准修复：在 `tsconfig.app.json` 中配置 include 显式挂载 `source-health.service.ts`，解决 typescript-eslint 项目缺失报错（**该服务已于同日随「规范债收口」任务删除**，include 登记同步移除）
+  - 规范类型断言：在 `booksource-handler.spec.ts` 中以 `Parameters<...>` 替代 `as any`，清理未使用的 eslint-disable 指令
+  - 达成 `npm run lint` 0 errors / 0 warnings、`npm test` 1193 测试全通过、`npm run build` 与 `format:check` 验证全绿
+
+- ✅ [项目规范债收口与安全依赖升级](Archive/2026-11/CONVENTION_DEBT_AND_SECURITY_PLAN.md) — Completed 2026-11-12
+  - **安全**：Angular 全家桶 22.2.0 → 22.2.6（CDK 22.2.7），修掉 `@angular/router` DoS（`>=22.0.0 <22.2.1` 原锁定版本正落在漏洞区间）与 `zod <4.6.6` 内存耗尽两个 high 级漏洞；`npm audit --omit=dev` 现无 high
+  - **门禁**：CI `lint-unit-build` job 补 `npm run lint` 步骤（此前仅 `format:check`，ESLint 从未真正把关）
+  - **规范债**：5 处超 300 行组件的 inline template 拆为独立 `.component.html`（补 `preserveWhitespaces: true` 保留空白语义），行数 484→246 / 403→328 / 402→280 / 328→212 / 310→230
+  - **死代码**：删除 `source-health.service.ts` + spec（P4 后零生产消费方），`tsconfig.app.json` include 登记同步移除，CONVENTIONS §exceptions 留痕
+  - **覆盖率门禁**：vitest 阈值由 lines 50 / functions 60 / branches 80 / statements 50 收紧至 88 / 85 / 80 / 86（实测 93.62% / 90.75% / 86.19% / 91.68%）
+  - **样式归位**：阅读页样式 `src/styles/reader.scss` → `src/app/pages/reader/reader.component.scss`（仍走全局引入，语义不变）
+  - **文档**：README 与本索引的测试数 / 覆盖率 / e2e 数量 / lint 基线描述全部对齐实测值
+  - 验收：lint 0/0、单测 74 文件 1186 用例全绿、e2e 21/21、双构建 + format:check 通过、AGENTS.md 机器校验全过
 
 ### 2026-10
 
@@ -16,7 +36,7 @@
   - P1 启动迁移改元数据扫描（`allDocs({include_docs:false})` + 旧格式候选按需 `get()`），过桥正文 20 条/120,000 B → 0 条/0 B，响应 124,061 B → 1,650 B
   - P2 换源孤儿按需清理（只传元数据，孤儿候选逐条读取并用最新 `_rev` 构造 tombstone），缩短集合 20 → 5 条
   - P3 浏览器后端动态 import 拆包：PouchDB 移入独立 lazy chunk（125.87 kB），main 552.33 → 425.93 kB，initial 1.78 → 1.66 MB、transfer 363.17 → 326.44 kB
-  - `npm test` 1191 用例全绿（+14）、e2e 21/21、两处构建与 format:check 通过；改动文件 ESLint 0 问题，全仓 lint 43 errors/1 warning 为存量基线
+  - `npm test` 1191 用例全绿（+14）、e2e 21/21、两处构建与 format:check 通过；改动文件 ESLint 0 问题，全仓 lint 43 errors/1 warning 为存量基线（**已于 2026-11 清零**，见本节 2026-11 条目）
   - 三视角验证 + 两轮外部审核全部 APPROVED；旧库迁移字节持平（+0.3%）如实记录，不宣称提速；遗留 8 条风险（含大库规模未测、真实 Electron GUI 未实测）
 
 - ✅ [阅读时阻止系统睡眠 / 锁屏](Archive/2026-10/KEEP_AWAKE_WHILE_READING_PLAN.md) — Completed 2026-10-18
@@ -25,7 +45,7 @@
     Windows `SetThreadExecutionState` / macOS `IOPMAssertion` / Linux `logind Inhibit`，一次 API 三平台生效
   - 幂等 + 失效 id 自愈：主进程「已持有则直接返回」，避免 signal 抖动 / 路由重入泄漏唤醒锁
   - 降级路径：无 systemd-logind 的 Linux 与浏览器调试模式标记 `supported=false`，设置项可见但不生效
-  - 主进程 19 用例 + 渲染端 14 用例；外部审核循环 2 轮收口（Round 1 生命周期漏洞已修复，Round 2 APPROVED）；`npm test` 1177 用例全绿、`format:check` / 两处构建均通过（lint 44 个问题为分支存量，与本特性无关）
+  - 主进程 19 用例 + 渲染端 14 用例；外部审核循环 2 轮收口（Round 1 生命周期漏洞已修复，Round 2 APPROVED）；`npm test` 1177 用例全绿、`format:check` / 两处构建均通过（lint 44 个问题为分支存量，与本特性无关，**已于 2026-11 清零**）
   - 真机验收：三平台全部通过 —— Linux（Manjaro）2026-10-18；Windows / macOS 2026-10-19
 
 ### 2026-09（独立仓库阶段）

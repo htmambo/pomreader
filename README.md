@@ -44,8 +44,8 @@ npm run dev
 - **PouchDB** IndexedDB（Book/Chapter 持久化）+ **localStorage**（设置）
 - **valibot 1.5**（IPC 入参 runtime schema 验证；`safeHandle` 工厂统一校验）
 - **@angular/localize**（i18n 机制就位；zh-Hans 默认）
-- **Vitest 5.0 + jsdom**（`src/` 与 `electron/` 两侧共测，v8 coverage：**92.88% 行 / 85.1% 分支 / 90.55% 函数** 总计；978 tests across 63 files）+ **Playwright 1.63**（E2E，5 spec / 19 tests；Chromium only）
-- **ESLint 9.39 + angular-eslint 22.5 + typescript-eslint 8.70**（`npm run lint`；flat config；0 errors / 0 warnings baseline）
+- **Vitest 5.0 + jsdom**（`src/` 与 `electron/` 两侧共测，v8 coverage：**93.62% 行 / 86.19% 分支 / 90.75% 函数 / 91.68% 语句** 总计；1186 tests across 74 files）+ **Playwright 1.63**（E2E，5 spec / 21 tests；Chromium only）
+- **ESLint 9.39 + angular-eslint 22.5 + typescript-eslint 8.70**（`npm run lint`；flat config；0 errors / 0 warnings baseline，CI 已设门禁）
 - **esbuild**（`build:db-window` 打包 DB 隐藏窗口渲染脚本 → `dist-electron/db-renderer.js`）
 
 ## 书源与扩展
@@ -62,7 +62,7 @@ src/
 │   ├── core/
 │   │   ├── logic/         # 纯函数：chapter-split / text-format / bookshelf-sort / bookshelf-filter / bookshelf-group-name / auto-import-url / convert-chinese / settings-store / build-book-source-doc / rule-parse
 │   │   ├── models/        # Book / Chapter / Settings / BookshelfGroup / BookSourceDoc（书源 JSON 文档 + valibot schema）
-│   │   ├── services/      # BookService / BookshelfGroupService / DbService (PouchDB) / ReaderService / SettingsService / CfPromptService / SourceHealthService 等
+│   │   ├── services/      # BookService / BookshelfGroupService / DbService (PouchDB) / ReaderService / SettingsService / CfPromptService 等
 │   │   ├── book-source/   # 书源体系：适配器注册表 + JSON 规则引擎 + legado 订阅源导入（source-meta.types.ts 在本层）
 │   │   │   ├── adapters/  # 专用站（笔趣阁）/ 启发式密度算法兜底
 │   │   │   ├── json-rule/ # JSON 规则引擎（engine / guard / json-rule.adapter / rule-engine.service）
@@ -87,8 +87,7 @@ src/
 ├── styles/
 │   ├── tokens.scss
 │   ├── ng-zorro-overrides.scss
-│   ├── rules-panel.scss
-│   └── reader.scss
+│   └── rules-panel.scss
 ├── typings/               # 全局 .d.ts
 └── test-setup.ts          # Vitest 初始化（@angular/compiler JIT）
 
@@ -142,6 +141,7 @@ docs/
 - `core/services/global-error-handler.ts` — 全局异常兜底 → ToastService
 - `core/db/bulk-result.ts` — PouchDB bulkDocs 错误分类工具
 - `styles/ng-zorro-overrides.scss` — ng-zorro 暗色主题覆盖（与原 vendor 一致）
+- `pages/reader/reader.component.scss` — 阅读页主题样式（与组件同目录就近维护，经 `styles.scss` 全局引入）
 
 ### Electron 侧（electron/）
 
@@ -172,7 +172,7 @@ docs/
 ## 演进记录（2026-09）
 
 - **EVO-1 ~ EVO-16**：架构演进 16 项（IPC 拆模块 + safeHandle / 沙箱硬化 v2 / DbWorker pool / 4 进程模型 / 测试覆盖 / 文档对齐等）；详见 [`docs/Task/Archive/2026-09/POMREADER_ARCH_EVOLUTION_PLAN.md`](docs/Task/Archive/2026-09/POMREADER_ARCH_EVOLUTION_PLAN.md) 与 `.omc/fullauto/pomreader-arch-evo/`
-- 累计 978 tests passing（63 files，src/ + electron/ 两侧）；外部审核 Round 9 APPROVED
+- 累计 1186 tests passing（74 files，src/ + electron/ 两侧）；外部审核 Round 9 APPROVED
 - 主要 commit 锚点（详见 CHANGELOG §"Architecture Evolution"）：
   - EVO-1 `1765d00` BookRepository 拆出 → `d9979b1` 章节方法委托 ChapterLoader → `4af4c00` Loader/Updater 抽出 → `6a37fbe` BookUpdater 改用 BookRepositoryPort
   - EVO-2 `9628160` bulk-result helper

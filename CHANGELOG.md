@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **book-source (P4)**: 删除 JS 沙箱书源链路（书源纯 JSON 化完成；回滚需从 tag 恢复）—— 整目录 `core/book-source/js-source/`（sandbox.service / sandbox.worker / js-source.adapter / worker-pool / multi-mirror，约 2200 实现 + 2900 spec 行）+ `smart-rules.ts` 的 `generateSourceCode` 代码生成段 + 运行时开关 `pom.bookSource.engine`（`feature-flag.ts`、registry 的 `registerJsAdapter`/`loadAllJsAdapters`、列表页顶栏引擎分段控件）+ `build:worker` 脚本与 `src/assets/sandbox.worker.js` 产物 + `.js` 专属 IPC channel（`pom:booksource-list` / `-list-streaming` / `-toggle` / `-save` 及对应 preload 暴露）+ `electron/ipc/booksource-meta.ts` 的 `scanDir`（`parseHeaderMeta` 迁入 `booksource-migrate.ts`，启动迁移保留）；P1 差分测试（`diff-test.spec.ts` + `fixtures/html/` + `worker-stub.ts`）随对照组消亡一并删除，迁移 spec 在用的 3 个 `.js` 样本保留于 `fixtures/booksources/`。CF 过盾改由 RuleEngineService 直调 `CfPromptService.prompt()`（`SandboxService.cfChallengeHook` 静态钩子不再存在）
 - **electron/preload**: 删除 preload `booksourceEval` / `sourceHealthCheck` 与 IPC channel `pom:booksource-eval`（沙箱时代遗物；调试/测试页与健康检测改走渲染端 `RuleEngineService`，留痕见 `docs/CONVENTIONS.md` §exceptions）
+- **core/services**: 删除 `source-health.service.ts` + 其 spec（P4 删沙箱链路后该服务零生产消费方，仅被自身 spec 引用；`rg "SourceHealthService" src/ electron/` 命中仅 spec 一处）。留痕见 `docs/CONVENTIONS.md` §exceptions
+
+### Security
+
+- **deps**: Angular 全家桶 22.2.0 → **22.2.6**（`@angular/cdk` 同步至 22.2.7）—— 修掉两个 high 级漏洞：① `@angular/router` DoS（GHSA：SSR 空路径 outlet 路由匹配 + RouterLink 查询参数滞留，影响范围 `>=22.0.0 <22.2.1`，原锁定版本正好落在漏洞区间内）；② `zod <4.6.6` 内存耗尽 DoS（位于 `@angular/forms/node_modules/zod` 嵌套陈旧副本，随 Angular 升级同步消除）。`npm audit --omit=dev` 现仅剩 `pouchdb-browser` 传递的 `uuid` moderate（修复需降级 pouchdb major，**不处理**）
 
 ### Bug Fixes
 
@@ -32,9 +37,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Tests
 
 - **electron/ipc**: 新增 `fetch-handler.spec.ts`（23 例）—— 补上此前完全缺失的注册级测试层：4 个 channel 的注册/schema 契约（含零参 `pom:get-fetch-ua` 回归）、UA 读写与校验、webview 编码拦截器、`pom:fetch-html` 的 SSRF 拦截 / 浏览器请求头 / gbk 解码 / CF 过盾回落 / 8MB 上限 / 15s 超时
+- **coverage**: 收紧 `vitest.config.ts` 覆盖率阈值 —— lines 50→88、functions 60→85、branches 80→80（持平）、statements 50→86。原阈值相对实测（91-93%）形同虚设，`good-sites.ts`（0%）、`legado-parser.ts`（函数 47%）均可过关；现按实测留 2-6pp 缓冲
 
 ### Refactor
 
+- **conventions**: 5 处超 300 行组件的 inline `template` 拆为独立 `.component.html`（AGENTS.md 硬规则），同步补 `preserveWhitespaces: true` 保留原空白语义 —— `change-book-source-dialog`（484→246 行）、`cover-generator-dialog`（403→328 行）、`universal-search`（402→280 行）、`import-legado`（328→212 行）、`book-card`（310→230 行）；其中 `change-book-source-dialog` / `universal-search` 的 inline `styles` 另拆为 `.component.scss`
+- **reader**: 阅读页样式从 `src/styles/reader.scss` 迁至 `src/app/pages/reader/reader.component.scss`（与组件同目录就近维护），仍经 `styles.scss` 全局引入 —— 样式跨 ng-zorro color-picker 内部节点，组件级作用域隔离无法覆盖；资源路径相应由 `../assets/` 改为 `/assets/`（产物 CSS 解析结果不变）
+- **eslint**: TS 源码与 spec 规则块显式关闭 `no-undef`（TypeScript 编译器已全量静态检查；`src/typings/*.d.ts` 的全局类型声明在 ESLint 侧属误报），全仓 lint 由 43 errors / 1 warning 清零至 **0 errors / 0 warnings**
+- **ci**: `.github/workflows/ci.yml` 的 `lint-unit-build` job 补 `npm run lint` 步骤（此前仅 `format:check`，ESLint 从未真正把关）
 - **data**: 移除内置示例书 seed（`src/assets/data/books.json` + 15 章 JSON）；`DbService.seedIfEmpty()` 简化为 no-op（保留接口兼容 `BookRepository.load()`）
 
 ### Dependencies
