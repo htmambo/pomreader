@@ -58,7 +58,8 @@
       </tr>
     </thead>
     <tbody>
-      <tr *ngFor="let sub of subTable.data">
+      @for (sub of subTable.data; track (sub.id ?? $index)) {
+      <tr>
         <td class="cell-name">{{ sub.name }}</td>
         <td class="cell-url" [title]="sub.url">{{ sub.url }}</td>
         <td class="cell-time">{{ formatTs(sub.lastCheckedAt) }}</td>
@@ -78,6 +79,7 @@
           <button nz-button nzType="link" nzSize="small" nzDanger (click)="confirmDelete(sub)">删除</button>
         </td>
       </tr>
+      }
     </tbody>
   </nz-table>
   }

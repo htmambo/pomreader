@@ -39,6 +39,8 @@ jobs:
             cache-electron-playwright-${{ runner.os }}-
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - name: ESLint
+        run: npm run lint
       - name: Prettier format check
         run: npm run format:check
       - name: Vitest unit + coverage

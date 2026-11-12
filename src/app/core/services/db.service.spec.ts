@@ -745,9 +745,9 @@ describe('DbService', () => {
       expect(opCalls('get')).toHaveLength(0);
       expect(opCalls('bulkDocs')).toHaveLength(0);
       // 没有旧格式候选 → 不发起批量正文请求
-      expect(
-        opCalls('allDocs').some((call) => (call[1][0] as { keys?: string[] })?.keys),
-      ).toBe(false);
+      expect(opCalls('allDocs').some((call) => (call[1][0] as { keys?: string[] })?.keys)).toBe(
+        false,
+      );
     });
 
     it('旧新格式混合时只读取并迁移旧格式候选', async () => {

@@ -102,6 +102,9 @@ module.exports = tseslint.config(
         },
       ],
       'no-unused-vars': 'off',
+      // TypeScript 编译器已全量进行未定义类型/变量静态检查，且项目在 src/typings/*.d.ts 中
+      // 声明了多个 Window / API 全局扩展类型，关掉 ESLint 的 no-undef 避免类型定义误报
+      'no-undef': 'off',
 
       '@typescript-eslint/no-explicit-any': 'warn', // 渐进收紧：先 warn 看分布
       '@typescript-eslint/no-non-null-assertion': 'off', // 仓库允许
@@ -166,6 +169,9 @@ module.exports = tseslint.config(
     rules: {
       ...eslint.configs.recommended.rules,
       ...tseslint.configs.recommended.rules,
+      // 与上方 TS 源码块同因：spec 文件同样只受 TypeScript 类型检查保护，
+      // no-undef 对 src/typings/*.d.ts 的全局类型声明属误报
+      'no-undef': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',
       '@typescript-eslint/no-unused-vars': [

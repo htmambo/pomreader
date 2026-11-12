@@ -199,8 +199,10 @@ describe('JSON 书源 channel（save → list → toggle → delete round-trip�
   beforeEach(() => {
     tmpUserData = fs.mkdtempSync(path.join(os.tmpdir(), 'booksource-json-ipc-test-'));
     const fake = createFakeIpcMain();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    registerBookSourceHandler(fake as any, tmpUserData);
+    registerBookSourceHandler(
+      fake as unknown as Parameters<typeof registerBookSourceHandler>[0],
+      tmpUserData,
+    );
     handlers = fake.handlers;
   });
 
