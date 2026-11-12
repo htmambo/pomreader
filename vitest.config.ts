@@ -18,18 +18,17 @@ export default defineConfig({
         'src/app/core/services/**/*.ts',
         'src/app/core/db/**/*.ts',
       ],
-      // 阈值说明（2026-09-28 Phase 5 收紧后）：
-      // services 覆盖短板已补齐（db/book facade/chapter-loader/import-via-source/
-      // source-test/source-search-state/settings/toast/sandbox/worker-pool 专项 spec），
-      // 实测 branches 85.74%。历史背景：vitest 4 起 coverage 改 AST 重映射，
-      // else/默认分支真实计入分母（分支总数 ~1430→1655）。
-      // branches=80：实测 85.74% 留 ~5pp 缓冲（沿用既有"贴边无缓冲"教训）。
-      // lines/statements=50、functions=60 维持渐进基线，后续可另行收紧。
+      // 阈值说明（2026-11-12 收紧）：
+      // 此前 lines/statements=50、functions=60、branches=80 相对实测（91-93%）形同虚设，
+      // good-sites.ts（0%）、legado-parser.ts（函数 47%）均可轻松过关。
+      // 现按实测值下调留缓冲：lines 93.62% / statements 91.68% / functions 90.75% /
+      // branches 86.19%。各留 ~2-6pp 缓冲，防新增代码小幅拉低即破线。
+      // 历史背景：vitest 4 起 coverage 改 AST 重映射，else/默认分支真实计入分母。
       thresholds: {
-        lines: 50,
-        functions: 60,
+        lines: 88,
+        functions: 85,
         branches: 80,
-        statements: 50,
+        statements: 86,
       },
     },
   },
