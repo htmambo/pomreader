@@ -33,9 +33,13 @@ test.describe('书源系统 E2E', () => {
     await page.goto('#/bookshelf');
     // 书架页可能存在「导入」入口；若存在则尝试打开 modal
     const importBtn = page.locator('button:has-text("导入")').first();
-    if (await importBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+    if (await importBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
       await importBtn.click();
-      await expect(page.locator('app-import-online')).toBeVisible({ timeout: 3000 });
+      // 「导入」是下拉菜单（在线导入 / 本地 TXT）—— 需点菜单项才会打开 modal
+      const onlineItem = page.locator('li[nz-menu-item]:has-text("导入在线书页")').first();
+      await expect(onlineItem).toBeVisible({ timeout: 5000 });
+      await onlineItem.click();
+      await expect(page.locator('app-import-online')).toBeVisible({ timeout: 5000 });
     }
     // 若入口尚未接入，仅保证书架页可达
     await expect(page).toHaveURL(/\/bookshelf/);

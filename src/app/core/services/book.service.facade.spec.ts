@@ -431,7 +431,9 @@ describe('BookService 章节操作委托 ChapterLoader', () => {
     const loader = {
       getChapters: vi.fn(async () => []),
       getChaptersSync: vi.fn(() => undefined),
+      chaptersVersion: signal(0),
       loadChapterContent: vi.fn(async () => undefined),
+      loadChapterBody: vi.fn(async () => true),
       refreshChapter: vi.fn(async () => true),
       clearChapterContents: vi.fn(async () => undefined),
       updateChapter: vi.fn(async () => undefined),
@@ -450,6 +452,43 @@ describe('BookService 章节操作委托 ChapterLoader', () => {
 
     await svc.updateChapter('book-1', 1, { title: '改名' });
     expect(loader.updateChapter).toHaveBeenCalledWith('book-1', 1, { title: '改名' });
+  });
+
+  it('loadChapterBody 应委托 loader 并透传返回值（A2 正文分离）', async () => {
+    const loader = {
+      getChapters: vi.fn(async () => []),
+      getChaptersSync: vi.fn(() => undefined),
+      chaptersVersion: signal(0),
+      loadChapterContent: vi.fn(async () => undefined),
+      loadChapterBody: vi.fn(async () => true),
+      refreshChapter: vi.fn(async () => true),
+      clearChapterContents: vi.fn(async () => undefined),
+      updateChapter: vi.fn(async () => undefined),
+      evictCache: vi.fn(),
+    };
+    const { svc } = makeSvc({ loader: loader as never });
+
+    await expect(svc.loadChapterBody('book-1', 4)).resolves.toBe(true);
+    expect(loader.loadChapterBody).toHaveBeenCalledWith('book-1', 4);
+  });
+
+  it('chaptersVersion 应跟随 ChapterLoader 的版本号（不再是自己从不 bump 的死信号）', async () => {
+    const loader = {
+      getChapters: vi.fn(async () => []),
+      getChaptersSync: vi.fn(() => undefined),
+      chaptersVersion: signal(3),
+      loadChapterContent: vi.fn(async () => undefined),
+      loadChapterBody: vi.fn(async () => true),
+      refreshChapter: vi.fn(async () => true),
+      clearChapterContents: vi.fn(async () => undefined),
+      updateChapter: vi.fn(async () => undefined),
+      evictCache: vi.fn(),
+    };
+    const { svc } = makeSvc({ loader: loader as never });
+
+    expect(svc.chaptersVersion()).toBe(3);
+    loader.chaptersVersion.set(4);
+    expect(svc.chaptersVersion()).toBe(4);
   });
 });
 

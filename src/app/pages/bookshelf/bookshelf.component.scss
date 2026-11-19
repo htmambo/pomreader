@@ -137,3 +137,12 @@
   color: var(--pom-text-muted);
   margin-right: 4px;
 }
+
+/* ── 骨架屏（A4 非阻塞 bootstrap） ────────────────────────────────────── */
+
+.book-skeleton {
+  padding: 12px;
+  border: 1px solid var(--pom-border);
+  border-radius: 8px;
+  background: var(--pom-card);
+}

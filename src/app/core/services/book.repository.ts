@@ -51,6 +51,18 @@ export class BookRepository implements BookRepositoryPort {
   readonly count: Signal<number> = computed(() => this._books().length);
 
   /**
+   * id → book 索引。
+   * getById 是热路径（reader 的 book computed / 书架卡片 / 换源 / 刷新元数据
+   * 都按 id 查），线性 find 在书库变多后成为 O(n) 瓶颈。索引只在 _books 变更时
+   * 重建一次，查询本身 O(1)。
+   */
+  private readonly _booksById = computed(() => {
+    const map = new Map<string, Book>();
+    for (const b of this._books()) map.set(b.id, b);
+    return map;
+  });
+
+  /**
    * 一次性加载所有书籍。APP_INITIALIZER 启动时调一次。
    * 后续调用直接返回（保护：loadState = 'ready' / 'loading' 时跳过）
    */
@@ -69,9 +81,9 @@ export class BookRepository implements BookRepositoryPort {
     }
   }
 
-  /** 同步按 ID 查询（从内存 signal 读，未命中返回 undefined） */
+  /** 同步按 ID 查询（O(1)：走 _booksById 索引） */
   getById(id: string): Book | undefined {
-    return this._books().find((b) => b.id === id);
+    return this._booksById().get(id);
   }
 
   /** 持久化一本书（新增或更新）+ 同步内存 signal */
@@ -118,6 +130,12 @@ export class BookRepository implements BookRepositoryPort {
     repo.books = repo._books.asReadonly();
     repo.loadState = repo._loadState.asReadonly();
     repo.count = computed(() => repo._books().length);
+    // 手动绑定 id 索引（class field initializer 不通过 Object.create 调用）
+    repo._booksById = computed(() => {
+      const map = new Map<string, Book>();
+      for (const b of repo._books()) map.set(b.id, b);
+      return map;
+    });
     return repo as BookRepository;
   }
 }

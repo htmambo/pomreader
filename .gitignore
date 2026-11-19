@@ -51,3 +51,6 @@ Thumbs.db
 .ace-tool/
 .omc/
 /test-results
+
+# ng-zorro 按组件样式（构建产物，由 scripts/ng-zorro-css.ts 生成）
+/src/styles/ng-zorro.generated.css

@@ -32,7 +32,18 @@
   </nav>
 </div>
 
-@if (visibleBooks().length > 0) {
+@if (loadState() !== 'ready') {
+<!-- 骨架屏：书架尚未加载完成（A4 非阻塞 bootstrap） -->
+<div nz-row [nzGutter]="[16, 16]">
+  @for (item of skeletonItems; track item) {
+  <div nz-col nzXs="12" nzSm="8" nzMd="6" nzLg="4" nzXl="3">
+    <div class="book-skeleton">
+      <nz-skeleton [nzActive]="true" [nzTitle]="true" [nzParagraph]="{ rows: 2 }"></nz-skeleton>
+    </div>
+  </div>
+  }
+</div>
+} @else if (visibleBooks().length > 0) {
 <div nz-row [nzGutter]="[16, 16]">
   @for (book of visibleBooks(); track book.id) {
   <div nz-col nzXs="12" nzSm="8" nzMd="6" nzLg="4" nzXl="3">

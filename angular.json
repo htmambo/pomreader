@@ -39,10 +39,15 @@
               {
                 "glob": "**/*",
                 "input": "src/assets",
-                "output": "/assets"
+                "output": "/assets",
+                "ignore": ["fonts/**"]
               }
             ],
-            "styles": ["src/styles.scss", "src/styles/rules-panel.scss"],
+            "styles": [
+              "src/styles/ng-zorro.generated.css",
+              "src/styles.scss",
+              "src/styles/rules-panel.scss"
+            ],
             "scripts": [],
             "allowedCommonJsDependencies": ["pouchdb-browser", "events"]
           },

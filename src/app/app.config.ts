@@ -26,7 +26,13 @@ import { HeuristicAdapter } from './core/book-source/adapters/heuristic.adapter'
 registerLocaleData(zh);
 
 function initBooks(books: BookService) {
-  return () => books.load();
+  // A4 非阻塞 bootstrap：PouchDB 全表扫描（bookAll）走 IPC 往返，
+  // 串行阻塞在 APP_INITIALIZER 里会让首屏多等一个 IPC 往返 + 序列化。
+  // 这里只「发起」加载，不 await —— 书架页用骨架屏占位（loadState）。
+  // 需要「书已就绪」的调用方用 BookService.whenLoaded()。
+  return () => {
+    void books.load().catch((e) => console.error('[bootstrap] 书架加载失败', e));
+  };
 }
 
 function initBookSources(
@@ -36,14 +42,19 @@ function initBookSources(
 ) {
   // _cfPrompt 仅用于启动时实例化：引擎在 booksourceHttpProxy 返回 cfChallenge 时
   // 直接调 prompt()（方案 §3.2 配套 a；沙箱时代的 cfChallengeHook 静态钩子已随 P4 删除）
-  return async () => {
+  //
+  // A4：内置适配器注册是纯内存操作（同步完成，首屏即可用）；
+  // 用户 JSON 规则书源要读磁盘（booksourceListJson + 逐个 JSON 解析）——放后台，
+  // 不阻塞首屏。注册完成的适配器会即时生效（registry.register 幂等覆盖）。
+  return () => {
     registry.register(new XbiqugeAdapter());
     registry.register(new HeuristicAdapter()); // 通用兜底（任意 URL 可试）
     // 加载用户安装的 JSON 规则书源 —— 否则跨书源聚合搜索永远找不到用户书源。
-    // 显式传入 ruleEngine（不能由 loadAllRuleAdapters 内 inject —— APP_INITIALIZER 的 async
-    // 函数 await 后脱离 Angular 注入上下文，会抛 NG0203）
-    await registry.loadAllRuleAdapters(ruleEngine);
-    return registry.supportedSources();
+    // 显式传入 ruleEngine（不能由 loadAllRuleAdapters 内 inject —— await 后脱离
+    // Angular 注入上下文，会抛 NG0203）
+    void registry.loadAllRuleAdapters(ruleEngine).catch((e) => {
+      console.warn('[bootstrap] JSON 书源加载失败', e);
+    });
   };
 }
 

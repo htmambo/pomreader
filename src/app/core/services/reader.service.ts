@@ -45,8 +45,13 @@ export class ReaderService {
 
   /** 翻页后由 reader 组件同步真实页码（并落盘） */
   setPageOffset(page: number): void {
+    // 仅在页码**真的变了**时落盘。
+    // reader 的 measure() 在切章 / 改字号 / 改主题 / 窗口缩放 / 字体加载完成时
+    // 都会调用 setPageOffset，其中绝大多数情况页码没变 —— 原实现每次都触发
+    // 一次「读 Book 文档 + 写 Book 文档」的两轮 IPC，是阅读过程中的主要写开销。
+    const changed = this.state.pageOffset() !== page;
     this.state.setPageOffset(page);
-    this.saveProgress();
+    if (changed) this.saveProgress();
   }
 
   /** 保存进度到 PouchDB（嵌入 Book 文档；scrollOffset 字段复用为章内页码） */

@@ -1,9 +1,13 @@
 /* ============================================================
  * pomreader 入口样式
- * ============================================================ */
-
-/* ng-zorro 全局样式（v18 合并 CSS，所有组件） */
-@import 'ng-zorro-antd/ng-zorro-antd.min.css';
+ * ============================================================
+ *
+ * ng-zorro 样式来自 `src/styles/ng-zorro.generated.css`
+ * —— 由 `npm run build:ng-zorro-css`（scripts/ng-zorro-css.ts）按本项目
+ * 实际用到的组件生成（core + 已用组件的 entry.less），替代全量
+ * `ng-zorro-antd.min.css`（后者含约 40% 本项目从未使用的组件）。
+ * 该文件是构建产物，不入库。
+ */
 
 @import './styles/tokens.scss';
 @import './styles/ng-zorro-overrides.scss';

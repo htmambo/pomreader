@@ -20,8 +20,13 @@ function makeDb(chapters: Record<string, Chapter[]> = {}) {
     chapterAll: async (bookId: string) => chapters[bookId] ?? [],
     chapterGet: async (bookId: string, idx: number) =>
       (chapters[bookId] ?? []).find((c) => c.index === idx) ?? null,
+    /** 正文独立文档（A2）：按 bookId:index 取正文 */
+    chapterContent: async (bookId: string, idx: number) =>
+      (chapters[bookId] ?? []).find((c) => c.index === idx)?.content ?? null,
     chapterPut: async () => undefined,
     chapterPutMany: async () => undefined,
+    /** 清空全书正文文档 */
+    chapterBodiesClear: async () => undefined,
   };
 }
 
@@ -80,6 +85,54 @@ describe('ChapterLoader', () => {
       expect(loader.getChaptersSync('book-1')).toBeDefined();
       loader.evictCache('book-1');
       expect(loader.getChaptersSync('book-1')).toBeUndefined();
+    });
+  });
+
+  describe('loadChapterBody（A2 正文独立文档）', () => {
+    it('应从 db 读回正文并写入内存缓存', async () => {
+      const chs = [makeChapter({ index: 0, loaded: true, content: '' })];
+      const contentSpy = vi.fn(async () => '正文内容');
+      loader.db = { ...db, chapterAll: async () => chs, chapterContent: contentSpy } as never;
+      await loader.getChapters('book-1');
+      expect(await loader.loadChapterBody('book-1', 0)).toBe(true);
+      expect(contentSpy).toHaveBeenCalledWith('book-1', 0);
+      expect(loader.getChaptersSync('book-1')?.[0].content).toBe('正文内容');
+      expect(loader.chaptersVersion()).toBe(1);
+    });
+
+    it('内存里已有正文时不读 db', async () => {
+      const chs = [makeChapter({ index: 0, loaded: true, content: '已有' })];
+      const contentSpy = vi.fn(async () => '不该被调用');
+      loader.db = { ...db, chapterAll: async () => chs, chapterContent: contentSpy } as never;
+      await loader.getChapters('book-1');
+      expect(await loader.loadChapterBody('book-1', 0)).toBe(true);
+      expect(contentSpy).not.toHaveBeenCalled();
+    });
+
+    it('正文文档不存在时返回 false 且不写缓存', async () => {
+      const chs = [makeChapter({ index: 0, loaded: true, content: '' })];
+      loader.db = { ...db, chapterAll: async () => chs, chapterContent: async () => null } as never;
+      await loader.getChapters('book-1');
+      expect(await loader.loadChapterBody('book-1', 0)).toBe(false);
+      expect(loader.getChaptersSync('book-1')?.[0].content).toBe('');
+      expect(loader.chaptersVersion()).toBe(0);
+    });
+
+    it('幂等：同一章只读一次 db（防 reader effect 重跑形成死循环）', async () => {
+      const chs = [makeChapter({ index: 0, loaded: true, content: '' })];
+      const contentSpy = vi.fn(async () => '');
+      loader.db = { ...db, chapterAll: async () => chs, chapterContent: contentSpy } as never;
+      await loader.getChapters('book-1');
+      await loader.loadChapterBody('book-1', 0);
+      await loader.loadChapterBody('book-1', 0);
+      expect(contentSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('缓存里没有该章时直接返回 false（不读 db）', async () => {
+      const contentSpy = vi.fn(async () => 'x');
+      loader.db = { ...db, chapterContent: contentSpy } as never;
+      expect(await loader.loadChapterBody('book-1', 0)).toBe(false);
+      expect(contentSpy).not.toHaveBeenCalled();
     });
   });
 

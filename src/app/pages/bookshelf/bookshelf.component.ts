@@ -11,6 +11,7 @@ import { NzGridModule } from 'ng-zorro-antd/grid';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
+import { NzSkeletonModule } from 'ng-zorro-antd/skeleton';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { BookService } from '../../core/services/book.service';
@@ -42,7 +43,14 @@ import { BookshelfGroupDialogComponent } from '../../shared/components/bookshelf
 @Component({
   selector: 'app-bookshelf',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NzGridModule, NzEmptyModule, NzButtonModule, NzIconModule, BookCardComponent],
+  imports: [
+    NzGridModule,
+    NzEmptyModule,
+    NzButtonModule,
+    NzIconModule,
+    NzSkeletonModule,
+    BookCardComponent,
+  ],
   templateUrl: './bookshelf.component.html',
   preserveWhitespaces: true,
   styleUrls: ['./bookshelf.component.scss'],
@@ -58,6 +66,13 @@ export class BookshelfComponent implements OnInit {
   private readonly nzMessage = inject(NzMessageService);
   readonly books = this.bookService.books;
   readonly groups = this.groupService.groups;
+  /**
+   * 书架加载状态（A4 非阻塞 bootstrap）：'ready' 之前展示骨架屏，
+   * 避免首屏出现「空书架 → 突然冒出书」的闪烁。
+   */
+  readonly loadState = this.bookService.loadState;
+  /** 骨架屏占位卡片数量 */
+  readonly skeletonItems = [0, 1, 2, 3, 4, 5, 6, 7];
 
   // ============ 两行筛选：分类 chips × 阅读状态 tab ============
   // 两行互为分面：分类角标按「当前状态」统计，状态角标按「当前分类」统计。

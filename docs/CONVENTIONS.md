@@ -279,6 +279,114 @@ rg "<ComponentName>\|<file-name>\|<selector>" src/ electron/
 
 ---
 
+## §10. 打包依赖（Packaging Dependencies）
+
+### §10.1 node_modules 只保留主进程运行时闭包
+
+**Rule**: `package.json → build.files` 里的 node_modules 排除清单是**唯一**的打包白名单机制。
+electron-builder 对 node_modules 走独立 matcher（`getNodeModuleFileMatcher`），
+只取 `files` 中的**否定模式**，路径相对 app 根目录。
+
+当前保留（主进程运行时闭包，8 个包 / 3.3MB）：
+
+```
+adm-zip  iconv-lite  pouchdb-browser  safer-buffer
+spark-md5  uuid  valibot  vuvuzela
+```
+
+其余 88 个包（`@angular/*`、`ng-zorro-antd`、`date-fns`、`rxjs`、`opencc-js`、
+`@babel/*`、`caniuse-lite`、`zod` 等）全部排除 —— 它们要么是渲染端依赖（已由
+esbuild 打进 bundle，渲染进程 `nodeIntegration: false`，运行时不再读 node_modules），
+要么是构建期依赖（`@angular/compiler-cli` → `@babel/*`、`browserslist` 等）。
+
+**新增主进程运行时依赖时必须做两件事**：
+
+1. 把包名加进 `build.files` 的**排除清单的对立面**（即：不要加进排除模式）；
+2. 跑 `npm run verify:package` —— 该脚本从 `dist-electron/**` 扫 bare `require()`
+   求传递闭包，比对 `app.asar` 内实际内容，缺包则退出码 1。
+
+> ⚠️ 漏做第 2 步的后果：**渲染端完全正常，打包版启动即崩**（渲染端不报错，
+> 只有主进程 `require` 失败）。这是本项目最隐蔽的一类回归。
+
+### §10.2 静态资源禁止重复打包
+
+**Rule**: 被 SCSS `url()` 引用的资源**不要**放进 `angular.json` 的 assets glob，
+否则 Angular 会在 `browser/media/` 产出一份带哈希的副本，同时 assets glob 又拷一份原文件，
+同一字体在产物里出现两次。
+
+当前做法：`src/assets/fonts/` 在 assets glob 中被 `ignore` 排除；
+字体的唯一副本由 CSS 处理器产出到 `browser/media/`。
+
+### §10.3 CSS 内字体/资源 URL 必须用相对路径
+
+**Rule**: `src/styles/**` 里的 `url()` **禁止**用 `/assets/...` 绝对路径。
+打包版以 `file://` 加载（`electron/main.ts`），绝对路径会解析到文件系统根
+`file:///assets/...` → 404，资源静默失效（dev 模式 `ng serve` 下却正常，极易漏测）。
+
+正确写法：从 `src/styles/xxx.scss` 出发用相对路径（如 `../assets/fonts/x.woff2`），
+Angular 构建会重写为产物相对路径 `./media/x-HASH.woff2`。
+
+### §10.4 ng-zorro 样式按组件生成（禁用全量 CSS）
+
+**Rule**: **禁止**在 `src/styles.scss` 里 `@import 'ng-zorro-antd/ng-zorro-antd.min.css'`
+（全量合并 CSS，含约 40% 本项目从未使用的组件）。
+
+改由 `npm run build:ng-zorro-css`（`scripts/ng-zorro-css.ts`）生成
+`src/styles/ng-zorro.generated.css`：
+
+1. 扫描 `src/` 下所有 `.ts` 的 `from 'ng-zorro-antd/<comp>'` 导入 → 组件清单；
+2. 用 LESS 编译「core（`style/entry.less`，含全局 patch）+ 已用组件各自的
+   `style/entry.less`（含该组件的 `patch.less` 与样式依赖）」——
+   LESS 的 `@import` 是「同文件只导入一次」语义，主题/变量自动去重；
+3. 产物写入 `src/styles/ng-zorro.generated.css`（**构建产物，不入库**），
+   由 `angular.json → build.options.styles` 首项引入。
+
+**新增/删除 ng-zorro 组件后无需手工维护清单** —— 清单由源码导入自动推导；
+脚本内置两道守卫：
+
+- **硬失败**：每个用到的组件都要有一个「特征类名」出现在产物里（漏组件立刻报错）；
+- **提示**：项目 `src/styles/*.scss` 覆盖到的类名若在全量 CSS 里存在、产物里却没有，
+  打印出来（多半是覆盖了未使用组件的样式，如 `.ant-form-item-label`）。
+
+**为什么不用预编译的 `<comp>/style/index.min.css`**：它只含组件自身样式，
+**不含** `patch.less`（select 的下拉定位、table 的列宽、dropdown 的箭头边距等）
+与样式依赖 —— 直接拼接会掉样式。
+
+> `less` 是 **devDependency**（构建期依赖，渲染端不需要）。
+
+---
+
+## §11. 章节存储结构（目录 / 正文分离）
+
+**Rule**: 章节的**目录信息**与**正文**分属两类 PouchDB 文档：
+
+| 文档                     | `_id`                        | 内容                                    |
+| ------------------------ | ---------------------------- | --------------------------------------- |
+| 章节元数据（目录）       | `chapter:{bookId}\x1f{idx}`  | title / sourceUrl / loaded —— **无正文** |
+| 章节正文                 | `chapter-body:{bookId}\x1f{idx}` | 正文全文                             |
+
+**约束**：
+
+1. `chapterAll()` 只返回元数据（`content` 恒为 `''`），传输量与正文总长度无关；
+2. 正文只能由**显式正文写入路径**改动（`chapterPut` / `chapterPutMany` /
+   `chapterBodyPut`）—— 元数据写入**永不触碰正文**，从结构上杜绝
+   「元数据更新误覆盖正文」；
+3. 读正文用 `chapterContent(bookId, idx)`（缺失返回 `null`），
+   兼容老格式（正文仍内联在元数据文档里）；
+4. 一次性迁移 `migrateChapterBodies()`（marker：`meta:migration:chapter-body-v1`）
+   崩溃安全：**先写正文 → 再更新元数据（剥 content）→ 最后写标记**，
+   任何一步失败都不写标记，下次启动重跑（幂等）。
+
+**⚠️ 正文有效性以 `loaded` 标记为准，不是「本次是否带 content」**：
+`chapterPutMany` 清理正文孤儿时，`loaded === true` 的章节**必须保留**既有正文
+（整书重写目录时目录里的 `content` 恒为 `''`；若按 content 判断会把全书已抓取的
+正文全删 —— 数据丢失）。`loaded === false`（换源后的新目录）才使旧正文失效。
+
+**章节缓存唯一持有者是 `ChapterLoader`**（`BookService` 不再维护镜像 Map）；
+正文按需读回（`ChapterLoader.loadChapterBody`），同一章只读一次（幂等）。
+
+---
+
 ## §exceptions (OnPush + preserveWhitespaces 豁免清单)
 
 > 本节列出 §4 / §3.3 中明确允许偏离硬规则的组件 + 理由。
@@ -318,6 +426,8 @@ rg "<ComponentName>\|<file-name>\|<selector>" src/ electron/
 - **5 处 inline template 拆分**（AGENTS.md「组件 .ts > 300 行 → 拆 `.component.html`」硬规则）：`change-book-source-dialog`（484→246）、`cover-generator-dialog`（403→328）、`universal-search`（402→280）、`import-legado`（328→212）、`book-card`（310→230）。拆分时一律补 `preserveWhitespaces: true` —— inline 模板默认折叠空白，外部模板亦然，显式保留以免渲染语义变化；`change-book-source-dialog` / `universal-search` 的 inline `styles` 另拆为 `.component.scss`。
 - **阅读页样式归位**：`src/styles/reader.scss` → `src/app/pages/reader/reader.component.scss`（与组件同目录就近维护），**仍经 `src/styles.scss` 全局引入**而非组件 `styleUrls`。理由：阅读页样式跨 ng-zorro color-picker 内部节点（第三方组件模板），组件级作用域隔离无法覆盖；且体量 ~19 kB 超出 `anyComponentStyle` 预算（16 kB 错误线），走全局通道语义与迁移前完全一致。资源路径由 `../assets/` 改为 `/assets/`（产物 CSS 解析结果不变）。
 - **ESLint `no-undef` 关闭**：`eslint.config.js` 的 TS 源码与 spec 规则块显式 `'no-undef': 'off'`。TypeScript 编译器已全量静态检查未定义符号，`src/typings/*.d.ts` 的全局类型声明在 ESLint 侧属误报（逐一枚举进 `globals` 需人工维护且易遗漏）。
+- 2026-11-19 — 性能优化三线（启动 / 渲染 / 资源）删除的死代码：① `BookService._chaptersCache`（章节目录镜像 Map）：曾经存在，已删。理由：章节缓存的唯一持有者是 `ChapterLoader`（A8），两份 Map 各自更新导致「addBook 填了镜像但 loader 缓存仍为空 → 阅读页仍要回 PouchDB 重拉目录」；`rg "_chaptersCache" src/` 现仅剩 ChapterLoader 内同名私有字段。② `DbService.MIGRATION_CHAPTER_IDS_V1`（旧 chapter _id 迁移标记常量）：曾经存在，已删。理由：迁移扫描改 `allDocs` 不带 `include_docs` 的 id-only 扫描（本身很便宜，无需标记），标记常量零引用。③ `DbService.chapterRefsRaw`（章节 id+rev 私有取数）：曾经存在，已删。理由：改用 `chapterAllRaw`（带 `type === 'chapter'` 过滤）—— 只取 id+rev 会绕过类型过滤，误删 `chapter:` 前缀下的非章节文档。④ `src/styles.scss` 里 `@import 'ng-zorro-antd/ng-zorro-antd.min.css'`（ng-zorro 全量样式）：曾经存在，已删。理由：全量 CSS 含约 40% 本项目从未使用的组件（首屏 CSS 595KB）；改由 `scripts/ng-zorro-css.ts` 按实际用到的组件生成（386KB，-35%），详见 §10.4。
+- 2026-11-19 — `@font-face` 资源路径修正（与上文 2026-11-12「阅读页样式归位」条目配套）：`reader.component.scss` 里 `@font-face` 的 `url()` 由 `/assets/fonts/...` 改回**相对路径** `'../../../assets/fonts/ukai-cn-subset.woff2'`。两条硬约束：① 打包版以 `file://` 加载（electron/main.ts），绝对路径 `/assets/...` 会解析到文件系统根 `file:///assets/...` → 404，字体在生产环境从未真正加载过；② 相对路径的基准 = **CSS 源文件所在目录**，本文件随「阅读页样式归位」从 `src/styles/` 迁到 `src/app/pages/reader/` 后基准改变，必须写成三级（`../../../assets/`）。迁移该文件时需同步核对这段路径。产物验证：CSS 内为 `url("./media/ukai-cn-subset-BXMPMNTV.woff2")`，字体单份落在 `browser/media/`（assets glob 已排除 `fonts/**`，无重复打包），打包版 `document.fonts.load('16px AppKai')` → loaded。
 
 ---
 

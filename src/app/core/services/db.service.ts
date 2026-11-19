@@ -44,21 +44,41 @@ export interface GroupDoc {
   createdAt: string;
 }
 
-/** Chapter PouchDB 文档（含正文） */
+/**
+ * Chapter PouchDB 文档（**只含元数据，不含正文**）
+ *
+ * 正文独立存于 `chapter-body:` 前缀的文档（见 ChapterBodyDoc）。
+ * 拆分的理由：目录（章节列表）只需要 index / title / sourceUrl / loaded，
+ * 而正文可能达数万字。若两者同文档，`chapterAll`（拉目录）会把整本书的正文
+ * 全部反序列化并经 IPC 传回 —— 打开一本 751 章的书 ≈ 2.5MB 无谓传输。
+ *
+ * 迁移兼容：迁移前的老文档仍带 `content` 字段，读路径对两种格式都兼容。
+ */
 export interface ChapterDoc {
   _id: string; // chapter:{bookId}{idx} —— 见 CHAPTER_SEP 注释
   type: 'chapter';
   bookId: string;
   index: number;
   title: string;
-  content: string;
+  /** 老格式内联正文（迁移后不再出现；新写入一律不带此字段） */
+  content?: string;
   sourceUrl?: string;
   loaded?: boolean;
+}
+
+/** Chapter 正文 PouchDB 文档（与 ChapterDoc 一一对应） */
+export interface ChapterBodyDoc {
+  _id: string;
+  type: 'chapter-body';
+  bookId: string;
+  index: number;
+  content: string;
 }
 
 /** 已存文档：必有 _rev（PouchDB get/allDocs 返回类型） */
 type StoredBookDoc = BookDoc & PouchDB.Core.RevisionIdMeta;
 type StoredChapterDoc = ChapterDoc & PouchDB.Core.RevisionIdMeta;
+type StoredChapterBodyDoc = ChapterBodyDoc & PouchDB.Core.RevisionIdMeta;
 type StoredGroupDoc = GroupDoc & PouchDB.Core.RevisionIdMeta;
 
 /** pouchdb-browser 的构造器签名。
@@ -69,7 +89,12 @@ type PouchDbConstructor = new (name: string) => PouchDB.Database<BookDoc | Chapt
 const DB_NAME = 'pomreader';
 const BOOK_PREFIX = 'book:';
 const CHAPTER_PREFIX = 'chapter:';
+const CHAPTER_BODY_PREFIX = 'chapter-body:';
 const GROUP_PREFIX = 'group:';
+/** 迁移标记文档前缀（不参与业务查询：bookAll / groupAll / chapterAll 各自按前缀过滤） */
+const META_PREFIX = 'meta:migration:';
+/** 章节正文拆分为独立文档的迁移标记 */
+const MIGRATION_CHAPTER_BODY_V1 = META_PREFIX + 'chapter-body-v1';
 /** bookId 与 chapter idx 之间的不可见分隔符。
  *  选 ASCII Unit Separator (0x1F)：不会出现在合法 bookId（UUID / 在线时间戳）中，
  *  避免类似 `bookA` / `bookA-extra` 在 `_id` 前缀上撞车。 */
@@ -91,7 +116,7 @@ function rowDoc<Content extends object>(
  * PouchDB 最小操作面——DbService 实际用到的 5 个方法。
  * 显式定义（而非 Pick PouchDB 重载签名）以便 IPC 代理实现。
  */
-interface PouchBackend {
+export interface PouchBackend {
   allDocs<Content extends object>(
     options: PouchDB.Core.AllDocsWithinRangeOptions,
   ): Promise<PouchDB.Core.AllDocsResponse<Content>>;
@@ -182,7 +207,7 @@ class IpcPouchBackend implements PouchBackend {
  * 注意：清缓存只重置「本后端的加载尝试」；若失败发生在动态 import 的模块求值阶段，
  * 模块系统可能已缓存该失败结果，后续重试仍会得到同一加载错误。
  */
-class BrowserPouchBackend implements PouchBackend {
+export class BrowserPouchBackend implements PouchBackend {
   private instance: Promise<PouchDB.Database<BookDoc | ChapterDoc>> | null = null;
 
   constructor(private readonly loader: () => Promise<PouchDB.Database<BookDoc | ChapterDoc>>) {}
@@ -261,7 +286,7 @@ function openBrowserDatabase(): Promise<PouchDB.Database<BookDoc | ChapterDoc>> 
 }
 
 /** 后端选择：Electron（pomAPI.dbRequest 存在）走 IPC；纯浏览器回落本地 IndexedDB */
-function createBackend(): PouchBackend {
+export function createBackend(): PouchBackend {
   const api =
     typeof window !== 'undefined'
       ? (window as unknown as { pomAPI?: { dbRequest?: DbBridgeRequest } }).pomAPI
@@ -287,12 +312,26 @@ function createBackend(): PouchBackend {
 @Injectable({ providedIn: 'root' })
 export class DbService {
   private readonly db: PouchBackend = createBackend();
+  /**
+   * Book 文档缓存（含 _rev）。
+   *
+   * 写入路径本来是「get 拿 _rev → put 写回」两轮 IPC。阅读进度每次翻页都会触发
+   * 一次写入，缓存命中后只需一轮。缓存失效场景（外部改过同一本书）由 409 冲突
+   * 触发「删缓存 → 重新 get → 重试」自愈。
+   */
+  private readonly bookDocCache = new Map<string, StoredBookDoc>();
   /** 启动时一次性迁移旧 chapter _id 的 Promise
    *  上层读操作通过 ensureMigrated() await 避免迁移窗口期返回重复章节（R3-2） */
   private readonly migrationPromise: Promise<void>;
 
   constructor() {
-    this.migrationPromise = this.migrateLegacyChapterIds();
+    this.migrationPromise = this.runMigrations();
+  }
+
+  /** 迁移流水线：先修 _id 格式，再把正文拆到独立文档（顺序有依赖：后者依赖前者产出的新 _id） */
+  private async runMigrations(): Promise<void> {
+    await this.migrateLegacyChapterIds();
+    await this.migrateChapterBodies();
   }
 
   /** 上层读操作（chapterAll / chapterGet / bookDelete 等）调用，避免迁移窗口期返回重复 */
@@ -308,15 +347,17 @@ export class DbService {
       startkey: BOOK_PREFIX,
       endkey: BOOK_PREFIX + HIGH_CHAR,
     });
-    return res.rows
+    const docs = res.rows
       .map((r) => r.doc)
-      .filter((d): d is StoredBookDoc => !!d && d.type === 'book')
-      .map((d) => this.bookDocToBook(d));
+      .filter((d): d is StoredBookDoc => !!d && d.type === 'book');
+    for (const d of docs) this.bookDocCache.set(d._id, d);
+    return docs.map((d) => this.bookDocToBook(d));
   }
 
   async bookGet(id: string): Promise<Book | null> {
     try {
-      const doc = await this.db.get<BookDoc>(BOOK_PREFIX + id);
+      const doc = (await this.db.get<BookDoc>(BOOK_PREFIX + id)) as StoredBookDoc;
+      this.bookDocCache.set(doc._id, doc);
       return this.bookDocToBook(doc);
     } catch (e: unknown) {
       if (this.isNotFound(e)) return null;
@@ -361,7 +402,13 @@ export class DbService {
     await this.ensureMigrated();
     const _id = BOOK_PREFIX + bookId;
     const bookDoc = (await this.db.get<BookDoc>(_id)) as StoredBookDoc;
+    this.bookDocCache.delete(bookDoc._id);
+    // 章节元数据：走 type 过滤（chapterAllRaw），不因「只取 id+rev」而误删
+    // chapter: 前缀下的非章节文档。正文已拆分到独立文档，元数据文档很小，
+    // include_docs 的传输量与正文总长无关。
     const chapters = await this.chapterAllRaw(bookId);
+    // 正文文档：只取 id + rev（删除不需要正文）
+    const bodies = await this.chapterBodyRefsRaw(bookId);
     // bulkDocs 一次原子删除。必须显式构造 {_id, _rev, _deleted: true}：
     // PouchDB.Core.RemoveDocument 要求 _deleted: true，否则 bulkDocs 把文档当作更新（P1）
     // PouchDB 类型上 RemoveDocument 不显式包含 _deleted 字段，但运行时必须设置 true
@@ -371,6 +418,11 @@ export class DbService {
       ...chapters.map((c) => ({
         _id: c._id,
         _rev: c._rev,
+        _deleted: true as const,
+      })),
+      ...bodies.map((b) => ({
+        _id: b._id,
+        _rev: b._rev,
         _deleted: true as const,
       })),
     ];
@@ -435,6 +487,13 @@ export class DbService {
 
   // ============ Chapter 操作 ============
 
+  /**
+   * 拉取某书全部章节的**元数据**（不含正文）。
+   *
+   * 目录面板只需要 index / title / sourceUrl / loaded —— 正文由
+   * `chapterContent()` 按需单独取。迁移后章节文档本身也不带 content，
+   * 因此这里的传输量与章节**正文总长度无关**。
+   */
   async chapterAll(bookId: string): Promise<Chapter[]> {
     await this.ensureMigrated();
     const chapters = await this.chapterAllRaw(bookId);
@@ -454,11 +513,46 @@ export class DbService {
       .sort((a, b) => a.index - b.index);
   }
 
+  /**
+   * 读取某章**元数据 + 正文**。
+   *
+   * 兼容两种存储格式：
+   * - 新格式：元数据文档无 content → 正文在 `chapter-body:` 文档里
+   * - 老格式（迁移前）：元数据文档内联 content → 直接取（迁移未跑也能读）
+   */
   async chapterGet(bookId: string, idx: number): Promise<Chapter | null> {
     await this.ensureMigrated();
     try {
-      const doc = await this.db.get<ChapterDoc>(CHAPTER_PREFIX + bookId + CHAPTER_SEP + idx);
-      return this.chapterDocToChapter(doc);
+      const doc = (await this.db.get<ChapterDoc>(
+        CHAPTER_PREFIX + bookId + CHAPTER_SEP + idx,
+      )) as StoredChapterDoc;
+      const meta = this.chapterDocToChapter(doc);
+      if (doc.content !== undefined) {
+        // 老格式：正文内联在元数据文档里
+        return { ...meta, content: doc.content };
+      }
+      const content = await this.chapterContent(bookId, idx);
+      return { ...meta, content: content ?? '' };
+    } catch (e: unknown) {
+      if (this.isNotFound(e)) return null;
+      throw e;
+    }
+  }
+
+  /**
+   * 读取某章正文（来自 `chapter-body:` 文档）。
+   *
+   * @returns 正文内容；该章没有正文文档时返回 null（在线未抓取 / 本地未导入）
+   */
+  async chapterContent(bookId: string, idx: number): Promise<string | null> {
+    // 等迁移结束：正文拆分迁移会把内联正文搬到 chapter-body 文档，
+    // 未完成时读会拿到「还没有正文文档」的假阴性
+    await this.ensureMigrated();
+    try {
+      const body = (await this.db.get<ChapterBodyDoc>(
+        CHAPTER_BODY_PREFIX + bookId + CHAPTER_SEP + idx,
+      )) as StoredChapterBodyDoc;
+      return body.content ?? '';
     } catch (e: unknown) {
       if (this.isNotFound(e)) return null;
       throw e;
@@ -470,11 +564,29 @@ export class DbService {
     // 迁移窗口因逐候选 get 而拉长；未门控写入会造成「tombstone 成功 + create 409」：
     // 旧正文被删且 409 被归为良性——无告警、旧 id 已消失、无重试机会。
     await this.ensureMigrated();
-    // rest-sibling + spread 在前（N4 防御 + Round 5 顺序建议）
-    const { bookId, index, ...rest } = chapter;
+    // 正文从元数据文档剥离（正文存放在独立的 chapter-body: 文档里）
+    const { bookId, index, content, ...rest } = chapter;
     const _id = CHAPTER_PREFIX + bookId + CHAPTER_SEP + index;
+    // 元数据文档**永不携带正文**（结构上杜绝「元数据更新误覆盖正文」）
     const baseDoc: ChapterDoc = { ...rest, _id, type: 'chapter', bookId, index };
     await this.chapterPutWithRetry(baseDoc);
+    // 正文为空表示「本章尚无正文」（在线未抓取）——不写 body 文档
+    if (content) {
+      await this.chapterBodyPut(bookId, index, content);
+    }
+  }
+
+  /** 写入某章正文（独立文档） */
+  private async chapterBodyPut(bookId: string, index: number, content: string): Promise<void> {
+    const _id = CHAPTER_BODY_PREFIX + bookId + CHAPTER_SEP + index;
+    const baseDoc: ChapterBodyDoc = {
+      _id,
+      type: 'chapter-body',
+      bookId,
+      index,
+      content,
+    };
+    await this.chapterBodyPutWithRetry(baseDoc);
   }
 
   async chapterPutMany(chapters: Chapter[]): Promise<void> {
@@ -483,7 +595,7 @@ export class DbService {
     await this.ensureMigrated();
     // 一次性 bulk 写 + rest-sibling + spread 在前（N4 一致性）
     const newDocs: ChapterDoc[] = chapters.map((c) => {
-      const { bookId, index, ...rest } = c;
+      const { bookId, index, content: _content, ...rest } = c;
       return {
         ...rest,
         _id: CHAPTER_PREFIX + bookId + CHAPTER_SEP + index,
@@ -493,6 +605,31 @@ export class DbService {
       };
     });
     const newIds = new Set(newDocs.map((d) => d._id));
+    // 正文文档：仅对 content 非空的章节写入（空 = 尚无正文，不覆盖既有正文）
+    const bodyDocs: ChapterBodyDoc[] = chapters
+      .filter((c) => !!c.content)
+      .map((c) => ({
+        _id: CHAPTER_BODY_PREFIX + c.bookId + CHAPTER_SEP + c.index,
+        type: 'chapter-body',
+        bookId: c.bookId,
+        index: c.index,
+        content: c.content,
+      }));
+    // 正文文档保留集合（决定哪些既有 body 不该被当孤儿删掉）：
+    // - 本次带 content 的章节 → 写入新 body
+    // - loaded === true（已抓取且有效）→ 保留既有 body
+    // - loaded === false（显式「尚未抓取 / 已失效」）→ 既有 body 必须删除
+    //   （换源场景：新源目录全部 loaded:false，旧源正文不得继续生效）
+    // - loaded 未定义（本地 TXT 导入等）→ 保留既有 body
+    //
+    // ⚠️ 早期实现把「本次带 content 的章节」当唯一保留集合，会在
+    // 「更新章节」（refreshChapters 把 db 读回的目录整体重写，目录里 content 恒为 ''）
+    // 时把全书已抓取的正文全部当孤儿删除 —— 数据丢失。loaded 标记才是权威依据。
+    const keepBodyIds = new Set(
+      chapters
+        .filter((c) => c.content || c.loaded !== false)
+        .map((c) => CHAPTER_BODY_PREFIX + c.bookId + CHAPTER_SEP + c.index),
+    );
 
     // 换源场景：新章节集合 < 旧集合时，剩余的旧章节文档需标记 _deleted
     // （否则 PouchDB 里残留孤儿 chapter 文档，长期占用空间）。
@@ -513,7 +650,16 @@ export class DbService {
       for (const row of res.rows) {
         if (!newIds.has(row.id)) orphanIds.push(row.id);
       }
+      // 正文文档同样要清理孤儿（换源后旧章节的正文会残留占空间）
+      const oldBodies = await this.chapterBodyRefsRaw(bid);
+      for (const ob of oldBodies) {
+        if (!keepBodyIds.has(ob._id)) {
+          orphans.push({ _id: ob._id, _rev: ob._rev, _deleted: true });
+        }
+      }
     }
+    // 孤儿章节文档：按 id 批量取回正文校验 type 并取最新 _rev，
+    // 再构造 tombstone（请求数固定为 2，不随候选数增长）
     if (orphanIds.length > 0) {
       const candRes = await this.db.allDocsByKeys<ChapterDoc>(orphanIds);
       for (const row of candRes.rows) {
@@ -525,8 +671,8 @@ export class DbService {
       }
     }
     // 显式联合类型：替代双重 as unknown as 断言（与 migrateLegacyChapterIds 同模式）
-    type BatchItem = ChapterDoc | RemoveDoc;
-    const batch: BatchItem[] = [...newDocs, ...orphans];
+    type BatchItem = ChapterDoc | ChapterBodyDoc | RemoveDoc;
+    const batch: BatchItem[] = [...newDocs, ...bodyDocs, ...orphans];
     const res = await this.db.bulkDocs(batch as unknown as PouchDB.Core.PutDocument<ChapterDoc>[]);
     // 错误语义：
     // - 创建 409 = 文档已存在 = 幂等成功（首次导入场景适用）
@@ -540,7 +686,7 @@ export class DbService {
     if (orphans.length > 0) {
       // orphan 删除阶段的 409 单独统计（默认 classifyBulkResults 已将其归入幂等成功）
       // 这里用 conflictAsConflict=true 单独过滤查看真实冲突
-      const deleteClassified = classifyBulkResults(res.slice(newDocs.length), {
+      const deleteClassified = classifyBulkResults(res.slice(newDocs.length + bodyDocs.length), {
         conflictAsConflict: true,
       });
       if (deleteClassified.conflicts.length > 0) {
@@ -549,6 +695,54 @@ export class DbService {
         );
       }
     }
+  }
+
+  /**
+   * 清空某书全部章节正文（保留元数据 / 目录）。
+   *
+   * 语义：删除 `chapter-body:` 文档，并把元数据的 `loaded` 复位为 false
+   * （在线章节下次阅读会重新抓取；本地章节则真的没有正文了）。
+   */
+  async chapterBodiesClear(bookId: string): Promise<void> {
+    // 等迁移结束：否则迁移可能在清空之后又把正文文档写回来
+    await this.ensureMigrated();
+    const bodies = await this.chapterBodyRefsRaw(bookId);
+    if (bodies.length > 0) {
+      const removeDocs = bodies.map((b) => ({
+        _id: b._id,
+        _rev: b._rev,
+        _deleted: true as const,
+      }));
+      const res = await this.db.bulkDocs(
+        removeDocs as unknown as PouchDB.Core.PutDocument<ChapterBodyDoc>[],
+      );
+      const classified = classifyBulkResults(res, { conflictAsConflict: true });
+      if (classified.fatal.length > 0) {
+        throw new Error(
+          formatBulkFatalMessage('chapterBodiesClear', {
+            ...classified,
+            fatal: [...classified.fatal, ...classified.conflicts],
+          }),
+        );
+      }
+    }
+    // 元数据复位 loaded=false（正文已清空 → 在线章节需重新抓取）
+    const metas = await this.chapterAllRaw(bookId);
+    const dirty = metas.filter((m) => m.loaded);
+    if (dirty.length > 0) {
+      const updated = dirty.map((m) => ({ ...m, loaded: false }));
+      await this.db.bulkDocs(updated as unknown as PouchDB.Core.PutDocument<ChapterDoc>[]);
+    }
+  }
+
+  /** 只取正文文档的 _id + _rev（不拉正文） */
+  private async chapterBodyRefsRaw(bookId: string): Promise<Array<{ _id: string; _rev: string }>> {
+    const start = CHAPTER_BODY_PREFIX + bookId + CHAPTER_SEP;
+    const res = await this.db.allDocs({
+      startkey: start,
+      endkey: start + HIGH_CHAR,
+    });
+    return res.rows.map((r) => ({ _id: r.id, _rev: r.value.rev }));
   }
 
   /**
@@ -561,7 +755,8 @@ export class DbService {
    */
   private async migrateLegacyChapterIds(): Promise<void> {
     try {
-      const res = await this.db.allDocs<ChapterDoc>({
+      // 只扫 id：allDocs 默认不返回 doc，避免把全库章节正文拉进内存
+      const res = await this.db.allDocs({
         startkey: CHAPTER_PREFIX,
         endkey: CHAPTER_PREFIX + HIGH_CHAR,
         include_docs: false,
@@ -621,6 +816,76 @@ export class DbService {
     }
   }
 
+  /**
+   * 把章节正文从元数据文档拆到独立的 `chapter-body:` 文档（一次性迁移）。
+   *
+   * 动机：目录（chapterAll）只需要章节元数据，而正文可达数万字。
+   * 两者同文档时，打开一本 751 章的书要把约 2.5MB 正文全部反序列化并经 IPC 传回。
+   *
+   * **崩溃安全**：
+   *   1. 先写正文文档 —— 失败则老文档仍带 content，读路径完全兼容（无数据丢失）
+   *   2. 再更新元数据（去掉 content）—— 失败则下次启动重跑（幂等）
+   *   3. 最后写迁移标记 —— 只有前两步都成功才写
+   */
+  private async migrateChapterBodies(): Promise<void> {
+    try {
+      if (await this.isMigrated(MIGRATION_CHAPTER_BODY_V1)) return;
+
+      const res = await this.db.allDocs<ChapterDoc>({
+        startkey: CHAPTER_PREFIX,
+        endkey: CHAPTER_PREFIX + HIGH_CHAR,
+        include_docs: true,
+      });
+      // 一个章节都没有 → 无需迁移，也不写标记（空库每次启动重扫一次成本可忽略）
+      if (res.rows.length === 0) return;
+      // 待迁移 = 仍带 content 字段的章节文档
+      const docs = res.rows
+        .map((r) => r.doc)
+        .filter(
+          (d): d is StoredChapterDoc => !!d && d.type === 'chapter' && d.content !== undefined,
+        );
+      if (docs.length === 0) {
+        await this.markMigrated(MIGRATION_CHAPTER_BODY_V1);
+        return;
+      }
+
+      // 1) 先写正文文档
+      const bodies: ChapterBodyDoc[] = docs.map((d) => ({
+        _id: CHAPTER_BODY_PREFIX + d.bookId + CHAPTER_SEP + d.index,
+        type: 'chapter-body',
+        bookId: d.bookId,
+        index: d.index,
+        content: d.content ?? '',
+      }));
+      await this.db.bulkDocs(bodies as unknown as PouchDB.Core.PutDocument<ChapterBodyDoc>[]);
+
+      // 2) 再更新元数据（去掉 content，保留 _rev 以便原地更新）
+      const metas = docs.map((d) => {
+        const { content: _content, ...rest } = d;
+        return rest;
+      });
+      const metaResults = await this.db.bulkDocs(
+        metas as unknown as PouchDB.Core.PutDocument<ChapterDoc>[],
+      );
+      // 409 = _rev 过期 = 该章元数据没更新（仍带 content）→ 不写标记，下次启动重试
+      const classified = classifyBulkResults(metaResults, { conflictAsConflict: true });
+      if (classified.fatal.length > 0 || classified.conflicts.length > 0) {
+        console.warn(
+          '[DbService] chapter body split partial failure:',
+          classified.fatal.map((f) => ('id' in f ? f.id : 'unknown')),
+          'conflicts:',
+          classified.conflicts.length,
+        );
+        return;
+      }
+
+      // 3) 标记完成
+      await this.markMigrated(MIGRATION_CHAPTER_BODY_V1);
+    } catch (e) {
+      console.warn('[DbService] chapter body split migration failed:', e);
+    }
+  }
+
   // ============ 启动诊断 ============
 
   /**
@@ -643,6 +908,32 @@ export class DbService {
   }
 
   // ============ 私有工具 ============
+
+  /** 迁移是否已完成（标记文档存在即视为完成） */
+  private async isMigrated(key: string): Promise<boolean> {
+    try {
+      await this.db.get(key);
+      return true;
+    } catch (e: unknown) {
+      if (this.isNotFound(e)) return false;
+      // 读标记失败（DB 异常）→ 视为未迁移，走迁移流程（幂等）
+      return false;
+    }
+  }
+
+  /** 写入迁移完成标记（写失败不阻断 —— 下次启动重跑迁移即可，幂等） */
+  private async markMigrated(key: string): Promise<void> {
+    try {
+      await this.db.put({
+        _id: key,
+        type: 'meta',
+        key,
+        at: new Date().toISOString(),
+      } as unknown as PouchDB.Core.PutDocument<ChapterDoc>);
+    } catch (e) {
+      console.warn('[DbService] 写迁移标记失败:', e);
+    }
+  }
 
   private isNotFound(e: unknown): boolean {
     return (
@@ -671,22 +962,27 @@ export class DbService {
     baseDoc: BookDoc,
     newProgress?: BookDoc['progress'],
   ): Promise<void> {
-    const tryWrite = async (): Promise<void> => {
+    const tryWrite = async (useCache: boolean): Promise<void> => {
       const doc: BookDoc & { _rev?: string } = { ...baseDoc };
       try {
-        const existing = (await this.db.get<BookDoc>(baseDoc._id)) as StoredBookDoc;
+        // 缓存命中时不必再走一轮 get（_rev 与已有 progress 都在缓存里）
+        const cached = useCache ? this.bookDocCache.get(baseDoc._id) : undefined;
+        const existing = cached ?? ((await this.db.get<BookDoc>(baseDoc._id)) as StoredBookDoc);
         doc._rev = existing._rev;
         if (!newProgress && existing.progress) doc.progress = existing.progress;
       } catch (e: unknown) {
         if (!this.isNotFound(e)) throw e;
       }
-      await this.db.put(doc as PouchDB.Core.PutDocument<BookDoc>);
+      const res = await this.db.put(doc as PouchDB.Core.PutDocument<BookDoc>);
+      this.bookDocCache.set(baseDoc._id, { ...doc, _rev: res.rev } as StoredBookDoc);
     };
     try {
-      await tryWrite();
+      await tryWrite(true);
     } catch (e: unknown) {
       if (!this.isConflict(e)) throw e;
-      await tryWrite(); // 冲突：重试一次拿最新 _rev
+      // 缓存可能过期（外部改过）→ 丢弃缓存后用最新 _rev 重试
+      this.bookDocCache.delete(baseDoc._id);
+      await tryWrite(false); // 冲突：重试一次拿最新 _rev
     }
   }
 
@@ -695,15 +991,20 @@ export class DbService {
     _id: string,
     mutate: (doc: StoredBookDoc) => StoredBookDoc,
   ): Promise<void> {
-    const tryWrite = async (): Promise<void> => {
-      const doc = (await this.db.get<BookDoc>(_id)) as StoredBookDoc;
-      await this.db.put(mutate(doc));
+    const tryWrite = async (useCache: boolean): Promise<void> => {
+      // 进度更新只需在缓存未命中时 get 一次
+      const cached = useCache ? this.bookDocCache.get(_id) : undefined;
+      const doc = cached ?? ((await this.db.get<BookDoc>(_id)) as StoredBookDoc);
+      const next = mutate(doc);
+      const res = await this.db.put(next);
+      this.bookDocCache.set(_id, { ...next, _rev: res.rev } as StoredBookDoc);
     };
     try {
-      await tryWrite();
+      await tryWrite(true);
     } catch (e: unknown) {
       if (!this.isConflict(e)) throw e;
-      await tryWrite();
+      this.bookDocCache.delete(_id);
+      await tryWrite(false);
     }
   }
 
@@ -718,6 +1019,26 @@ export class DbService {
         if (!this.isNotFound(e)) throw e;
       }
       await this.db.put(doc as PouchDB.Core.PutDocument<ChapterDoc>);
+    };
+    try {
+      await tryWrite();
+    } catch (e: unknown) {
+      if (!this.isConflict(e)) throw e;
+      await tryWrite();
+    }
+  }
+
+  /** Chapter 正文写入，遇 409 冲突重试一次 */
+  private async chapterBodyPutWithRetry(baseDoc: ChapterBodyDoc): Promise<void> {
+    const tryWrite = async (): Promise<void> => {
+      const doc: ChapterBodyDoc & { _rev?: string } = { ...baseDoc };
+      try {
+        const existing = (await this.db.get<ChapterBodyDoc>(baseDoc._id)) as StoredChapterBodyDoc;
+        doc._rev = existing._rev;
+      } catch (e: unknown) {
+        if (!this.isNotFound(e)) throw e;
+      }
+      await this.db.put(doc as PouchDB.Core.PutDocument<ChapterBodyDoc>);
     };
     try {
       await tryWrite();
@@ -765,7 +1086,9 @@ export class DbService {
   }
 
   private chapterDocToChapter(doc: StoredChapterDoc): Chapter {
-    const { _id, _rev, type, ...rest } = doc;
-    return rest as Chapter;
+    // 剥离 content：元数据文档不携带正文（正文在 chapter-body 文档里）。
+    // 迁移前的老文档可能仍有内联 content —— 也一并剥离，由 chapterGet 单独合并。
+    const { _id, _rev, type, content: _content, ...rest } = doc;
+    return { ...rest, content: '' } as Chapter;
   }
 }

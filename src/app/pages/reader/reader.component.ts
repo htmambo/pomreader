@@ -63,6 +63,9 @@ interface ReaderViewSettings {
   convertMode: ConvertMode;
 }
 
+/** 空白字符匹配（字数统计用；模块级单例，复用 lastIndex） */
+const WS_RE = /\s+/g;
+
 @Component({
   selector: 'app-reader',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -350,7 +353,14 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     this.reader.setPageOffset(newIdx);
   }
 
-  /** 当前章未加载时抓取正文，并预加载下一章（失败静默） */
+  /**
+   * 补齐当前章正文，并预加载下一章（失败静默）。
+   *
+   * 两条补齐路径（A2 目录/正文分离存储）：
+   * 1. **在线未抓取**（有 sourceUrl 且 !loaded）→ 走书源抓取正文
+   * 2. **正文在独立文档里**（本地书 / 重启后重开的已抓取在线章）→ 目录里没有正文，
+   *    需要从 `chapter-body:` 文档按章读回
+   */
   private ensureChapterLoaded(idx: number, chs: Chapter[]): void {
     const ch = chs[idx];
     if (!ch) return;
@@ -371,16 +381,36 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
           this.chapterError.set(true);
         },
       );
+    } else if (!ch.content) {
+      // 正文独立存储 → 从 chapter-body 文档读回（本地书 / 已抓取的在线章）
+      // 失败不置 chapterError：正文文档可能本就不存在（空章节），置错会让用户卡在错误态
+      this.books.loadChapterBody(id, idx).then(() => {
+        const updated = this.books.getChaptersSync(id);
+        if (updated) this.chapters.set(updated);
+      });
     }
     // 预加载下一章（失败静默）
     const next = chs[idx + 1];
     if (next?.sourceUrl && !next.loaded) {
       this.books.loadChapterContent(id, idx + 1);
+    } else if (next && !next.content) {
+      this.books.loadChapterBody(id, idx + 1);
     }
   }
 
   readonly currentChapter = computed<Chapter | undefined>(
     () => this.chapters()[this.chapterIndex()],
+  );
+
+  /**
+   * 正文规范化结果（去首尾空白行 + 段首缩进）—— **与简繁转换解耦**。
+   *
+   * 原实现把规范化与转换串在同一个 computed 里，切换简繁档位时整章正文
+   * 会被重新规范化一遍（两次全章正则 + split/map/join）。拆开后规范化结果
+   * 只在章节正文变化时重算，转换档位切换只跑 opencc。
+   */
+  private readonly normalizedContent = computed(() =>
+    normalizeParagraphIndent(stripEdgeBlankLines(this.currentChapter()?.content ?? '')),
   );
 
   /**
@@ -391,9 +421,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
    * 3. 简繁转换。
    */
   readonly displayContent = computed(() => {
-    const text = normalizeParagraphIndent(
-      stripEdgeBlankLines(this.currentChapter()?.content ?? ''),
-    );
+    const text = this.normalizedContent();
     const conv = this.chineseConverter();
     return conv ? conv(text) : text;
   });
@@ -412,9 +440,25 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     return this.pickSaved();
   });
 
-  readonly wordCount = computed(
-    () => (this.currentChapter()?.content ?? '').replace(/\s+/g, '').length,
-  );
+  /**
+   * 正文字数（不含空白）。
+   *
+   * 不用 `content.replace(/\s+/g, '').length`：那会为整章正文分配一份完整副本
+   * （一章可达数十 KB），且每次章节正文变化都要重新分配。这里改为统计空白字符数
+   * 再做减法，O(n) 且零额外分配。
+   */
+  readonly wordCount = computed(() => {
+    const text = this.currentChapter()?.content ?? '';
+    if (text.length === 0) return 0;
+    let whitespace = 0;
+    WS_RE.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = WS_RE.exec(text)) !== null) {
+      whitespace += m[0].length;
+      if (m[0].length === 0) WS_RE.lastIndex++; // 防御：零宽匹配导致死循环
+    }
+    return text.length - whitespace;
+  });
 
   private scrollEl: Element | null = null;
   private readonly onScroll = () => {
@@ -427,7 +471,14 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     let chapterId = parseInt(params['chapterId'] as string, 10);
     if (isNaN(chapterId) || chapterId < 0) chapterId = 0;
 
-    const book = this.books.getById(bookId);
+    let book = this.books.getById(bookId);
+    if (!book) {
+      // A4 非阻塞 bootstrap：深链进阅读页时书架可能还在加载（PouchDB 全表扫描未完成）
+      // → 等它加载完再判定「书不存在」，否则会误跳回书架
+      await this.books.whenLoaded();
+      if (this.destroyed) return;
+      book = this.books.getById(bookId);
+    }
     if (!book) {
       this.router.navigate(['/bookshelf']);
       return;
@@ -457,14 +508,19 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     // 缓存未命中（重启 App 后首次打开）才 await PouchDB allDocs；在线书章节数大
     // 时 allDocs 较慢，是用户报告"目录点击延迟"的根因之一。
     const cached = this.books.getChaptersSync(bookId);
-    if (cached && cached.length > 0) {
-      this.chapters.set([...cached]); // 浅拷贝，避免组件后续修改污染 BooksService 缓存
-    } else {
-      const chs = await this.books.getChapters(bookId);
-      if (!this.destroyed) {
-        this.chapters.set(chs);
-      }
+    const chs = cached && cached.length > 0 ? cached : await this.books.getChapters(bookId);
+    if (this.destroyed) return;
+
+    // 正文独立存储（A2）：目录里不含正文，正文在 `chapter-body:` 文档里。
+    // 定位到的那一章先读回正文再渲染 —— 否则首屏是空内容，
+    // 分页测量会把「恢复页码」消耗在空排版上（页码恢复失效）。
+    const target = chs[startChapter];
+    if (target && !target.content) {
+      await this.books.loadChapterBody(bookId, startChapter);
+      if (this.destroyed) return;
     }
+    // 重新取缓存（含刚读回的正文）；缓存已被清理时退回原目录
+    this.chapters.set(this.books.getChaptersSync(bookId) ?? chs);
   }
 
   ngAfterViewInit(): void {
@@ -547,12 +603,20 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     const id = this.reader.currentBookId() ?? '';
     this.chapterLoading.set(true);
     this.chapterError.set(false);
-    this.books.loadChapterContent(id, idx).then(() => {
-      this.chapterLoading.set(false);
-      const updated = this.books.getChaptersSync(id);
-      if (updated) this.chapters.set(updated);
-      if (updated?.[idx] && !updated[idx].loaded) this.chapterError.set(true);
-    });
+    // 正文独立存储：目录里没有正文时先从 chapter-body 文档读回（本地书 / 已抓取的在线章）
+    const body = this.chapters()[idx]?.content
+      ? Promise.resolve(true)
+      : this.books.loadChapterBody(id, idx);
+    body
+      .then(() => this.books.loadChapterContent(id, idx))
+      .then(() => {
+        this.chapterLoading.set(false);
+        const updated = this.books.getChaptersSync(id);
+        if (updated) this.chapters.set(updated);
+        const cur = updated?.[idx];
+        // 仍然「既没有正文也没抓取成功」才算失败（本地书正文读回来了就不该报错）
+        if (cur && !cur.content && !cur.loaded) this.chapterError.set(true);
+      });
   }
 
   toggleCatalog(): void {

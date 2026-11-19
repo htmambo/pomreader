@@ -87,7 +87,8 @@ src/
 ├── styles/
 │   ├── tokens.scss
 │   ├── ng-zorro-overrides.scss
-│   └── rules-panel.scss
+│   ├── rules-panel.scss
+│   └── ng-zorro.generated.css  # 构建产物（不入库）：按组件生成的 ng-zorro 样式
 ├── typings/               # 全局 .d.ts
 └── test-setup.ts          # Vitest 初始化（@angular/compiler JIT）
 
@@ -104,7 +105,7 @@ electron/
 
 e2e/                       # Playwright（5 个 spec；配置在仓库根 playwright.config.ts）
 fixtures/                  # 书源迁移测试样本：booksources/（脱敏 .js 样本，booksource-migrate.spec.ts 用）+ MANIFEST.md
-scripts/                   # 工具脚本：audit-booksources.ts（书源盘点，P0）+ e2e-*.cjs
+scripts/                   # 工具脚本：audit-booksources.ts（书源盘点，P0）+ e2e-*.cjs + check-package-deps.ts（打包依赖守卫）+ ng-zorro-css.ts（按组件生成 ng-zorro 样式）
 docs/
 ├── Architecture/          # 设计稿（白虎阅读 v1.1）
 ├── Usage/                 # BOOKSOURCE_GUIDE / EXTENSION_GUIDE / COVER_CACHE
@@ -238,6 +239,38 @@ hdiutil detach "/Volumes/白虎阅读 1.0.0-arm64"
 npm run dist        # 按当前宿主平台打包 → release/
 npm run dist:linux  # Linux：tar.gz + pacman
 ```
+
+### 打包产物依赖校验
+
+```bash
+npm run verify:package    # 校验 app.asar 内是否齐备主进程运行时依赖
+```
+
+打包产物只保留主进程真正 `require` 的 8 个运行时包（约 3.3MB）；渲染端依赖
+（Angular / ng-zorro / rxjs / opencc-js 等）全部由 esbuild 打进 bundle，运行时
+不再读取 `node_modules`。该脚本从 `dist-electron/**` 扫 bare `require()` 求传递闭包，
+与 `app.asar` 实际内容比对，**缺包则退出码 1** —— 防止新增主进程依赖后打包版静默崩溃。
+
+新增主进程运行时依赖时，详见 [`docs/CONVENTIONS.md §10`](docs/CONVENTIONS.md)。
+
+### ng-zorro 样式按组件生成
+
+```bash
+npm run build:ng-zorro-css    # 重新生成 src/styles/ng-zorro.generated.css
+```
+
+首屏 CSS **不含** ng-zorro 全量样式（`ng-zorro-antd.min.css`，556KB min），
+而是由 [`scripts/ng-zorro-css.ts`](scripts/ng-zorro-css.ts) 按本项目实际用到的
+组件生成（core + 各组件 `entry.less`，含组件自身的 `patch.less` 与样式依赖）——
+实测 **595KB → 386KB（-35%）**，初始包 1.79MB → 1.58MB。
+
+- 组件清单**自动推导**：扫描 `src/` 下所有 `from 'ng-zorro-antd/<comp>'` 导入，
+  新增/删除组件无需手工维护；
+- `src/styles/ng-zorro.generated.css` 是**构建产物，不入库**
+  （`npm run build` / `start` / `watch` / `dev` 会自动先生成）；
+- 脚本内置守卫：漏组件 → 退出码 1（构建直接失败），不会静默掉样式。
+
+详见 [`docs/CONVENTIONS.md §10.4`](docs/CONVENTIONS.md)。
 
 ## 排错（Linux 打包 / 运行）
 

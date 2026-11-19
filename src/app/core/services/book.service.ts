@@ -1,11 +1,4 @@
-import {
-  Injectable,
-  signal,
-  computed,
-  type Signal,
-  type WritableSignal,
-  inject,
-} from '@angular/core';
+import { Injectable, signal, computed, type Signal, inject } from '@angular/core';
 import { type Book } from '../models/book.model';
 import { type Chapter } from '../models/chapter.model';
 import { BookSourceRegistry } from '../book-source/book-source.registry';
@@ -45,47 +38,84 @@ export class BookService {
 
   private readonly _books = signal<Book[]>([]);
   private readonly _loadState = signal<DbLoadState>('idle');
-  private readonly _chaptersCache: WritableSignal<Map<string, Chapter[]>> = signal(new Map());
+  /** 进行中的加载 promise —— `whenLoaded()` 等它（A4 非阻塞 bootstrap） */
+  private _loadPromise: Promise<void> | null = null;
+  /**
+   * 章节缓存**不在本 service**：唯一持有者是 ChapterLoader（→ ChapterLoader._chaptersCache）。
+   * 原先这里还存了一份镜像 Map，两边各自更新导致「addBook 填了镜像但 loader 缓存仍为空」，
+   * 阅读页随后仍要回 PouchDB 重拉一次目录。现已统一到 loader。
+   */
 
   readonly books: Signal<Book[]> = this._books.asReadonly();
   readonly loadState: Signal<DbLoadState> = this._loadState.asReadonly();
   readonly count: Signal<number> = computed(() => this._books().length);
-  /** 章节缓存版本号——reader effect 监听以刷新在线章节正文 */
-  readonly chaptersVersion = signal(0);
+  /** id → book 索引（getById 热路径，O(1) 查询） */
+  private readonly _booksById = computed(() => {
+    const map = new Map<string, Book>();
+    for (const b of this._books()) map.set(b.id, b);
+    return map;
+  });
+  /**
+   * 章节缓存版本号——reader effect 监听以刷新在线章节正文。
+   *
+   * 委托 ChapterLoader（A8 后章节缓存的唯一真相源在 loader）。
+   * 本层此前持有的是一个**从未被 bump 的独立计数器**（死信号），
+   * reader 依赖它刷新正文却永远收不到通知 —— 现在真正跟随 loader。
+   */
+  readonly chaptersVersion: Signal<number> = computed(() => this.loader.chaptersVersion());
 
   /**
    * 初始化：从 PouchDB 加载所有书籍；无内置 seed，首次启动书架为空
-   * 由 APP_INITIALIZER（app.config.ts）在 app 启动时调用一次
+   * 由 APP_INITIALIZER（app.config.ts）在 app 启动时调一次
+   *
+   * A4 起为**非阻塞 bootstrap**：调用方不应 await 它（首屏不等全表扫描），
+   * 需要「书已就绪」的调用方用 `whenLoaded()`。
    */
   async load(): Promise<void> {
     if (this._loadState() === 'loading' || this._loadState() === 'ready') return;
     this._loadState.set('loading');
+    const p = (async () => {
+      try {
+        await this.repo.load();
+        // 镜像同步：BookService 自身 _books / _loadState 仍保留以兼容现有 spec + 调用方（spec NFR-7 facade 渐进迁移）
+        this._books.set(this.repo.books());
+        this._loadState.set(this.repo.loadState());
+      } catch (e) {
+        console.error('[BookService.load] failed', e);
+        this._loadState.set('error');
+        throw e;
+      }
+    })();
+    this._loadPromise = p;
+    return p;
+  }
+
+  /**
+   * 等待书架加载完成（幂等）。
+   *
+   * A4 起首屏不再等待 PouchDB 全表扫描 → 深链进阅读页时书架可能尚未就绪，
+   * 调用方（reader）需要等它，否则会误判「书不存在」而跳回书架。
+   *
+   * 加载失败不抛：失败状态已由 load() 内部记录，等待方只需知道「不再加载中」。
+   */
+  async whenLoaded(): Promise<void> {
+    if (this._loadState() === 'ready') return;
     try {
-      await this.repo.load();
-      // 镜像同步：BookService 自身 _books / _loadState 仍保留以兼容现有 spec + 调用方（spec NFR-7 facade 渐进迁移）
-      this._books.set(this.repo.books());
-      this._loadState.set(this.repo.loadState());
-    } catch (e) {
-      console.error('[BookService.load] failed', e);
-      this._loadState.set('error');
-      throw e;
+      await this.load();
+    } catch {
+      /* load 内部已记录错误 */
     }
+    await this._loadPromise?.catch(() => undefined);
   }
 
   getById(id: string): Book | undefined {
-    return this._books().find((b) => b.id === id);
+    return this._booksById().get(id);
   }
 
-  /** 异步从 PouchDB 拉某书全部章节；首次成功后填充内存缓存（委托 loader + 镜像同步） */
+  /** 异步从 PouchDB 拉某书全部章节；首次成功后填充内存缓存（委托 loader） */
   async getChapters(bookId: string): Promise<Chapter[]> {
-    const chapters = await this.loader.getChapters(bookId);
-    // 镜像同步：保持 BookService._chaptersCache 与 loader 状态一致（spec NFR-7 facade 兼容）
-    this._chaptersCache.update((m) => {
-      const next = new Map(m);
-      next.set(bookId, chapters);
-      return next;
-    });
-    return chapters;
+    // 单一真相源：章节缓存只在 ChapterLoader 里（BookService 不再维护镜像 Map）
+    return await this.loader.getChapters(bookId);
   }
 
   /** 同步读内存缓存（委托 loader） */
@@ -110,11 +140,8 @@ export class BookService {
       return [...list, book];
     });
     if (chapters.length > 0) {
-      this._chaptersCache.update((m) => {
-        const next = new Map(m);
-        next.set(book.id, chapters);
-        return next;
-      });
+      // 章节缓存统一由 ChapterLoader 持有（addBook 后阅读页无需回 PouchDB 再拉一次目录）
+      this.loader.cacheChapters(book.id, chapters);
     }
   }
 
@@ -269,13 +296,10 @@ export class BookService {
       throw new FetchError('parse-failed', '源站解析的章节列表为空');
     }
 
-    const cached = this._chaptersCache().get(bookId) ?? (await this.db.chapterAll(bookId));
+    // 章节缓存统一在 ChapterLoader（单一真相源）
+    const cached = this.loader.getChaptersSync(bookId) ?? (await this.db.chapterAll(bookId));
     if (cached.length > 0) {
-      this._chaptersCache.update((m) => {
-        const next = new Map(m);
-        next.set(bookId, cached);
-        return next;
-      });
+      this.loader.cacheChapters(bookId, cached);
     }
     const existingUrls = new Set(cached.map((c) => c.sourceUrl).filter((u): u is string => !!u));
 
@@ -351,6 +375,18 @@ export class BookService {
     await this.loader.loadChapterContent(bookId, index);
   }
 
+  /**
+   * 从 `chapter-body:` 文档读取某章正文并写入内存缓存（委托 loader）。
+   *
+   * 用于「本地书 / 已抓取过的在线章」——目录（chapterAll）不再携带正文，
+   * 正文需要按章从独立文档读回。
+   *
+   * @returns 是否成功读到正文
+   */
+  async loadChapterBody(bookId: string, index: number): Promise<boolean> {
+    return await this.loader.loadChapterBody(bookId, index);
+  }
+
   /** 强制重新抓取某章正文（委托 loader） */
   async refreshChapter(bookId: string, index: number): Promise<boolean> {
     return await this.loader.refreshChapter(bookId, index);
@@ -385,22 +421,17 @@ export class BookService {
   /** 删除一本书 + 级联删除其所有章节 */
   async deleteBook(bookId: string): Promise<void> {
     await this.repo.deleteBook(bookId);
-    // 委托 ChapterLoader 清理缓存（避免删除后 _chaptersCache 残留）
+    // 章节缓存唯一持有者是 ChapterLoader（→ evictCache 即可）
     this.loader.evictCache(bookId);
     // 镜像同步
     this._books.update((list) => list.filter((b) => b.id !== bookId));
-    this._chaptersCache.update((m) => {
-      const next = new Map(m);
-      next.delete(bookId);
-      return next;
-    });
   }
 
   /**
    * 测试入口：手动注入依赖（绕开 Angular DI 上下文 NG0203）。
    * 与 ImportViaSourceService.forTest 等同模式：
    * 生产用 Angular inject()，测试用静态工厂。
-   * 注意：测试中 _books / _chaptersCache 是空白 signal，调用前需手动
+   * 注意：测试中 _books 是空白 signal，调用前需手动
    * 设置 _books 状态以模拟 in-memory bookshelf。
    *
    * @internal — **Prod code MUST NOT call this method**.
@@ -424,10 +455,14 @@ export class BookService {
     // 手动初始化 signals（绕开 class field 初始化；signal() 不依赖 DI）
     svc._books = signal<Book[]>([]);
     svc._loadState = signal<DbLoadState>('idle');
-    svc._chaptersCache = signal(new Map());
-    svc.chaptersVersion = signal(0);
     // 派生 signal 同步（class field 初始化器不通过 Object.create 调用）
     svc.count = computed(() => svc._books().length);
+    // id 索引同步（同上：class field 初始化器不生效）
+    svc._booksById = computed(() => {
+      const map = new Map<string, Book>();
+      for (const b of svc._books()) map.set(b.id, b);
+      return map;
+    });
     // readonly signal getter 同步（BookService.books / loadState 是 getter，class field 不通过
     // Object.create 调用）—— P1-1 mitigation Round 8 遗漏修补
     svc.books = svc._books.asReadonly();
@@ -447,7 +482,7 @@ export class BookService {
         loadState: svc._loadState.asReadonly(),
         // Round 7 P0-2 mitigation: count 镜像 svc._books (与 BookRepository.count computed 对齐)
         count: computed(() => svc._books().length),
-        getById: (id: string) => svc._books().find((b: Book) => b.id === id),
+        getById: (id: string) => svc._booksById().get(id),
         load: async () => undefined,
         // forTest stub 双写语义（R6-1 / Phase 4 review 收口）：
         //   db-first（source of truth），mirror-second（同步读路径缓存）
@@ -475,6 +510,8 @@ export class BookService {
         },
       } satisfies BookRepositoryPort);
     svc.loader = loader ?? ChapterLoader.forTest(db, sources);
+    // chaptersVersion 委托 loader（computed 惰性求值 —— 放在 loader 赋值之后更直观）
+    svc.chaptersVersion = computed(() => svc.loader.chaptersVersion());
     svc.updater =
       updater ?? BookUpdater.forTest(svc.repo, svc.loader, db, sources, importViaSource);
     return svc as BookService;

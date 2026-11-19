@@ -8,13 +8,24 @@
 
 /* 应用内嵌楷书（覆盖 Linux 无 KaiTi 的问题）
  *   源：AR PL UKai CN（文鼎开源楷书，Arphic Public License）
- *   子集：基础汉字 + ASCII + CJK 标点 + 数字，pyftsubset 提取
- *   体积 ~6MB（CJK 字形数据大）
+ *   子集：GB2312 全部 6763 汉字 + ASCII + 常用符号/标点/全角，harfbuzz 提取
+ *   体积 ~1.9MB（原 5.8MB，-67%）
  *   替代 Linux 上的「KaiTi / Kaiti SC / 楷体」缺失
+ *
+ * URL 必须用**相对路径**（不能用 '/assets/...' 绝对路径）：
+ *   打包版以 file:// 加载（electron/main.ts），绝对路径会解析到文件系统根
+ *   `file:///assets/...` → 404，字体从未真正加载过。
+ *   相对路径在 ng serve（http://localhost:4200/styles.css）与
+ *   打包版（browser/styles-*.css）两种形态下都能正确解析到同目录 assets/。
+ *
+ * ⚠️ 相对路径的基准 = **本文件所在目录**（src/app/pages/reader/）：
+ *   本文件曾位于 src/styles/reader.scss（基准为 '../assets/'），
+ *   2026-11 随「阅读页样式归位」迁到 app/pages/reader/ 后基准随之改变 →
+ *   必须写成 '../../../assets/'（= src/assets/）。迁移本文件时需同步核对这段路径。
  */
 @font-face {
   font-family: 'AppKai';
-  src: url('/assets/fonts/ukai-cn-subset.woff2') format('woff2');
+  src: url('../../../assets/fonts/ukai-cn-subset.woff2') format('woff2');
   font-display: swap;
 }
 
