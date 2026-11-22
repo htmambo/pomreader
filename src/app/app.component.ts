@@ -144,8 +144,12 @@ import { UniversalSearchComponent } from './pages/universal-search/universal-sea
         <nz-content [class.no-padding]="isReader()">
           <router-outlet></router-outlet>
           <!-- 万能搜索常驻保活：webview 离开 DOM 即销毁 guest，故访问过 /search 后永久挂载，
-               离开时仅 display:none 隐藏（CSS 隐藏不销毁 guest，保留 URL/历史/滚动） -->
-          @if (searchVisited()) {
+               离开时仅 display:none 隐藏（CSS 隐藏不销毁 guest，保留 URL/历史/滚动）。
+
+               用 @defer (when …) 而非 @if：@defer 把该组件及其引入链拆成独立 lazy chunk，
+               首屏不必下载；且 searchVisited 是一次性信号（置真后永不复位），
+               触发后 @defer 块只创建一次、永不销毁 → 保活语义与原先的 @if 完全一致。 -->
+          @defer (when searchVisited()) {
             <app-universal-search
               [active]="isSearch()"
               [style.display]="isSearch() ? null : 'none'"

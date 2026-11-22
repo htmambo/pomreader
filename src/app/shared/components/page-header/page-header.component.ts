@@ -8,8 +8,10 @@ import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzDropdownModule } from 'ng-zorro-antd/dropdown';
 import { NzModalService } from 'ng-zorro-antd/modal';
-import { ImportOnlineComponent } from '../../../modals/import-online/import-online.component';
-import { ImportLocalTxtComponent } from '../../../modals/import-local-txt/import-local-txt.component';
+// 类型引入（编译期擦除，不产生运行时依赖）：仅用于 nzOnOk 的实例类型标注。
+// 组件类本身走下面的动态 import，避免把整条导入弹窗链拖进首屏 bundle。
+import type { ImportOnlineComponent } from '../../../modals/import-online/import-online.component';
+import type { ImportLocalTxtComponent } from '../../../modals/import-local-txt/import-local-txt.component';
 import { PageHeaderService } from '../../../core/services/page-header.service';
 
 /**
@@ -119,10 +121,19 @@ export class PageHeaderComponent {
     { initialValue: this.router.url.startsWith('/bookshelf') },
   );
 
-  openImportOnline(): void {
+  /**
+   * 打开「导入在线书页」弹窗。
+   *
+   * 组件类用动态 import 现取：静态 import 会把 ImportOnlineComponent 及其整条
+   * 引入链（core/cover/generators/builtin 的 20 款内置封面模板等）拖进首屏
+   * main chunk —— 而这个弹窗只有用户主动点「导入」时才需要。
+   */
+  async openImportOnline(): Promise<void> {
+    const { ImportOnlineComponent: ImportOnlineCmp } =
+      await import('../../../modals/import-online/import-online.component');
     this.modal.create({
       nzTitle: '导入在线书页',
-      nzContent: ImportOnlineComponent,
+      nzContent: ImportOnlineCmp,
       nzOkText: '确认导入',
       nzCancelText: '取消',
       nzWidth: 640,
@@ -130,10 +141,13 @@ export class PageHeaderComponent {
     });
   }
 
-  openImportLocalTxt(): void {
+  /** 同上：本地 TXT 导入弹窗按需加载。 */
+  async openImportLocalTxt(): Promise<void> {
+    const { ImportLocalTxtComponent: ImportLocalTxtCmp } =
+      await import('../../../modals/import-local-txt/import-local-txt.component');
     this.modal.create({
       nzTitle: '导入本地 TXT',
-      nzContent: ImportLocalTxtComponent,
+      nzContent: ImportLocalTxtCmp,
       nzOkText: '确认导入',
       nzCancelText: '取消',
       nzWidth: 640,
