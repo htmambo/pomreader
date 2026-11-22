@@ -434,6 +434,18 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
     () => this.chineseConverter() ?? ((t: string) => t),
   );
 
+  /**
+   * 目录条目的显示文案（按 `chapters()` 的数组位置对齐）：预计算成数组。
+   *
+   * 此前模板里写 `displayText()(ch.title)` —— 那是**每章每轮变更检测一次函数调用**，
+   * 长篇（1000-3000 章）即每轮 1000-3000 次调用，且每次都产出一个新字符串。
+   * 改为读预计算数组：只在章节列表或简繁转换档位变化时重算一次。
+   */
+  protected readonly catalogTitles = computed<string[]>(() => {
+    const conv = this.displayText();
+    return this.chapters().map((ch) => conv(ch.title));
+  });
+
   /** 当前生效的视图设置：面板打开时用草稿（预览），否则用已保存值 */
   readonly view = computed<ReaderViewSettings>(() => {
     if (this.settingsOpen()) return this.draft();

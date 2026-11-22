@@ -48,4 +48,14 @@ describe('sortBooks', () => {
     sortBooks(BOOKS, 'title');
     expect(BOOKS.map((b) => b.id)).toEqual(before);
   });
+
+  it('title：缓存的 Collator 与 localeCompare 结果等价（排序语义未变）', () => {
+    const titles = ['三体', '活着', '百年孤独', '红楼梦', '水浒传', '西游记', '射雕英雄传', '天道'];
+    const books = titles.map((t, i) => book({ id: String(i), title: t }));
+    const viaCollator = sortBooks(books, 'title').map((b) => b.title);
+    const viaLocaleCompare = [...books]
+      .sort((a, b) => a.title.localeCompare(b.title, 'zh-Hans-CN'))
+      .map((b) => b.title);
+    expect(viaCollator).toEqual(viaLocaleCompare);
+  });
 });

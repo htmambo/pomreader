@@ -126,7 +126,7 @@
           [title]="ch.sourceUrl && !ch.loaded ? '未下载' : ''"
           (click)="goTo(i)"
         >
-          <span class="title">{{ displayText()(ch.title) }}</span>
+          <span class="title">{{ catalogTitles()[i] }}</span>
         </a>
         }
       </div>
