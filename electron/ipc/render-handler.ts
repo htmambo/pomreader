@@ -55,14 +55,28 @@ export const EXTRACT_SCRIPT = `(function(){
 })()`;
 
 let renderWin: BrowserWindow | null = null;
-let chain: Promise<unknown> = Promise.resolve();
+/** CF 过盾专用隐藏窗口：与渲染抓取窗口**分离**（见下方说明） */
+let cfWin: BrowserWindow | null = null;
+
+/**
+ * 功能级串行队列（两条链互不排队）。
+ *
+ * 原实现只有一条全局 chain，`pom:fetch-rendered` 与 `cfFetchHtmlHidden` 共用 →
+ * 一次 CF 过盾抓取（最长 40s = 20s loadURL 竞速 + 20s 等挑战消失）会把**所有**
+ * 渲染抓取一起堵在后面。
+ */
+let renderChain: Promise<unknown> = Promise.resolve();
+let cfChain: Promise<unknown> = Promise.resolve();
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-/** 共享隐藏窗口：session 持久化（与 net.request 抓取链路共享 persist:fetch，CF cookie 互通） */
-function getRenderWindow(): BrowserWindow {
-  if (renderWin && !renderWin.isDestroyed()) return renderWin;
-  renderWin = new BrowserWindow({
+/**
+ * 隐藏窗口工厂。
+ *
+ * session 持久化（与 net.request 抓取链路共享 persist:fetch，CF cookie 互通）。
+ */
+function createHiddenWindow(): BrowserWindow {
+  return new BrowserWindow({
     show: false,
     width: 1000,
     height: 800,
@@ -73,13 +87,43 @@ function getRenderWindow(): BrowserWindow {
       partition: FETCH_PARTITION,
     },
   });
+}
+
+/** 渲染抓取专用隐藏窗口 */
+function getRenderWindow(): BrowserWindow {
+  if (renderWin && !renderWin.isDestroyed()) return renderWin;
+  renderWin = createHiddenWindow();
   renderWin.on('closed', () => {
     renderWin = null;
   });
   return renderWin;
 }
 
-async function renderOnce(rawUrl: string): Promise<{ text?: string; error?: string }> {
+/**
+ * CF 过盾专用隐藏窗口。
+ *
+ * **为什么必须与渲染窗口分离**：同一 BrowserWindow 同一时刻只能加载一个页面 ——
+ * 两个 loadURL 会互相打断，且任一方的 about:blank 清理会清掉另一方正在用的页面。
+ * 若只拆队列而共用窗口，CF 抓取期间普通渲染抓取仍会被窗口物理约束挡住（最长 40s），
+ * 拆队列等于白拆。故 CF 走自己的窗口：
+ * - 两条链彻底互不阻塞（各自的窗口 + 各自的队列）
+ * - 两个窗口共用同一个 partition（FETCH_PARTITION）→ cookie / cf_clearance 互通，
+ *   用户在渲染窗口里过的盾对 CF 窗口同样有效
+ * - CF 窗口按需创建（只有真遇到挑战页才建），不常驻占内存
+ */
+function getCfWindow(): BrowserWindow {
+  if (cfWin && !cfWin.isDestroyed()) return cfWin;
+  cfWin = createHiddenWindow();
+  cfWin.on('closed', () => {
+    cfWin = null;
+  });
+  return cfWin;
+}
+
+async function renderOnce(
+  win: BrowserWindow,
+  rawUrl: string,
+): Promise<{ text?: string; error?: string }> {
   let u: URL;
   try {
     u = new URL(rawUrl);
@@ -90,7 +134,6 @@ async function renderOnce(rawUrl: string): Promise<{ text?: string; error?: stri
     return { error: 'invalid-url' };
   }
 
-  const win = getRenderWindow();
   try {
     await Promise.race([
       win.loadURL(rawUrl, { userAgent: getUA() }),
@@ -135,10 +178,10 @@ async function renderOnce(rawUrl: string): Promise<{ text?: string; error?: stri
 }
 
 export function registerRenderHandler(ipcMain: IpcMain): void {
-  // 共享隐藏窗口，抓取请求串行执行
+  // 渲染抓取：功能队列内串行 + 窗口级互斥（与 CF 过盾互不排队）
   ipcMain.handle('pom:fetch-rendered', (_e, rawUrl: string) => {
-    const p = chain.then(() => renderOnce(rawUrl));
-    chain = p.catch(() => undefined);
+    const p = renderChain.then(() => renderOnce(getRenderWindow(), rawUrl));
+    renderChain = p.catch(() => undefined);
     return p;
   });
 }
@@ -197,12 +240,12 @@ export async function extractRenderedHtml(win: BrowserWindow): Promise<string | 
  * 返回 null = 加载失败 / 挑战未解除（交互式 Turnstile 需人工，走 Tier 2）。
  */
 export function cfFetchHtmlHidden(rawUrl: string): Promise<string | null> {
-  const p = chain.then(() => cfFetchHtmlOnce(rawUrl));
-  chain = p.catch(() => undefined);
+  const p = cfChain.then(() => cfFetchHtmlOnce(getCfWindow(), rawUrl));
+  cfChain = p.catch(() => undefined);
   return p;
 }
 
-async function cfFetchHtmlOnce(rawUrl: string): Promise<string | null> {
+async function cfFetchHtmlOnce(win: BrowserWindow, rawUrl: string): Promise<string | null> {
   let u: URL;
   try {
     u = new URL(rawUrl);
@@ -213,7 +256,6 @@ async function cfFetchHtmlOnce(rawUrl: string): Promise<string | null> {
     return null;
   }
 
-  const win = getRenderWindow();
   try {
     await Promise.race([
       win.loadURL(rawUrl, { userAgent: getUA() }),

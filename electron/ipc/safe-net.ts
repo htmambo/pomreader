@@ -118,14 +118,19 @@ export async function safeNetRequest(
   rawUrl: string,
   options: SafeNetOptions = {},
 ): Promise<SafeNetResult> {
-  // Round 2 hardening: 手动跟踪重定向，每次 isPrivateHost 校验
-  return followRedirect(rawUrl, options, 0);
+  // 绝对 deadline：整条重定向链共享同一份超时预算。
+  // 此前每跳递归各自新建一个 timeoutMs 计时器 → 预算不累计，最坏 4×timeout
+  // （MAX_REDIRECTS=3 → 15s 声明实为 60s，60s 声明实为 240s），
+  // 调用方声明的超时从未被兑现。改为入口处算一次 deadline，逐跳用剩余预算。
+  const deadline = Date.now() + (options.timeoutMs ?? DEFAULT_TIMEOUT);
+  return followRedirect(rawUrl, options, 0, deadline);
 }
 
 async function followRedirect(
   rawUrl: string,
   options: SafeNetOptions,
   depth: number,
+  deadline: number,
 ): Promise<SafeNetResult> {
   let u: URL;
   try {
@@ -140,9 +145,13 @@ async function followRedirect(
     return Promise.reject(new Error('invalid-url'));
   }
 
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT;
   const maxBytes = options.maxBytes ?? DEFAULT_MAX;
   const method = (options.method || 'GET').toUpperCase();
+  // 本跳可用预算 = deadline - now；预算耗尽即超时（总上界回到调用方声明值）
+  const remainingMs = deadline - Date.now();
+  if (remainingMs <= 0) {
+    return Promise.reject(new Error('timeout'));
+  }
 
   // eslint-disable-next-line no-async-promise-executor
   return new Promise(async (resolve, reject) => {
@@ -230,8 +239,9 @@ async function followRedirect(
           done({ ok: false, error: 'redirect-invalid-url' });
           return;
         }
-        // 递归前不重新校验超时（沿用原 timeoutMs）
-        followRedirect(resolved, options, depth + 1).then(
+        // 递归前不重新校验超时 —— 但**沿用同一条 deadline**（逐跳用剩余预算），
+        // 保证整条重定向链的总耗时不超过调用方声明的 timeoutMs
+        followRedirect(resolved, options, depth + 1, deadline).then(
           (resp) => done({ ok: true, resp }),
           (e) => done({ ok: false, error: (e as Error).message }),
         );
@@ -287,7 +297,7 @@ async function followRedirect(
         /* noop */
       }
       done({ ok: false, error: 'timeout' });
-    }, timeoutMs);
+    }, remainingMs);
     req.on('close', () => clearTimeout(timer));
 
     req.end();

@@ -213,7 +213,6 @@ describe('JSON 书源 channel（save → list → toggle → delete round-trip�
   it('应注册 5 个 JSON channel + 保留的通用 channel（.js 专属 channel 已随 P4 删除）', () => {
     for (const ch of [
       'pom:booksource-list-json',
-      'pom:booksource-list-json-streaming',
       'pom:booksource-save-json',
       'pom:booksource-toggle-json',
       'pom:booksource-delete-json',
@@ -233,6 +232,48 @@ describe('JSON 书源 channel（save → list → toggle → delete round-trip�
       'pom:booksource-toggle',
     ]) {
       expect(handlers.has(ch), ch).toBe(false);
+    }
+  });
+
+  it('list-json 应等待启动迁移结束（migrationDone 未 resolve 前不返回）', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'booksource-migration-gate-'));
+    const fake = createFakeIpcMain();
+    let release: () => void = () => undefined;
+    const migrationDone = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    registerBookSourceHandler(
+      fake as unknown as Parameters<typeof registerBookSourceHandler>[0],
+      dir,
+      migrationDone,
+    );
+    try {
+      fs.mkdirSync(path.join(dir, 'booksources'), { recursive: true });
+      fs.writeFileSync(
+        path.join(dir, 'booksources', 'gated.json'),
+        JSON.stringify(makeJsonDoc()),
+        'utf-8',
+      );
+
+      let settled = false;
+      const pending = Promise.resolve(fake.handlers.get('pom:booksource-list-json')!({})).then(
+        (v) => {
+          settled = true;
+          return v;
+        },
+      );
+      // 让出若干微任务：此时迁移未结束，handler 必须仍在等待
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(settled).toBe(false);
+
+      release();
+      const list = (await pending) as Record<string, unknown>[];
+      expect(settled).toBe(true);
+      expect(list).toHaveLength(1);
+      expect(list[0].uuid).toBe('uuid-rt');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
     }
   });
 
@@ -350,33 +391,5 @@ describe('JSON 书源 channel（save → list → toggle → delete round-trip�
     await expect(call('pom:booksource-delete-json', '../escape.json', null)).rejects.toThrow(
       /非法 fileName/,
     );
-  });
-
-  it('list-json-streaming：批次事件推送到 pom:booksource-json-batch 且 done 收尾', async () => {
-    await call('pom:booksource-save-json', 's1.json', makeJsonDoc({ uuid: 'u1' }), null);
-    await call('pom:booksource-save-json', 's2.json', makeJsonDoc({ uuid: 'u2' }), null);
-
-    const sent: Record<string, unknown>[] = [];
-    const event = {
-      sender: {
-        isDestroyed: () => false,
-        send: (channel: string, payload: Record<string, unknown>) => {
-          expect(channel).toBe('pom:booksource-json-batch');
-          sent.push(payload);
-        },
-      },
-    };
-    await Promise.resolve(handlers.get('pom:booksource-list-json-streaming')!(event, 'req-1'));
-    // setImmediate 后台扫描：等两轮确保完成
-    await new Promise((r) => setImmediate(r));
-    await new Promise((r) => setImmediate(r));
-
-    expect(sent.length).toBeGreaterThanOrEqual(1);
-    const last = sent[sent.length - 1];
-    expect(last.done).toBe(true);
-    expect(last.requestId).toBe('req-1');
-    expect(last.total).toBe(2);
-    const allItems = sent.flatMap((p) => p.items as unknown[]);
-    expect(allItems).toHaveLength(2);
   });
 });

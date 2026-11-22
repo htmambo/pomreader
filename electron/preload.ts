@@ -98,12 +98,7 @@ contextBridge.exposeInMainWorld('pomAPI', {
     ipcRenderer.invoke('pom:booksource-save-draft', fileName, content),
 
   // ── 书源 JSON（BookSourceDoc，方案 §3.4） ──────────────────────────────
-  // 批次事件订阅：用上方通用 on('pom:booksource-json-batch', listener)
   booksourceListJson: (): Promise<unknown[]> => ipcRenderer.invoke('pom:booksource-list-json'),
-
-  /** JSON 流式列表：后台扫描 + 'pom:booksource-json-batch' 分批推送 */
-  booksourceListJsonStreaming: (requestId: string): Promise<void> =>
-    ipcRenderer.invoke('pom:booksource-list-json-streaming', requestId),
 
   booksourceSaveJson: (fileName: string, doc: unknown, sourceDir?: string): Promise<void> =>
     ipcRenderer.invoke('pom:booksource-save-json', fileName, doc, sourceDir ?? null),

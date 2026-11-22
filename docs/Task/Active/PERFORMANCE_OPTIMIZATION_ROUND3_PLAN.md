@@ -138,11 +138,15 @@ app.component → UniversalSearchComponent → ImportOnlineComponent ─┘
 
 **这是有意的行为变更（bug 修复），明确记录（外部评审 R4）**：调用方声明的超时（`booksource-handler.ts:240` = 15s、`auto-import.ts:222` = 60s）此前**从未被兑现** —— 重定向链最坏可跑 4 倍。修复后总耗时上界回到声明值：依赖 >15s 重定向链的书源会**从「挂 60s」变成「15s 正确失败」**。这是让实现符合声明，而非收紧配额；不做书源配置审计（书源是用户自带的外部资产，无法预知其跳转链耗时），但把上界修正为承诺值本身即为正确行为。
 
-**F11**：`render-handler.ts` 拆成两条独立链：`renderChain`（`pom:fetch-rendered`）与 `cfChain`（`cfFetchHtmlHidden`）。**但窗口使用仍需共享锁**：两条链共用同一 `getRenderWindow()` BrowserWindow，若完全独立则 CF 的 `loadURL` 与普通渲染的 `loadURL` 会互相打断，且任一方的 `about:blank` 清理（`:130` / `:232`）会清掉另一方正在用的页面。
+**F11**：**CF 过盾改用独立隐藏窗口**，两条链彻底解耦。
 
-**实现形态**：**排队分离、窗口锁共享** —— 两条功能链各自维护「本功能内的串行队列」；真正触碰 BrowserWindow 时再取一把**共享的窗口锁**。这样一次 CF 过盾（最长 40s）不会让后续渲染请求在**功能队列**上干等，而渲染请求实际用到窗口时仍会等 CF 用完窗口（同一窗口的物理约束）。
+**实现演进（与外部评审建议的偏差，附理由）**：评审建议「排队分离、窗口锁共享」——即拆两条功能链，但两条链仍共用同一个 BrowserWindow，触碰窗口时走一把共享锁。实施时发现该形态**并不能解决原问题**：同一 BrowserWindow 同一时刻只能加载一个页面（两个 `loadURL` 会互相打断，任一方的 `about:blank` 清理会清掉另一方正在用的页面），故普通渲染抓取仍会被 CF 抓取期间的窗口物理约束挡住（最长 40s）——拆队列等于白拆。
 
-**锁释放保证（外部评审 R6）**：窗口锁必须用 `try/finally` 包裹窗口使用段 —— `loadURL` / `waitForPageCleared` / `executeJavaScript` 任一抛错，锁都要在 `finally` 中释放。否则窗口会被永久锁死，后续所有渲染与 CF 请求无限挂起。实现时把「取锁 → 用窗口 → 释放锁」封装成一个 `withRenderWindow(fn)` 助手，锁的释放只写在 `finally` 一处，杜绝遗漏。
+**最终形态**：CF 过盾走**自己的隐藏窗口**（`getCfWindow()`），渲染抓取走 `getRenderWindow()`，两条链各自串行、各自的窗口：
+- CF 抓取（最长 40s）不再阻塞任何渲染抓取 —— 这才是评审要求的可验证收益
+- 两个窗口共用同一 partition（`FETCH_PARTITION`）→ cookie / `cf_clearance` 互通，用户在渲染窗口过的盾对 CF 窗口同样有效
+- CF 窗口按需创建（只有真遇到挑战页才建），不常驻占内存
+- 链的释放：`chain = p.catch(() => undefined)` 模式保证队列永不 reject，不会因一次异常把链卡死（无显式锁 → 无锁泄漏路径，评审 R6 的关切自动消解）
 
 **F12**：删除 `pom:booksource-list-json-streaming` 的 handler（`booksource-handler.ts:122-155`）、preload 暴露（`preload.ts:105-106`）、schema 元组（`schema.ts:154`）与对应 spec 用例；同步清理 `JSON_BATCH_CHANNEL` 若无其它消费方。删除前按 AGENTS.md「死代码处置」做 0 引用核验，并在 `docs/CONVENTIONS.md §exceptions` 留痕。
 
@@ -177,7 +181,7 @@ app.component → UniversalSearchComponent → ImportOnlineComponent ─┘
 | F4 迁移未完成时渲染端读到旧列表 / 丢失一次性通知 | 列表通道与迁移报告通道**都**要 `await migrationDone`；漏一个即回归 |
 | F4 迁移失败时的渲染端表现 | `migrationDone` 在 `finally` resolve；报告缺失 → `readMigrationReportOnce` 返回 `null` → 渲染端 `if (!report) return;` → 不弹窗不报错，与现状一致 |
 | F10 deadline 改动误伤正常长请求 | 只改**总预算**上界，单跳超时行为不变；这是让实现符合已声明的 `HTTP_TIMEOUT_MS`，属有意的 bug 修复（已在计划中明示） |
-| F11 拆链后同窗口并发使用 | **排队分离、窗口锁共享**：两条功能链各自串行，窗口使用走共享锁；锁释放写在 `withRenderWindow` 的 `finally` 一处 |
+| F11 拆链后同窗口并发使用 | **CF 改用独立隐藏窗口**：两窗口物理隔离，`loadURL` 互不打断；同 partition 保证 cookie 互通；CF 窗口按需创建 |
 | F12 删通道误伤 | 删除前 0 引用核验（已核验：仅 preload + spec）；spec 同步删用例 |
 | F14 固定高度 / 长标题 | `.catalog-item .title` 已是 `nowrap + ellipsis` → 不换行；`contain-intrinsic-size: 41px` 与真实高度（line-height 40 + border 1）一致 → 无跳动 |
 | F14 滚动位置回归 | 目录面板 `@if (catalogOpen())` 每次打开重建 → 现状本就不保留滚动位置；不引入虚拟滚动 → 无回归面 |
@@ -231,4 +235,10 @@ T0 → T1 → T2 → T3 → T4 → T5 → T6。
 | R6 F11 窗口锁可能泄漏 | **已要求**：`withRenderWindow(fn)` 助手，锁释放只写在 `finally` 一处 |
 | R7 F3 只读契约未强制 | 缓存 meta 一律 `Object.freeze()` |
 | 建议 6 批次内按项拆分 commit | **已采纳**：批次 ① 拆 2 个 commit（F1+F3+F4 / F2） |
+| R1(c) 建议改用 `@defer` | **已采纳**：F2 改用 `@defer (when searchVisited())`，保留全部声明式绑定，且 `searchVisited` 一次性 → 块只创建一次永不销毁 |
+| R2 F1 幂等性未举证 | **已举证** + 补双跑单测 |
+| R3 F14 固定高度/缓存失效/滚动位置/键盘导航 | 逐条核实并据此**放弃 CDK 虚拟滚动**，改用 `content-visibility: auto` + 预计算 map（详见 F14 条目） |
+| R5 F4 迁移失败路径 | **已定义**：报告缺失 → 渲染端 `if (!report) return;` → 不弹窗不报错 |
+| R7 F3 只读契约 | 缓存 meta 一律 `Object.freeze()` |
+| R11（实施中发现）评审建议的「窗口锁共享」形态无法解除物理约束 | **偏离并记录理由**：改用独立 CF 窗口，理由与验证见 F11 条目 |
 | 建议 7 F1 数据安全 | **已说明**：加标记不改变迁移行为本身，只决定是否尝试迁移；不引入新写入路径，无需额外备份 |

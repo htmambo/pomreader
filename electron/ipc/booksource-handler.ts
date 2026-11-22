@@ -2,7 +2,6 @@
  * 书源文件 IPC handler（JSON 书源 CRUD + 流式列表 + legacy 读取/删除 + HTTP 代理；§3.4）
  *
  * - 主目录 `<userData>/booksources/`；草稿 `<userData>/booksources_drafts/`
- * - JSON 流式列表：setImmediate 后台扫描 + `pom:booksource-json-batch` 分批推送
  * - 写文件走 `atomicWrite`（FR-1.5：写入失败时原文件不被截断）
  * - HTTP 代理走 `safeNetRequest`（含 isPrivateHost SSRF 防护）
  * - 历史 .js 链路的 list / list-streaming / toggle / save channel 已随 P4 删除；
@@ -25,17 +24,13 @@ import {
   safeHandleWithMeta,
   BooksourceDeleteJsonArgsSchema,
   BooksourceListJsonArgsSchema,
-  BooksourceListJsonStreamingArgsSchema,
   BooksourceSaveJsonArgsSchema,
   BooksourceToggleJsonArgsSchema,
 } from './schema';
 
 const PRIMARY_DIR = 'booksources';
 const DRAFTS_DIR = 'booksources_drafts';
-const BATCH_SIZE = 50;
 const HTTP_TIMEOUT_MS = 15000;
-/** JSON 书源流式列表的批次事件 channel */
-const JSON_BATCH_CHANNEL = 'pom:booksource-json-batch';
 
 function primaryDir(userData: string): string {
   return path.join(userData, PRIMARY_DIR);
@@ -120,45 +115,6 @@ export function registerBookSourceHandler(
       // 等启动迁移结束：否则可能读到未迁移的旧列表（.js 尚未转成 .json）
       await migrationDone;
       return scanJsonDir(primaryDir(userData));
-    },
-  );
-
-  // JSON 流式列表：立刻返回，setImmediate 后台扫描 + 分批推送到 renderer（ASSUMPTION-15；
-  // app.emit 不能跨进程，必须 event.sender.send + isDestroyed 检查）
-  safeHandleWithMeta(
-    ipcMain,
-    'pom:booksource-list-json-streaming',
-    'BooksourceListJsonStreamingArgs',
-    BooksourceListJsonStreamingArgsSchema,
-    (e, [requestId]) => {
-      const dir = primaryDir(userData);
-      const sender = e.sender;
-      const send = (payload: Record<string, unknown>): void => {
-        if (sender.isDestroyed()) return;
-        try {
-          sender.send(JSON_BATCH_CHANNEL, payload);
-        } catch {
-          /* 窗口已销毁 */
-        }
-      };
-      setImmediate(() => {
-        try {
-          const items = scanJsonDir(dir);
-          const total = items.length;
-          for (let i = 0; i < items.length; i += BATCH_SIZE) {
-            send({ requestId, items: items.slice(i, i + BATCH_SIZE), done: false, total });
-          }
-          send({ requestId, items: [], done: true, total });
-        } catch (err) {
-          send({
-            requestId,
-            items: [],
-            done: true,
-            total: 0,
-            error: (err as Error).message,
-          });
-        }
-      });
     },
   );
 

@@ -6,8 +6,8 @@ import { ToastService } from '../services/toast.service';
  * 书源管理列表页会话级状态（root service，路由切换不销毁）
  *
  * P3 起列表数据源切到 JSON 链路（方案 §5）：booksourceListJson / booksourceToggleJson /
- * booksourceDeleteJson（旧 .js channel 不再消费；流式 booksourceListJsonStreaming 语义由
- * 主进程分批推送承担，本服务一次取全量 —— 列表页原本就是非流式消费）。
+ * booksourceDeleteJson（旧 .js channel 不再消费；本服务一次取全量 —— 列表页原本
+ * 就是非流式消费）。
  *
  * needs-manual 行内状态（§4.3）：legacies 由常驻 pom:booksource-legacy-list 扫描
  * booksources_legacy/ 得出，随 refresh 一并拉取。

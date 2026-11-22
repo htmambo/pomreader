@@ -151,14 +151,6 @@ const OptionalSourceDirSchema = v.nullish(v.string(), null);
 export const BooksourceListJsonArgsSchema = v.strictTuple([]);
 export type BooksourceListJsonArgs = v.InferOutput<typeof BooksourceListJsonArgsSchema>;
 
-/** pom:booksource-list-json-streaming args tuple: (requestId: string) */
-export const BooksourceListJsonStreamingArgsSchema = v.tuple([
-  v.pipe(v.string(), v.minLength(1, 'requestId must be non-empty')),
-]);
-export type BooksourceListJsonStreamingArgs = v.InferOutput<
-  typeof BooksourceListJsonStreamingArgsSchema
->;
-
 /** pom:booksource-save-json args tuple: (fileName, doc, sourceDir?) */
 export const BooksourceSaveJsonArgsSchema = v.tuple([
   JsonFileNameSchema,
