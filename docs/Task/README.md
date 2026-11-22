@@ -5,7 +5,7 @@
 
 ## Active Tasks
 
-- [性能与速度优化 · 第三轮](Active/PERFORMANCE_OPTIMIZATION_ROUND3_PLAN.md) — 2026-11-22 在前两轮（2026-10 性能任务 + `f779992 perf(app)`）未覆盖的路径上继续优化：批次①冷启动（F1 旧 `_id` 迁移无标记→每次冷启动全库扫描 / F2 首屏静态导入把 30.5KB 封面模板拖进 main chunk / F3 `scanJsonDir` 每次全量重解析、渲染端 5 处独立调用 / F4 启动迁移同步阻塞建窗）+ 批次③主进程网络（F10 重定向超时预算放大 4 倍，最坏 240s / F11 隐藏渲染窗口全局互斥锁，CF 过盾独占 40s / F12 伪流式通道零消费方）+ 批次④微优化（F13 `localeCompare`→缓存 `Intl.Collator` / F14 目录面板 CDK 虚拟滚动）
+- [性能优化第三轮 — 后续跟进项](Active/PERFORMANCE_ROUND3_FOLLOWUPS.md) — 2026-11-22 终验外部评审（APPROVED）转出的 4 项待办：F-1 应用内存打点（新增第二个隐藏 BrowserWindow）/ F-2 超大目录（>3000 章）虚拟滚动方案重评 / F-3 真实环境数据闭环（冷启动耗时、webview 存活、CF 端到端、3000 章目录计时）/ F-4 F10 超时行为变更的用户反馈跟踪
 - [工程基线后续优化项](Active/ENGINEERING_BASELINE_FOLLOWUPS.md) — 2026-11-12 规范债收口任务外部审查确认为真实但超出范围的 3 项预存技术债：S-1 Sass `@import`→`@use` 迁移 / S-2 CSS 资源路径改相对路径 / S-3 CI lint 与 Playwright 安装并行化，各附触发条件与「本次不做」理由
 - [书源 JSON 规则化 — 二期及后续跟进项](Active/BOOKSOURCE_JSON_RULES_FOLLOWUPS.md) — 跟踪主方案（[2026-09-29 书源 JSON 规则化改造方案 v2.1](../Architecture/2026-09-29-BOOKSOURCE-JSON-RULES-PLAN.md)）v1 明确不做的 17 项（T-1..T-17，表达力扩展 / 引擎运行时 / 生态工具 / 机制验证），含触发条件与激活规则
   - 主方案 v2.1 已过两轮评审（17 条事实基线 + 结构白名单迁移判据 + 离线差分测试）；其中 T-12（导入导出 bundle）**前置未完成** —— [2026-09-28 导入导出设计](../Architecture/2026-09-28-BOOKSOURCE_IMPORT_EXPORT_DESIGN.md) 仍按旧 `.js` 契约，需先修订
@@ -13,6 +13,16 @@
 ## Completed Tasks (Archive)
 
 ### 2026-11
+
+- ✅ [性能与速度优化 · 第三轮](Archive/2026-11/PERFORMANCE_OPTIMIZATION_ROUND3_PLAN.md) — Completed 2026-11-22
+  - 批次①冷启动：F1 旧 chapter `_id` 迁移加完成标记（第二次启动全库扫描 1 次 → **0 次**）/ F2 首屏静态导入拆出（`@defer` + 动态 import）/ F3 `scanJsonDir` 加 `mtime+size` 缓存（渲染端 5 处重复全量解析 → 0）/ F4 存量 JS 书源迁移挪出建窗关键路径
+  - 批次③主进程网络：F10 重定向链超时预算累计化（声明 15s 实为 60s、60s 实为 240s → 回到声明值）/ F11 CF 过盾改用独立隐藏窗口（不再阻塞普通渲染抓取）/ F12 删除伪流式书源列表死通道
+  - 批次④微优化：F13 排序改用模块级缓存 `Intl.Collator` / F14 目录条目文案预计算 + `content-visibility: auto`（3000 条目同步布局 51ms → **18.3ms**，-64%，scrollHeight 与条目高度逐字一致）
+  - **首屏 bundle**：main chunk 434.39 kB → **272.58 kB（-37.3%）**，Initial total 1.46 MB → 1.25 MB，transfer 307.60 kB → 260.02 kB（封面模板等业务链离开首屏，产物 grep + index.html modulepreload 双向佐证）
+  - 4 个 commit（`6c1a20a` / `0ed8ecd` / `be688df` / `f68e199`），逐批可独立回退
+  - 验证：单测 76 文件 **1223 用例全绿**（+19）、lint **0/0**、format:check 通过、双构建通过；新增的 10 条用例**逐条验证过在修复前的代码上会失败**；e2e 20/21（失败项为存量，基线 `4b31cdb` 已复现，未触碰 sidebar，**不宣称全绿**）
+  - 外部评审 3 轮：Round 1 需求（NEEDS_CHANGES，4 项）、Round 2 计划（NEEDS_CHANGES，10 项）、Round 3 终验（**APPROVED**）—— 全部风险逐条处置并留痕；评审建议的 `@defer` 被采纳，「窗口锁共享」因无法解除单窗口物理约束被有意偏离并记录理由
+  - 未实施项（批次② F5-F9）连同理由记录在归档文档「备注」段；后续跟踪项转 [性能优化第三轮 — 后续跟进项](../Active/PERFORMANCE_ROUND3_FOLLOWUPS.md)
 
 - ✅ [Linux 多发行版一键打包脚本](Archive/2026-11/LINUX_MULTI_DISTRO_PACKAGING_PLAN.md) — Completed 2026-11-22
   - 新增 `scripts/build-linux.sh`（对齐 `build-mac.sh` 形态）：`--distro linux|manjaro|deepin|ubuntu|all` / `--arch x64|arm64|armv7l|ia32|all` / `--appimage` / `--skip-build` / `--keep-going`；发行版按 `/etc/os-release` 自动识别

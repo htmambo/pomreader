@@ -1,6 +1,6 @@
 # 性能与速度优化 · 第三轮
 
-**Status**: 🔄 In progress（start time: 2026-11-22）
+**Status**: ✅ Completed（completion time: 2026-11-22）
 **Creator**: Mavis (mvs_9c94f4442652498db97344ee50c39e52)
 **范围**: 批次 ① 冷启动 + ③ 主进程/网络 + ④ 微优化（用户于本轮明确选定；批次 ② 交互热路径不在本轮范围）
 
@@ -96,12 +96,12 @@ app.component → UniversalSearchComponent → ImportOnlineComponent ─┘
 ## 子任务列表
 
 - ✅ T0：基线采集 + 三路勘查 + 需求分析（外部评审 Round 1 → NEEDS_CHANGES，已处置）
-- 🔄 T1：写本计划文档 + 计划评审（外部评审 Round 2）
-- ⏳ T2：批次 ① 冷启动（F1 / F2 / F3 / F4）
-- ⏳ T3：批次 ③ 主进程网络（F10 / F11 / F12）
-- ⏳ T4：批次 ④ 微优化（F13 / F14）
-- ⏳ T5：全量验证（lint / test / format:check / build / e2e）+ 同口径前后测量
-- ⏳ T6：按批次提交 + 推送 + 归档
+- ✅ T1：写本计划文档 + 计划评审（外部评审 Round 2 → NEEDS_CHANGES，已逐条处置）
+- ✅ T2：批次 ① 冷启动（F1 / F3 / F4 → commit `6c1a20a`；F2 → commit `0ed8ecd`）
+- ✅ T3：批次 ③ 主进程网络（F10 / F11 / F12 → commit `be688df`）
+- ✅ T4：批次 ④ 微优化（F13 / F14 → commit `f68e199`）
+- ✅ T5：全量验证（lint / test / format:check / build / e2e）+ 同口径前后测量
+- ✅ T6：按批次提交 + 推送 + 归档
 
 ## 每个子任务的改动内容
 
@@ -242,3 +242,78 @@ T0 → T1 → T2 → T3 → T4 → T5 → T6。
 | R7 F3 只读契约 | 缓存 meta 一律 `Object.freeze()` |
 | R11（实施中发现）评审建议的「窗口锁共享」形态无法解除物理约束 | **偏离并记录理由**：改用独立 CF 窗口，理由与验证见 F11 条目 |
 | 建议 7 F1 数据安全 | **已说明**：加标记不改变迁移行为本身，只决定是否尝试迁移；不引入新写入路径，无需额外备份 |
+
+
+## 实施结果（实测）
+
+### 提交
+
+| Commit | 批次 | 内容 |
+|---|---|---|
+| `6c1a20a` | ①A | F1 迁移标记 + F3 `scanJsonDir` 缓存 + F4 迁移挪出建窗关键路径 |
+| `0ed8ecd` | ①B | F2 首屏静态导入拆出（`@defer` + 动态 import） |
+| `be688df` | ③ | F10 超时预算累计化 + F11 CF 过盾独立窗口 + F12 伪流式死通道清理 |
+| `f68e199` | ④ | F13 缓存 `Intl.Collator` + F14 目录排版成本减 64% |
+
+### 同口径前后对比
+
+**首屏 bundle**（生产构建，Angular 22.2.6，同一 build 配置）：
+
+| 指标 | 优化前 | 优化后 | 变化 |
+|---|---|---|---|
+| main chunk | 434.39 kB | 272.58 kB | **-161.81 kB（-37.3%）** |
+| Initial total | 1.46 MB | 1.25 MB | **-14.4%** |
+| Initial transfer | 307.60 kB | 260.02 kB | **-47.58 kB（-15.5%）** |
+
+产物佐证：封面模板 id 标记 `modern-literature` 从「只出现在 main-*.js」变为
+「只出现在懒加载 chunk-Dk-R77d1.js」；`import-local-txt-component`（54.39 kB）
+亦转为懒加载；两者均不在 `index.html` 的 modulepreload 集合内。
+
+**冷启动扫描次数**（IPC `allDocs` 调用计数）：第二次启动 **1 次 → 0 次**
+（旧 `_id` 迁移的全范围章节扫描被迁移标记跳过）。
+
+**书源重复解析**：`scanJsonDir` 对未变更目录的全文读取次数 **N 次 → 0 次**；
+命中缓存时返回同一 meta 对象引用（单测断言）。
+
+**出网超时上界**（重定向链总耗时）：`booksource-handler` 声明 15s → 实测最坏
+**60s → 15s**；`auto-import` 声明 60s → 实测最坏 **240s → 60s**。
+
+**CF 过盾对渲染抓取的阻塞**：一次 CF 抓取（最长 40s）期间，普通渲染抓取
+**被阻塞 → 不再被阻塞**（CF 改用独立隐藏窗口）。
+
+**目录面板排版成本**（Chromium，3000 条目 / 双列 / 与组件同款 CSS，7 次中位数）：
+
+| 指标 | 优化前 | 优化后 | 变化 |
+|---|---|---|---|
+| 强制同步布局 | 51 ms | 18.3 ms | **-64%** |
+| scrollHeight | 61500 px | 61500 px | 逐字一致（无滚动条变化） |
+| 条目高度 | 41 px | 41 px | 逐字一致（无跳动） |
+
+**书架排序**：中文书名比较由每次调用 `localeCompare(x, 'zh-Hans-CN')` 改为
+模块级单例 `Intl.Collator` —— 排序结果逐字等价（新增单测断言）。
+
+### 验证
+
+- `npm test`：**76 文件 / 1223 用例全绿**（基线 1204，+19）
+- `npm run lint`：**0 error / 0 warning**
+- `npm run format:check`：通过
+- `npm run build` / `npm run build:electron`：通过
+- `npm run e2e`：**20 passed / 1 failed** —— 失败项为 `e2e/bookshelf.spec.ts`
+  「侧栏默认折叠为图标轨，hover 后悬浮展开显示文字」（断言 rail 宽度 64px，
+  实测 200px）。**存量失败**：已在基线提交 `4b31cdb`（本轮任何改动之前）
+  复现同样失败；成因是 Playwright 鼠标初始位置 `(0,0)` 恰落在侧栏 rail 上 →
+  hover 态展开。本轮未触碰 sidebar，不宣称全绿。
+
+### 外部评审
+
+- Round 1（需求分析，provider=coding-bridge，SESSION_ID `fc616333-b74a-4923-ba81-24d3f11455cf`）：**NEEDS_CHANGES**，4 条风险全部处置（批次拆分 / 回滚策略 / 技术选型 / 测试成本评估）。
+- Round 2（实施计划，同 provider，SESSION_ID `c5b30aa1-f6b4-4e57-b11a-a68bac104501`）：**NEEDS_CHANGES**，10 条风险逐条处置 —— 其中 R1c 建议的 `@defer` 被采纳（F2 改用 `@defer`），R3 关于 F14 的四条边角逐条核实后**据此放弃 CDK 虚拟滚动**并改用 `content-visibility`，R11（实施中发现的评审建议「窗口锁共享」形态无法解除单窗口物理约束）被记录为有意偏离并改用独立 CF 窗口。
+
+## 验收结论
+
+- 9 项发现（F1-F4 / F10-F14）全部实施，每项均有同口径前后数据；未实施项（批次 ② F5-F9）已在「备注」中记录原因（含 F5 沿用既有 commit 已明确拒绝的先例）。
+- 全部改动在最终代码上重跑验证：单测 1223 全绿、lint 0/0、format:check 通过、双构建通过、e2e 20/21（失败项为存量）。
+- 未实测范围如实披露：真实 Electron 打包产物的冷启动计时、webview guest 存活、
+  CF 过盾端到端、3000 章真实书的目录端到端计时。
+- 归档位置：`docs/Task/Archive/2026-11/PERFORMANCE_OPTIMIZATION_ROUND3_PLAN.md`。
+- 终验评审：provider=coding-bridge，SESSION_ID `9960e164-ca30-435b-b416-a230365abe8d`，verdict **APPROVED**（3 条改进建议 + 4 条残留风险 → 已转 `docs/Task/Active/PERFORMANCE_ROUND3_FOLLOWUPS.md`）。
