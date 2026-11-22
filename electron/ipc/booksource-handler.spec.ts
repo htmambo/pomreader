@@ -236,6 +236,48 @@ describe('JSON 书源 channel（save → list → toggle → delete round-trip�
     }
   });
 
+  it('list-json 应等待启动迁移结束（migrationDone 未 resolve 前不返回）', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'booksource-migration-gate-'));
+    const fake = createFakeIpcMain();
+    let release: () => void = () => undefined;
+    const migrationDone = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    registerBookSourceHandler(
+      fake as unknown as Parameters<typeof registerBookSourceHandler>[0],
+      dir,
+      migrationDone,
+    );
+    try {
+      fs.mkdirSync(path.join(dir, 'booksources'), { recursive: true });
+      fs.writeFileSync(
+        path.join(dir, 'booksources', 'gated.json'),
+        JSON.stringify(makeJsonDoc()),
+        'utf-8',
+      );
+
+      let settled = false;
+      const pending = Promise.resolve(fake.handlers.get('pom:booksource-list-json')!({})).then(
+        (v) => {
+          settled = true;
+          return v;
+        },
+      );
+      // 让出若干微任务：此时迁移未结束，handler 必须仍在等待
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(settled).toBe(false);
+
+      release();
+      const list = (await pending) as Record<string, unknown>[];
+      expect(settled).toBe(true);
+      expect(list).toHaveLength(1);
+      expect(list[0].uuid).toBe('uuid-rt');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('save-json → list-json → toggle-json → delete-json 全流程', async () => {
     await call('pom:booksource-save-json', 'rt.json', makeJsonDoc(), null);
 

@@ -271,6 +271,17 @@ describe('DbService', () => {
     });
   }
 
+  /**
+   * 启动期迁移的全范围章节扫描（allDocs 的 startkey 恰为 'chapter:'）。
+   * 区别于按书查询（startkey 为 'chapter:{bookId}\u001F'）。
+   */
+  function migrationScanCalls(): unknown[][] {
+    return opCalls('allDocs').filter((c: unknown[]) => {
+      const opts = (c[1]?.[0] ?? {}) as { startkey?: string };
+      return opts.startkey === 'chapter:';
+    });
+  }
+
   describe('bookGet / IPC 错误路径', () => {
     it('bookGet 遇到非 404 错误应原样抛出', async () => {
       bridge.dbRequest.mockImplementationOnce(async () => ({
@@ -761,6 +772,72 @@ describe('DbService', () => {
       expect(Array.from(store.keys()).filter((k) => k.startsWith('chapter:b1')).length).toBe(2);
     });
 
+    it('迁移成功后写标记：第二次启动不再全库扫描章节前缀', async () => {
+      store.set('chapter:b1:0', makeLegacyChapter('b1', 0));
+      const svc2 = recreateService();
+      await svc2.chapterAll('b1');
+      expect(store.has('meta:migration:legacy-chapter-id-v1')).toBe(true);
+
+      bridge.dbRequest.mockClear();
+      const svc3 = recreateService();
+      await svc3.chapterAll('b1');
+      // 启动期迁移的全范围章节扫描（startkey 恰为 'chapter:'）不再发生
+      expect(migrationScanCalls()).toHaveLength(0);
+    });
+
+    it('迁移幂等：第二次启动不产生重复章节', async () => {
+      store.set('chapter:b1:0', makeLegacyChapter('b1', 0));
+      const svc2 = recreateService();
+      await svc2.chapterAll('b1');
+      const svc3 = recreateService();
+      const chs = await svc3.chapterAll('b1');
+      expect(chs).toHaveLength(1);
+      expect(chs[0].title).toBe('legacy ch0');
+      expect(Array.from(store.keys()).filter((k) => k.startsWith('chapter:b1')).length).toBe(1);
+    });
+
+    it('迁移读失败时不写标记（下次启动重试）', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        store.set('chapter:b1:0', makeLegacyChapter('b1', 0));
+        bridge.dbRequest.mockImplementation(async (op: string, args: unknown[]) => {
+          const opts = (args[0] ?? {}) as { keys?: string[] };
+          if (op === 'allDocs' && opts.keys) {
+            return { ok: false, error: { status: 500, name: 'io_error', message: 'read fail' } };
+          }
+          return defaultImpl(op, args);
+        });
+        const svc2 = recreateService();
+        await svc2.chapterAll('b1');
+        expect(store.has('meta:migration:legacy-chapter-id-v1')).toBe(false);
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it('迁移 bulkDocs 真失败时不写标记（下次启动重试旧 _id）', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        store.set('chapter:b1:0', makeLegacyChapter('b1', 0));
+        bridge.dbRequest.mockImplementation(async (op: string, args: unknown[]) => {
+          if (op === 'bulkDocs') {
+            return {
+              ok: true,
+              result: [
+                { error: true, status: 500, name: 'io_error', message: 'x', id: 'chapter:b1:0' },
+              ],
+            };
+          }
+          return defaultImpl(op, args);
+        });
+        const svc2 = recreateService();
+        await svc2.chapterAll('b1');
+        expect(store.has('meta:migration:legacy-chapter-id-v1')).toBe(false);
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
     it('不符合 chapter:{bookId}:{idx} 正则的旧文档应被清理而不迁移', async () => {
       store.set('chapter:weird', {
         _id: 'chapter:weird',
@@ -931,10 +1008,15 @@ describe('DbService', () => {
     it('迁移 allDocs 抛错应捕获并 console.warn，后续读操作不受影响', async () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
       try {
-        bridge.dbRequest.mockImplementationOnce(async () => ({
-          ok: false,
-          error: { status: 500, name: 'io_error', message: 'allDocs boom' },
-        }));
+        // 只让「启动期迁移的全范围扫描」（startkey 恰为 'chapter:'）失败；
+        // 按书查询（'chapter:{bookId}\u001F'）仍走默认实现，chapterAll 才能正常返回
+        bridge.dbRequest.mockImplementation(async (op: string, args: unknown[]) => {
+          const opts = (args[0] ?? {}) as { startkey?: string };
+          if (op === 'allDocs' && opts.startkey === 'chapter:') {
+            return { ok: false, error: { status: 500, name: 'io_error', message: 'allDocs boom' } };
+          }
+          return defaultImpl(op, args);
+        });
         const svc2 = recreateService();
         // 迁移失败被 catch；chapterAll 仍正常（空库返回 []）
         await expect(svc2.chapterAll('b1')).resolves.toEqual([]);

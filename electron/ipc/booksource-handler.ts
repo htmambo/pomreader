@@ -93,7 +93,11 @@ function readFileOrFail(p: string): string {
   return fs.readFileSync(p, 'utf-8');
 }
 
-export function registerBookSourceHandler(ipcMain: IpcMain, userData: string): void {
+export function registerBookSourceHandler(
+  ipcMain: IpcMain,
+  userData: string,
+  migrationDone: Promise<void> = Promise.resolve(),
+): void {
   fs.mkdirSync(primaryDir(userData), { recursive: true });
   fs.mkdirSync(draftsDir(userData), { recursive: true });
 
@@ -112,7 +116,11 @@ export function registerBookSourceHandler(ipcMain: IpcMain, userData: string): v
     'pom:booksource-list-json',
     'BooksourceListJsonArgs',
     BooksourceListJsonArgsSchema,
-    () => scanJsonDir(primaryDir(userData)),
+    async () => {
+      // 等启动迁移结束：否则可能读到未迁移的旧列表（.js 尚未转成 .json）
+      await migrationDone;
+      return scanJsonDir(primaryDir(userData));
+    },
   );
 
   // JSON 流式列表：立刻返回，setImmediate 后台扫描 + 分批推送到 renderer（ASSUMPTION-15；

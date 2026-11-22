@@ -965,9 +965,17 @@ export function tryConvertLegacySource(userData: string, fileName: string): JsCo
  * - pom:booksource-legacy-list：常驻扫描 booksources_legacy/
  * - pom:booksource-legacy-convert-try：单个 legacy .js 的只读转换尝试（详细原因供行内展示）
  */
-export function registerBookSourceMigrationHandlers(ipcMain: IpcMain, userData: string): void {
+export function registerBookSourceMigrationHandlers(
+  ipcMain: IpcMain,
+  userData: string,
+  migrationDone: Promise<void> = Promise.resolve(),
+): void {
   ipcMain.handle('pom:booksource-convert', () => migrateBookSources(userData));
-  ipcMain.handle('pom:booksource-migration-report', () => readMigrationReportOnce(userData));
+  ipcMain.handle('pom:booksource-migration-report', async () => {
+    // 等启动迁移结束：报告文件由迁移写入，提前读会拿到 null → 一次性告知丢失
+    await migrationDone;
+    return readMigrationReportOnce(userData);
+  });
   ipcMain.handle('pom:booksource-legacy-list', () => scanLegacyDir(userData));
   safeHandleWithMeta(
     ipcMain,

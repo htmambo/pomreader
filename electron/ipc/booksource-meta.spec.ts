@@ -186,6 +186,63 @@ describe('scanJsonDir（.json 书源扫描）', () => {
     expect(scanJsonDir(path.join(tmpDir, 'nonexistent'))).toEqual([]);
   });
 
+  it('未变更的目录第二次扫描应复用缓存（返回同一 meta 对象引用，未重新解析）', () => {
+    writeJson(tmpDir, 'a.json', makeJsonDoc());
+    const first = scanJsonDir(tmpDir);
+    expect(first).toHaveLength(1);
+
+    const second = scanJsonDir(tmpDir);
+    expect(second).toHaveLength(1);
+    expect(second[0].fileName).toBe('a.json');
+    // 同一引用 → 走的是缓存解析结果，而非重新读文件 + JSON.parse
+    expect(second[0]).toBe(first[0]);
+  });
+
+  it('文件被修改后应重新解析（缓存按 mtime+size 失效）', () => {
+    writeJson(tmpDir, 'a.json', makeJsonDoc());
+    expect(scanJsonDir(tmpDir)[0].name).toBe('测试源');
+
+    const doc = makeJsonDoc();
+    doc.name = '改名后的源';
+    // mtime 精度问题：显式推进 mtimeMs，保证缓存键必然变化
+    writeJson(tmpDir, 'a.json', doc);
+    const future = new Date(Date.now() + 5000);
+    fs.utimesSync(path.join(tmpDir, 'a.json'), future, future);
+
+    expect(scanJsonDir(tmpDir)[0].name).toBe('改名后的源');
+  });
+
+  it('文件被删除后应从结果与缓存中移除', () => {
+    writeJson(tmpDir, 'a.json', makeJsonDoc());
+    writeJson(tmpDir, 'b.json', makeJsonDoc());
+    expect(scanJsonDir(tmpDir)).toHaveLength(2);
+
+    fs.rmSync(path.join(tmpDir, 'b.json'));
+    const items = scanJsonDir(tmpDir);
+    expect(items).toHaveLength(1);
+    expect(items[0].fileName).toBe('a.json');
+  });
+
+  it('非书源 JSON（format 探针不命中）应被跳过且命中缓存', () => {
+    const file = path.join(tmpDir, 'other.json');
+    fs.writeFileSync(file, JSON.stringify({ hello: 'world' }), 'utf-8');
+    expect(scanJsonDir(tmpDir)).toEqual([]);
+
+    // 就地改成非法 JSON，但保持 size 与 mtime 不变：
+    // 若缓存生效则结果仍为空；若重新解析则会出现 rulesInvalid 条目
+    const st = fs.statSync(file);
+    fs.writeFileSync(file, '{"hello":"@@@@@"}', 'utf-8');
+    fs.utimesSync(file, st.atime, st.mtime);
+    expect(fs.statSync(file).size).toBe(st.size);
+    expect(scanJsonDir(tmpDir)).toEqual([]);
+  });
+
+  it('返回的 meta 为冻结对象（调用方无法就地改写污染缓存）', () => {
+    writeJson(tmpDir, 'a.json', makeJsonDoc());
+    const items = scanJsonDir(tmpDir);
+    expect(Object.isFrozen(items[0])).toBe(true);
+  });
+
   it('正常 doc 应映射出与历史 parseHeaderMeta 同构的 meta 字段', () => {
     writeJson(tmpDir, 'a.json', makeJsonDoc());
     const items = scanJsonDir(tmpDir);

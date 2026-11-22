@@ -124,14 +124,18 @@ app.whenReady().then(() => {
   registerFetchHandler(ipcMain);
   registerRenderHandler(ipcMain);
   registerExternalHandler(ipcMain);
-  // 存量 JS 书源启动迁移（方案 §4.2）：必须在书源 handler 注册（首次 scanJsonDir）前完成，
-  // 否则渲染端会先读到未迁移列表（竞态）；失败只告警不阻断启动
-  try {
-    migrateBookSources(userData);
-  } catch (err) {
-    console.warn('[booksource-migrate] 启动迁移失败（不阻断启动）:', err);
-  }
-  registerBookSourceHandler(ipcMain, userData);
+  // 存量 JS 书源启动迁移（方案 §4.2）：
+  //  - 改为**建窗之后**再跑：迁移是同步的（全文 readFileSync + JS 解析），
+  //    放在 createWindow 之前会把首屏整体推迟；放在之后则渲染进程可与迁移并行启动。
+  //  - 但列表与一次性迁移报告必须读到**迁移后**状态 → 用 migrationDone 门控两个 IPC 通道
+  //    （旧注释「必须在书源 handler 注册前完成，否则渲染端先读到未迁移列表」的因果并不成立：
+  //     scanJsonDir 只在 IPC invoke 时懒调用，注册期只做 mkdirSync）。
+  //  - 失败只告警不阻断启动（migrationDone 在 finally 中 resolve，渲染端照常启动）。
+  let resolveMigration: () => void = () => undefined;
+  const migrationDone = new Promise<void>((resolve) => {
+    resolveMigration = resolve;
+  });
+  registerBookSourceHandler(ipcMain, userData, migrationDone);
   registerBookSourceBundleHandler(ipcMain, userData, () => mainWindow);
   // 书源订阅自动更新（设计 §6，Phase 2）：调度在主进程，窗口最小化/后台仍运行；
   // 广播逐个窗口发（getAllWindows），will-quit 清 timer
@@ -140,7 +144,7 @@ app.whenReady().then(() => {
   );
   booksourceSubScheduler.start();
   app.on('will-quit', () => booksourceSubScheduler.stop());
-  registerBookSourceMigrationHandlers(ipcMain, userData);
+  registerBookSourceMigrationHandlers(ipcMain, userData, migrationDone);
   registerCoverHandler(ipcMain, userData);
   registerCfGuardHandler(ipcMain, () => mainWindow);
   registerAutoImport(ipcMain, userData, () => mainWindow);
@@ -155,6 +159,21 @@ app.whenReady().then(() => {
   // 自定义 UA 由渲染端设置页启动后推送（pom:set-fetch-ua）覆盖默认值
   applyUaEverywhere();
   createWindow(userData);
+
+  // 存量 JS 书源启动迁移：建窗之后再跑（setImmediate 让出当前事件循环一拍，
+  // 渲染进程得以并行启动），迁移本身是同步的 —— 对存量用户（booksources/ 下有 .js）
+  // 才产生实际开销，无 .js 时一次 readdir 即返回。
+  // 无论成败都在 finally 里 resolve migrationDone：失败时渲染端照常启动，
+  // 迁移报告文件未写出 → readMigrationReportOnce 返回 null → 渲染端不弹窗、不报错。
+  setImmediate(() => {
+    try {
+      migrateBookSources(userData);
+    } catch (err) {
+      console.warn('[booksource-migrate] 启动迁移失败（不阻断启动）:', err);
+    } finally {
+      resolveMigration();
+    }
+  });
 
   // 拦截所有 webContents（含 webview）的 window.open / target=_blank：
   // 阻止新窗弹窗，改为在当前 webContents 内跳转（原 vendor 兼容补丁 ③ 现代等价）

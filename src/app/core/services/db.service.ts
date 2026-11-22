@@ -95,6 +95,10 @@ const GROUP_PREFIX = 'group:';
 const META_PREFIX = 'meta:migration:';
 /** 章节正文拆分为独立文档的迁移标记 */
 const MIGRATION_CHAPTER_BODY_V1 = META_PREFIX + 'chapter-body-v1';
+/** 旧格式 chapter _id（`chapter:{bookId}:{idx}` 冒号分隔）迁移到新格式的完成标记。
+ *  没有它，每次冷启动都要对 `chapter:` 前缀做一次全范围扫描（O(全库章节总数)），
+ *  只为得出「零个遗留 id」这一结论 —— 20 本 × 751 章 ≈ 15,020 行 id+rev 过桥。 */
+const MIGRATION_LEGACY_ID_V1 = META_PREFIX + 'legacy-chapter-id-v1';
 /** bookId 与 chapter idx 之间的不可见分隔符。
  *  选 ASCII Unit Separator (0x1F)：不会出现在合法 bookId（UUID / 在线时间戳）中，
  *  避免类似 `bookA` / `bookA-extra` 在 `_id` 前缀上撞车。 */
@@ -755,18 +759,28 @@ export class DbService {
    */
   private async migrateLegacyChapterIds(): Promise<void> {
     try {
+      // 一次性守卫：标记存在即说明全库已无旧格式 _id，无需每次启动重扫。
+      // 幂等性依据：旧候选谓词是「_id 不含 CHAPTER_SEP」；迁移写入的新 _id 形如
+      // `chapter:{bookId}\u001F{idx}` 必含 CHAPTER_SEP → 不会被判为旧候选。
+      if (await this.isMigrated(MIGRATION_LEGACY_ID_V1)) return;
       // 只扫 id：allDocs 默认不返回 doc，避免把全库章节正文拉进内存
       const res = await this.db.allDocs({
         startkey: CHAPTER_PREFIX,
         endkey: CHAPTER_PREFIX + HIGH_CHAR,
         include_docs: false,
       });
+      // 空库：扫描成本为 0，不写标记（与正文迁移同款约定 —— 无需为此每次启动多探一次标记）
+      if (res.rows.length === 0) return;
       // 旧格式候选（_id 不含 Unit Separator）：先定位 id，再一次性批量取正文，
       // 请求数固定为 2，不随候选数增长（旧实现是逐个 get 往返）。
       const legacyIds = res.rows
         .filter((row) => !row.id.includes(CHAPTER_SEP))
         .map((row) => row.id);
-      if (legacyIds.length === 0) return;
+      // 无旧候选 = 迁移已完成 → 写标记，下次启动不再扫
+      if (legacyIds.length === 0) {
+        await this.markMigrated(MIGRATION_LEGACY_ID_V1);
+        return;
+      }
       const candRes = await this.db.allDocsByKeys<ChapterDoc>(legacyIds);
       const oldDocs = candRes.rows
         .map((row) => rowDoc(row) as StoredChapterDoc | null | undefined)
@@ -774,7 +788,11 @@ export class DbService {
           (d): d is StoredChapterDoc =>
             !!d && d.type === 'chapter' && !(d as { _deleted?: boolean })._deleted,
         );
-      if (oldDocs.length === 0) return;
+      // 候选存在但都不是合法旧章节文档 → 无需迁移，同样写标记
+      if (oldDocs.length === 0) {
+        await this.markMigrated(MIGRATION_LEGACY_ID_V1);
+        return;
+      }
 
       const migrated = oldDocs
         .map((doc): (ChapterDoc & { _rev?: string }) | null => {
@@ -797,7 +815,7 @@ export class DbService {
       }));
       // 显式联合类型（N6：替代 as unknown as 双重断言）
       // PouchDB bulkDocs 类型签名只接受 PutDocument[]，但删除需要传
-      // { _deleted: true } 文档，类型系统无法表达 put+remove 混合语义，cast 必要
+      // {_deleted: true} 文档，类型系统无法表达 put+remove 混合语义，cast 必要
       type MigrationBatch =
         (ChapterDoc & { _rev?: string }) | { _id: string; _rev: string; _deleted: true };
       const batch: MigrationBatch[] = [...tombstones, ...migrated];
@@ -806,12 +824,17 @@ export class DbService {
       // 仅记录非 409 失败（409 是并发冲突，下次启动会再尝试旧 _id → 幂等）
       const classified = classifyBulkResults(results);
       if (classified.fatal.length > 0) {
+        // 有真失败 → 旧 _id 文档仍在，下次启动必须重试 → 不写标记
         console.warn(
           '[DbService] legacy chapter migration partial failure:',
           classified.fatal.map((f) => ('id' in f ? f.id : 'unknown')),
         );
+        return;
       }
+      // 全量成功 → 写标记，下次启动不再全库扫描
+      await this.markMigrated(MIGRATION_LEGACY_ID_V1);
     } catch (e) {
+      // 抛错 → 不写标记（markMigrated 只在成功路径调用），下次启动重跑
       console.warn('[DbService] legacy chapter _id migration failed:', e);
     }
   }

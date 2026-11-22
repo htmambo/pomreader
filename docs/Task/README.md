@@ -5,6 +5,7 @@
 
 ## Active Tasks
 
+- [性能与速度优化 · 第三轮](Active/PERFORMANCE_OPTIMIZATION_ROUND3_PLAN.md) — 2026-11-22 在前两轮（2026-10 性能任务 + `f779992 perf(app)`）未覆盖的路径上继续优化：批次①冷启动（F1 旧 `_id` 迁移无标记→每次冷启动全库扫描 / F2 首屏静态导入把 30.5KB 封面模板拖进 main chunk / F3 `scanJsonDir` 每次全量重解析、渲染端 5 处独立调用 / F4 启动迁移同步阻塞建窗）+ 批次③主进程网络（F10 重定向超时预算放大 4 倍，最坏 240s / F11 隐藏渲染窗口全局互斥锁，CF 过盾独占 40s / F12 伪流式通道零消费方）+ 批次④微优化（F13 `localeCompare`→缓存 `Intl.Collator` / F14 目录面板 CDK 虚拟滚动）
 - [工程基线后续优化项](Active/ENGINEERING_BASELINE_FOLLOWUPS.md) — 2026-11-12 规范债收口任务外部审查确认为真实但超出范围的 3 项预存技术债：S-1 Sass `@import`→`@use` 迁移 / S-2 CSS 资源路径改相对路径 / S-3 CI lint 与 Playwright 安装并行化，各附触发条件与「本次不做」理由
 - [书源 JSON 规则化 — 二期及后续跟进项](Active/BOOKSOURCE_JSON_RULES_FOLLOWUPS.md) — 跟踪主方案（[2026-09-29 书源 JSON 规则化改造方案 v2.1](../Architecture/2026-09-29-BOOKSOURCE-JSON-RULES-PLAN.md)）v1 明确不做的 17 项（T-1..T-17，表达力扩展 / 引擎运行时 / 生态工具 / 机制验证），含触发条件与激活规则
   - 主方案 v2.1 已过两轮评审（17 条事实基线 + 结构白名单迁移判据 + 离线差分测试）；其中 T-12（导入导出 bundle）**前置未完成** —— [2026-09-28 导入导出设计](../Architecture/2026-09-28-BOOKSOURCE_IMPORT_EXPORT_DESIGN.md) 仍按旧 `.js` 契约，需先修订

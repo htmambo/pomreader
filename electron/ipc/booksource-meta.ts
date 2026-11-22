@@ -210,16 +210,44 @@ function jsonDocToMeta(
 }
 
 /**
+ * scanJsonDir 的解析结果缓存：目录 → (fileName → 缓存项)。
+ *
+ * 动机：scanJsonDir 对每个 `.json` 做**全文** readFileSync + JSON.parse + 结构校验，
+ * 全程同步阻塞 Electron 主线程；而渲染端有 5 处独立调用它（registry bootstrap /
+ * 列表页 / 调试页 / 测试页 / Legado 导入），每次都把全部书源重解析一遍。
+ *
+ * 失效策略：缓存键含 `mtimeMs + size` —— 书源文件一被编辑或重写，mtime 必然变化，
+ * 下次扫描即重新解析（不会出现「改完书源列表不更新」）。文件被删除则从缓存中移除。
+ *
+ * 缓存对象一律 `Object.freeze` —— 同一 meta 会被多次返回给不同调用方，
+ * 必须保证调用方无法就地改写污染缓存。
+ */
+interface CachedScanEntry {
+  mtimeMs: number;
+  size: number;
+  /** null = 非书源 JSON（format 探针不命中），扫描时跳过 */
+  meta: Record<string, unknown> | null;
+}
+
+const scanCache = new Map<string, Map<string, CachedScanEntry>>();
+
+/**
  * 扫描目录中的 `.json` 书源（BookSourceDoc），返回 BookSourceMeta[]（按 fileName 排序）。
  *
  * - enabled 直接取文档内 `enabled` 字段（JSON 源不用 `.enabled/.disabled` marker）
  * - 非书源 JSON 跳过：用 `format === 'pomreader.booksource'` 探针
  *   （与渲染端模型 isBookSourceDocLike 同款逻辑；迁移报告等文件虽不放这目录，防御仍要，R14）
  * - JSON.parse 失败 / 结构校验失败 / 必填规则为空 → 条目仍返回，置 rulesInvalid 原因摘要
+ * - 未变更的文件复用缓存解析结果（mtimeMs + size 比对），避免重复全文解析
  */
 export function scanJsonDir(dir: string): Record<string, unknown>[] {
-  if (!fs.existsSync(dir)) return [];
+  if (!fs.existsSync(dir)) {
+    scanCache.delete(dir);
+    return [];
+  }
   const out: Record<string, unknown>[] = [];
+  const prev = scanCache.get(dir);
+  const next = new Map<string, CachedScanEntry>();
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (!entry.isFile()) continue;
     if (path.extname(entry.name).toLowerCase() !== '.json') continue;
@@ -230,21 +258,32 @@ export function scanJsonDir(dir: string): Record<string, unknown>[] {
     } catch {
       continue;
     }
+    // 未变更 → 复用缓存（跳过 readFileSync + JSON.parse + 结构校验）
+    const hit = prev?.get(entry.name);
+    if (hit && hit.mtimeMs === stat.mtimeMs && hit.size === stat.size) {
+      if (hit.meta) out.push(hit.meta);
+      next.set(entry.name, hit);
+      continue;
+    }
     const content = fs.readFileSync(full, 'utf-8');
     let doc: unknown;
     try {
       doc = JSON.parse(content);
     } catch (err) {
-      out.push(
-        jsonDocToMeta(
-          {},
-          entry.name,
-          dir,
-          stat.size,
-          stat.mtimeMs,
-          `JSON 解析失败: ${(err as Error).message}`,
-        ),
+      const meta = jsonDocToMeta(
+        {},
+        entry.name,
+        dir,
+        stat.size,
+        stat.mtimeMs,
+        `JSON 解析失败: ${(err as Error).message}`,
       );
+      out.push(meta);
+      next.set(entry.name, {
+        mtimeMs: stat.mtimeMs,
+        size: stat.size,
+        meta: Object.freeze(meta),
+      });
       continue;
     }
     if (
@@ -252,7 +291,9 @@ export function scanJsonDir(dir: string): Record<string, unknown>[] {
       doc === null ||
       (doc as { format?: unknown }).format !== 'pomreader.booksource'
     ) {
-      continue; // 非书源 JSON（探针不命中）不进列表
+      // 非书源 JSON（探针不命中）不进列表；记入缓存避免每次扫描都重读全文
+      next.set(entry.name, { mtimeMs: stat.mtimeMs, size: stat.size, meta: null });
+      continue;
     }
     const d = doc as Record<string, unknown>;
     // 先套用 uuid/name 回退再校验：uuid/name 缺省不算 invalid（回退规则见 jsonDocToMeta）
@@ -262,8 +303,11 @@ export function scanJsonDir(dir: string): Record<string, unknown>[] {
       name: strOrNull(d.name) ?? entry.name.replace(/\.json$/i, ''),
     };
     const reason = validateBookSourceDocStructure(normalized);
-    out.push(jsonDocToMeta(d, entry.name, dir, stat.size, stat.mtimeMs, reason ?? undefined));
+    const meta = jsonDocToMeta(d, entry.name, dir, stat.size, stat.mtimeMs, reason ?? undefined);
+    out.push(meta);
+    next.set(entry.name, { mtimeMs: stat.mtimeMs, size: stat.size, meta: Object.freeze(meta) });
   }
+  scanCache.set(dir, next);
   out.sort((a, b) => String(a.fileName).localeCompare(String(b.fileName)));
   return out;
 }
