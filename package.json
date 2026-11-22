@@ -27,11 +27,17 @@
     "dev": "npm run build:ng-zorro-css && npm run build:db-window && concurrently -k -n web,ele \"ng serve --port 4200\" \"npm run watch:electron\" \"wait-on http://localhost:4200 && cross-env POM_DEV_URL=http://localhost:4200 electron .\"",
     "dev:file": "npm run build:ng-zorro-css && npm run build:db-window && node -e \"require('fs').rmSync('electron/www',{recursive:true,force:true})\" && concurrently -k -n web,ele \"ng build --watch --configuration development\" \"npm run watch:electron\" \"wait-on electron/www/browser/index.html && electron .\"",
     "dist": "npm run build && npm run build:electron && electron-builder && npm run verify:package",
-    "dist:linux": "npm run build && npm run build:electron && electron-builder --linux && npm run verify:package",
+    "dist:linux": "bash scripts/build-linux.sh",
+    "dist:linux:manjaro": "bash scripts/build-linux.sh --distro manjaro",
+    "dist:linux:deepin": "bash scripts/build-linux.sh --distro deepin",
+    "dist:linux:ubuntu": "bash scripts/build-linux.sh --distro ubuntu",
+    "dist:linux:generic": "bash scripts/build-linux.sh --distro linux",
+    "dist:linux:all": "bash scripts/build-linux.sh --distro all",
     "dist:mac": "bash scripts/build-mac.sh",
     "dist:mac:x64": "bash scripts/build-mac.sh --arch x64",
     "dist:mac:arm64": "bash scripts/build-mac.sh --arch arm64",
     "dist:mac:universal": "bash scripts/build-mac.sh --arch universal",
+    "dist:mac:all": "bash scripts/build-mac.sh --arch all",
     "verify:package": "node scripts/check-package-deps.ts",
     "convert:booksource": "node scripts/convert-booksource.ts"
   },
@@ -111,7 +117,8 @@
     "linux": {
       "target": [
         "tar.gz",
-        "pacman"
+        "pacman",
+        "deb"
       ],
       "category": "Office",
       "syncDesktopName": true,
@@ -160,6 +167,41 @@
         "nss",
         "pango",
         "systemd-libs",
+        "xdg-utils"
+      ]
+    },
+    "deb": {
+      "afterInstall": "electron/scripts/after-install.sh",
+      "packageCategory": "Office",
+      "recommends": [],
+      "depends": [
+        "libasound2 | libasound2t64",
+        "libatk-bridge2.0-0 | libatk-bridge2.0-0t64",
+        "libatk1.0-0 | libatk1.0-0t64",
+        "libatspi2.0-0 | libatspi2.0-0t64",
+        "libcairo2",
+        "libcups2 | libcups2t64",
+        "libdbus-1-3",
+        "libexpat1",
+        "libgbm1",
+        "libglib2.0-0 | libglib2.0-0t64",
+        "libgtk-3-0 | libgtk-3-0t64",
+        "libnotify4",
+        "libnspr4",
+        "libnss3",
+        "libpango-1.0-0",
+        "libpulse0",
+        "libudev1",
+        "libx11-6",
+        "libxcb1",
+        "libxcomposite1",
+        "libxcursor1",
+        "libxdamage1",
+        "libxext6",
+        "libxfixes3",
+        "libxkbcommon0",
+        "libxrandr2",
+        "hicolor-icon-theme",
         "xdg-utils"
       ]
     }

@@ -1,16 +1,21 @@
 #!/usr/bin/env bash
 #
-# scripts/build-mac.sh — 一键打包 macOS 应用，区分 Intel / Apple Silicon
+# scripts/build-mac.sh — 一键打包 macOS 应用，区分 Intel / Apple Silicon / Universal
 #
 # 用法：
-#   bash scripts/build-mac.sh                     # 默认：x64 + arm64 两份 dmg
-#   bash scripts/build-mac.sh --arch x64          # 只打 Intel
-#   bash scripts/build-mac.sh --arch arm64        # 只打 Apple Silicon (M1+)
+#   bash scripts/build-mac.sh                     # 默认：只打当前机器的架构
+#   bash scripts/build-mac.sh --arch x64          # 只打 Intel (amd64)
+#   bash scripts/build-mac.sh --arch arm64        # 只打 Apple Silicon (arm64, M1+)
 #   bash scripts/build-mac.sh --arch universal    # 只打 universal（单文件双架构，体积约 2 倍）
+#   bash scripts/build-mac.sh --arch all          # 三种全打：x64 + arm64 + universal
 #   bash scripts/build-mac.sh --skip-build        # 复用已有 electron/www + dist-electron，只重跑打包
-#   bash scripts/build-mac.sh --keep-going        # 某一架构失败后继续跑另一个（默认遇错即停）
+#   bash scripts/build-mac.sh --keep-going        # 某一架构失败后继续跑下一个（默认遇错即停）
 #
-# 产物（各架构独立目录，互不覆盖）：
+# 不带参数时：按当前机器的真实架构只打一份 —— Apple Silicon 出 arm64，Intel 出 x64。
+#   脚本会识别 Rosetta 转译（uname -m 报 x86_64 但 sysctl.proc_translated=1），
+#   此时按真实芯片算，即在 Rosetta 终端里跑默认也出 arm64 包。
+#
+# 产物（各架构独立目录，互不覆盖，文件名带 -mac-<arch> 后缀，分发时不会拿错）：
 #   release/mac-x64/pomreader-1.0.0-mac-x64.dmg
 #   release/mac-arm64/pomreader-1.0.0-mac-arm64.dmg
 #   release/mac-universal/pomreader-1.0.0-mac-universal.dmg
@@ -25,7 +30,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 OUT_ROOT="release"
-ALL_ARCHES=("x64" "arm64")
+ALL_ARCHES=("x64" "arm64" "universal")
 ARCHES=()
 SKIP_BUILD=0
 KEEP_GOING=0
@@ -62,15 +67,13 @@ while [ $# -gt 0 ]; do
       esac
       shift 2
       ;;
-    --arch=*)     ARCH_FLAG="${1#*=}"; set -- --arch "$ARCH_FLAG" "$@"; shift ;;
+    --arch=*)     ARCH_FLAG="${1#*=}"; shift; set -- --arch "$ARCH_FLAG" "$@" ;;
     --skip-build) SKIP_BUILD=1; shift ;;
     --keep-going) KEEP_GOING=1; shift ;;
     -h|--help)    usage; exit 0 ;;
     *)            die "未知参数 '$1'（-h 看用法）" ;;
   esac
 done
-
-[ ${#ARCHES[@]} -gt 0 ] || ARCHES=("${ALL_ARCHES[@]}")
 
 # ── 前置检查 ────────────────────────────────────────────────────────────────
 [ "$(uname -s)" = "Darwin" ] || die "macOS 打包只能在 macOS 上跑（当前 $(uname -s)）"
@@ -88,8 +91,11 @@ fi
 case "$HOST_ARCH" in
   x86_64|amd64) HOST_ELECTRON_ARCH="x64" ;;
   arm64|aarch64) HOST_ELECTRON_ARCH="arm64" ;;
-  *)            HOST_ELECTRON_ARCH="$HOST_ARCH" ;;
+  *) die "无法识别的宿主架构 '$HOST_ARCH'（仅支持 x64 / arm64）" ;;
 esac
+
+# 不带 --arch 时只打当前机器的架构（与 build-linux.sh 的默认一致）
+[ ${#ARCHES[@]} -gt 0 ] || ARCHES=("$HOST_ELECTRON_ARCH")
 
 step "环境"
 info "仓库      $ROOT"
@@ -121,6 +127,8 @@ else
 fi
 
 # ── 逐架构打包 ────────────────────────────────────────────────────────────
+TARGETS=()          # 架构名
+STATES=()           # ok | fail
 FAILED=()
 START_TS=$SECONDS
 
@@ -134,7 +142,9 @@ for arch in "${ARCHES[@]}"; do
         --publish never \
         -c.directories.output="$arch_out"; then
     ok "$arch 打包完成（$(( SECONDS - START_TS ))s 累计）"
+    TARGETS+=("$arch"); STATES+=("ok")
   else
+    TARGETS+=("$arch"); STATES+=("fail")
     if [ "$KEEP_GOING" -eq 1 ]; then
       warn "$arch 打包失败，继续下一个架构"
       FAILED+=("$arch")
@@ -144,19 +154,39 @@ for arch in "${ARCHES[@]}"; do
   fi
 done
 
+# ── 打包后校验（asar 运行时依赖闭包）────────────────────────────────────
+# 必须在打包之后跑：check-package-deps.ts 比对的是 app.asar 的实际内容，
+# 打包前跑校验的是上一轮的旧产物，验不到本次结果。
+# 全部架构都失败时本轮没有新产物，跳过校验，避免拿上轮残留的 asar 给出假信号。
+if [ ${#FAILED[@]} -gt 0 ] && [ ${#FAILED[@]} -eq ${#ARCHES[@]} ]; then
+  die "所有架构打包均失败，跳过产物校验"
+fi
+step "校验打包产物依赖闭包"
+npm run verify:package || die "打包产物依赖校验失败"
+
 # ── 产物清单 ──────────────────────────────────────────────────────────────
 step "产物清单"
-FOUND=0
-for arch in "${ARCHES[@]}"; do
-  shopt -s nullglob
-  for dmg in "$OUT_ROOT/mac-$arch"/*.dmg; do
-    FOUND=1
-    size="$(du -h "$dmg" | cut -f1)"
-    bin_arch="$(basename "$dmg" .dmg | sed -e 's/.*-mac-//')"
-    ok "$dmg  (${size}, mac-${bin_arch})"
-  done
+i=0
+while [ "$i" -lt ${#TARGETS[@]} ]; do
+  arch="${TARGETS[$i]}"
+  arch_out="$OUT_ROOT/mac-$arch"
+  summary=""
+  if [ "${STATES[$i]}" = "ok" ]; then
+    shopt -s nullglob
+    artifacts=("$arch_out"/*.dmg "$arch_out"/*.zip)
+    shopt -u nullglob
+    for artifact in "${artifacts[@]}"; do
+      summary="${summary:+$summary, }${artifact} ($(du -h "$artifact" | cut -f1))"
+    done
+  fi
+  summary="${summary:--}"
+  if [ "${STATES[$i]}" = "ok" ]; then
+    printf '  %s✓%s %-12s %s\n' "$C_GREEN" "$C_OFF" "$arch" "$summary"
+  else
+    printf '  %s✗%s %-12s %s\n' "$C_RED" "$C_OFF" "$arch" "$summary"
+  fi
+  i=$(( i + 1 ))
 done
-[ "$FOUND" -eq 1 ] || warn "没有产出 .dmg（见上方 electron-builder 日志）"
 
 if [ ${#FAILED[@]} -gt 0 ]; then
   printf '\n%s✗ 失败架构：%s%s\n' "$C_RED" "${FAILED[*]}" "$C_OFF" >&2

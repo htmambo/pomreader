@@ -18,7 +18,8 @@ npm run build
 #   • ng build            → electron/www/
 #   • electron            → release/linux-unpacked/（仅 dist 模式）
 # 完整 Electron 包：npm run dist → release/
-#   macOS 分架构一键打包（Intel + Apple Silicon）：npm run dist:mac
+#   macOS 分架构一键打包（默认只打当前机器架构）：npm run dist:mac
+#   Linux 多发行版一键打包（默认按当前发行版）：npm run dist:linux
 
 # 4. 单元测试（Vitest；含 src/ + electron/ 两侧单测）
 npm test
@@ -105,7 +106,7 @@ electron/
 
 e2e/                       # Playwright（5 个 spec；配置在仓库根 playwright.config.ts）
 fixtures/                  # 书源迁移测试样本：booksources/（脱敏 .js 样本，booksource-migrate.spec.ts 用）+ MANIFEST.md
-scripts/                   # 工具脚本：audit-booksources.ts（书源盘点，P0）+ e2e-*.cjs + check-package-deps.ts（打包依赖守卫）+ ng-zorro-css.ts（按组件生成 ng-zorro 样式）
+scripts/                   # 工具脚本：audit-booksources.ts（书源盘点，P0）+ e2e-*.cjs + check-package-deps.ts（打包依赖守卫）+ ng-zorro-css.ts（按组件生成 ng-zorro 样式）+ build-mac.sh / build-linux.sh（一键打包）
 docs/
 ├── Architecture/          # 设计稿（白虎阅读 v1.1）
 ├── Usage/                 # BOOKSOURCE_GUIDE / EXTENSION_GUIDE / COVER_CACHE
@@ -193,16 +194,21 @@ docs/
 
 ## 打包与发布
 
-### macOS（一键，区分 Intel / Apple Silicon）
+### macOS（一键，区分 Intel / Apple Silicon / Universal）
 
 ```bash
-npm run dist:mac              # 一键：Intel x64 + Apple Silicon arm64 各出一份 dmg
-npm run dist:mac:x64          # 只打 Intel
+npm run dist:mac              # 一键：只打当前机器的架构
+npm run dist:mac:x64          # 只打 Intel (amd64)
 npm run dist:mac:arm64        # 只打 Apple Silicon（M1/M2/M3/M4）
 npm run dist:mac:universal    # 只打 universal（单文件双架构，体积约 2 倍）
+npm run dist:mac:all          # 三种全打：x64 + arm64 + universal
 ```
 
-入口脚本 [`scripts/build-mac.sh`](scripts/build-mac.sh)：`ng build` + `build:electron`（两架构共用，**只跑一次**）→ 逐架构 `electron-builder --mac --<arch>`。
+入口脚本 [`scripts/build-mac.sh`](scripts/build-mac.sh)：`ng build` + `build:electron`（多架构共用，**只跑一次**）→ 逐架构 `electron-builder --mac --<arch>` → `verify:package` 校验 asar 依赖闭包。
+
+**不带参数只出当前机器的架构**：Apple Silicon 出 arm64，Intel 出 x64。脚本会识别 Rosetta 转译
+（`uname -m` 报 x86_64 但 `sysctl.proc_translated=1`），此时按真实芯片算 —— 在 Rosetta 终端里
+跑默认也出 arm64 包。与 Linux 侧 `npm run dist:linux` 的默认口径一致。
 
 产物按架构独立目录，互不覆盖；文件名带 `-mac-<arch>` 后缀，分发时不会拿错：
 
@@ -216,8 +222,13 @@ npm run dist:mac:universal    # 只打 universal（单文件双架构，体积�
 
 | 参数 | 作用 |
 |---|---|
+| `--arch <name>` | `x64` / `arm64` / `universal` / `all`，缺省当前机器架构 |
 | `--skip-build` | 复用已有 `electron/www` + `dist-electron`，只重跑打包（改图标/配置时省掉前端构建） |
 | `--keep-going` | 某架构失败后继续跑另一个（默认遇错即停） |
+
+> **必须在 macOS 上跑**：DMG 制作依赖 macOS 专有的 `sips`，universal 合并依赖
+> `@electron/universal`（同样只支持 darwin），代码签名/公证也仅 macOS 可用。
+> 脚本因此在开头硬性校验 `uname -s = Darwin`。
 
 **交叉编译**：electron-builder 按目标架构拉取对应 Electron 发行版，打包过程不执行目标二进制，因此 **Intel 机器可打 arm64、Apple Silicon 可打 x64**，无需对应真机。静态验架构（dmg 是压缩镜像，需先挂载；卷名由 electron-builder 生成，含版本号）：
 
@@ -233,11 +244,61 @@ hdiutil detach "/Volumes/白虎阅读 1.0.0-arm64"
 
 **签名**：当前 `build.mac` 未配 Developer ID，产物为未签名 + 未公证。接收方首次打开需右键 →「打开」，或 `xattr -cr /Applications/白虎阅读.app`。正式分发需补证书 `CSC_LINK` / `CSC_KEY_PASSWORD`（p12），公证 `APPLE_ID` / `APPLE_APP_SPECIFIC_PASSWORD` / `APPLE_TEAM_ID`。
 
+### Linux（一键，四个发行版目标）
+
+```bash
+npm run dist:linux              # 一键：自动识别当前发行版，只打当前架构
+npm run dist:linux:manjaro      # pacman 包（Manjaro / Arch 系）
+npm run dist:linux:deepin       # deb 包（Deepin）
+npm run dist:linux:ubuntu       # deb 包（Ubuntu）
+npm run dist:linux:generic      # 通用 tar.gz
+npm run dist:linux:all          # 以上全部
+```
+
+入口脚本 [`scripts/build-linux.sh`](scripts/build-linux.sh)（与 `build-mac.sh` 同构）：`ng build` + `build:electron` + `verify:package`（**所有目标共用，只跑一次**）→ 逐发行版 × 逐架构 `electron-builder --linux <target> --<arch>`。
+
+产物按发行版独立目录，互不覆盖：
+
+| 目标 | 输出目录 | 产物 | 安装 |
+|---|---|---|---|
+| manjaro | `release/linux-manjaro/` | `pomreader-1.0.0.pacman` | `sudo pacman -U release/linux-manjaro/*.pacman` |
+| deepin | `release/linux-deepin/` | `pomreader_1.0.0_amd64.deb` | `sudo apt install ./release/linux-deepin/*.deb` |
+| ubuntu | `release/linux-ubuntu/` | `pomreader_1.0.0_amd64.deb` | `sudo apt install ./release/linux-ubuntu/*.deb` |
+| linux | `release/linux-generic/` | `白虎阅读-1.0.0.AppImage` + `pomreader-1.0.0.tar.gz` | 直接运行 `.AppImage`（双击即用） |
+
+其它开关：
+
+| 参数 | 作用 |
+|---|---|
+| `--distro <name>` | `linux` / `manjaro` / `deepin` / `ubuntu` / `all`，缺省按 `/etc/os-release` 识别 |
+| `--arch <name>` | `x64` / `arm64` / `armv7l` / `ia32` / `all`，缺省当前架构 |
+| `--appimage` | 为 manjaro / deb 目标**也追加**一份 AppImage（通用 linux 目标默认已带） |
+| `--skip-build` | 复用已有 `electron/www` + `dist-electron`，只重跑打包（改图标/配置时省掉前端构建） |
+| `--keep-going` | 某目标失败后继续跑下一个（默认遇错即停） |
+
+**不带参数 = 直接产出当前系统可用的安装包**：脚本读 `/etc/os-release` 自动识别发行版，
+Manjaro/Arch 系 → `.pacman`（`pacman -U` 直接装）、Ubuntu/Deepin/Debian 系 → `.deb`
+（`apt install ./` 直接装）、其它发行版 → `.AppImage`（单文件，双击即跑，自带桌面项与全套图标）。
+通用目标里的 `.tar.gz` 只是裸目录（无桌面项、无图标、无 `/usr/bin` 软链），属于手动部署用的备用件。
+
+**deepin 与 ubuntu 产物相同**：两者同为 Debian 格式，依赖清单用 Debian 原生 `|` 替代语法同时覆盖
+Ubuntu 24.04+ 的 t64 改名与 Deepin / Debian 的旧包名，故同一份 `.deb` 两边通用；
+`--distro all` 时 deb 只构建一次，产物复制到两个目录。
+
+**依赖清单**在 `package.json`（`build.pacman.depends` / `build.deb.depends`）统一维护 —— electron-builder
+内置的默认清单含已下架的包（如 `http-parser`）且缺 `libasound2` / `libcups2`，直接用会在依赖解析阶段失败。
+取舍规则、Arch↔Debian 包名对照、t64 改名清单见
+[`docs/Usage/LINUX_PACKAGING.md`](docs/Usage/LINUX_PACKAGING.md)。
+
+**AppArmor（Ubuntu 24+ 启动硬需求）**：Ubuntu 24.04 起默认限制 unprivileged user namespace，
+未装 AppArmor profile 的 Electron 应用无法启动。打包时随包生成 profile，
+由安装脚本落到 `/etc/apparmor.d/pomreader` 并重新加载。
+
 ### 其它平台
 
 ```bash
 npm run dist        # 按当前宿主平台打包 → release/
-npm run dist:linux  # Linux：tar.gz + pacman
+npm run dist:win    # Windows（NSIS 安装包）
 ```
 
 ### 打包产物依赖校验

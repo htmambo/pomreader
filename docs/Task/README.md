@@ -13,6 +13,16 @@
 
 ### 2026-11
 
+- ✅ [Linux 多发行版一键打包脚本](Archive/2026-11/LINUX_MULTI_DISTRO_PACKAGING_PLAN.md) — Completed 2026-11-22
+  - 新增 `scripts/build-linux.sh`（对齐 `build-mac.sh` 形态）：`--distro linux|manjaro|deepin|ubuntu|all` / `--arch x64|arm64|armv7l|ia32|all` / `--appimage` / `--skip-build` / `--keep-going`；发行版按 `/etc/os-release` 自动识别
+  - `package.json` 新增 `build.deb`：28 项 Debian 依赖（7 处用 `|` 替代语法覆盖 Ubuntu 24.04+ 的 t64 改名，一份 .deb 同时通用于 Deepin / Ubuntu / Debian）+ `recommends: []`；`build.linux.target` 增补 `deb`
+  - 扩展 `electron/scripts/after-install.sh`：补齐 electron-builder 内置模板被**整体替换**后缺失的 4 项 —— `/usr/bin/<exe>` 软链、chrome-sandbox SUID 回退、**AppArmor profile 安装（Ubuntu 24+ 启动硬需求）**、desktop/MIME 库刷新；同一缺口在既有 pacman 包中一并修复
+  - **附带修复**：`scripts/build-mac.sh` 的 `--arch=` 等号形式解析 P0 缺陷（`set --` 把原参数重复入队，导致报「未知参数」），1 行改动
+  - 实测：四目标实跑通过（206s）；`dpkg-deb -I` 校验 Depends / Maintainer / Section / 无 Recommends；`ar x` + `tar xf` 校验 postinst 含 AppArmor 段且宏已替换；`tar -xf` 校验 `.PKGINFO` 26 行 depend；构造失败路径验证 `--keep-going` 的 FAIL 行 + exit 1
+  - 外部审查 3 轮：Round 1 需求（NEEDS_CHANGES，10 项）、Round 2 代码（NEEDS_CHANGES，7 项，含 1× P0）、Round 3 复审 **APPROVED**；全部风险逐条处置并留痕
+  - 文档：`docs/Usage/LINUX_PACKAGING.md` 重写（四目标产物表 / 一键用法 / 依赖推导与 t64 对照 / afterInstall 替换语义 / AppArmor / SUID 权衡 / 交叉架构验证边界）、`README.md` 打包章节同步
+  - 遗留（本期不做，已独立立项）：CI 多发行版 matrix / `MANIFEST.sha256` / xvfb 启动级 smoke test / 跨架构真机验证 / 版本号递增策略
+
 - ✅ [ESLint 存量报错修复与 Angular 控制流规范化](Archive/2026-11/LINT_ERRORS_FIX_PLAN.md) — Completed 2026-11-12
   - 控制流升级：`book-source-subscriptions.component.html` 迁移至 `@for (sub of subTable.data; track (sub.id ?? $index))`，清理组件冗余 `NgFor` import
   - 类型检查最佳实践：在 `eslint.config.js` 中将 TS 源码与 spec 规则块的 `no-undef` 显式关闭，完全交由 TypeScript 编译器负责全局与 `.d.ts` 静态检查，消灭 41 处 `no-undef` 误报
