@@ -11,7 +11,7 @@
 
 ## 一键打包
 
-入口脚本 [`scripts/build-linux.sh`](../../scripts/build-linux.sh)（与 macOS 的 `scripts/build-mac.sh` 同构）：
+入口脚本 [`scripts/build-release.sh`](../../scripts/build-release.sh)（macOS / Linux 单一入口，Linux 分支用 `--platform linux`）：
 
 ```bash
 npm run dist:linux              # 自动识别当前发行版，只打当前架构

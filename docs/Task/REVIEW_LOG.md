@@ -510,3 +510,60 @@
 
 **Review Loop 状态：CLOSE（4 轮，末轮两个 scope 均 APPROVED，未触发 10 轮上限）**
 
+
+---
+
+# 打包脚本合并（build-mac.sh + build-linux.sh → build-release.sh）
+
+任务文档：[Archive/2026-11/BUILD_SCRIPTS_MERGE_PLAN.md](Archive/2026-11/BUILD_SCRIPTS_MERGE_PLAN.md)
+
+## Round 1/10 — 2026-11-22（实施方案，kind=plan）
+
+**Provider:** coding-bridge
+**VERDICT:** ⚠️ **NEEDS_CHANGES**
+
+| # | Finding | 处置 |
+|---|---|---|
+| 1 | 「10 个 `dist:*` 入口」计数错误，应为 11 | ✅ 修正（6 linux + 5 mac），并补注 `npm run dist` 独立于该计数 |
+| 2 | 未说明 mac 的 `die` 与 linux 的 `return 1` 差异、全失败守卫的等效逻辑 | ✅ 补「行为兼容性对照表」d/e 行 |
+| 3 | 未说明扁平清单下 deb 复用的状态判定与传递机制 | ✅ 明确扁平清单只是「计划」，`DEB_SRC[arch]` 由 linux 平台函数组独占 |
+| 4 | 硬约束「打包行为不变」与统一 `print_results` / `usage()` 自相矛盾 | ✅ 补「显式豁免」E-1~E-4（E-4 明确不豁免目标标签） |
+| 5 | 验证策略不够具体 | ✅ 补验证矩阵 L1-L8 / M1-M8 / V1-V4 |
+
+## Round 2/10 — 2026-11-22（实施方案复审，kind=plan）
+
+**Provider:** coding-bridge（同 session 续）
+**VERDICT:** ⚠️ **NEEDS_CHANGES**（唯一必改项经实证复核为**误判**，不采纳）
+
+评审提 R3：`build-linux.sh` 的 deb 复用路径 `cp -f "${DEB_SRC[$arch]}/*.deb"` 把 glob 包在双引号内 → 不展开 → 复用路径恒 die → L2 前提不成立。
+
+**驳回依据（四条独立证据）**：
+
+1. `grep -n 'cp -f' scripts/build-linux.sh` → glob 实际在**引号外**（`"${DEB_SRC[$arch]}"/*.deb`）
+2. `git hash-object` == `git rev-parse HEAD:scripts/build-linux.sh`（`2db3cfc0…`）→ 工作区与 HEAD 一致
+3. `git log --follow` 仅 `4b31cdb` 一次命中，`git log -p` 显示该行**自创建起即为此形态**
+4. 实证：桩替换 electron-builder，真机跑 `build-linux.sh --distro all --arch x64 --skip-build` → exit 0，ubuntu 未调 builder，`cmp` 通过
+
+处置：不改验收标准；转而把「合并前基线输出」固化为 §4.0 的输出级 diff 验收手段。
+
+## Round 3/10 — 2026-11-22（实施方案复审，kind=plan）
+
+**Provider:** coding-bridge（同 session 续）
+**VERDICT:** ✅ **APPROVED**
+
+评审自述 Round 2 的引述「系转述失真」，逐条采信上述证据；确认 §4.0 基线比对是充分的等价证明手段，且硬约束 / 对照表 / 豁免 / 验证矩阵 / 验收标准 / 风险表交叉引用一致，无阻塞性不一致。
+
+## Round 1/10 — 2026-11-22（代码复审，kind=code）
+
+**Provider:** coding-bridge（新 session）
+**VERDICT:** ✅ **APPROVED**
+
+评审确认 bash 3.2 兼容、deb 复用顺序、失败语义、报错文案四项正确，扁平清单 `IFS='|'` 字段映射判定正确。提 2 条加固建议，**均已采纳**：`set -e` 下 `. /etc/os-release` 命令替换补 `|| true`；`report_details` 的 `nullglob` 状态用子 shell 隔离。
+
+### 实施过程中发现并修复的问题
+
+- **F-1** 扁平目标清单位置参数错位（`build_linux_target` 的 `$4`/`$5` 实为 exts/distro，arch 应为 `$6`）→ deb 复用分支从未触发、ubuntu 被重复构建。由 §4.0 输出级 diff 逮到。
+- **F-2** 架构报错文案分隔符不符（`x64 arm64 universal` vs 旧脚本 `x64 / arm64 / universal`）。
+- **F-3** `usage()` 用相对路径 `${BASH_SOURCE[0]}`，从子目录调用时读不到头部注释（潜在缺陷，npm 入口下不可见）。
+
+**Review Loop 状态：CLOSE（计划 3 轮 + 代码 1 轮，末轮均 APPROVED，未触发 10 轮上限）**

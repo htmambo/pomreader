@@ -106,7 +106,7 @@ electron/
 
 e2e/                       # Playwright（5 个 spec；配置在仓库根 playwright.config.ts）
 fixtures/                  # 书源迁移测试样本：booksources/（脱敏 .js 样本，booksource-migrate.spec.ts 用）+ MANIFEST.md
-scripts/                   # 工具脚本：audit-booksources.ts（书源盘点，P0）+ e2e-*.cjs + check-package-deps.ts（打包依赖守卫）+ ng-zorro-css.ts（按组件生成 ng-zorro 样式）+ build-mac.sh / build-linux.sh（一键打包）
+scripts/                   # 工具脚本：audit-booksources.ts（书源盘点，P0）+ e2e-*.cjs + check-package-deps.ts（打包依赖守卫）+ ng-zorro-css.ts（按组件生成 ng-zorro 样式）+ build-release.sh（一键打包，macOS / Linux 单一入口）
 docs/
 ├── Architecture/          # 设计稿（白虎阅读 v1.1）
 ├── Usage/                 # BOOKSOURCE_GUIDE / EXTENSION_GUIDE / COVER_CACHE
@@ -204,7 +204,7 @@ npm run dist:mac:universal    # 只打 universal（单文件双架构，体积�
 npm run dist:mac:all          # 三种全打：x64 + arm64 + universal
 ```
 
-入口脚本 [`scripts/build-mac.sh`](scripts/build-mac.sh)：`ng build` + `build:electron`（多架构共用，**只跑一次**）→ 逐架构 `electron-builder --mac --<arch>` → `verify:package` 校验 asar 依赖闭包。
+入口脚本 [`scripts/build-release.sh`](scripts/build-release.sh)（macOS / Linux 单一入口，macOS 分支用 `--platform mac`）：`ng build` + `build:electron`（多架构共用，**只跑一次**）→ 逐架构 `electron-builder --mac --<arch>` → `verify:package` 校验 asar 依赖闭包。
 
 **不带参数只出当前机器的架构**：Apple Silicon 出 arm64，Intel 出 x64。脚本会识别 Rosetta 转译
 （`uname -m` 报 x86_64 但 `sysctl.proc_translated=1`），此时按真实芯片算 —— 在 Rosetta 终端里
@@ -255,7 +255,7 @@ npm run dist:linux:generic      # 通用 tar.gz
 npm run dist:linux:all          # 以上全部
 ```
 
-入口脚本 [`scripts/build-linux.sh`](scripts/build-linux.sh)（与 `build-mac.sh` 同构）：`ng build` + `build:electron` + `verify:package`（**所有目标共用，只跑一次**）→ 逐发行版 × 逐架构 `electron-builder --linux <target> --<arch>`。
+入口脚本 [`scripts/build-release.sh`](scripts/build-release.sh)（macOS / Linux 单一入口，Linux 分支用 `--platform linux`）：`ng build` + `build:electron` + `verify:package`（**所有目标共用，只跑一次**）→ 逐发行版 × 逐架构 `electron-builder --linux <target> --<arch>`。
 
 产物按发行版独立目录，互不覆盖：
 

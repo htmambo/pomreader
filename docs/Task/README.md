@@ -14,6 +14,14 @@
 
 ### 2026-11
 
+- ✅ [打包脚本合并（build-mac.sh + build-linux.sh → build-release.sh）](Archive/2026-11/BUILD_SCRIPTS_MERGE_PLAN.md) — Completed 2026-11-22
+  - **合并动机**：两个脚本是同一条打包流水线的两份实现，已出现 4 处实质漂移（产物汇总两套写法、全失败守卫两套判据、结果表两套列宽、`--arch=` 解析两种形态）—— 改一次通用逻辑要改两处。**结构调整任务，无运行时性能收益，不计入性能优化账**
+  - **单一入口** `scripts/build-release.sh`（`--platform mac|linux`）：共享骨架（参数解析 / 前置检查 / 构建 / 打包循环 / 产物校验 / 结果报表 / 收尾）+ 平台函数组（mac 1 维 arch、linux 2 维 distro×arch + deb 跨发行版复用）；用「扁平目标清单」（`key|outdir|builder_args|exts|distro|arch`）吸收 1 维 / 2 维差异
+  - **11 个 `npm run dist:*` 命令与产物路径逐字不变**（`npm run dist` 未触及，其产物仍落 `release/` 根）；显式豁免 3 项终端辅助输出变更（mac 结果表样式 / usage 文案 / 提示措辞）
+  - **验证**：§4.0 合并前后**输出级 diff**（同一套桩，6 条 electron-builder 实参逐字一致、ubuntu 复用目标无 builder 调用）+ linux 真机实跑（`dist:linux:all` exit 0，四目标齐全，deepin/ubuntu 的 .deb 字节一致；`--appimage` 产出 pacman + AppImage 双产物）+ 失败路径三态（die / `--keep-going` / 全失败守卫跳过 `verify:package`）+ mac 分支桩 dry-run（bash 3.2 兼容、builder 实参、参数校验）；lint 0 error、format:check 通过、单测 76 文件 / 1223 用例全绿
+  - **未实测项**：真机 macOS 打包（dmg 产出 / Rosetta 识别 / 签名公证提示）；`--arch armv7l` 交叉构建 —— **上游限制**，Electron 44.4.5 不发布 linux-armv7l 预编译包（HTTP 404），脚本按预期报错退出，与旧脚本同构
+  - **外部评审 4 轮**：计划 Round 1/2 NEEDS_CHANGES（5 项 + 1 项误判，误判以 grep / git 哈希 / git 历史 / 实证运行四条证据驳回）、Round 3 APPROVED；代码 Round 1 APPROVED（2 条加固建议已采纳）。**实施中发现并修复 3 处**：扁平清单位置参数错位致 deb 复用失效 / 架构报错文案分隔符 / `usage()` 相对路径缺陷
+
 - ✅ [性能与速度优化 · 第三轮](Archive/2026-11/PERFORMANCE_OPTIMIZATION_ROUND3_PLAN.md) — Completed 2026-11-22
   - 批次①冷启动：F1 旧 chapter `_id` 迁移加完成标记（第二次启动全库扫描 1 次 → **0 次**）/ F2 首屏静态导入拆出（`@defer` + 动态 import）/ F3 `scanJsonDir` 加 `mtime+size` 缓存（渲染端 5 处重复全量解析 → 0）/ F4 存量 JS 书源迁移挪出建窗关键路径
   - 批次③主进程网络：F10 重定向链超时预算累计化（声明 15s 实为 60s、60s 实为 240s → 回到声明值）/ F11 CF 过盾改用独立隐藏窗口（不再阻塞普通渲染抓取）/ F12 删除伪流式书源列表死通道
@@ -33,6 +41,7 @@
   - 外部审查 3 轮：Round 1 需求（NEEDS_CHANGES，10 项）、Round 2 代码（NEEDS_CHANGES，7 项，含 1× P0）、Round 3 复审 **APPROVED**；全部风险逐条处置并留痕
   - 文档：`docs/Usage/LINUX_PACKAGING.md` 重写（四目标产物表 / 一键用法 / 依赖推导与 t64 对照 / afterInstall 替换语义 / AppArmor / SUID 权衡 / 交叉架构验证边界）、`README.md` 打包章节同步
   - 遗留（本期不做，已独立立项）：CI 多发行版 matrix / `MANIFEST.sha256` / xvfb 启动级 smoke test / 跨架构真机验证 / 版本号递增策略
+  - **现状注记（2026-11-22）**：`scripts/build-mac.sh` 与 `scripts/build-linux.sh` 已合并为单一入口 `scripts/build-release.sh`（`--platform mac|linux`），11 个 `npm run dist:*` 命令与产物路径逐字不变；详见 [打包脚本合并](Archive/2026-11/BUILD_SCRIPTS_MERGE_PLAN.md)。本条描述的是合并前的历史事实，不改写。
 
 - ✅ [ESLint 存量报错修复与 Angular 控制流规范化](Archive/2026-11/LINT_ERRORS_FIX_PLAN.md) — Completed 2026-11-12
   - 控制流升级：`book-source-subscriptions.component.html` 迁移至 `@for (sub of subTable.data; track (sub.id ?? $index))`，清理组件冗余 `NgFor` import
