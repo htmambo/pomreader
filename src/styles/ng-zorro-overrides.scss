@@ -363,8 +363,7 @@
     color: #c9c9c9;
   }
   /* nzContent 内表单 label（更亮，对应标题层级） */
-  .ant-modal .field-label,
-  .ant-modal .ant-form-item-label > label {
+  .ant-modal .field-label {
     color: #e0e0e0;
   }
   /* confirm 弹窗的图标背景 */

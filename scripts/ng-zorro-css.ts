@@ -81,9 +81,23 @@ async function overriddenClasses(): Promise<string[]> {
   return [...names].sort();
 }
 
-/** 组件样式里「定义」的类名（出现在规则体前的选择器里） */
+/**
+ * 组件样式里「定义」的类名（出现在规则体前的选择器里）。
+ *
+ * 旧实现用 `/\.cls[^{}]*\{/g` 只捕获**每组选择器的第一个类名**：
+ * `.a,\n.b,\n.c { … }` 会匹配到 `.a` 并把后面的 `.b/.c` 一并吞掉，
+ * 导致 `.ant-input-focused` / `.ant-menu-vertical-left` 这类出现在组内、
+ * 实际已进入产物的类名被误报为「不在产物里」。
+ *
+ * 现按「上一个 `}` 之后到 `{` 之前」切出选择器头，再逐个提取类名；
+ * 声明体（`{` 与 `}` 之间）不参与，避免把属性值里的点误判成类名。
+ */
 function definedClasses(css: string): Set<string> {
-  return new Set([...css.matchAll(/\.((?:ant|cdk)-[a-z0-9-]+)[^{}]*\{/g)].map((m) => m[1]));
+  const out = new Set<string>();
+  for (const rule of css.matchAll(/(?:^|[}])([^{}]*)\{/g)) {
+    for (const cls of rule[1].matchAll(/\.((?:ant|cdk)-[a-z0-9-]+)/g)) out.add(cls[1]);
+  }
+  return out;
 }
 
 /**
