@@ -7,6 +7,7 @@ import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzDropdownModule } from 'ng-zorro-antd/dropdown';
+import { NzMenuModule } from 'ng-zorro-antd/menu';
 import { NzModalService } from 'ng-zorro-antd/modal';
 // 类型引入（编译期擦除，不产生运行时依赖）：仅用于 nzOnOk 的实例类型标注。
 // 组件类本身走下面的动态 import，避免把整条导入弹窗链拖进首屏 bundle。
@@ -24,7 +25,7 @@ import { PageHeaderService } from '../../../core/services/page-header.service';
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-page-header',
-  imports: [NzTagModule, NzButtonModule, NzIconModule, NzDropdownModule],
+  imports: [NzTagModule, NzButtonModule, NzIconModule, NzDropdownModule, NzMenuModule],
   template: `
     <div class="page-header">
       @if (header.title() || header.subtitle()) {
