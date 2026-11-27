@@ -1,8 +1,14 @@
-import { app, BrowserWindow, ipcMain, net, protocol } from 'electron';
+import { app, BrowserWindow, ipcMain, net, protocol, session } from 'electron';
+import * as fs from 'fs';
 import * as path from 'path';
-import { pathToFileURL } from 'url';
+import { pathToFileURL, URL } from 'url';
+import { isPrivateHost } from './ipc/net-guard';
 import { registerFetchHandler } from './ipc/fetch-handler';
-import { applyUaEverywhere, migrateLegacySearchCookies } from './ipc/fetch-session';
+import {
+  applyUaEverywhere,
+  FETCH_PARTITION,
+  migrateLegacySearchCookies,
+} from './ipc/fetch-session';
 import { registerRenderHandler } from './ipc/render-handler';
 import { registerExternalHandler } from './ipc/external-handler';
 import { registerBookSourceHandler } from './ipc/booksource-handler';
@@ -99,6 +105,27 @@ function createWindow(userData: string): void {
     mainWindow.loadURL('file://' + indexPath);
   }
 
+  // 主窗口只承载本地应用页面：拒绝页面发起的任何外部导航
+  // （远程内容一律走 webview / 隐藏窗口，二者有各自的导航护栏）
+  // 开发模式按 **origin** 精确比较，不能用 startsWith（端口前缀会误命中 `:42000` 之类的地址）。
+  const devOrigin = (() => {
+    if (!devUrl) return null;
+    try {
+      return new URL(devUrl).origin;
+    } catch {
+      return null;
+    }
+  })();
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    let allowed = false;
+    try {
+      allowed = devOrigin ? new URL(url).origin === devOrigin : url.startsWith('file://');
+    } catch {
+      allowed = false;
+    }
+    if (!allowed) event.preventDefault();
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
     // 主窗口关闭后销毁残留的隐藏窗口（如 render-handler 的抓取窗口），
@@ -111,15 +138,48 @@ function createWindow(userData: string): void {
 
 app.whenReady().then(() => {
   const userData = app.getPath('userData');
+
+  // 权限收口：应用内的远程内容（万能搜索 webview / CF 过盾窗口 / 隐藏渲染窗口）
+  // 默认不允许摄像头、麦克风、地理位置、通知、剪贴板读取等能力；
+  // 仅放行复制到剪贴板与全屏播放这两个明确用到的能力。
+  const ALLOWED_PERMISSIONS = new Set(['clipboard-sanitized-write', 'fullscreen']);
+  const lockDownPermissions = (sess: Electron.Session): void => {
+    sess.setPermissionRequestHandler((_wc, permission, callback) => {
+      callback(ALLOWED_PERMISSIONS.has(permission));
+    });
+    sess.setPermissionCheckHandler((_wc, permission) => ALLOWED_PERMISSIONS.has(permission));
+  };
+  lockDownPermissions(session.defaultSession);
+  lockDownPermissions(session.fromPartition(FETCH_PARTITION));
+
   // pom-local://<encodeURIComponent(绝对路径)> —— 本地文件读取，仅限 userData 目录内
   // （防止 webview 内远程页面借该 scheme 读任意本地文件）。
   // 供 <img> 等 no-cors 子资源加载使用（fetch() 对自定义 scheme 另有 CORS 限制，页面侧不走 fetch）
+  // 路径校验先 realpath：userData 内若存在指向外部的符号链接，前缀比较会被绕过。
+  const realUserData = (() => {
+    try {
+      return fs.realpathSync(userData);
+    } catch {
+      return userData;
+    }
+  })();
   protocol.handle('pom-local', (request) => {
     const abs = path.resolve(decodeURIComponent(request.url.slice('pom-local://'.length)));
-    if (!abs.startsWith(userData + path.sep)) {
+    let real = abs;
+    try {
+      real = fs.realpathSync(abs);
+    } catch {
+      // 目标不存在时退化为「解析父目录 + 文件名」，仍可拦截目录级符号链接
+      try {
+        real = path.join(fs.realpathSync(path.dirname(abs)), path.basename(abs));
+      } catch {
+        return new Response('forbidden', { status: 403 });
+      }
+    }
+    if (real !== realUserData && !real.startsWith(realUserData + path.sep)) {
       return new Response('forbidden', { status: 403 });
     }
-    return net.fetch(pathToFileURL(abs).toString());
+    return net.fetch(pathToFileURL(real).toString());
   });
   registerFetchHandler(ipcMain);
   registerRenderHandler(ipcMain);
@@ -179,8 +239,14 @@ app.whenReady().then(() => {
   // 阻止新窗弹窗，改为在当前 webContents 内跳转（原 vendor 兼容补丁 ③ 现代等价）
   app.on('web-contents-created', (_e, wc) => {
     wc.setWindowOpenHandler(({ url }) => {
+      // 只允许在当前 webContents 内跳转到公网 http(s)；
+      // loadURL 不会触发 will-navigate / will-redirect，私网地址必须在这里拦下（SSRF）。
       if (/^https?:\/\//.test(url)) {
-        wc.loadURL(url);
+        try {
+          if (!isPrivateHost(new URL(url).hostname)) wc.loadURL(url);
+        } catch {
+          /* 非法 URL：拒绝 */
+        }
       }
       return { action: 'deny' };
     });

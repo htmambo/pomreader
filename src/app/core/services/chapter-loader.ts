@@ -217,6 +217,36 @@ export class ChapterLoader {
   }
 
   /**
+   * 释放某本书的**正文**内存缓存（保留章节元数据/目录）。
+   *
+   * 阅读页 ngOnDestroy 调用：`_chaptersCache` 是 root 单例，读过的每本书正文都会
+   * 常驻内存；长会话连续读多本大书会无限增长。释放正文后：
+   * - 目录仍可秒开（元数据不在 db 回读路径上）
+   * - 再次进入该书时 `loadChapterBody` 从 PouchDB 按章补回（本地读，毫秒级）
+   *
+   * 必须同时清掉 `_bodyFetched` 中该书的 key，否则「已读过一次」的幂等标记
+   * 会让正文永远不再回读。
+   */
+  releaseBook(bookId: string): void {
+    const list = this._chaptersCache().get(bookId);
+    if (!list) return;
+    const prefix = `${bookId}:`;
+    for (const key of [...this._bodyFetched]) {
+      if (key.startsWith(prefix)) this._bodyFetched.delete(key);
+    }
+    if (list.every((c) => !c.content)) return;
+    this._chaptersCache.update((m) => {
+      const next = new Map(m);
+      next.set(
+        bookId,
+        list.map((c) => (c.content ? { ...c, content: '' } : c)),
+      );
+      return next;
+    });
+    this.chaptersVersion.update((v) => v + 1);
+  }
+
+  /**
    * 测试入口：手动注入依赖（绕开 Angular DI 上下文 NG0203）。
    */
 

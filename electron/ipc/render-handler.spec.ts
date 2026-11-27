@@ -26,6 +26,9 @@ const { FakeBrowserWindow, loadCalls } = vi.hoisted(() => {
   class FakeWebContents {
     executeJavaScript = vi.fn(async (): Promise<string> => 'rendered');
     getURL = vi.fn((): string => 'https://example.com/');
+    /** 导航护栏（will-navigate / will-redirect）注册入口 */
+    on = vi.fn((_event: string, _listener: (...args: unknown[]) => void): void => undefined);
+    setWindowOpenHandler = vi.fn((): { action: string } => ({ action: 'deny' }));
   }
 
   class FakeBrowserWindow {

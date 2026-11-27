@@ -80,8 +80,18 @@ function processBuffer(txtDir: string, rawName: string, bytes: Buffer): AutoImpo
       .sort((a, b) => b.header.size - a.header.size);
     if (entries.length === 0) throw new Error('压缩包内未找到 .txt 文件');
     const entry = entries[0];
+    // 解压前按 header 声明的大小限流：MAX_TXT_BYTES 此前只约束下载字节数，
+    // zip bomb 可声明极小压缩体积、解压出数 GB 文本，entry.getData() 直接吃满内存。
+    if (entry.header.size > MAX_TXT_BYTES) {
+      throw new Error(`压缩包内文本过大（>${Math.round(MAX_TXT_BYTES / 1024 / 1024)}MB）`);
+    }
     displayName = sanitizeFileName(path.basename(entry.entryName));
-    text = decodeTxt(entry.getData());
+    const data = entry.getData();
+    // header.size 可被伪造/截断，解压后再按实际长度兜底一次
+    if (data.length > MAX_TXT_BYTES) {
+      throw new Error(`压缩包内文本过大（>${Math.round(MAX_TXT_BYTES / 1024 / 1024)}MB）`);
+    }
+    text = decodeTxt(data);
   } else if (ext === '.rar' || ext === '.7z') {
     throw new Error(`暂不支持 ${ext} 自动解压，请手动解压后通过「导入本地 TXT」导入`);
   } else {
@@ -150,6 +160,11 @@ export function registerAutoImport(
   /** 下载完成后的统一处理（解析失败回退保存对话框；中间产物不留存） */
   const handleFile = async (filePath: string, rawName: string): Promise<void> => {
     try {
+      // 下载链没有 safeNetRequest 的 maxBytes 保护，先在落盘文件上补一道大小上限
+      const stat = fs.statSync(filePath);
+      if (stat.size > MAX_TXT_BYTES) {
+        throw new Error(`文件过大（>${Math.round(MAX_TXT_BYTES / 1024 / 1024)}MB）`);
+      }
       const bytes = fs.readFileSync(filePath);
       notify(processBuffer(txtDir, rawName, bytes));
       try {

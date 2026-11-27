@@ -14,6 +14,12 @@
 
 ### 2026-11
 
+- ✅ [安全与性能硬化（2026-11 静态审查整改）](Archive/2026-11/SECURITY_PERF_HARDENING_PLAN.md) — Completed 2026-11-27
+  - 安全：fetch 重定向逐跳 SSRF 校验、`isPrivateHost` IPv6/6to4/NAT64/.localhost、window.open 与导航护栏、session 权限收口、openExternal 仅 http(s)、zip 解压上限、CSP、preload 通道白名单、pom-local realpath
+  - 性能：主题纹理改相对资源（打包态不再 404）、main chunk 268K→208K（动画异步）、章节正文缓存离开阅读页释放、书架视口外跳渲染
+  - 复审：security-reviewer 2 HIGH（manual 模式 3xx 走 `redirect` 事件、window.open 绕过）+ 1 MEDIUM 全部修复；code-reviewer APPROVED；lint 0、双端 tsc 0、1237 单测全绿、双构建通过
+  - 未验证：真实 Electron 窗口 CSP 运行态、动画首交互、万章书架滚动
+
 - ✅ [打包脚本合并（build-mac.sh + build-linux.sh → build-release.sh）](Archive/2026-11/BUILD_SCRIPTS_MERGE_PLAN.md) — Completed 2026-11-22
   - **合并动机**：两个脚本是同一条打包流水线的两份实现，已出现 4 处实质漂移（产物汇总两套写法、全失败守卫两套判据、结果表两套列宽、`--arch=` 解析两种形态）—— 改一次通用逻辑要改两处。**结构调整任务，无运行时性能收益，不计入性能优化账**
   - **单一入口** `scripts/build-release.sh`（`--platform mac|linux`）：共享骨架（参数解析 / 前置检查 / 构建 / 打包循环 / 产物校验 / 结果报表 / 收尾）+ 平台函数组（mac 1 维 arch、linux 2 维 distro×arch + deb 跨发行版复用）；用「扁平目标清单」（`key|outdir|builder_args|exts|distro|arch`）吸收 1 维 / 2 维差异

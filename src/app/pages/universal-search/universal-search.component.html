@@ -41,13 +41,7 @@
     }
     <!-- wvGen 变化即销毁重建 webview：首次加载卡死（dom-ready 未触发）时强制立即跳转 -->
     @for (gen of [wvGen()]; track gen) {
-    <webview
-      #webviewRef
-      [attr.src]="wvSrc"
-      allowpopups
-      partition="persist:fetch"
-      style="width: 100%; height: 100%"
-    ></webview>
+    <webview #webviewRef [attr.src]="wvSrc" partition="persist:fetch" style="width: 100%; height: 100%"></webview>
     }
   </div>
   } @else {

@@ -71,12 +71,40 @@ let cfChain: Promise<unknown> = Promise.resolve();
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 /**
+ * 远程内容窗口的导航护栏。
+ *
+ * `loadURL` 的入口 URL 已在调用方校验过，但**服务器重定向**由 Chromium 内部跟随，
+ * 不会再次经过 isPrivateHost —— 公网页面 302 到 `http://127.0.0.1:端口` 就成了 SSRF。
+ * 在 will-redirect / will-navigate 上统一拦截非 http(s) 与内网目标。
+ */
+export function guardRemoteNavigation(win: BrowserWindow): void {
+  const isSafeUrl = (url: string): boolean => {
+    try {
+      const u = new URL(url);
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+      return !isPrivateHost(u.hostname);
+    } catch {
+      return false;
+    }
+  };
+  win.webContents.on('will-navigate', (event, url) => {
+    if (!isSafeUrl(url)) event.preventDefault();
+  });
+  win.webContents.on('will-redirect', (event, url) => {
+    if (!isSafeUrl(url)) event.preventDefault();
+  });
+  // 页面 window.open 不走 will-navigate / will-redirect，必须单独禁止；
+  // 否则远程页可借全局 window-open 处理器把内网地址 loadURL 进来（SSRF 读取）。
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+}
+
+/**
  * 隐藏窗口工厂。
  *
  * session 持久化（与 net.request 抓取链路共享 persist:fetch，CF cookie 互通）。
  */
 function createHiddenWindow(): BrowserWindow {
-  return new BrowserWindow({
+  const win = new BrowserWindow({
     show: false,
     width: 1000,
     height: 800,
@@ -87,6 +115,8 @@ function createHiddenWindow(): BrowserWindow {
       partition: FETCH_PARTITION,
     },
   });
+  guardRemoteNavigation(win);
+  return win;
 }
 
 /** 渲染抓取专用隐藏窗口 */

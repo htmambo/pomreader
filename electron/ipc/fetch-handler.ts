@@ -1,10 +1,11 @@
-import { IpcMain, net, session } from 'electron';
+import { IpcMain, session } from 'electron';
 import { URL } from 'url';
-import { decodeBuffer, EncodingMode } from './encoding';
+import { EncodingMode } from './encoding';
 import { isCfChallenge } from './cf-guard';
-import { getFetchSession, getUA, defaultUA, setFetchUA, browserHeaders } from './fetch-session';
+import { getUA, defaultUA, setFetchUA } from './fetch-session';
 import { cfFetchHtmlHidden } from './render-handler';
 import { isPrivateHost } from './net-guard';
+import { safeNetRequest } from './safe-net';
 import {
   safeHandleWithMeta,
   FetchHtmlArgsSchema,
@@ -30,81 +31,34 @@ function validateUrl(rawUrl: string): boolean {
   return true;
 }
 
-function doFetch(rawUrl: string, mode: EncodingMode): Promise<FetchResult> {
-  return new Promise((resolve) => {
-    let settled = false;
-    const done = (r: FetchResult) => {
-      if (!settled) {
-        settled = true;
-        resolve(r);
-      }
-    };
-
-    // 共享持久 session：真 Chrome TLS 指纹 + cf_clearance cookie 与渲染/过盾链路共享；
-    // 类浏览器请求头 + Referer 留痕（模拟站内导航，非凭空深链请求）
-    const req = net.request({ url: rawUrl, redirect: 'follow', session: getFetchSession() });
-    for (const [k, v] of Object.entries(browserHeaders(rawUrl, { navigation: true }))) {
-      try {
-        req.setHeader(k, v);
-      } catch {
-        /* 个别受限 header 跳过 */
-      }
-    }
-
-    const chunks: Buffer[] = [];
-
-    req.on('response', (resp) => {
-      // 响应头在 response 事件即可读取（end 后 resp 仍可访问，但提前归一化供 CF 判定）
-      const status = resp.statusCode;
-      const headers: Record<string, string> = {};
-      for (const [k, v] of Object.entries(resp.headers)) {
-        if (typeof v === 'string') headers[k.toLowerCase()] = v;
-        else if (Array.isArray(v)) headers[k.toLowerCase()] = v.join(', ');
-      }
-      let size = 0;
-      resp.on('data', (c: Buffer) => {
-        size += c.length;
-        if (size > MAX_BYTES) {
-          try {
-            req.abort();
-          } catch {
-            /* noop */
-          }
-          done({ error: 'parse-failed' });
-          return;
-        }
-        chunks.push(c);
-      });
-      resp.on('end', () => {
-        try {
-          const buf = Buffer.concat(chunks as Uint8Array[]);
-          const html = decodeBuffer(buf, mode, resp.headers);
-          if (isCfChallenge(status, headers, html.slice(0, 4096))) {
-            done({ error: 'cf-challenge' });
-            return;
-          }
-          done({ html });
-        } catch {
-          done({ error: 'parse-failed' });
-        }
-      });
+/**
+ * 统一走 safeNetRequest：
+ * - `redirect:'manual'` + 每跳重新 `isPrivateHost` 校验 → 堵住「公网 URL 302 到内网」的 SSRF 绕过
+ * - 整条重定向链共享一份绝对 deadline（超时预算累计，不再每跳重置）
+ * - 共享 persist:fetch session + 类浏览器请求头（与原实现一致）
+ *
+ * 错误语义保持向后兼容：timeout / parse-failed / invalid-url 原样透传，
+ * 其余网络错误（DNS / 连接失败等）映射为 source-unavailable。
+ */
+async function doFetch(rawUrl: string, mode: EncodingMode): Promise<FetchResult> {
+  try {
+    const res = await safeNetRequest(rawUrl, {
+      timeoutMs: FETCH_TIMEOUT_MS,
+      maxBytes: MAX_BYTES,
+      encoding: mode,
+      accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     });
-
-    req.on('error', () => done({ error: 'source-unavailable' }));
-
-    const timer = setTimeout(() => {
-      try {
-        req.abort();
-      } catch {
-        /* noop */
-      }
-      done({ error: 'timeout' });
-    }, FETCH_TIMEOUT_MS);
-
-    req.on('close', () => clearTimeout(timer));
-
-    req.end();
-  });
+    if (isCfChallenge(res.status, res.headers, res.body.slice(0, 4096))) {
+      return { error: 'cf-challenge' };
+    }
+    return { html: res.body };
+  } catch (e) {
+    const msg = (e as Error)?.message ?? '';
+    if (msg === 'timeout' || msg === 'parse-failed' || msg === 'invalid-url') {
+      return { error: msg };
+    }
+    return { error: 'source-unavailable' };
+  }
 }
 
 export function registerFetchHandler(ipcMain: IpcMain): void {

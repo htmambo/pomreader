@@ -46,7 +46,7 @@
 } @else if (visibleBooks().length > 0) {
 <div nz-row [nzGutter]="[16, 16]">
   @for (book of visibleBooks(); track book.id) {
-  <div nz-col nzXs="12" nzSm="8" nzMd="6" nzLg="4" nzXl="3">
+  <div nz-col nzXs="12" nzSm="8" nzMd="6" nzLg="4" nzXl="3" class="book-cell">
     <app-book-card
       [book]="book"
       [selectMode]="selectMode()"

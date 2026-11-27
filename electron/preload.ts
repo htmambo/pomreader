@@ -3,6 +3,9 @@ import { contextBridge, ipcRenderer } from 'electron';
 // 本地路径 → pom-local:// URL：HMR 页面（http origin）无法加载 file:// 子资源，
 // 本地缓存文件（封面等）统一走自定义 scheme（主进程 protocol.handle，仅限 userData 目录）。
 // 路径整体 encodeURIComponent，主进程 decode 后还原，无需关心保留字符。
+/** 渲染进程允许订阅的主进程广播通道（新增广播时需同步在此登记） */
+const ALLOWED_EVENT_CHANNELS = new Set(['pom:booksource-updated', 'pom:auto-import-detected']);
+
 const toFileSrc = (filePath: string): string => {
   const normalized = filePath.replace(/\\/g, '/');
   const withSlash = normalized.startsWith('/') ? normalized : `/${normalized}`;
@@ -54,8 +57,12 @@ contextBridge.exposeInMainWorld('pomAPI', {
     ipcRenderer.invoke('pom:power-blocker-set', active),
 
   // ── 流式事件订阅（ASSUMPTION-15：先 on 注册再 invoke，避免漏事件） ──
-  /** 订阅主进程推送事件；返回取消订阅函数 */
+  /** 订阅主进程推送事件；返回取消订阅函数（仅白名单通道，缩小暴露面） */
   on: (channel: string, listener: (...args: any[]) => void): (() => void) => {
+    if (!ALLOWED_EVENT_CHANNELS.has(channel)) {
+      console.warn(`[preload] blocked subscription to channel: ${channel}`);
+      return () => undefined;
+    }
     const wrapped = (_e: unknown, ...args: unknown[]): void => listener(...args);
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);

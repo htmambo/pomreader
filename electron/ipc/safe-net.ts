@@ -51,7 +51,9 @@ export interface SafeNetResult {
 
 const DEFAULT_MAX = 8 * 1024 * 1024;
 const DEFAULT_TIMEOUT = 15000;
-const MAX_REDIRECTS = 3;
+// 每跳都会重新做 SSRF 校验，跳数本身不构成安全边界；总耗时由 deadline 兜底。
+// 取 10 接近浏览器默认（~20），避免正常的 CDN / http→https 多级跳转被判 redirect-loop。
+const MAX_REDIRECTS = 10;
 
 /** 检查 URL 是否应绕过代理（bypass 列表命中 — 大小写不敏感） */
 function shouldBypassProxy(rawUrl: string, bypass?: string[]): boolean {
@@ -164,6 +166,9 @@ async function followRedirect(
       if (r.ok) resolve(r.resp);
       else reject(new Error(r.error));
     };
+    // 主动中止标记：重定向 / 超时 abort 后，error 事件不应被当作真实网络错误上报
+    let aborted = false;
+    let redirecting = false;
 
     // 直连走抓取共享 session（persist:fetch，CF cookie 互通）；代理 session 在顶层 await（executor 标 async 后可 await）
     let requestSession: ReturnType<typeof electronSession.fromPartition> | undefined =
@@ -210,41 +215,53 @@ async function followRedirect(
     }
 
     const chunks: Buffer[] = [];
+    /**
+     * 处理一次 3xx：中止本跳（**不**调用 request.followRedirect），
+     * 递归前重新做 URL 与 SSRF 校验，并沿用同一条 deadline（逐跳用剩余预算）。
+     */
+    const handleRedirect = (nextUrlRaw: string | undefined): void => {
+      redirecting = true;
+      aborted = true;
+      try {
+        req.abort();
+      } catch {
+        /* noop */
+      }
+      if (depth >= MAX_REDIRECTS) {
+        done({ ok: false, error: 'redirect-loop' });
+        return;
+      }
+      if (!nextUrlRaw) {
+        done({ ok: false, error: 'redirect-missing-location' });
+        return;
+      }
+      let resolved: string;
+      try {
+        resolved = new URL(nextUrlRaw, rawUrl).toString();
+      } catch {
+        done({ ok: false, error: 'redirect-invalid-url' });
+        return;
+      }
+      followRedirect(resolved, options, depth + 1, deadline).then(
+        (resp) => done({ ok: true, resp }),
+        (e) => done({ ok: false, error: (e as Error).message }),
+      );
+    };
+
+    // ⚠️ Electron 语义：redirect:'manual' 时 3xx **不会**触发 response；
+    // 而是触发 redirect 事件，且未在事件内同步调用 request.followRedirect 即取消本跳。
+    // 因此这里是唯一可靠的重定向入口（旧实现只在 response 里判 3xx，实际是死代码）。
+    req.on('redirect', (_statusCode, _method, redirectUrl) => {
+      handleRedirect(redirectUrl);
+    });
+
     req.on('response', (resp) => {
       const status = resp.statusCode;
-      // 处理 3xx 重定向：手动跟踪，递归前 isPrivateHost 校验
+      // 防御：若某版本 Electron 仍以 response 交付 3xx，走同一套逐跳校验
       if (status >= 300 && status < 400) {
-        aborted = true; // 标记主动 abort,避免 error 事件误报
-        try {
-          req.abort();
-        } catch {
-          /* noop */
-        }
-        if (depth >= MAX_REDIRECTS) {
-          done({ ok: false, error: 'redirect-loop' });
-          return;
-        }
         const location = (resp.headers.location || resp.headers.Location) as
           string | string[] | undefined;
-        const nextUrl = Array.isArray(location) ? location[0] : location;
-        if (!nextUrl) {
-          done({ ok: false, error: 'redirect-missing-location' });
-          return;
-        }
-        // 解析相对 URL（location 可能为相对路径）
-        let resolved: string;
-        try {
-          resolved = new URL(nextUrl, rawUrl).toString();
-        } catch {
-          done({ ok: false, error: 'redirect-invalid-url' });
-          return;
-        }
-        // 递归前不重新校验超时 —— 但**沿用同一条 deadline**（逐跳用剩余预算），
-        // 保证整条重定向链的总耗时不超过调用方声明的 timeoutMs
-        followRedirect(resolved, options, depth + 1, deadline).then(
-          (resp) => done({ ok: true, resp }),
-          (e) => done({ ok: false, error: (e as Error).message }),
-        );
+        handleRedirect(Array.isArray(location) ? location[0] : location);
         return;
       }
       let size = 0;
@@ -281,9 +298,8 @@ async function followRedirect(
       });
     });
 
-    let aborted = false; // 标记是否主动 abort(redirect manual 模式),防止 abort 后 error 事件被当真错误上报
     req.on('error', (err) => {
-      if (aborted) return; // 主动 abort 是预期行为,不报错
+      if (aborted || redirecting) return; // 主动 abort（重定向 / 超时）是预期行为，不报错
       // Round 12: 透传原始 error 信息(原统一归类为 'source-unavailable' 掩盖了 DNS/连接/超时等真实错误)
       // err.message 通常是 'net::ERR_NAME_NOT_RESOLVED' / 'net::ERR_CONNECTION_REFUSED' / 'net::ERR_INTERNET_DISCONNECTED' 等
       const msg = (err as { message?: string })?.message ?? 'source-unavailable';

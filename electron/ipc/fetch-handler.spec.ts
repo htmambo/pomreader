@@ -328,10 +328,10 @@ describe('pom:fetch-html', () => {
     await flush();
     const req = pendingRequests[0];
 
-    // 请求构造：跟随重定向 + 共享 fetch session + 类浏览器头
+    // 请求构造：手动跟随重定向（逐跳 SSRF 校验）+ 共享 fetch session + 类浏览器头
     expect(lastRequestOpts).toMatchObject({
       url: 'https://example.com/book/1',
-      redirect: 'follow',
+      redirect: 'manual',
     });
     expect(req.ended).toBe(true);
     expect(req.headers['User-Agent']).toMatch(/^Mozilla\/5\.0 /);
@@ -345,6 +345,41 @@ describe('pom:fetch-html', () => {
       Buffer.from('<h1>第一章</h1>'),
     );
     await expect(p).resolves.toEqual({ html: '<h1>第一章</h1>' });
+  });
+
+  it('SSRF 回归：302 跳转到内网地址应被拒绝，且不发起第二跳请求', async () => {
+    const p = ipc.invoke('pom:fetch-html', 'https://example.com/jump') as Promise<{
+      error?: string;
+    }>;
+    await flush();
+    const first = pendingRequests[0];
+    // 第一跳返回 302 → safe-net 递归前重新校验 isPrivateHost，直接拒绝
+    // （redirect:'manual' 下 Electron 通过 redirect 事件交付 3xx，不是 response）
+    first.emit('redirect', 302, 'GET', 'http://127.0.0.1:8080/x', {});
+    await flush();
+
+    await expect(p).resolves.toEqual({ error: 'invalid-url' });
+    expect(pendingRequests).toHaveLength(1);
+  });
+
+  it('302 跳转到公网地址应跟随并返回最终响应', async () => {
+    const p = ipc.invoke('pom:fetch-html', 'https://example.com/jump-ok') as Promise<{
+      html?: string;
+      error?: string;
+    }>;
+    await flush();
+    pendingRequests[0].emit('redirect', 302, 'GET', 'https://example.com/final', {});
+    await flush();
+    expect(pendingRequests).toHaveLength(2);
+    expect(lastRequestOpts).toMatchObject({ url: 'https://example.com/final' });
+
+    respond(
+      pendingRequests[1],
+      200,
+      { 'content-type': 'text/html; charset=utf-8' },
+      Buffer.from('<p>ok</p>'),
+    );
+    await expect(p).resolves.toEqual({ html: '<p>ok</p>' });
   });
 
   it('mode=gbk 应对 gbk 字节流正确解码（覆盖 charset 声明缺失场景）', async () => {

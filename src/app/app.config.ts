@@ -6,7 +6,7 @@ import {
 } from '@angular/core';
 import { provideRouter, withComponentInputBinding, withHashLocation } from '@angular/router';
 import { provideHttpClient, withXhr } from '@angular/common/http';
-import { provideAnimations } from '@angular/platform-browser/animations';
+import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideNzI18n, zh_CN } from 'ng-zorro-antd/i18n';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { NzContextMenuService } from 'ng-zorro-antd/dropdown';
@@ -63,7 +63,7 @@ export const appConfig: ApplicationConfig = {
     provideZonelessChangeDetection(),
     provideRouter(routes, withComponentInputBinding(), withHashLocation()),
     provideHttpClient(withXhr()),
-    provideAnimations(),
+    provideAnimationsAsync(),
     provideNzI18n(zh_CN),
     importProvidersFrom(FormsModule),
     NzModalService, // ng-zorro 18 NzModalService 不自动 providedIn:'root'，需显式提供

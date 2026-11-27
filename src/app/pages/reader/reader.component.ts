@@ -543,6 +543,9 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.destroyed = true;
+    // 释放当前书正文内存缓存（root 单例，不释放会随阅读本数持续增长）
+    const bookId = this.reader.currentBookId();
+    if (bookId) this.books.releaseChapterContents(bookId);
     this.powerBlocker.release();
     this.scrollEl?.removeEventListener('scroll', this.onScroll);
     this.resizeObserver?.disconnect();

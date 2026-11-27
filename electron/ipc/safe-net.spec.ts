@@ -75,16 +75,15 @@ vi.mock('electron', () => ({
         const plan = plans.get(opts.url);
         if (!plan) return;
         clock += plan.delay;
-        const resp = new FakeResponse(
-          plan.status,
-          plan.location ? { location: plan.location } : {},
-        );
-        req.emit('response', resp);
-        // 3xx 由调用方 abort 后递归；非 3xx 才走 body 流程
-        if (plan.status < 300 || plan.status >= 400) {
-          resp.emit('data', Buffer.from('body', 'utf-8'));
-          resp.emit('end');
+        if (plan.status >= 300 && plan.status < 400) {
+          // 真实 Electron 语义：redirect:'manual' 时 3xx 走 redirect 事件（不触发 response）
+          req.emit('redirect', plan.status, 'GET', plan.location ?? '', {});
+          return;
         }
+        const resp = new FakeResponse(plan.status, {});
+        req.emit('response', resp);
+        resp.emit('data', Buffer.from('body', 'utf-8'));
+        resp.emit('end');
       };
       return req;
     }),

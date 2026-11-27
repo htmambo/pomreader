@@ -2,6 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <!-- 安全基线：禁止远程脚本 / eval / object；file: 显式放行以兼容打包态 file:// 与
+         Angular 构建产物的内联脚本（script/style 的 unsafe-inline 仅用于本地构建产物）。
+         图片/字体额外允许 data: 与 pom-local:（封面缓存）。 -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' file:; script-src 'self' file: 'unsafe-inline'; style-src 'self' file: 'unsafe-inline'; img-src 'self' file: data: blob: pom-local: https: http:; font-src 'self' file: data:; connect-src 'self' file: ws: wss: http: https:; media-src 'self' file: blob:; worker-src 'self' file: blob:; object-src 'none'; base-uri 'self' file:; frame-src 'self' file: https: http:"
+    />
     <title>白虎阅读</title>
     <!-- base href 留空 = 当前文档 URL（Angular 推荐用于 file:// 协议）。
        与 "./" 不同：file:// + "./" 在某些 Chromium 版本被解析为 file:/// 协议根，

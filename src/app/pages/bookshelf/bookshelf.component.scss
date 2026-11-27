@@ -5,6 +5,34 @@
   margin-bottom: 16px;
 }
 
+/* 视口外的书卡跳过布局与绘制（目录面板同款策略）。
+   占位高度随栅格断点近似（封面 5/7 + 文案）；`auto` 会在首次渲染后记住真实高度，
+   因此占位值只影响首屏之外的第一轮滚动，不追求逐像素精确。 */
+.book-cell {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 330px;
+}
+@media (min-width: 576px) {
+  .book-cell {
+    contain-intrinsic-size: auto 300px;
+  }
+}
+@media (min-width: 992px) {
+  .book-cell {
+    contain-intrinsic-size: auto 280px;
+  }
+}
+@media (min-width: 1200px) {
+  .book-cell {
+    contain-intrinsic-size: auto 320px;
+  }
+}
+@media (min-width: 1600px) {
+  .book-cell {
+    contain-intrinsic-size: auto 360px;
+  }
+}
+
 .chips {
   display: flex;
   align-items: center;

@@ -22,9 +22,8 @@
   **为何本次不做**：属预存问题且与本轮整改主题无关；`@use` 语义与 `@import` 不同（创建命名空间、不泄漏变量），需逐文件核对 mixin/变量导出，机械替换有风险。
   **触发条件**：Dart Sass 3.0 发布前安排独立任务。
 
-- [ ] **S-2 CSS 资源路径改相对路径**：`reader.component.scss` 与 `src/styles.scss` 中的 `url(/assets/...)` 为域根绝对路径，若未来部署到子路径（如 `https://example.com/myapp/`）会 404。
-  **为何本次不做**：迁移前即为绝对路径，非本轮引入；且项目当前为 Electron `file://` + 本地开发服务器双形态部署，无子路径场景。
-  **触发条件**：若引入 Web 部署形态且需支持子路径。
+- [x] **S-2 CSS 资源路径改相对路径**：`reader.component.scss` 的 `url(/assets/...)` 已改为 `../../../assets/...`（2026-11-27，见 [安全与性能硬化](../Archive/2026-11/SECURITY_PERF_HARDENING_PLAN.md)）。
+  **实际影响比原判断更大**：Electron 打包版以 `file://` 加载 `index.html`，根绝对 `/assets` 会解析到文件系统根（`file:///assets/...`），主题纹理在打包态直接 404；现已由 Angular 构建器改写为 `media/` 哈希资源。
 
 - [ ] **S-3 CI lint 与 Playwright 安装并行化**：`.github/workflows/ci.yml` 的 `lint-unit-build` job 中 `npm run lint` / `format:check` 不依赖 Playwright 浏览器二进制，可拆为独立 job 与 e2e job 并行以缩短总时长。
   **为何本次不做**：CI 总时长由 e2e job（≤15min）主导，拆分后收益有限且增加 workflow 复杂度。

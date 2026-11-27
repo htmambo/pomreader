@@ -13,7 +13,7 @@ import { BrowserWindow, IpcMain } from 'electron';
 import { URL } from 'url';
 import { isPrivateHost } from './net-guard';
 import { FETCH_PARTITION, getUA } from './fetch-session';
-import { extractRenderedHtml, waitForPageCleared } from './render-handler';
+import { extractRenderedHtml, guardRemoteNavigation, waitForPageCleared } from './render-handler';
 
 const MANUAL_PASS_TIMEOUT_MS = 120000;
 const LOAD_TIMEOUT_MS = 20000;
@@ -75,6 +75,8 @@ export async function cfPassManual(rawUrl: string, parent: BrowserWindow): Promi
       partition: FETCH_PARTITION,
     },
   });
+  // 同隐藏窗口：重定向目标必须保持公网 http(s)
+  guardRemoteNavigation(win);
 
   return new Promise<string | null>((resolve) => {
     let settled = false;

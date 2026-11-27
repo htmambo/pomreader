@@ -397,6 +397,11 @@ export class BookService {
     await this.loader.clearChapterContents(bookId);
   }
 
+  /** 释放某本书的正文内存缓存（保留目录）；离开阅读页时调用 */
+  releaseChapterContents(bookId: string): void {
+    this.loader.releaseBook(bookId);
+  }
+
   /** 更新某章字段（委托 loader） */
   async updateChapter(bookId: string, index: number, patch: Partial<Chapter>): Promise<void> {
     await this.loader.updateChapter(bookId, index, patch);

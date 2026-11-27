@@ -10,6 +10,7 @@
  */
 import { BrowserWindow, IpcMain } from 'electron';
 import * as path from 'path';
+import { pathToFileURL } from 'url';
 
 /** bulkDocs 可能携带整本书正文（数十 MB 序列化），超时给足余量 */
 const REQUEST_TIMEOUT_MS = 5 * 60 * 1000;
@@ -52,7 +53,14 @@ function createDbWindow(): void {
   // 必须 file:// 加载：Chromium 把 file:// 的 IndexedDB 归入单一 origin 桶，
   // 与 dev:file / 打包版主窗口共享同一份书库存储
   // （__dirname = dist-electron/db/，html 与 db-renderer.js 位于上一级）
-  void dbWindow.loadFile(path.join(__dirname, '..', 'db-window.html'));
+  const htmlPath = path.join(__dirname, '..', 'db-window.html');
+  void dbWindow.loadFile(htmlPath);
+  // 本窗口持有 nodeIntegration 能力且只应加载本地静态页：只允许精确的 db-window.html
+  const allowedUrl = pathToFileURL(htmlPath).toString();
+  dbWindow.webContents.on('will-navigate', (event, url) => {
+    if (url !== allowedUrl) event.preventDefault();
+  });
+  dbWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   dbWindow.on('closed', () => {
     dbWindow = null;
     for (const [, p] of pending) {

@@ -88,6 +88,41 @@ describe('ChapterLoader', () => {
     });
   });
 
+  describe('releaseBook（离开阅读页释放正文）', () => {
+    it('清空正文但保留目录元数据', async () => {
+      const chs = [makeChapter({ index: 0, title: '标题 1', loaded: true, content: '' })];
+      loader.db = {
+        ...db,
+        chapterAll: async () => chs,
+        chapterContent: async () => '正文',
+      } as never;
+      await loader.getChapters('book-1');
+      await loader.loadChapterBody('book-1', 0);
+      expect(loader.getChaptersSync('book-1')?.[0].content).toBe('正文');
+
+      loader.releaseBook('book-1');
+      const cached = loader.getChaptersSync('book-1');
+      expect(cached?.[0].content).toBe('');
+      expect(cached?.[0].title).toBe('标题 1');
+    });
+
+    it('释放后仍能重新从 db 读回正文（_bodyFetched 同步清理）', async () => {
+      const chs = [makeChapter({ index: 0, loaded: true, content: '' })];
+      const contentSpy = vi.fn(async () => '正文');
+      loader.db = {
+        ...db,
+        chapterAll: async () => chs,
+        chapterContent: contentSpy,
+      } as never;
+      await loader.getChapters('book-1');
+      await loader.loadChapterBody('book-1', 0); // 第一次读
+      loader.releaseBook('book-1');
+      await loader.loadChapterBody('book-1', 0); // 释放后应再次读（幂等标记已被清理）
+      expect(contentSpy).toHaveBeenCalledTimes(2);
+      expect(loader.getChaptersSync('book-1')?.[0].content).toBe('正文');
+    });
+  });
+
   describe('loadChapterBody（A2 正文独立文档）', () => {
     it('应从 db 读回正文并写入内存缓存', async () => {
       const chs = [makeChapter({ index: 0, loaded: true, content: '' })];
